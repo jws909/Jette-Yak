@@ -1,0 +1,49 @@
+<beans:beans
+	xmlns="http://www.springframework.org/schema/mvc"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/mvc
+http://www.springframework.org/schema/mvc/spring-mvc.xsd
+http://www.springframework.org/schema/beans
+http://www.springframework.org/schema/beans/spring-beans.xsd
+http://www.springframework.org/schema/context
+http://www.springframework.org/schema/context/spring-context.xsd">
+
+
+	<annotation-driven />
+
+	<context:component-scan
+		base-package="com.app.controller"></context:component-scan>
+
+	<context:component-scan
+		base-package="com.app.service" />
+	<context:component-scan
+		base-package="com.app.dao" />
+	<!-- <context:component-scan base-package="com.app.config"/> -->
+
+	<beans:bean
+		class="org.springframework.web.servlet.view.InternalResourceViewResolver">
+		<beans:property name="prefix" value="/WEB-INF/views/"></beans:property>
+		<beans:property name="suffix" value=".jsp"></beans:property>
+	</beans:bean>
+	<resources location="/resources/" mapping="/**"></resources>
+
+	<annotation-driven>
+		<message-converters>
+			<!-- @ResponseBody로 String 처리할때 한글처리 -->
+			<beans:bean
+				class="org.springframework.http.converter.StringHttpMessageConverter">
+				<beans:property name="supportedMediaTypes">
+					<beans:list>
+						<beans:value>text/html;charset=UTF-8</beans:value>
+						<beans:value>application/text;charset=UTF-8</beans:value>
+						<beans:value>text/plain;charset=UTF-8</beans:value>
+						<beans:value>application/json;charset=UTF-8</beans:value>
+					</beans:list>
+				</beans:property>
+			</beans:bean>
+		</message-converters>
+	</annotation-driven>
+
+</beans:beans>
