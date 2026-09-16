@@ -1,0 +1,160 @@
+/* Design tokens
+   ------------------------------------------------------------------ */
+.login-screen {
+  --paper: #f6f5f1;
+  --ink: #1d2320;
+  --ink-soft: #5a625c;
+  --teal: #2f6f62;
+  --teal-deep: #234f45;
+  --terracotta: #b5533c;
+  --line: #d9d6cc;
+
+  display: grid;
+  grid-template-columns: minmax(220px, 30%) 1fr;
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", "Pretendard", "Noto Sans KR",
+    sans-serif;
+}
+
+/* Left rail
+   ------------------------------------------------------------------ */
+.login-rail {
+  background: var(--teal-deep);
+  color: var(--paper);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 40px;
+}
+
+.login-rail__mark {
+  font-family: Georgia, "Noto Serif KR", serif;
+  font-size: 22px;
+  letter-spacing: 0.01em;
+}
+
+.login-rail__note {
+  font-size: 15px;
+  line-height: 1.7;
+  max-width: 26ch;
+  color: rgba(246, 245, 241, 0.82);
+}
+
+/* Right panel / form
+   ------------------------------------------------------------------ */
+.login-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+.login-form {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-form__title {
+  font-family: Georgia, "Noto Serif KR", serif;
+  font-size: 28px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.login-form__subtitle {
+  margin: -8px 0 4px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.login-field input {
+  font-size: 15px;
+  color: var(--ink);
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.login-field input:focus-visible {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(47, 111, 98, 0.15);
+}
+
+.login-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--terracotta);
+}
+
+.login-submit {
+  margin-top: 6px;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--teal);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.login-submit:hover:not(:disabled) {
+  background: var(--teal-deep);
+}
+
+.login-submit:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.login-forgot {
+  align-self: center;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.login-forgot:hover {
+  color: var(--teal);
+  text-decoration: underline;
+}
+
+/* Responsive
+   ------------------------------------------------------------------ */
+@media (max-width: 720px) {
+  .login-screen {
+    grid-template-columns: 1fr;
+  }
+
+  .login-rail {
+    padding: 28px 24px;
+  }
+
+  .login-rail__note {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-field input,
+  .login-submit {
+    transition: none;
+  }
+}
