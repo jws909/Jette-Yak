@@ -1,0 +1,519 @@
+.calendar-page-wrap {
+  padding: 40px;
+  background-color: #f6f3ed;
+  min-height: 100vh;
+  box-sizing: border-box;
+  color: #333;
+}
+
+/* 상단 타이틀 좌측 정렬 */
+.page-header {
+  margin-bottom: 24px;
+  text-align: left;
+}
+.page-header .sub-title {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: #7d2638;
+  font-weight: 700;
+  text-align: left;
+}
+.page-header h1 {
+  margin: 4px 0 0;
+  font-size: 26px;
+  color: #5c1825;
+  text-align: left;
+}
+
+.calendar-main-card {
+  display: flex;
+  background: #ffffff;
+  border: 1px solid #e5dfd5;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+}
+
+/* 달력 */
+.calendar-left {
+  flex: 1.3;
+  padding: 32px;
+  border-right: 1px solid #eee8df;
+}
+.cal-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.month-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.month-controls button {
+  background: none;
+  border: 1px solid #dcd5c9;
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.btn-today {
+  background: none;
+  border: 1px solid #dcd5c9;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.cal-week-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 11px;
+  color: #8c827a;
+  border-top: 1.5px solid #5c1825;
+  border-bottom: 1px solid #ede8e1;
+  padding: 10px 0;
+}
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.cal-cell {
+  min-height: 64px;
+  padding: 6px;
+  border-bottom: 1px solid #f4f0ea;
+  cursor: pointer;
+  position: relative;
+}
+.cal-cell.selected {
+  background-color: #f7e6e8;
+}
+.day-number {
+  font-size: 13px;
+  font-weight: 500;
+}
+.prescription-bar {
+  height: 4px;
+  background: #7d2638;
+  margin-top: 12px;
+  border-radius: 2px;
+}
+.cell-dots {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.dot-regular { background: #4d7a46; }
+.dot-supplement { background: #c2883f; }
+
+.cal-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 24px;
+  font-size: 11px;
+  color: #777;
+}
+.cal-legend span { display: flex; align-items: center; gap: 6px; }
+.legend-bar.prescription { width: 10px; height: 4px; background: #7d2638; }
+.legend-dot.regular { width: 6px; height: 6px; border-radius: 50%; background: #4d7a46; }
+.legend-dot.supplement { width: 6px; height: 6px; border-radius: 50%; background: #c2883f; }
+
+/* 우측 상세 영역 */
+.calendar-right {
+  flex: 0.9;
+  padding: 32px;
+  background: #fdfbf7;
+  display: flex;
+  flex-direction: column;
+}
+.panel-header {
+  margin-bottom: 24px;
+}
+.panel-sub {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #8c827a;
+}
+.panel-header h3 {
+  margin: 4px 0 0;
+  font-size: 22px;
+}
+.dose-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  flex: 1;
+}
+
+/* 복약 카드 내부 (좌측 정렬) */
+.dose-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #ebe5dc;
+  text-align: left;
+}
+.dose-item.done {
+  opacity: 0.45;
+}
+.dose-item.done .name {
+  text-decoration: line-through;
+}
+
+.check-box {
+  width: 18px;
+  height: 18px;
+  accent-color: #7d2638;
+  cursor: pointer;
+}
+
+.dose-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #777;
+}
+.type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+.type-dot.prescription { background: #7d2638; }
+.type-dot.regular { background: #4d7a46; }
+.type-dot.supplement { background: #c2883f; }
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dose-info strong.name {
+  display: inline-block;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 카테고리 뱃지 */
+.category-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.category-tag.cat-prescription {
+  background-color: #fceced;
+  color: #7d2638;
+  border: 1px solid #f2cfd4;
+}
+.category-tag.cat-regular {
+  background-color: #eff6ed;
+  color: #436e3c;
+  border: 1px solid #cce2c7;
+}
+.category-tag.cat-supplement {
+  background-color: #fdf6ec;
+  color: #b0752b;
+  border: 1px solid #f4dec0;
+}
+
+/* 알람 버튼 */
+.btn-alarm {
+  background: transparent;
+  border: none;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #bfaea2;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+.btn-alarm:hover {
+  background-color: #f1ede5;
+  color: #7d2638;
+}
+.btn-alarm.active {
+  background-color: transparent;
+  color: #7d2638;
+}
+.bell-icon {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.15s ease;
+}
+.btn-alarm:active .bell-icon {
+  transform: scale(0.9);
+}
+
+.btn-add-dose {
+  margin-top: 20px;
+  border: 1px dashed #c4bcb0;
+  background: transparent;
+  padding: 12px;
+  font-size: 13px;
+  color: #666;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-add-dose:hover {
+  background-color: #f5f0e6;
+}
+
+/* ================= 모달 공통 스타일 ================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.modal-header h4 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+}
+.btn-close {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* 알람 모달 */
+.alarm-modal {
+  background: #2a2c2c;
+  color: #e3e3e3;
+  width: 320px;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+/* 롤링 휠 피커 (스크롤 및 직접 입력 최적화) */
+.wheel-picker-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  border: 1px solid #4a4d4d;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 24px;
+  background: #202222;
+  user-select: none;
+}
+.picker-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: ns-resize; /* 스크롤 가능 마우스 커서 */
+}
+.picker-column button {
+  background: none;
+  border: none;
+  color: #777;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+.picker-column button:hover {
+  color: #fff;
+}
+.picker-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  height: 28px;
+  line-height: 28px;
+}
+.picker-value.clickable {
+  cursor: pointer;
+}
+
+/* 직접 입력용 인풋 */
+.picker-input {
+  width: 44px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  border-radius: 4px;
+  outline: none;
+}
+.picker-input:focus {
+  border-color: #7d2638;
+  background: #2c2f2f;
+}
+
+.picker-divider {
+  width: 1px;
+  height: 44px;
+  background-color: #4a4d4d;
+}
+
+/* 알람 토글 스위치 */
+.alarm-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.switch {
+  position: relative;
+  width: 36px;
+  height: 18px;
+}
+.switch input { display: none; }
+.slider {
+  position: absolute;
+  inset: 0;
+  background-color: #4f5353;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+input:checked + .slider {
+  background-color: #7d2638;
+}
+input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+}
+.btn-confirm {
+  background: none;
+  border: 1px solid #777;
+  color: #fff;
+  padding: 6px 28px;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-confirm:hover {
+  background: #3a3d3d;
+}
+
+/* 복약 추가 모달 */
+.add-med-modal {
+  background: #ffffff;
+  color: #333;
+  width: 340px;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+.add-med-modal .modal-header h4 {
+  color: #5c1825;
+  font-weight: 700;
+}
+.form-group {
+  margin-bottom: 16px;
+  text-align: left;
+}
+.form-group label {
+  display: block;
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 6px;
+}
+.form-group input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #dcd5c9;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.category-select-group {
+  display: flex;
+  gap: 6px;
+}
+.cat-btn {
+  flex: 1;
+  padding: 7px 0;
+  background: #f7f4ee;
+  border: 1px solid #e2ddd5;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.cat-btn.active.pres { background: #fceced; color: #7d2638; border-color: #f2cfd4; }
+.cat-btn.active.reg { background: #eff6ed; color: #436e3c; border-color: #cce2c7; }
+.cat-btn.active.sup { background: #fdf6ec; color: #b0752b; border-color: #f4dec0; }
+
+/* 추가 모달 내 피커 스타일 (라이트 모드 대응) */
+.wheel-picker-box.add-picker {
+  background: #fdfbf7;
+  border: 1px solid #e8e2d8;
+  padding: 10px;
+  margin-bottom: 0;
+}
+.wheel-picker-box.add-picker .picker-value { color: #333; }
+.wheel-picker-box.add-picker .picker-input {
+  color: #333;
+}
+.wheel-picker-box.add-picker .picker-input:focus {
+  background: #f3efe6;
+  border-color: #7d2638;
+}
+.wheel-picker-box.add-picker .picker-divider { background-color: #e5dfd5; }
+.wheel-picker-box.add-picker .picker-column button { color: #999; }
+
+.btn-save-med {
+  width: 100%;
+  background: #7d2638;
+  color: #fff;
+  border: none;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.btn-save-med:hover { background: #5c1825; }
