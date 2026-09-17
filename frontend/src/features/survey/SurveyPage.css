@@ -1,0 +1,129 @@
+/* ==========================================================================
+   SurveyPage Styles
+   ========================================================================== */
+
+.survey-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section-desc {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: #7a7066;
+}
+
+.survey-success-banner {
+  background: #edf5ef;
+  color: #2b7044;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 13.5px;
+  font-weight: 600;
+  border: 1px solid #c7e3cf;
+}
+
+.survey-card {
+  background: #ffffff;
+  border: 1px solid #e5dfd4;
+  border-radius: 8px;
+  padding: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.survey-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.survey-step-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7d2638;
+  letter-spacing: 1.5px;
+}
+
+.survey-question {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.survey-chips-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.survey-chip {
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.survey-chip:hover {
+  background: #f8f4ed;
+  border-color: #7d2638;
+}
+
+.survey-chip.selected {
+  background: #7d2638;
+  border-color: #7d2638;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.survey-textarea {
+  width: 100%;
+  border: 1px solid #ddd5c8;
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-size: 13.5px;
+  color: #2b2523;
+  box-sizing: border-box;
+  outline: none;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.survey-textarea:focus {
+  border-color: #7d2638;
+}
+
+.survey-divider {
+  height: 1px;
+  background-color: #f0e9df;
+  margin: 28px 0;
+}
+
+.survey-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 28px;
+}
+
+.survey-submit-btn {
+  background: #7d2638;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 28px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.survey-submit-btn:hover {
+  background: #631c2b;
+}
