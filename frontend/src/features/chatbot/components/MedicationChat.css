@@ -1,0 +1,71 @@
+.chat-page { max-width: 1200px; margin: auto; padding: 48px 32px 24px; }
+.eyebrow { font: 10px/1.5 ui-monospace, monospace; letter-spacing: 1.8px; color: #75695f; }
+.page-heading { margin-bottom: 32px; }
+.page-heading h1 { font-size: clamp(28px, 3.3vw, 42px); font-weight: 500; line-height: 1.4; letter-spacing: -1.8px; margin: 18px 0 12px; }
+.page-heading em { font-style: normal; color: #8b3e4b; }
+.page-heading p { color: #70665e; font-size: 14px; }
+.chat-layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); border-top: 2px solid #302c29; background: white; }
+.product-panel { display: flex; flex-direction: column; padding: 32px 28px; background: #e8dfd3; }
+.product-panel h2 { font-weight: 400; font-size: 29px; line-height: 1.5; margin: 18px 0 30px; letter-spacing: -1px; }
+.product-panel label, .composer label { display: block; font-size: 13px; margin-bottom: 10px; font-weight: 600; }
+.product-panel input { width: 100%; padding: 13px; border: 1px solid #b7a99a; background: #f9f6f1; border-radius: 4px; color: #302c29; }
+.field-help, .scope-note { color: #655b52; font-size: 12px; line-height: 1.8; }
+.product-note { border-top: 1px solid #cbbfb1; margin-top: 28px; padding-top: 22px; font-size: 13px; line-height: 1.9; }
+.product-note > span { color: #8b3e4b; font-weight: 600; }
+.product-note b { font-family: ui-monospace, monospace; font-weight: 500; }
+.scope-note { margin-top: auto; padding-top: 36px; }
+.conversation { min-width: 0; }
+.conversation-heading { padding: 22px 28px; border-bottom: 1px solid #eee8e0; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.conversation-heading h2 { font-size: 17px; font-weight: 500; margin: 0; }
+.conversation-heading > span { font-size: 11px; color: #6e6054; background: #f3f0eb; padding: 6px 9px; border-radius: 4px; }
+.chat-log { height: 390px; overflow-y: auto; overscroll-behavior: contain; padding: 24px 28px; }
+.welcome { margin: 22px auto; max-width: 400px; text-align: center; }
+.welcome-mark { display: inline-grid; place-items: center; color: #8b3e4b; width: 44px; height: 44px; border-radius: 50%; background: #f6eeeb; font-size: 24px; }
+.welcome h3 { font-size: 21px; font-weight: 500; margin: 18px 0 10px; }
+.welcome p { color: #70665e; font-size: 13px; line-height: 1.9; }
+.suggestions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 22px; }
+.suggestions button { border: 1px solid #ded4c9; background: white; padding: 10px 12px; border-radius: 20px; font-size: 12px; color: #51463d; }
+.suggestions button:hover { border-color: #8b3e4b; background: #fcf8f6; }
+.exchange { margin-bottom: 24px; overflow-wrap: anywhere; }
+.question-bubble { background: #8b3e4b; color: white; padding: 14px 18px; margin-left: 18%; border-radius: 12px 12px 2px 12px; }
+.bubble-label { font-size: 11px; font-weight: 600; }
+.exchange p { font-size: 14px; line-height: 1.8; white-space: pre-wrap; margin: 8px 0 0; }
+.answer-bubble { margin-top: 16px; padding: 18px; background: #faf8f5; border: 1px solid #eee8e0; border-radius: 2px 12px 12px 12px; }
+.answer-bubble .bubble-label { color: #8b3e4b; }
+.response-time { display: block; font-size: 10px; color: #746a60; margin-top: 12px; }
+.sources { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e2d9ce; font-size: 12px; }
+.sources summary { cursor: pointer; color: #7d3541; }
+.sources dl { margin: 16px 0 0; }
+.sources dl > div { display: grid; grid-template-columns: 80px minmax(0,1fr); gap: 12px; margin: 12px 0; line-height: 1.8; }
+.sources dt { font-weight: 600; } .sources dd { margin: 0; white-space: pre-wrap; }
+.composer { border-top: 1px solid #eee8e0; padding: 20px 28px; }
+.composer textarea { resize: vertical; min-height: 80px; width: 100%; border: 1px solid #ded4c9; padding: 12px; border-radius: 6px; font-size: 14px; color: #302c29; background: white; line-height: 1.6; }
+.composer-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.composer-footer small { color: #746a60; font-size: 11px; }
+.composer-footer button { padding: 12px 18px; border: none; border-radius: 5px; background: #8b3e4b; color: white; font-size: 13px; }
+.composer-footer button span { margin-left: 14px; }
+.error-message, .failed-message { color: #a02c32; font-size: 13px; line-height: 1.6; }
+.loading { font-size: 13px; color: #8b3e4b; line-height: 1.8; }
+.loading > span { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #8b3e4b; margin-right: 10px; animation: pulse 1.2s infinite alternate; }
+.page-footer { color: #746a60; font-size: 11px; text-align: right; padding-top: 18px; line-height: 1.8; }
+@keyframes pulse { to { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .loading > span { animation: none; } }
+@media (max-width: 700px) {
+.chat-page { padding: 28px 16px 20px; } .chat-layout { grid-template-columns: 1fr; }
+.product-panel { padding: 20px; } .product-panel h2 { font-size: 22px; margin: 8px 0 18px; }
+.product-panel h2 br { display: none; } .product-note { margin-top: 10px; padding-top: 10px; }
+.scope-note { padding-top: 6px; margin-bottom: 0; } .conversation-heading, .composer, .chat-log { padding: 18px; }
+.chat-log { height: 420px; } .conversation-heading > span { font-size: 10px; }
+.sources dl > div { grid-template-columns: 64px minmax(0,1fr); } .page-footer { text-align: left; }
+}
+
+.search-results { max-height: 280px; overflow-y: auto; margin-top: 12px; }
+.drug-option { display: block; width: 100%; text-align: left; padding: 12px; margin: 6px 0; border: 1px solid #cbbfb1; border-radius: 6px; background: #fffcf7; color: #302c29; overflow-wrap: anywhere; }
+.drug-option:hover:not(:disabled) { border-color: #8b3e4b; background: #fff5f2; }
+.drug-option strong { display: block; font-size: 13px; line-height: 1.6; }
+.drug-option small { display: block; font-size: 11px; color: #70665e; margin-top: 4px; }
+.search-count { font-size: 12px; color: #655b52; }
+.load-more, .clear-selection { background: transparent; color: #7d3541; border: 1px solid #b7a99a; padding: 8px 10px; border-radius: 5px; font-size: 12px; }
+.choice-list { margin-top: 12px; max-height: 260px; overflow-y: auto; }
+.active-medication strong { font-weight: 600; }
+.answer-subject { font-size: 11px !important; color: #7d3541; }

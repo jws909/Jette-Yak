@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.easydrug.dao.EasyDrugDao">
+<update id="updateEasyMedication"
+		parameterType="com.app.easydrug.dto.MedicationEasyDto">
+
+		UPDATE medications
+
+		SET
+
+		efficacy =
+		#{efficacy},
+
+		usage_dosage =
+		#{usageDosage},
+
+		item_image_url =
+		#{itemImageUrl},
+
+		updated_at =
+		SYSDATE
+
+		WHERE
+
+		item_seq =
+		#{itemSeq}
+
+		AND (
+
+		/*
+		* 효능이 변경된 경우
+		*/
+		NVL(efficacy, '#NULL#')
+                <![CDATA[<>]]>
+		NVL(#{efficacy}, '#NULL#')
+
+
+		OR
+
+
+		/*
+		* 사용법이 변경된 경우
+		*/
+		NVL(usage_dosage,
+		'#NULL#')
+                <![CDATA[<>]]>
+		NVL(#{usageDosage}, '#NULL#')
+
+
+		OR
+
+
+		/*
+		* 이미지 URL이 변경된 경우
+		*/
+		NVL(item_image_url, '#NULL#')
+                <![CDATA[<>]]>
+		NVL(#{itemImageUrl}, '#NULL#')
+
+		)
+
+	</update>
+</mapper>

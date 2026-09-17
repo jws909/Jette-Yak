@@ -1,3 +1,4 @@
+import MedicationChat from './features/chatbot/components/MedicationChat'
 import { useState } from 'react'
 import heroImg from './assets/hero.png'
 import reactLogo from './assets/react.svg'
@@ -19,11 +20,9 @@ function App() {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
 
+  // return <MedicationChat />;
+
   return <div>로그인 완료! 메인 화면</div>;
 }
-
-  
-  
-
 
 export default App
