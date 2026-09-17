@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "./LoginPage.css";
 
 /**
@@ -8,10 +9,14 @@ import "./LoginPage.css";
  * 요청 바디: { username, password }
  * 응답 예상: { token: "..." }  (JWT 등)
  *
+ * 화면 이동은 컴포넌트 내부에서 useNavigate로 직접 처리합니다.
+ * (App.jsx에서 onGoToSignup 같은 콜백을 넘겨줄 필요가 없습니다.)
+ *
  * 사용 예시:
  *   <LoginPage onLoginSuccess={(token) => { ... }} />
  */
 export default function LoginPage({ onLoginSuccess }) {
+  const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -112,6 +117,15 @@ export default function LoginPage({ onLoginSuccess }) {
           <a className="login-forgot" href="/reset-password">
             비밀번호를 잊으셨나요?
           </a>
+
+          <button
+            type="button"
+            className="login-signup-btn"
+            onClick={() => navigate("/signup")}
+            disabled={isSubmitting}
+          >
+            아직 계정이 없으신가요? 회원가입
+          </button>
         </form>
       </main>
     </div>
