@@ -1,3 +1,4 @@
+import MedicationChat from './features/chatbot/components/MedicationChat'
 import { useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from "./components/LoginPage";
@@ -18,7 +19,7 @@ function App() {
       <Route path="/signup" element={<SignupPage />} />
       <Route
         path="/"
-        element={token ? <div>로그인 완료! 메인 화면</div> : <Navigate to="/login" replace />}
+        element={token ? <MedicationChat /> : <Navigate to="/login" replace />}
       />
     </Routes>
   );
