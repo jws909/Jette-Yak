@@ -1,16 +1,18 @@
 import MedicationChat from './features/chatbot/components/MedicationChat'
 import { useState } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import LoginPage from "./components/LoginPage";
 import SignupPage from "./components/SignupPage";
 import './App.css'
 
 function App() {
   const [token, setToken] = useState(null);
+  const navigate = useNavigate();
 
   const handleLoginSuccess = (receivedToken) => {
     setToken(receivedToken);
     localStorage.setItem("token", receivedToken);
+    navigate('/');
   };
 
   return (
