@@ -1,0 +1,260 @@
+.signup-screen {
+  --paper: #f6f5f1;
+  --ink: #1d2320;
+  --ink-soft: #5a625c;
+  --teal: #2f6f62;
+  --teal-deep: #234f45;
+  --terracotta: #b5533c;
+  --line: #d9d6cc;
+
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", "Pretendard", "Noto Sans KR", sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+/* 진행 표시 점 */
+.signup-progress {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.signup-progress__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+  transition: background 0.2s ease;
+}
+
+.signup-progress__dot.is-active {
+  background: var(--teal);
+}
+
+.signup-panel {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.signup-form {
+  width: 100%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.signup-form__title {
+  font-family: Georgia, "Noto Serif KR", serif;
+  font-size: 26px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.signup-form__subtitle {
+  margin: -6px 0 4px;
+  font-size: 14px;
+  color: var(--ink-soft);
+}
+
+.signup-field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.signup-field {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.signup-field input {
+  font-size: 15px;
+  color: var(--ink);
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.signup-field input:focus-visible {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(47, 111, 98, 0.15);
+}
+
+.signup-check-btn {
+  white-space: nowrap;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--teal-deep);
+  background: #fff;
+  border: 1px solid var(--teal);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.signup-check-btn:hover:not(:disabled) {
+  background: rgba(47, 111, 98, 0.08);
+}
+
+.signup-check-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.signup-hint {
+  margin: -8px 0 0;
+  font-size: 12px;
+}
+
+.signup-hint--ok {
+  color: var(--teal);
+}
+
+.signup-hint--error {
+  color: var(--terracotta);
+}
+
+.signup-hint--pending {
+  color: var(--ink-soft);
+}
+
+.signup-policy-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.signup-policy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.signup-policy-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: 600;
+  color: var(--teal-deep);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.signup-policy-link:hover {
+  color: var(--teal);
+}
+
+.signup-policy-text {
+  font-size: 12px;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.signup-policy-text p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.signup-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--terracotta);
+}
+
+.signup-submit {
+  margin-top: 6px;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--paper);
+  background: var(--teal);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.signup-submit:hover:not(:disabled) {
+  background: var(--teal-deep);
+}
+
+/* 2단계: 영양제 선택 토글 */
+.supplement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.supplement-toggle {
+  padding: 14px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.supplement-toggle.is-selected {
+  border-color: var(--teal);
+  background: var(--teal);
+  color: var(--paper);
+}
+
+.signup-step2-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.signup-skip {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.signup-step2-actions .signup-submit {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* 3단계: 완료 화면 */
+.signup-complete {
+  text-align: center;
+  align-items: center;
+  padding-top: 40px;
+}
+
+@media (max-width: 480px) {
+  .supplement-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

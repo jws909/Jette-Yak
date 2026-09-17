@@ -39,4 +39,10 @@ http://www.springframework.org/schema/task http://www.springframework.org/schema
 			ref="sqlSessionFactory" />
 	</bean>
 
+	<!-- 회원가입 기능 추가: UserMapper 인터페이스를 자동으로 빈 등록 -->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.app.mapper" />
+		<property name="sqlSessionFactoryBeanName" value="sqlSessionFactory" />
+	</bean>
+
 </beans>

@@ -1,0 +1,15 @@
+package com.app.mapper;
+
+import com.app.domain.User;
+import org.apache.ibatis.annotations.Param;
+
+public interface UserMapper {
+
+    int countByLoginId(@Param("loginId") String loginId);
+
+    int countByEmail(@Param("email") String email);
+
+    int countByNickname(@Param("nickname") String nickname);
+
+    int insertUser(User user);
+}
