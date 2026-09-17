@@ -11,8 +11,8 @@
             <PatternLayout pattern="${layoutPattern}"/>
         </Console>
         <RollingFile name="File_Appender" 
-        			fileName="d:/logs/${logNm}.log" 
-        			filePattern="d:/logs/${logNm}_%d{yyyy-MM-dd}_%i.log.gz">
+        			fileName="c:/logs/${logNm}.log" 
+        			filePattern="c:/logs/${logNm}_%d{yyyy-MM-dd}_%i.log.gz">
             <PatternLayout pattern="${layoutPattern}"/>
             <Policies>
                 <SizeBasedTriggeringPolicy size="1000KB"/>

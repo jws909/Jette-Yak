@@ -7,6 +7,6 @@
 <title>Insert title here</title>
 </head>
 <body>
-	<h1>초기 설정 확인용</h1>
+	<h1>히히 휘수님 못가</h1>
 </body>
 </html>
