@@ -18,9 +18,9 @@ http://www.springframework.org/schema/task http://www.springframework.org/schema
 		<property name="driverClassName"
 			value="oracle.jdbc.OracleDriver" />
 		<property name="url"
-			value="jdbc:oracle:thin:@34.64.159.225:1521/FREEPDB1" />
-		<property name="username" value="JETTE_YAK" />
-		<property name="password" value="JetteYak#2026!db" />
+			value="jdbc:oracle:thin:@localhost:1521:orcl" />
+		<property name="username" value="scott" />
+		<property name="password" value="tiger" />
 	</bean>
 
 	<bean class="org.mybatis.spring.SqlSessionFactoryBean"
