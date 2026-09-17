@@ -52,7 +52,7 @@ export default function LoginPage({ onLoginSuccess }) {
       const data = await response.json();
       setIsSubmitting(false);
       onLoginSuccess?.(data.token);
-    } catch (err) {
+    } catch {
       setError("서버에 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.");
       setIsSubmitting(false);
     }

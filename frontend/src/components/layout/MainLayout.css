@@ -1,0 +1,34 @@
+/* ==========================================================================
+   Jette-Yak MainLayout Global Styles
+   ========================================================================== */
+
+.main-layout-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #f7f4ee;
+  color: #2b2523;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.main-layout-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.main-content-container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 36px 24px 64px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .main-content-container {
+    padding: 20px 16px 48px;
+  }
+}

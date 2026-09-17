@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import './CalendarPage.css';
 
 const INITIAL_SCHEDULES = {

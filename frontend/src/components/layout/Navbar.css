@@ -1,0 +1,602 @@
+/* ==========================================================================
+   Jette-Yak Global Navigation Bar Styles
+   ========================================================================== */
+
+.site-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: #faf7f2;
+  border-bottom: 1px solid #e7e1d7;
+  height: 64px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  transition: background-color 0.2s ease;
+}
+
+.navbar-container {
+  max-width: 1320px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+/* --------------------------------------------------------------------------
+   Navbar Left: Menu Toggle & Brand Logo
+   -------------------------------------------------------------------------- */
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+/* 와이어프레임 메뉴 아이콘 (3개의 점과 선 구조) */
+.menu-toggle-btn {
+  background: transparent;
+  border: 1px solid #dfd8cb;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #5c1825;
+}
+
+.menu-toggle-btn:hover {
+  background-color: #efe9df;
+  border-color: #c9bfb0;
+  transform: translateY(-1px);
+}
+
+.menu-icon-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 18px;
+}
+
+.menu-icon-bars .bar-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.menu-icon-bars .dot {
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background-color: #7d2638;
+  display: inline-block;
+}
+
+.menu-icon-bars .line {
+  height: 2px;
+  background-color: #7d2638;
+  border-radius: 2px;
+  flex: 1;
+}
+
+.navbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+}
+
+.logo-text {
+  font-family: 'Playfair Display', 'Georgia', serif;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: #4a151e;
+  transition: color 0.2s ease;
+}
+
+.navbar-logo:hover .logo-text {
+  color: #7d2638;
+}
+
+.logo-badge {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: lowercase;
+  background-color: #eedcd9;
+  color: #7d2638;
+  padding: 2px 7px;
+  border-radius: 12px;
+  letter-spacing: 0.5px;
+}
+
+/* --------------------------------------------------------------------------
+   Navbar Center: 약 검색창
+   -------------------------------------------------------------------------- */
+.navbar-center {
+  flex: 1;
+  max-width: 520px;
+  position: relative;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e0d8cc;
+  border-radius: 24px;
+  padding: 0 16px;
+  height: 42px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+}
+
+.search-input-wrapper.focused,
+.search-input-wrapper:focus-within {
+  border-color: #7d2638;
+  box-shadow: 0 0 0 3px rgba(125, 38, 56, 0.12);
+  background: #ffffff;
+}
+
+.search-icon {
+  width: 17px;
+  height: 17px;
+  color: #948b81;
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+
+.search-input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  font-size: 14px;
+  color: #2e2926;
+  outline: none;
+  padding: 0;
+}
+
+.search-input::placeholder {
+  color: #a49a90;
+}
+
+.search-clear-btn {
+  background: none;
+  border: none;
+  color: #a49a90;
+  font-size: 12px;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-clear-btn:hover {
+  color: #4a151e;
+}
+
+.search-shortcut {
+  font-size: 11px;
+  font-weight: 600;
+  background: #f1ede6;
+  border: 1px solid #ded6c9;
+  color: #7d756d;
+  padding: 2px 7px;
+  border-radius: 6px;
+  margin-left: 8px;
+  user-select: none;
+}
+
+/* 검색 드롭다운 */
+.search-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #dfd7cc;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(45, 30, 25, 0.12);
+  max-height: 380px;
+  overflow-y: auto;
+  z-index: 1050;
+  animation: dropdownFade 0.15s ease-out;
+}
+
+@keyframes dropdownFade {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.search-state-msg,
+.search-empty-msg {
+  padding: 20px 24px;
+  text-align: center;
+  font-size: 13px;
+  color: #787067;
+}
+
+.search-empty-msg small {
+  display: block;
+  margin-top: 4px;
+  color: #9a9187;
+}
+
+.spinner-small {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #dfd8cb;
+  border-top-color: #7d2638;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.results-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  font-size: 11px;
+  color: #8c8278;
+  background: #faf7f2;
+  border-bottom: 1px solid #f0eae1;
+}
+
+.results-header strong {
+  color: #7d2638;
+}
+
+.results-tip {
+  color: #a49a90;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f4efe8;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background-color: #f8f4ed;
+}
+
+.result-item-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.result-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2b2623;
+}
+
+.result-item-entp {
+  font-size: 12px;
+  color: #8a8178;
+}
+
+.result-item-desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #70685f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 380px;
+}
+
+.result-arrow {
+  color: #b5aba0;
+  font-size: 14px;
+  transition: transform 0.15s ease;
+}
+
+.search-result-item:hover .result-arrow {
+  transform: translateX(3px);
+  color: #7d2638;
+}
+
+/* --------------------------------------------------------------------------
+   Navbar Right: 로그인 전 / 후 상태
+   -------------------------------------------------------------------------- */
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.logged-in-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-divider {
+  color: #ded6c9;
+  font-size: 13px;
+  user-select: none;
+}
+
+/* 알림 버튼 & 팝오버 */
+.notif-wrapper {
+  position: relative;
+}
+
+.notif-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #4a423d;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.notif-btn:hover {
+  background-color: #eee7dc;
+  color: #7d2638;
+}
+
+.bell-icon {
+  width: 19px;
+  height: 19px;
+}
+
+.notif-badge {
+  position: absolute;
+  top: 3px;
+  left: 17px;
+  background-color: #c04040;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #faf7f2;
+}
+
+.notif-label {
+  font-size: 13px;
+}
+
+.notif-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: -20px;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid #dfd7cc;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(45, 30, 25, 0.12);
+  z-index: 1050;
+  overflow: hidden;
+}
+
+.notif-popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #ede7dc;
+  background: #faf7f2;
+  font-size: 13px;
+}
+
+.mark-read-btn {
+  background: none;
+  border: none;
+  color: #7d2638;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notif-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.notif-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f4efe8;
+  transition: background-color 0.15s ease;
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item.unread {
+  background-color: #fffaf5;
+}
+
+.notif-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.notif-indicator.warning {
+  background-color: #d9534f;
+}
+
+.notif-indicator.routine {
+  background-color: #3b82f6;
+}
+
+.notif-item-body {
+  flex: 1;
+}
+
+.notif-item-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2b2522;
+}
+
+.notif-item-text {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: #696159;
+  line-height: 1.4;
+}
+
+.notif-item-time {
+  display: block;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: #a49b90;
+}
+
+/* 프로필 칩 */
+.user-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #f1ebd0;
+  background: rgba(125, 38, 56, 0.08);
+  transition: all 0.15s ease;
+}
+
+.user-profile-chip:hover {
+  background: rgba(125, 38, 56, 0.15);
+}
+
+.avatar-mini {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #7d2638;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-name-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a151e;
+}
+
+/* 로그아웃 버튼 */
+.logout-btn {
+  background: transparent;
+  border: 1px solid #ded6c9;
+  color: #6e645c;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.logout-btn:hover {
+  background: #ede6dc;
+  border-color: #c9c0b1;
+  color: #38302b;
+}
+
+/* 게스트 액션 (로그인 전) */
+.guest-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-link-login,
+.nav-link-signup {
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #574e47;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.nav-link-login:hover,
+.nav-link-signup:hover {
+  color: #7d2638;
+}
+
+.demo-login-btn {
+  background-color: #7d2638;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.demo-login-btn:hover {
+  background-color: #631c2b;
+}
+
+/* 반응형 */
+@media (max-width: 840px) {
+  .navbar-container {
+    padding: 0 14px;
+    gap: 10px;
+  }
+  .navbar-center {
+    max-width: 260px;
+  }
+  .search-shortcut {
+    display: none;
+  }
+  .logo-badge {
+    display: none;
+  }
+  .user-name-text {
+    display: none;
+  }
+}
