@@ -5,12 +5,11 @@ import "./LoginPage.css";
 /**
  * 로그인 페이지 컴포넌트
  *
- * Spring Boot 백엔드의 POST /api/auth/login 엔드포인트를 호출합니다.
+ * Spring 백엔드의 POST /api/auth/login 엔드포인트를 호출합니다.
  * 요청 바디: { username, password }
- * 응답 예상: { token: "..." }  (JWT 등)
+ * 응답 예상: { token: "..." }
  *
  * 화면 이동은 컴포넌트 내부에서 useNavigate로 직접 처리합니다.
- * (App.jsx에서 onGoToSignup 같은 콜백을 넘겨줄 필요가 없습니다.)
  *
  * 사용 예시:
  *   <LoginPage onLoginSuccess={(token) => { ... }} />
@@ -51,7 +50,7 @@ export default function LoginPage({ onLoginSuccess }) {
 
       const data = await response.json();
       setIsSubmitting(false);
-      onLoginSuccess?.(data.token);
+      onLoginSuccess?.(data.token, data);
     } catch (err) {
       setError("서버에 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.");
       setIsSubmitting(false);
@@ -60,26 +59,55 @@ export default function LoginPage({ onLoginSuccess }) {
 
   return (
     <div className="login-screen">
-      <aside className="login-rail">
-        <span className="login-rail__mark">Atelier</span>
-        <p className="login-rail__note">
-          매일 아침, 어제 끝내지 못한 일부터 다시 시작할 수 있도록.
-        </p>
-      </aside>
-
       <main className="login-panel">
-        <form className="login-form" onSubmit={handleSubmit} noValidate>
-          <h1 className="login-form__title">로그인</h1>
-          <p className="login-form__subtitle">
-            계정 정보를 입력하고 계속 진행하세요.
-          </p>
+        <div className="brand-logo">
+          <span className="brand-logo__icon" aria-hidden="true">
+            <svg viewBox="0 0 32 16" width="24" height="12">
+              <defs>
+                <clipPath id="capsuleClip">
+                  <rect x="1" y="1" width="30" height="14" rx="7" ry="7" />
+                </clipPath>
+              </defs>
+              <rect
+                x="1"
+                y="1"
+                width="30"
+                height="14"
+                rx="7"
+                ry="7"
+                fill="#fff"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+              <g clipPath="url(#capsuleClip)">
+                <rect x="1" y="1" width="15" height="14" fill="currentColor" />
+              </g>
+            </svg>
+          </span>
+          <span className="brand-logo__text">mediary</span>
+        </div>
 
+        <p className="login-breadcrumb">나만의 복약 기록장</p>
+
+        <h1 className="login-headline">
+          오늘의 건강을
+          <br />
+          <span className="login-headline__accent">정성껏 기록하세요.</span>
+        </h1>
+        <p className="login-subtitle">
+          처방전부터 매일의 복용 알림까지,
+          <br />
+          나에게 꼭 맞는 건강 루틴을 만들어요.
+        </p>
+
+        <form className="login-form" onSubmit={handleSubmit} noValidate>
           <label className="login-field" htmlFor="username">
             아이디
             <input
               id="username"
               name="username"
               type="text"
+              placeholder="아이디를 입력하세요"
               autoComplete="username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
@@ -93,6 +121,7 @@ export default function LoginPage({ onLoginSuccess }) {
               id="password"
               name="password"
               type="password"
+              placeholder="비밀번호를 입력하세요"
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -106,26 +135,28 @@ export default function LoginPage({ onLoginSuccess }) {
             </p>
           )}
 
-          <button
-            type="submit"
-            className="login-submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? "로그인 중..." : "로그인"}
+          <button type="submit" className="login-submit" disabled={isSubmitting}>
+            {isSubmitting ? "로그인 중..." : "로그인"}{" "}
+            <span aria-hidden="true">←</span>
           </button>
 
-          <a className="login-forgot" href="/reset-password">
-            비밀번호를 잊으셨나요?
-          </a>
-
-          <button
-            type="button"
-            className="login-signup-btn"
-            onClick={() => navigate("/signup")}
-            disabled={isSubmitting}
-          >
-            아직 계정이 없으신가요? 회원가입
-          </button>
+          <div className="login-links">
+            <button type="button" className="login-links__item">
+              아이디 찾기
+            </button>
+            <span className="login-links__divider">|</span>
+            <button type="button" className="login-links__item">
+              비밀번호 찾기
+            </button>
+            <span className="login-links__divider">|</span>
+            <button
+              type="button"
+              className="login-links__item"
+              onClick={() => navigate("/signup")}
+            >
+              회원가입
+            </button>
+          </div>
         </form>
       </main>
     </div>

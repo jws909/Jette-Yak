@@ -27,8 +27,8 @@ async function checkDuplicate(type, value) {
 
 /**
  * 회원가입 플로우 컴포넌트
- * step 1: 기본 정보 입력
- * step 2: 평소 복용 영양제 선택 (선택 사항)
+ * step 1: 계정 정보
+ * step 2: 상시 복약 설정 (선택 사항)
  * step 3: 완료 안내
  *
  * 화면 이동은 컴포넌트 내부에서 useNavigate로 직접 처리합니다.
@@ -161,6 +161,10 @@ export default function SignupPage() {
     );
   };
 
+  const removeSupplement = (name) => {
+    setSelectedSupplements((prev) => prev.filter((item) => item !== name));
+  };
+
   const goToStep3 = () => setStep(3);
 
   const DUPLICATE_MESSAGES = {
@@ -193,29 +197,42 @@ export default function SignupPage() {
     return null;
   };
 
+  // step 1, 2에서 공통으로 쓰는 상단 영역 (뒤로가기 + 브레드크럼 + 타이틀 + 단계 표시줄)
+  const renderHeader = (stepNumber) => (
+    <>
+      <button type="button" className="signup-back" onClick={() => navigate(-1)}>
+        <span aria-hidden="true">←</span> 돌아가기
+      </button>
+      <p className="signup-breadcrumb">새로운 건강 기록</p>
+      <h1 className="signup-title">
+        회원가입 <span className="signup-title__num">{String(stepNumber).padStart(2, "0")}</span>
+      </h1>
+      <div className="signup-steps">
+        <span className={`signup-steps__item ${stepNumber === 1 ? "is-active" : ""}`}>
+          01 계정 정보
+        </span>
+        <span className="signup-steps__line" />
+        <span className={`signup-steps__item ${stepNumber === 2 ? "is-active" : ""}`}>
+          02 상시 복약 설정
+        </span>
+      </div>
+    </>
+  );
+
   return (
     <div className="signup-screen">
-      <div className="signup-progress">
-        {[1, 2, 3].map((n) => (
-          <span
-            key={n}
-            className={`signup-progress__dot ${step >= n ? "is-active" : ""}`}
-          />
-        ))}
-      </div>
-
       {step === 1 && (
         <main className="signup-panel">
-          <form className="signup-form" onSubmit={handleNextFromStep1} noValidate>
-            <h1 className="signup-form__title">회원가입</h1>
-            <p className="signup-form__subtitle">기본 정보를 입력해 주세요.</p>
+          {renderHeader(1)}
 
+          <form className="signup-form" onSubmit={handleNextFromStep1} noValidate>
             <div className="signup-field-row">
               <label className="signup-field" htmlFor="username">
                 아이디
                 <input
                   id="username"
                   type="text"
+                  placeholder="영문, 숫자 6자 이상"
                   value={form.username}
                   onChange={(e) => updateField("username", e.target.value)}
                 />
@@ -226,7 +243,7 @@ export default function SignupPage() {
                 onClick={() => handleCheckDuplicate("username")}
                 disabled={checking.username}
               >
-                중복확인
+                중복 확인
               </button>
             </div>
             {renderAvailabilityHint("username")}
@@ -236,6 +253,7 @@ export default function SignupPage() {
               <input
                 id="password"
                 type="password"
+                placeholder="8자 이상 입력"
                 autoComplete="new-password"
                 value={form.password}
                 onChange={(e) => updateField("password", e.target.value)}
@@ -247,6 +265,7 @@ export default function SignupPage() {
               <input
                 id="confirmPassword"
                 type="password"
+                placeholder="비밀번호를 다시 입력"
                 autoComplete="new-password"
                 value={form.confirmPassword}
                 onChange={(e) => updateField("confirmPassword", e.target.value)}
@@ -258,6 +277,7 @@ export default function SignupPage() {
               <input
                 id="email"
                 type="email"
+                placeholder="hello@example.com"
                 value={form.email}
                 onChange={(e) => updateField("email", e.target.value)}
                 onBlur={() => handleAutoCheckDuplicate("email")}
@@ -270,6 +290,7 @@ export default function SignupPage() {
               <input
                 id="nickname"
                 type="text"
+                placeholder="앱에서 사용할 이름"
                 value={form.nickname}
                 onChange={(e) => updateField("nickname", e.target.value)}
                 onBlur={() => handleAutoCheckDuplicate("nickname")}
@@ -292,7 +313,7 @@ export default function SignupPage() {
                   >
                     개인정보 처리방침
                   </button>
-                  에 동의합니다.
+                  에 동의합니다 (필수)
                 </span>
               </label>
               {showPolicy && (
@@ -313,7 +334,7 @@ export default function SignupPage() {
             )}
 
             <button type="submit" className="signup-submit">
-              다음
+              다음 단계 <span aria-hidden="true">›</span>
             </button>
           </form>
         </main>
@@ -321,33 +342,54 @@ export default function SignupPage() {
 
       {step === 2 && (
         <main className="signup-panel">
+          {renderHeader(2)}
+
           <div className="signup-form">
-            <h1 className="signup-form__title">복용 중인 영양제가 있나요?</h1>
+            <h2 className="signup-form__question">평소 챙겨 드시는 것이 있나요?</h2>
             <p className="signup-form__subtitle">
-              평소 챙겨 드시는 항목을 선택해 주세요. (복수 선택 가능)
+              처방약과 함께 확인해 드릴게요. 나중에 마이페이지에서 수정할 수 있어요.
             </p>
 
             <div className="supplement-grid">
-              {SUPPLEMENTS.map((name) => (
-                <button
-                  key={name}
-                  type="button"
-                  className={`supplement-toggle ${
-                    selectedSupplements.includes(name) ? "is-selected" : ""
-                  }`}
-                  onClick={() => toggleSupplement(name)}
-                >
-                  {name}
-                </button>
-              ))}
+              {SUPPLEMENTS.map((name) => {
+                const selected = selectedSupplements.includes(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    className={`supplement-chip ${selected ? "is-selected" : ""}`}
+                    onClick={() => toggleSupplement(name)}
+                  >
+                    {selected && <span aria-hidden="true">✓ </span>}
+                    {name}
+                  </button>
+                );
+              })}
             </div>
+
+            {selectedSupplements.length > 0 && (
+              <div className="supplement-tags">
+                {selectedSupplements.map((name) => (
+                  <span key={name} className="supplement-tag">
+                    {name}
+                    <button
+                      type="button"
+                      aria-label={`${name} 선택 해제`}
+                      onClick={() => removeSupplement(name)}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className="signup-step2-actions">
               <button type="button" className="signup-skip" onClick={goToStep3}>
                 건너뛰기
               </button>
               <button type="button" className="signup-submit" onClick={goToStep3}>
-                다음
+                시작하기 <span aria-hidden="true">←</span>
               </button>
             </div>
           </div>
@@ -357,14 +399,14 @@ export default function SignupPage() {
       {step === 3 && (
         <main className="signup-panel">
           <div className="signup-form signup-complete">
-            <h1 className="signup-form__title">가입이 완료되었어요</h1>
+            <h1 className="signup-title">가입이 완료되었어요</h1>
             <p className="signup-form__subtitle">
               {selectedSupplements.length > 0
                 ? `선택하신 ${selectedSupplements.join(", ")} 정보를 반영했어요.`
                 : "이제 로그인하고 서비스를 시작해 보세요."}
             </p>
             <button type="button" className="signup-submit" onClick={() => navigate("/login")}>
-              시작하기
+              로그인하러 가기 <span aria-hidden="true">›</span>
             </button>
           </div>
         </main>
