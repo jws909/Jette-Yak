@@ -1,0 +1,283 @@
+/* ==========================================================================
+   GuidePage Styles (Faithful reproduction of wireframe 4.png)
+   ========================================================================== */
+
+.guide-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.guide-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.guide-search-input {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #ded5c8;
+  border-radius: 4px;
+  padding: 0 14px;
+  height: 42px;
+  width: 240px;
+}
+
+.guide-search-icon {
+  width: 16px;
+  height: 16px;
+  color: #948b81;
+  margin-right: 8px;
+}
+
+.guide-search-input input {
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: #2b2523;
+  outline: none;
+  width: 100%;
+}
+
+/* 탭 목록 */
+.med-pills-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.med-pill-tab {
+  background: #ffffff;
+  border: 1px solid #ded6ca;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.med-pill-tab:hover {
+  background: #f6f1ea;
+  border-color: #7d2638;
+}
+
+.med-pill-tab.active {
+  background: #7d2638;
+  border-color: #7d2638;
+  color: #ffffff;
+}
+
+.pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.pill-dot.rx {
+  background-color: #d9534f;
+}
+
+.pill-dot.supp {
+  background-color: #f0ad4e;
+}
+
+.pill-dot.reg {
+  background-color: #5cb85c;
+}
+
+.med-pill-tab.active .pill-dot {
+  background-color: #ffffff;
+}
+
+/* 메인 가이드 카드 */
+.guide-detail-card {
+  background: #ffffff;
+  border: 1px solid #e2dbd0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  display: grid;
+  grid-template-columns: 260px 1fr 1fr 1fr;
+  min-height: 380px;
+}
+
+.guide-med-intro {
+  background: #ede6dc;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #ded6c9;
+}
+
+.intro-med-name {
+  margin: 8px 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #241d1b;
+  line-height: 1.3;
+}
+
+.intro-tag {
+  align-self: flex-start;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.intro-tag.rx {
+  background-color: #ebd3d7;
+  color: #7d2638;
+}
+
+.intro-tag.supp {
+  background-color: #faebcf;
+  color: #996010;
+}
+
+.intro-tag.reg {
+  background-color: #dcedde;
+  color: #2e6940;
+}
+
+.guide-col {
+  padding: 32px 24px;
+  border-right: 1px solid #eee7dc;
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-col:last-child {
+  border-right: none;
+}
+
+.col-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8c8278;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.col-title {
+  margin: 0 0 20px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+/* 01: 일상 제약 */
+.restrictions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.restriction-item {
+  border-bottom: 1px solid #f2ede5;
+  padding-bottom: 12px;
+}
+
+.restriction-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.restriction-label {
+  display: block;
+  font-size: 13.5px;
+  color: #2b2523;
+  margin-bottom: 4px;
+}
+
+.restriction-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: #736b63;
+  line-height: 1.5;
+}
+
+/* 02: 부작용 */
+.side-effect-text {
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  color: #2b2523;
+  line-height: 1.6;
+}
+
+.side-effect-alert-box {
+  background: #fbf5ee;
+  border-left: 3px solid #7d2638;
+  padding: 14px;
+  font-size: 12.5px;
+  color: #635b54;
+  line-height: 1.5;
+}
+
+/* 03: 음식 궁합 */
+.food-match-boxes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.food-box {
+  padding: 14px 10px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.food-box.good {
+  background: #eef5f0;
+}
+
+.food-box.caution {
+  background: #faebeb;
+}
+
+.food-status {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.food-box.good .food-status {
+  color: #2e7344;
+}
+
+.food-box.caution .food-status {
+  color: #b53838;
+}
+
+.food-box strong {
+  font-size: 13.5px;
+  color: #2b2523;
+}
+
+.food-advice-text {
+  margin: 0;
+  font-size: 13px;
+  color: #6e655c;
+  line-height: 1.6;
+}
+
+@media (max-width: 1024px) {
+  .guide-detail-card {
+    grid-template-columns: 1fr;
+  }
+  .guide-med-intro,
+  .guide-col {
+    border-right: none;
+    border-bottom: 1px solid #eee7dc;
+  }
+}

@@ -96,7 +96,7 @@ export default function SignupPage() {
     try {
       const available = await checkDuplicate(field, value);
       setAvailability((prev) => ({ ...prev, [field]: available }));
-    } catch (err) {
+    } catch {
       setCheckError((prev) => ({
         ...prev,
         [field]: "중복확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
@@ -117,7 +117,7 @@ export default function SignupPage() {
     try {
       const available = await checkDuplicate(field, value);
       setAvailability((prev) => ({ ...prev, [field]: available }));
-    } catch (err) {
+    } catch {
       setCheckError((prev) => ({
         ...prev,
         [field]: "중복확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
