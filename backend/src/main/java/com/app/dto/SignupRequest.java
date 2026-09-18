@@ -2,8 +2,9 @@ package com.app.dto;
 
 /**
  * 회원가입 요청 바디.
- * users 테이블 스펙 기준: sex, birthdate는 NOT NULL이라 필수입니다.
+ * users 테이블 기준: sex, birthdate, isPregnant는 NOT NULL이라 필수입니다.
  * birthdate는 "yyyy-MM-dd" 형식 문자열로 받습니다.
+ * isPregnant는 0(False) 또는 1(True)로 받습니다. sex가 'M'이면 프론트에서 0으로 고정해 보내주세요.
  */
 public class SignupRequest {
 
@@ -11,8 +12,9 @@ public class SignupRequest {
     private String password;
     private String email;
     private String nickname;
-    private String sex;         // 'M' 또는 'F' 등 한 글자
+    private String sex;         // 'M' 또는 'F'
     private String birthdate;   // "yyyy-MM-dd"
+    private Integer isPregnant; // 0 또는 1
     private String tel;         // optional
 
     public SignupRequest() {
@@ -64,6 +66,14 @@ public class SignupRequest {
 
     public void setBirthdate(String birthdate) {
         this.birthdate = birthdate;
+    }
+
+    public Integer getIsPregnant() {
+        return isPregnant;
+    }
+
+    public void setIsPregnant(Integer isPregnant) {
+        this.isPregnant = isPregnant;
     }
 
     public String getTel() {

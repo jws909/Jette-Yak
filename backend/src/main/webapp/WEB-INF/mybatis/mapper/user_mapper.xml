@@ -17,15 +17,16 @@
 
     <!--
       user_id: IDENTITY 컬럼이라 생략(자동 채번)
-      created_at / updated_at / push_enabled / is_pregnant / role: DB 기본값 사용을 위해 생략
-      family_id / profile_image_url: 회원가입 단계에서는 값 없음 (nullable)
+      created_at / updated_at / push_enabled / role: DB 기본값 사용을 위해 생략
+      family_id / profile_image_url / med_updated_at: 회원가입 단계에서는 값 없음 (nullable)
+      is_pregnant: 기본값이 없는 컬럼이라 항상 값 전달 필요
     -->
     <insert id="insertUser" parameterType="com.app.domain.User">
         INSERT INTO users (
-            login_id, password_hash, email, nickname, sex, birthdate
+            login_id, password_hash, email, nickname, sex, birthdate, is_pregnant
             <if test="tel != null">, tel</if>
         ) VALUES (
-            #{loginId}, #{passwordHash}, #{email}, #{nickname}, #{sex}, #{birthdate}
+            #{loginId}, #{passwordHash}, #{email}, #{nickname}, #{sex}, #{birthdate}, #{isPregnant}
             <if test="tel != null">, #{tel}</if>
         )
     </insert>
