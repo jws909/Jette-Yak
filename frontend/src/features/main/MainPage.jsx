@@ -210,7 +210,6 @@ export default function MainPage({ user }) {
               ✕
             </button>
           )}
-          <div className="main-search-keybadge">⌘ K</div>
         </div>
 
         {/* 검색 결과 팝업 */}
