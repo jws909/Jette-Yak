@@ -1,8 +1,31 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./SignupPage.css";
 
 const SUPPLEMENTS = ["오메가-3", "유산균", "비타민D", "마그네슘", "철분", "루테인"];
+
+// 형식 검증 규칙
+const USERNAME_REGEX = /^[A-Za-z0-9]{6,20}$/; // 영문, 숫자 6~20자
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function getFormatError(field, value) {
+  if (field === "username") {
+    if (!USERNAME_REGEX.test(value)) {
+      return "아이디는 영문, 숫자 조합 6자 이상이어야 합니다.";
+    }
+  }
+  if (field === "email") {
+    if (!EMAIL_REGEX.test(value)) {
+      return "올바른 이메일 형식이 아닙니다.";
+    }
+  }
+  if (field === "nickname") {
+    if (value.length < 2 || value.length > 6) {
+      return "닉네임은 2~6자로 입력해 주세요.";
+    }
+  }
+  return null;
+}
 
 // 아이디/이메일/닉네임 중복확인 공용 함수
 // 실제 백엔드가 준비되면 각 endpoint만 맞춰주면 됩니다.
@@ -44,6 +67,9 @@ export default function SignupPage() {
     email: "",
     nickname: "",
     agreePolicy: false,
+    sex: "",
+    birthdate: "",
+    isPregnant: false,
   });
 
   const [availability, setAvailability] = useState({
@@ -65,6 +91,112 @@ export default function SignupPage() {
   });
 
   const [formError, setFormError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 이메일 인증 관련 상태
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailCode, setEmailCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [emailVerifyError, setEmailVerifyError] = useState("");
+  const [emailSendSuccessMsg, setEmailSendSuccessMsg] = useState("");
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  // 5분 카운트다운
+  useEffect(() => {
+    if (!emailCodeSent || emailVerified || secondsLeft <= 0) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [emailCodeSent, emailVerified, secondsLeft]);
+
+  const formatTime = (totalSeconds) => {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  };
+
+  const handleSendEmailCode = async () => {
+    const trimmedEmail = form.email.trim();
+    if (!trimmedEmail) {
+      setEmailVerifyError("이메일을 입력해 주세요.");
+      setEmailSendSuccessMsg("");
+      return;
+    }
+
+    const formatError = getFormatError("email", trimmedEmail);
+    if (formatError) {
+      setEmailVerifyError(formatError);
+      setEmailSendSuccessMsg("");
+      return;
+    }
+
+    setEmailVerifyError("");
+    setEmailSendSuccessMsg("");
+    setSendingCode(true);
+    try {
+      const response = await fetch("/api/users/email/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmedEmail }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        if (response.status === 409 || data?.message?.includes("가입")) {
+          setEmailVerifyError("이미 가입된 이메일입니다.");
+        } else {
+          setEmailVerifyError(data?.message || "인증번호 발송에 실패했습니다.");
+        }
+        setEmailSendSuccessMsg("");
+        setSendingCode(false);
+        return;
+      }
+      setEmailCodeSent(true);
+      setEmailVerified(false);
+      setEmailCode("");
+      setEmailSendSuccessMsg(data?.message || "인증번호가 발송되었습니다.");
+      setEmailVerifyError("");
+      setSecondsLeft(5 * 60); // 5분
+      setSendingCode(false);
+    } catch (err) {
+      setEmailVerifyError("서버에 연결할 수 없습니다.");
+      setEmailSendSuccessMsg("");
+      setSendingCode(false);
+    }
+  };
+
+  const handleVerifyEmailCode = async () => {
+    if (!emailCode.trim()) {
+      setEmailVerifyError("인증번호를 입력해 주세요.");
+      return;
+    }
+    setEmailVerifyError("");
+    setVerifyingCode(true);
+    try {
+      const response = await fetch("/api/users/email/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, code: emailCode }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.verified) {
+        setEmailVerifyError(data?.message || "인증번호가 올바르지 않습니다.");
+        setVerifyingCode(false);
+        return;
+      }
+      setEmailVerified(true);
+      setEmailVerifyError("");
+      setEmailSendSuccessMsg("");
+      setVerifyingCode(false);
+    } catch (err) {
+      setEmailVerifyError("서버에 연결할 수 없습니다.");
+      setVerifyingCode(false);
+    }
+  };
   const [showPolicy, setShowPolicy] = useState(false);
   const [selectedSupplements, setSelectedSupplements] = useState([]);
 
@@ -74,6 +206,14 @@ export default function SignupPage() {
     if (field === "username" || field === "email" || field === "nickname") {
       setAvailability((prev) => ({ ...prev, [field]: null }));
       setCheckError((prev) => ({ ...prev, [field]: "" }));
+    }
+    if (field === "email") {
+      setEmailCodeSent(false);
+      setEmailVerified(false);
+      setEmailCode("");
+      setEmailVerifyError("");
+      setEmailSendSuccessMsg("");
+      setSecondsLeft(0);
     }
   };
 
@@ -92,11 +232,19 @@ export default function SignupPage() {
 
     setFormError("");
     setCheckError((prev) => ({ ...prev, [field]: "" }));
+
+    const formatError = getFormatError(field, value);
+    if (formatError) {
+      setCheckError((prev) => ({ ...prev, [field]: formatError }));
+      setAvailability((prev) => ({ ...prev, [field]: null }));
+      return;
+    }
+
     setChecking((prev) => ({ ...prev, [field]: true }));
     try {
       const available = await checkDuplicate(field, value);
       setAvailability((prev) => ({ ...prev, [field]: available }));
-    } catch {
+    } catch (err) {
       setCheckError((prev) => ({
         ...prev,
         [field]: "중복확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
@@ -113,11 +261,19 @@ export default function SignupPage() {
     }
 
     setCheckError((prev) => ({ ...prev, [field]: "" }));
+
+    const formatError = getFormatError(field, value);
+    if (formatError) {
+      setCheckError((prev) => ({ ...prev, [field]: formatError }));
+      setAvailability((prev) => ({ ...prev, [field]: null }));
+      return;
+    }
+
     setChecking((prev) => ({ ...prev, [field]: true }));
     try {
       const available = await checkDuplicate(field, value);
       setAvailability((prev) => ({ ...prev, [field]: available }));
-    } catch {
+    } catch (err) {
       setCheckError((prev) => ({
         ...prev,
         [field]: "중복확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
@@ -128,8 +284,24 @@ export default function SignupPage() {
   };
 
   const validateStep1 = () => {
-    if (!form.username.trim() || !form.password || !form.confirmPassword || !form.email.trim() || !form.nickname.trim()) {
+    if (
+      !form.username.trim() ||
+      !form.password ||
+      !form.confirmPassword ||
+      !form.email.trim() ||
+      !form.nickname.trim() ||
+      !form.sex ||
+      !form.birthdate
+    ) {
       setFormError("모든 항목을 입력해 주세요.");
+      return false;
+    }
+    if (form.nickname.trim().length > 6) {
+      setFormError("닉네임은 6자 이내로 입력해 주세요.");
+      return false;
+    }
+    if (!emailVerified) {
+      setFormError("이메일 인증을 완료해 주세요.");
       return false;
     }
     if (form.password.length < 8) {
@@ -147,11 +319,41 @@ export default function SignupPage() {
     return true;
   };
 
-  const handleNextFromStep1 = (e) => {
+  const handleNextFromStep1 = async (e) => {
     e.preventDefault();
     setFormError("");
-    if (validateStep1()) {
+    if (!validateStep1()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/users/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          loginId: form.username,
+          password: form.password,
+          email: form.email,
+          nickname: form.nickname,
+          sex: form.sex,
+          birthdate: form.birthdate, // "yyyy-MM-dd" (input type="date" 형식과 동일)
+          isPregnant: form.sex === "F" && form.isPregnant ? 1 : 0,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setFormError(data?.message || "회원가입 처리 중 오류가 발생했습니다.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      setIsSubmitting(false);
       setStep(2);
+    } catch (err) {
+      setFormError("서버에 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.");
+      setIsSubmitting(false);
     }
   };
 
@@ -272,31 +474,129 @@ export default function SignupPage() {
               />
             </label>
 
-            <label className="signup-field" htmlFor="email">
-              이메일
-              <input
-                id="email"
-                type="email"
-                placeholder="hello@example.com"
-                value={form.email}
-                onChange={(e) => updateField("email", e.target.value)}
-                onBlur={() => handleAutoCheckDuplicate("email")}
-              />
-            </label>
-            {renderAvailabilityHint("email")}
+            <div className="signup-field-row">
+              <label className="signup-field" htmlFor="email">
+                이메일
+                <input
+                  id="email"
+                  type="email"
+                  placeholder="hello@example.com"
+                  value={form.email}
+                  onChange={(e) => updateField("email", e.target.value)}
+                  disabled={emailVerified}
+                />
+              </label>
+              <button
+                type="button"
+                className="signup-check-btn"
+                onClick={handleSendEmailCode}
+                disabled={sendingCode || emailVerified}
+              >
+                {emailVerified ? "인증완료" : sendingCode ? "발송 중..." : emailCodeSent ? "재발송" : "인증번호 받기"}
+              </button>
+            </div>
+            {emailSendSuccessMsg && !emailVerified && (
+              <p className="signup-hint signup-hint--ok">{emailSendSuccessMsg}</p>
+            )}
+            {emailVerifyError && (
+              <p className="signup-hint signup-hint--error">{emailVerifyError}</p>
+            )}
+
+            {emailCodeSent && !emailVerified && (
+              <div className="signup-field-row signup-verify-row">
+                <label className="signup-field" htmlFor="emailCode">
+                  인증번호
+                  <input
+                    id="emailCode"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="6자리 숫자"
+                    value={emailCode}
+                    onChange={(e) => setEmailCode(e.target.value)}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="signup-check-btn"
+                  onClick={handleVerifyEmailCode}
+                  disabled={verifyingCode || secondsLeft <= 0}
+                >
+                  {verifyingCode ? "확인 중..." : "인증하기"}
+                </button>
+              </div>
+            )}
+            {emailCodeSent && !emailVerified && (
+              <p className={`signup-hint ${secondsLeft <= 0 ? "signup-hint--error" : "signup-hint--pending"}`}>
+                {secondsLeft > 0
+                  ? `남은 시간 ${formatTime(secondsLeft)}`
+                  : "인증번호가 만료되었습니다. 다시 받아주세요."}
+              </p>
+            )}
+            {emailVerified && (
+              <p className="signup-hint signup-hint--ok">이메일 인증이 완료되었습니다</p>
+            )}
 
             <label className="signup-field" htmlFor="nickname">
               닉네임
               <input
                 id="nickname"
                 type="text"
-                placeholder="앱에서 사용할 이름"
+                placeholder="앱에서 사용할 이름 (6자 이내)"
+                maxLength={6}
                 value={form.nickname}
                 onChange={(e) => updateField("nickname", e.target.value)}
                 onBlur={() => handleAutoCheckDuplicate("nickname")}
               />
             </label>
             {renderAvailabilityHint("nickname")}
+
+            <label className="signup-field" htmlFor="birthdate">
+              생년월일
+              <input
+                id="birthdate"
+                type="date"
+                value={form.birthdate}
+                onChange={(e) => updateField("birthdate", e.target.value)}
+              />
+            </label>
+
+            <div className="signup-field">
+              성별
+              <div className="signup-radio-row">
+                <label className="signup-radio">
+                  <input
+                    type="radio"
+                    name="sex"
+                    value="M"
+                    checked={form.sex === "M"}
+                    onChange={(e) => updateField("sex", e.target.value)}
+                  />
+                  남성
+                </label>
+                <label className="signup-radio">
+                  <input
+                    type="radio"
+                    name="sex"
+                    value="F"
+                    checked={form.sex === "F"}
+                    onChange={(e) => updateField("sex", e.target.value)}
+                  />
+                  여성
+                </label>
+              </div>
+            </div>
+
+            {form.sex === "F" && (
+              <label className="signup-policy">
+                <input
+                  type="checkbox"
+                  checked={form.isPregnant}
+                  onChange={(e) => updateField("isPregnant", e.target.checked)}
+                />
+                <span>현재 임신 중이에요</span>
+              </label>
+            )}
 
             <div className="signup-policy-block">
               <label className="signup-policy">
@@ -333,8 +633,8 @@ export default function SignupPage() {
               </p>
             )}
 
-            <button type="submit" className="signup-submit">
-              다음 단계 <span aria-hidden="true">›</span>
+            <button type="submit" className="signup-submit" disabled={isSubmitting}>
+              {isSubmitting ? "처리 중..." : "다음 단계"} <span aria-hidden="true">›</span>
             </button>
           </form>
         </main>

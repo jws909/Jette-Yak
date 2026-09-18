@@ -20,10 +20,10 @@ public class User {
     private LocalDateTime medUpdatedAt;
     private String role;
     private Long familyId;
+    private LocalDate birthdate;
     private String sex;
     private Integer isPregnant;
     private String tel;
-    private LocalDate birthdate;
 
     public Long getUserId() {
         return userId;
@@ -121,6 +121,14 @@ public class User {
         this.familyId = familyId;
     }
 
+    public LocalDate getBirthdate() {
+        return birthdate;
+    }
+
+    public void setBirthdate(LocalDate birthdate) {
+        this.birthdate = birthdate;
+    }
+
     public String getSex() {
         return sex;
     }
@@ -143,13 +151,5 @@ public class User {
 
     public void setTel(String tel) {
         this.tel = tel;
-    }
-
-    public LocalDate getBirthdate() {
-        return birthdate;
-    }
-
-    public void setBirthdate(LocalDate birthdate) {
-        this.birthdate = birthdate;
     }
 }
