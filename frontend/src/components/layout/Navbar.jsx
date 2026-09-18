@@ -1,64 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import logoImg from '../../assets/logo.png';
 import './Navbar.css';
-
-const MOCK_DB = [
-  { itemSeq: 'm1', itemName: '아모잘탄정 5/50mg', entpName: '한미약품', efficacy: '본태성 고혈압 치료제', type: '처방약' },
-  { itemSeq: 'm2', itemName: '오메가-3 트리플 스트렝스', entpName: '종근당건강', efficacy: '혈중 중성지질 개선 및 혈행 개선', type: '영양제' },
-  { itemSeq: 'm3', itemName: '듀오락 골드 캡슐', entpName: '쎌바이오텍', efficacy: '장 건강 및 유익균 증식 돕는 프로바이오틱스', type: '상시약' },
-  { itemSeq: 'm4', itemName: '타이레놀정 500mg', entpName: '한국존슨앤드존슨', efficacy: '해열 및 진통제', type: '일반의약품' },
-  { itemSeq: 'm5', itemName: '아스피린장용정 100mg', entpName: '바이엘코리아', efficacy: '혈전 생성 억제', type: '처방약' },
-  { itemSeq: 'm6', itemName: '텐텐츄정', entpName: '한미약품', efficacy: '성장기 어린이 영양 보급', type: '영양제' },
-];
-
-function fallbackMockSearch(keyword) {
-  return MOCK_DB.filter(m => m.itemName.includes(keyword) || m.entpName.includes(keyword));
-}
 
 export default function Navbar({
   onToggleSidebar,
   isSidebarOpen,
   isLoggedIn,
-  user,
   onLogout,
   onLoginDemoToggle
 }) {
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [notifications, setNotifications] = useState([
     { id: 1, type: 'warning', title: '복용 주의 알림', text: '오메가-3와 아스피린 병용 시 출혈 위험이 있으니 주의하세요.', time: '10분 전', read: false },
     { id: 2, type: 'routine', title: '복약 예정 안내', text: '오후 21:00 듀오락 골드 복용 예정입니다.', time: '1시간 전', read: false }
   ]);
 
-  const searchBoxRef = useRef(null);
   const notifBoxRef = useRef(null);
 
-  // 단축키 ⌘ K / Ctrl+K 지원
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
-        e.preventDefault();
-        const input = document.getElementById('navbar-drug-search');
-        if (input) {
-          input.focus();
-          input.select();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // 외부 클릭 시 검색결과/알림창 닫기
+  // 외부 클릭 시 알림창 닫기
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
-        setIsSearchFocused(false);
-      }
       if (notifBoxRef.current && !notifBoxRef.current.contains(e.target)) {
         setShowNotification(false);
       }
@@ -66,57 +28,6 @@ export default function Navbar({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  // 약품 실시간 검색 (Spring Boot /api/medications/search + fallback mock)
-  useEffect(() => {
-    const trimmed = searchQuery.trim();
-    if (!trimmed) return;
-
-    let active = true;
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const res = await fetch(`/api/medications/search?q=${encodeURIComponent(trimmed)}&page=1`);
-        if (res.ok) {
-          const data = await res.json();
-          if (active) setSearchResults(data.items || []);
-        } else {
-          if (active) setSearchResults(fallbackMockSearch(trimmed));
-        }
-      } catch {
-        if (active) setSearchResults(fallbackMockSearch(trimmed));
-      } finally {
-        if (active) setIsSearching(false);
-      }
-    }, 250);
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [searchQuery]);
-
-  const handleQueryChange = (e) => {
-    const val = e.target.value;
-    setSearchQuery(val);
-    if (!val.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-    }
-  };
-
-  const handleClearQuery = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setIsSearching(false);
-  };
-
-  const handleSelectMed = (med) => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setIsSearchFocused(false);
-    navigate(`/guide?med=${encodeURIComponent(med.itemName)}`);
-  };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -127,7 +38,7 @@ export default function Navbar({
   return (
     <header className="site-navbar">
       <div className="navbar-container">
-        {/* 좌측: 사이드바 토글 버튼 & 브랜드 로고 */}
+        {/* 좌측: 모바일 메뉴 토글 버튼 & 2번 로고 심볼 (logo.png) */}
         <div className="navbar-left">
           <button
             type="button"
@@ -144,81 +55,20 @@ export default function Navbar({
             </div>
           </button>
 
-          <Link to="/" className="navbar-logo">
-            <span className="logo-text">Jette-Yak</span>
-            <span className="logo-badge">mediary</span>
+          {/* 2번 로고 심볼: 클릭 시 메인 홈 이동 (모바일에서는 햄버거 메뉴를 가리지 않도록 숨김) */}
+          <Link to="/" className="navbar-logo-symbol" title="제때약 홈으로 이동">
+            <img src={logoImg} alt="제때약 로고 심볼" className="logo-symbol-img" />
           </Link>
         </div>
 
-        {/* 중앙: 통합 검색창 */}
-        <div className="navbar-center" ref={searchBoxRef}>
-          <div className={`search-input-wrapper ${isSearchFocused ? 'focused' : ''}`}>
-            <svg className="search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 19l-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-            </svg>
-            <input
-              id="navbar-drug-search"
-              type="text"
-              className="search-input"
-              placeholder="약 이름을 검색해 보세요"
-              value={searchQuery}
-              onChange={handleQueryChange}
-              onFocus={() => setIsSearchFocused(true)}
-              autoComplete="off"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                className="search-clear-btn"
-                onClick={handleClearQuery}
-              >
-                ✕
-              </button>
-            )}
-            <div className="search-shortcut">⌘ K</div>
-          </div>
-
-          {/* 검색 결과 드롭다운 */}
-          {isSearchFocused && searchQuery.trim() && (
-            <div className="search-dropdown-panel">
-              {isSearching ? (
-                <div className="search-state-msg">
-                  <span className="spinner-small" /> 약 정보를 검색 중입니다...
-                </div>
-              ) : searchResults.length > 0 ? (
-                <div className="search-results-list">
-                  <div className="results-header">
-                    <span>검색 결과 <strong>{searchResults.length}</strong>건</span>
-                    <span className="results-tip">클릭 시 맞춤 가이드로 이동합니다</span>
-                  </div>
-                  {searchResults.map((item, idx) => (
-                    <div
-                      key={item.itemSeq || idx}
-                      className="search-result-item"
-                      onClick={() => handleSelectMed(item)}
-                    >
-                      <div className="result-item-main">
-                        <span className="result-item-name">{item.itemName}</span>
-                        <span className="result-item-entp">{item.entpName}</span>
-                      </div>
-                      {item.efficacy && (
-                        <p className="result-item-desc">{item.efficacy}</p>
-                      )}
-                      <span className="result-arrow">→</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="search-empty-msg">
-                  <p>'{searchQuery}'에 대한 검색 결과가 없습니다.</p>
-                  <small>약 이름의 일부(예: 아모, 오메가, 텐)만 입력해 보세요.</small>
-                </div>
-              )}
-            </div>
-          )}
+        {/* 중앙: 브랜드 글씨 (아까대로 한가운데 배치, mediary 캡슐 뱃지 제거) */}
+        <div className="navbar-center">
+          <Link to="/" className="navbar-brand-text" title="제때약 홈으로 이동">
+            <span className="logo-text">제때약</span>
+          </Link>
         </div>
 
-        {/* 우측: 로그인 전 / 후 상태 (와이어프레임 메인화면 & 내비게이션바 명세) */}
+        {/* 우측: 알림 및 로그인/로그아웃 액션 */}
         <div className="navbar-right">
           {isLoggedIn ? (
             <div className="logged-in-actions">
@@ -265,14 +115,6 @@ export default function Navbar({
               </div>
 
               <span className="nav-divider">|</span>
-
-              {/* 프로필 칩 */}
-              <Link to="/mypage" className="user-profile-chip" title="마이페이지로 이동">
-                <div className="avatar-mini">
-                  {user?.name ? user.name[0] : '김'}
-                </div>
-                <span className="user-name-text">{user?.name || '김메디'}님</span>
-              </Link>
 
               {/* 로그아웃 버튼 */}
               <button

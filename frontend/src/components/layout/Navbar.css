@@ -2,6 +2,22 @@
    Jette-Yak Global Navigation Bar Styles
    ========================================================================== */
 
+/* 친근하고 부드러운 헬스케어 브랜드 웹폰트 (엄마까투리 & 나눔스퀘어라운드) */
+@font-face {
+  font-family: 'Eommakkaturi';
+  src: url('https://gcore.jsdelivr.net/gh/projectnoonnu/noonfonts_13@1.0/Katuri.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'NanumSquareRound';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/NanumSquareRound.woff') format('woff');
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 .site-navbar {
   position: sticky;
   top: 0;
@@ -14,24 +30,24 @@
 }
 
 .navbar-container {
-  max-width: 1320px;
-  margin: 0 auto;
+  width: 100%;
   height: 100%;
   padding: 0 24px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
+  box-sizing: border-box;
 }
 
 /* --------------------------------------------------------------------------
-   Navbar Left: Menu Toggle & Brand Logo
+   Navbar Left: 모바일 메뉴 토글 & 2번 로고 심볼
    -------------------------------------------------------------------------- */
 .navbar-left {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
+  justify-content: flex-start;
+  gap: 14px;
 }
 
 /* 와이어프레임 메뉴 아이콘 (3개의 점과 선 구조) */
@@ -73,250 +89,71 @@
   width: 3.5px;
   height: 3.5px;
   border-radius: 50%;
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   display: inline-block;
 }
 
 .menu-icon-bars .line {
   height: 2px;
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   border-radius: 2px;
   flex: 1;
 }
 
-.navbar-logo {
+/* 좌측 로고 심볼: logo.png (2번 시안) */
+.navbar-logo-symbol {
   display: flex;
   align-items: center;
-  gap: 8px;
   text-decoration: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
-.logo-text {
-  font-family: 'Playfair Display', 'Georgia', serif;
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  color: #4a151e;
-  transition: color 0.2s ease;
+.navbar-logo-symbol:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
 }
 
-.navbar-logo:hover .logo-text {
-  color: #7d2638;
-}
-
-.logo-badge {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: lowercase;
-  background-color: #eedcd9;
-  color: #7d2638;
-  padding: 2px 7px;
-  border-radius: 12px;
-  letter-spacing: 0.5px;
+.logo-symbol-img {
+  height: 36px;
+  width: auto;
+  max-width: 44px;
+  object-fit: contain;
+  display: block;
 }
 
 /* --------------------------------------------------------------------------
-   Navbar Center: 약 검색창
+   Navbar Center: 브랜드 글씨 (아까대로 한가운데 배치)
    -------------------------------------------------------------------------- */
 .navbar-center {
-  flex: 1;
-  max-width: 520px;
-  position: relative;
-}
-
-.search-input-wrapper {
-  display: flex;
-  align-items: center;
-  background: #ffffff;
-  border: 1px solid #e0d8cc;
-  border-radius: 24px;
-  padding: 0 16px;
-  height: 42px;
-  transition: all 0.2s ease;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
-}
-
-.search-input-wrapper.focused,
-.search-input-wrapper:focus-within {
-  border-color: #7d2638;
-  box-shadow: 0 0 0 3px rgba(125, 38, 56, 0.12);
-  background: #ffffff;
-}
-
-.search-icon {
-  width: 17px;
-  height: 17px;
-  color: #948b81;
-  flex-shrink: 0;
-  margin-right: 10px;
-}
-
-.search-input {
-  border: none;
-  background: transparent;
-  flex: 1;
-  font-size: 14px;
-  color: #2e2926;
-  outline: none;
-  padding: 0;
-}
-
-.search-input::placeholder {
-  color: #a49a90;
-}
-
-.search-clear-btn {
-  background: none;
-  border: none;
-  color: #a49a90;
-  font-size: 12px;
-  padding: 4px;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.search-clear-btn:hover {
-  color: #4a151e;
+.navbar-brand-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
 }
 
-.search-shortcut {
-  font-size: 11px;
-  font-weight: 600;
-  background: #f1ede6;
-  border: 1px solid #ded6c9;
-  color: #7d756d;
-  padding: 2px 7px;
-  border-radius: 6px;
-  margin-left: 8px;
+.navbar-brand-text:hover {
+  opacity: 0.92;
+}
+
+.logo-text {
+  font-family: 'Eommakkaturi', 'NanumSquareRound', sans-serif;
+  font-size: 26px;
+  font-weight: normal;
+  letter-spacing: -0.5px;
+  color: #8b3e4b;
+  transition: color 0.2s ease, transform 0.2s ease;
   user-select: none;
 }
 
-/* 검색 드롭다운 */
-.search-dropdown-panel {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  right: 0;
-  background: #ffffff;
-  border: 1px solid #dfd7cc;
-  border-radius: 12px;
-  box-shadow: 0 12px 28px rgba(45, 30, 25, 0.12);
-  max-height: 380px;
-  overflow-y: auto;
-  z-index: 1050;
-  animation: dropdownFade 0.15s ease-out;
-}
-
-@keyframes dropdownFade {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.search-state-msg,
-.search-empty-msg {
-  padding: 20px 24px;
-  text-align: center;
-  font-size: 13px;
-  color: #787067;
-}
-
-.search-empty-msg small {
-  display: block;
-  margin-top: 4px;
-  color: #9a9187;
-}
-
-.spinner-small {
-  display: inline-block;
-  width: 14px;
-  height: 14px;
-  border: 2px solid #dfd8cb;
-  border-top-color: #7d2638;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  vertical-align: middle;
-  margin-right: 6px;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.results-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  font-size: 11px;
-  color: #8c8278;
-  background: #faf7f2;
-  border-bottom: 1px solid #f0eae1;
-}
-
-.results-header strong {
-  color: #7d2638;
-}
-
-.results-tip {
-  color: #a49a90;
-}
-
-.search-result-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f4efe8;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.search-result-item:last-child {
-  border-bottom: none;
-}
-
-.search-result-item:hover {
-  background-color: #f8f4ed;
-}
-
-.result-item-main {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.result-item-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2b2623;
-}
-
-.result-item-entp {
-  font-size: 12px;
-  color: #8a8178;
-}
-
-.result-item-desc {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #70685f;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 380px;
-}
-
-.result-arrow {
-  color: #b5aba0;
-  font-size: 14px;
-  transition: transform 0.15s ease;
-}
-
-.search-result-item:hover .result-arrow {
-  transform: translateX(3px);
-  color: #7d2638;
+.navbar-brand-text:hover .logo-text {
+  color: #6e2c38;
 }
 
 /* --------------------------------------------------------------------------
@@ -325,8 +162,8 @@
 .navbar-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  flex-shrink: 0;
 }
 
 .logged-in-actions {
@@ -364,7 +201,7 @@
 
 .notif-btn:hover {
   background-color: #eee7dc;
-  color: #7d2638;
+  color: #8b3e4b;
 }
 
 .bell-icon {
@@ -419,7 +256,7 @@
 .mark-read-btn {
   background: none;
   border: none;
-  color: #7d2638;
+  color: #8b3e4b;
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
@@ -487,41 +324,7 @@
   color: #a49b90;
 }
 
-/* 프로필 칩 */
-.user-profile-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: #f1ebd0;
-  background: rgba(125, 38, 56, 0.08);
-  transition: all 0.15s ease;
-}
 
-.user-profile-chip:hover {
-  background: rgba(125, 38, 56, 0.15);
-}
-
-.avatar-mini {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #7d2638;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.user-name-text {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #4a151e;
-}
 
 /* 로그아웃 버튼 */
 .logout-btn {
@@ -561,11 +364,11 @@
 
 .nav-link-login:hover,
 .nav-link-signup:hover {
-  color: #7d2638;
+  color: #8b3e4b;
 }
 
 .demo-login-btn {
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -578,25 +381,37 @@
 }
 
 .demo-login-btn:hover {
-  background-color: #631c2b;
+  background-color: #732f3c;
 }
 
 /* 반응형 */
-@media (max-width: 840px) {
+@media (min-width: 768px) {
+  /* 태블릿 및 PC: 사이드바가 항상 열려있으므로 상단 메뉴 토글 버튼 숨김 & 좌측 로고 심볼 표시 */
+  .menu-toggle-btn {
+    display: none !important;
+  }
+
+  .navbar-logo-symbol {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  /* 모바일: 햄버거 메뉴를 가리지 않도록 좌측 로고 심볼 숨김 & 햄버거 토글 버튼 노출 */
+  .navbar-logo-symbol {
+    display: none !important;
+  }
+
+  .menu-toggle-btn {
+    display: flex !important;
+  }
+
   .navbar-container {
-    padding: 0 14px;
-    gap: 10px;
+    padding: 0 16px;
+    gap: 12px;
   }
-  .navbar-center {
-    max-width: 260px;
-  }
-  .search-shortcut {
-    display: none;
-  }
-  .logo-badge {
-    display: none;
-  }
-  .user-name-text {
-    display: none;
+
+  .logo-text {
+    font-size: 21px;
   }
 }

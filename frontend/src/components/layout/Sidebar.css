@@ -63,7 +63,7 @@
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 1px;
-  color: #7d2638;
+  color: #8b3e4b;
   text-transform: uppercase;
 }
 
@@ -84,105 +84,10 @@
 
 .sidebar-close-btn:hover {
   background: #ede6dc;
-  color: #4a151e;
+  color: #6e2c38;
 }
 
-/* --------------------------------------------------------------------------
-   프로필 카드 영역 (와이어프레임 메인,navbar,sidebar.jpg 명세)
-   -------------------------------------------------------------------------- */
-.sidebar-profile-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background-color: #ffffff;
-  border: 1px solid #e6ded3;
-  border-radius: 12px;
-  padding: 14px 14px;
-  margin-bottom: 24px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
-}
 
-.sidebar-profile-card:hover {
-  border-color: #7d2638;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(125, 38, 56, 0.08);
-}
-
-.profile-avatar-box {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.profile-avatar-circle {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #fdfbf8;
-  border: 2px solid #ecdcd9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.avatar-sketch-icon {
-  width: 38px;
-  height: 38px;
-}
-
-.avatar-edit-badge {
-  position: absolute;
-  bottom: -2px;
-  right: -2px;
-  background: #7d2638;
-  color: #ffffff;
-  font-size: 10px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid #ffffff;
-}
-
-.profile-info-box {
-  flex: 1;
-  min-width: 0;
-}
-
-.profile-name-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.profile-name {
-  font-size: 15px;
-  font-weight: 700;
-  color: #2b2422;
-}
-
-.profile-tag {
-  font-size: 10px;
-  background-color: #f1ede6;
-  color: #706861;
-  padding: 1px 6px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.profile-sub {
-  display: block;
-  font-size: 11px;
-  color: #8c8277;
-  margin-top: 3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 /* --------------------------------------------------------------------------
    사이드바 내비게이션 링크
@@ -236,7 +141,7 @@
   top: 8px;
   bottom: 8px;
   width: 4px;
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   border-radius: 0 4px 4px 0;
 }
 
@@ -261,7 +166,7 @@
 .nav-item-badge {
   font-size: 10px;
   font-weight: 700;
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   color: #ffffff;
   padding: 2px 6px;
   border-radius: 10px;
@@ -303,7 +208,7 @@
 
 .routine-mini-progress {
   height: 100%;
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -311,7 +216,7 @@
 .routine-mini-status {
   font-size: 11px;
   font-weight: 700;
-  color: #7d2638;
+  color: #8b3e4b;
   text-align: right;
 }
 
@@ -330,7 +235,7 @@
 }
 
 .sidebar-logout-link:hover {
-  color: #5c1825;
+  color: #6e2c38;
   background: #eee8df;
 }
 
@@ -340,7 +245,7 @@
 }
 
 .sidebar-login-link {
-  background: #7d2638;
+  background: #8b3e4b;
   color: #ffffff;
   border: none;
   padding: 10px;
@@ -353,5 +258,40 @@
 }
 
 .sidebar-login-link:hover {
-  background: #631c2b;
+  background: #732f3c;
+}
+
+/* ==========================================================================
+   태블릿 & PC웹: 사이드바 항상 노출 및 상단 고정 레이아웃
+   ========================================================================== */
+@media (min-width: 768px) {
+  /* 백드롭 숨김 */
+  .sidebar-backdrop {
+    display: none !important;
+  }
+
+  /* 사이드바 본체: 상단 Navbar(64px) 아래 좌측에 항상 고정 */
+  .site-sidebar {
+    top: 64px;
+    width: 240px;
+    transform: translateX(0) !important;
+    box-shadow: 2px 0 10px rgba(40, 25, 20, 0.03);
+    z-index: 900;
+  }
+
+  /* 태블릿/PC에서는 닫기 버튼 숨김 */
+  .sidebar-top-bar {
+    display: none;
+  }
+
+  .sidebar-inner {
+    padding-top: 20px;
+  }
+}
+
+/* 데스크탑 (1024px 이상): 사이드바 너비 260px 확장 */
+@media (min-width: 1024px) {
+  .site-sidebar {
+    width: 260px;
+  }
 }
