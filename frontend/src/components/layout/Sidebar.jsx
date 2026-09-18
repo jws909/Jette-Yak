@@ -5,7 +5,6 @@ export default function Sidebar({
   isOpen,
   onClose,
   isLoggedIn,
-  user,
   onLogout
 }) {
   const navigate = useNavigate();
@@ -15,11 +14,6 @@ export default function Sidebar({
     if (window.innerWidth < 768) {
       onClose();
     }
-  };
-
-  const handleProfileClick = () => {
-    navigate('/mypage');
-    handleLinkClick();
   };
 
   return (
@@ -45,34 +39,6 @@ export default function Sidebar({
             >
               ✕
             </button>
-          </div>
-
-          {/* 프로필 카드 영역 (와이어프레임 명세) */}
-          <div className="sidebar-profile-card" onClick={handleProfileClick} title="마이페이지로 이동">
-            <div className="profile-avatar-box">
-              <div className="profile-avatar-circle">
-                {user?.profileImg ? (
-                  <img src={user.profileImg} alt="프로필" />
-                ) : (
-                  <svg className="avatar-sketch-icon" viewBox="0 0 48 48" fill="none">
-                    <circle cx="24" cy="18" r="10" stroke="#7d2638" strokeWidth="2.5" fill="#f5ede7" />
-                    <circle cx="21" cy="16" r="1.5" fill="#7d2638" />
-                    <circle cx="27" cy="16" r="1.5" fill="#7d2638" />
-                    <path d="M21 21 C22.5 23, 25.5 23, 27 21" stroke="#7d2638" strokeWidth="2" strokeLinecap="round" />
-                    <path d="M12 40 C12 33, 17 29, 24 29 C31 29, 36 33, 36 40" stroke="#7d2638" strokeWidth="2.5" strokeLinecap="round" />
-                  </svg>
-                )}
-              </div>
-              <span className="avatar-edit-badge" title="프로필 사진">✎</span>
-            </div>
-
-            <div className="profile-info-box">
-              <div className="profile-name-row">
-                <strong className="profile-name">{user?.name || '김메디'}</strong>
-                <span className="profile-tag">복약 관리중</span>
-              </div>
-              <span className="profile-sub">{user?.email || 'mediary_2026 · hello@mediary.kr'}</span>
-            </div>
           </div>
 
           {/* 내비게이션 메뉴 목록 (와이어프레임 순서) */}
