@@ -52,6 +52,9 @@ public class GeminiServiceCheck {
             check(key.equals("fake-test-key") && !url.contains(key), "Key in header only");
             check(sent.path("contents").get(0).path("parts").get(0).path("text").asText().contains("시험"), "DB reference serialization");
             check(sent.has("systemInstruction") && !sent.has("tools"), "DB-only instructions, no search tools");
+            service.analyzeQuestion("텐텐이랑 맥주?", "텐텐츄정");
+            check(sent.path("generationConfig").path("responseMimeType").asText().equals("application/json"), "Classifier JSON response format");
+            check(sent.path("generationConfig").path("responseJsonSchema").path("required").size() == 6, "Classifier output schema");
             int before = calls.get();
             expect(new GeminiService(client, null, null), 503);
             expect(new GeminiService(client, "fake", "../bad"), 503);

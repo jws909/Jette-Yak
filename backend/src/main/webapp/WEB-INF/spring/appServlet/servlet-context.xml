@@ -16,7 +16,7 @@ http://www.springframework.org/schema/context/spring-context.xsd">
 	<context:component-scan base-package="com.app.service" />
 	<context:component-scan base-package="com.app.dao" />
 	<context:component-scan base-package="com.app.util" />
-	<context:component-scan base-package="com.app.main,com.app.medication,com.app.easydrug,com.app.chatbot" />
+	<context:component-scan base-package="com.app.main,com.app.medication,com.app.easydrug,com.app.chatbot,com.app.guide" />
 	<!-- <context:component-scan base-package="com.app.config"/> -->
 
 	<beans:bean

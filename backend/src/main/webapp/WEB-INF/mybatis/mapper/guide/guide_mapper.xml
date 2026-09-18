@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.guide.dao.MedicationGuideDao">
+    <resultMap id="guide" type="com.app.guide.dto.MedicationGuideDto" autoMapping="false">
+        <id column="medication_id" property="medicationId" />
+        <result column="item_name" property="itemName" />
+        <result column="entp_name" property="entpName" />
+        <result column="material_name" property="materialName" javaType="java.lang.String" />
+        <result column="etc_otc_code" property="etcOtcCode" />
+        <result column="efficacy" property="efficacy" javaType="java.lang.String" />
+        <result column="usage_dosage" property="usageDosage" javaType="java.lang.String" />
+    </resultMap>
+    <select id="find" parameterType="map" resultMap="guide" timeout="10">
+        SELECT medication_id, item_name, entp_name, material_name, etc_otc_code, efficacy, usage_dosage
+        FROM medications WHERE medication_id = #{id}
+    </select>
+    <resultMap id="dur" type="com.app.guide.dto.DurInfoDto" autoMapping="false">
+        <result column="ingr_a_name" property="ingrAName" />
+        <result column="ingr_b_name" property="ingrBName" />
+        <result column="taboo_type" property="tabooType" />
+        <result column="taboo_effect" property="tabooEffect" />
+        <result column="age_base" property="ageBase" />
+        <result column="grade" property="grade" />
+        <result column="updated_at" property="updatedAt" />
+    </resultMap>
+    <select id="findDur" parameterType="map" resultMap="dur" timeout="10">
+        SELECT DISTINCT ingr_a_name, ingr_b_name, taboo_type, taboo_effect, age_base, grade,
+            TO_CHAR(updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+        FROM medication_interactions
+        WHERE taboo_type IN (1, 2, 3, 4) AND (
+            LOWER(REGEXP_REPLACE(ingr_a_name, '[[:space:]]', '')) IN
+            <foreach collection="names" item="name" open="(" separator="," close=")">#{name}</foreach>
+            OR (taboo_type = 4 AND LOWER(REGEXP_REPLACE(ingr_b_name, '[[:space:]]', '')) IN
+            <foreach collection="names" item="name" open="(" separator="," close=")">#{name}</foreach>)
+        )
+        ORDER BY taboo_type, ingr_a_name, ingr_b_name, grade, age_base, taboo_effect, updated_at
+    </select>
+    <resultMap id="registered" type="com.app.guide.dto.RegisteredMedicationDto" autoMapping="false">
+        <id column="registration_id" property="registrationId" />
+        <result column="source" property="source" />
+        <result column="medication_id" property="medicationId" />
+        <result column="item_name" property="itemName" />
+        <result column="entp_name" property="entpName" />
+        <result column="start_date" property="startDate" />
+        <result column="end_date" property="endDate" />
+        <result column="notes" property="notes" />
+        <result column="take_time" property="takeTime" />
+    </resultMap>
+    <select id="findRegistered" parameterType="map" resultMap="registered" timeout="10">
+        SELECT * FROM (
+            SELECT 'P:' || TO_CHAR(i.item_id) AS registration_id, 'PRESCRIPTION' AS source,
+                m.medication_id, m.item_name, m.entp_name,
+                TO_CHAR(p.dispensed_date, 'YYYY-MM-DD') AS start_date,
+                TO_CHAR(TRUNC(p.dispensed_date) + i.total_days - 1, 'YYYY-MM-DD') AS end_date,
+                i.usage_timing AS notes, CAST(NULL AS VARCHAR2(5)) AS take_time
+            FROM prescriptions p
+            JOIN prescription_items i ON i.prescription_id = p.prescription_id
+            JOIN medications m ON m.medication_id = i.medication_id
+            WHERE p.user_id = #{userId}
+              AND TRUNC(p.dispensed_date) &lt;= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE))
+              AND TRUNC(p.dispensed_date) + i.total_days &gt; TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE))
+            UNION ALL
+            SELECT 'C:' || TO_CHAR(c.cabinet_id), 'CABINET', m.medication_id, m.item_name, m.entp_name,
+                CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(500)), CAST(NULL AS VARCHAR2(5))
+            FROM cabinet_medications c JOIN medications m ON m.medication_id = c.medication_id
+            WHERE c.user_id = #{userId}
+            UNION ALL
+            SELECT 'R:' || TO_CHAR(r.routine_id), 'ROUTINE', CAST(NULL AS VARCHAR2(20)), r.supplement_name,
+                CAST(NULL AS VARCHAR2(200)), CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(10)), r.notes, r.take_time
+            FROM routine_medications r WHERE r.user_id = #{userId} AND r.status = 'ACTIVE'
+        ) ORDER BY CASE source WHEN 'PRESCRIPTION' THEN 1 WHEN 'CABINET' THEN 2 ELSE 3 END,
+            item_name, registration_id
+    </select>
+</mapper>

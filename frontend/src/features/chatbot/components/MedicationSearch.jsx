@@ -47,7 +47,7 @@ export default function MedicationSearch({ onSelect, disabled }) {
   return <div className="medication-search">
     <label htmlFor="medication-name">약 이름 검색</label>
     <input id="medication-name" type="search" value={query} onChange={changeQuery} onKeyDown={searchOnEnter}
-      placeholder="텐, 텐텐처럼 일부만 입력해도 돼요" maxLength={100} />
+      placeholder="ex)텐텐" maxLength={100} />
     <p className="field-help">이름에 검색어가 들어간 약을 모두 찾아요.</p>
     {state.error && <div><p className="error-message" role="alert">{state.error}</p><button type="button" className="load-more" disabled={state.loading} onClick={() => setRetry(value => value + 1)}>검색 다시 시도</button></div>}
     {query.trim() && !state.loading && !state.error && <p className="search-count" role="status">{state.total}개 약품 · {state.items.length}개 표시</p>}
