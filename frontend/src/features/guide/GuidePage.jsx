@@ -1,156 +1,135 @@
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import './GuidePage.css';
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import './GuidePage.css'
+import DurInformation from './DurInformation'
+import RegisteredMedications from './RegisteredMedications'
 
-const GUIDE_DATA = {
-  '아모잘탄정 5/50mg': {
-    tag: '처방',
-    type: 'rx',
-    restrictions: [
-      { label: '음주', text: '약효에 영향을 줄 수 있어 가급적 피해 주세요.' },
-      { label: '카페인', text: '과다 섭취 시 두근거림이나 혈압 변동이 나타날 수 있어요.' },
-      { label: '활동', text: '처음 복용하는 날은 기립성 저혈압 위험이 있으므로 운전에 주의하세요.' }
-    ],
-    sideEffects: '가벼운 속쓰림이나 메스꺼움, 어지러움은 식후 복용으로 완화될 수 있어요.',
-    warningBox: '증상이 3일 이상 지속되거나 발진, 부종이 나타나면 즉시 복용을 중단하고 의료진과 상담하세요.',
-    foodGood: '물과 함께',
-    foodCaution: '자몽 · 술',
-    foodAdvice: '충분한 물과 함께, 매일 같은 시간에 복용하면 좋아요.'
-  },
-  '오메가-3': {
-    tag: '영양제',
-    type: 'supp',
-    restrictions: [
-      { label: '복용 타이밍', text: '지용성 성분으로 식사 직후 복용 시 흡수율이 가장 높습니다.' },
-      { label: '수술/치과', text: '출혈 위험이 있으므로 수술 1~2주 전에는 복용을 중단하세요.' },
-      { label: '보관', text: '산패되기 쉬우므로 직사광선을 피해 서늘한 곳이나 냉장 보관하세요.' }
-    ],
-    sideEffects: '트림 시 비린내가 올라오거나 가벼운 묽은 변이 발생할 수 있습니다.',
-    warningBox: '아스피린, 와파린 등 항혈전제와 동시 복용 시 출혈 위험이 상승하므로 주의가 필요합니다.',
-    foodGood: '기름기 있는 식사 후',
-    foodCaution: '공복 복용',
-    foodAdvice: '식사 중 또는 식사 직후 미온수와 함께 섭취하세요.'
-  },
-  '듀오락 골드': {
-    tag: '상시약',
-    type: 'reg',
-    restrictions: [
-      { label: '항생제', text: '항생제 복용 시 유익균이 사멸될 수 있으므로 최소 2시간 이상 간격을 두세요.' },
-      { label: '온도', text: '뜨거운 물과 함께 드시면 유산균이 파괴될 수 있습니다.' },
-      { label: '꾸준함', text: '장내 균총 안정을 위해 매일 정해진 시간에 지속 복용을 권장합니다.' }
-    ],
-    sideEffects: '복용 초기 일시적으로 가스나 복부 팽만감이 생길 수 있으나 며칠 내 호전됩니다.',
-    warningBox: '면역억제제 투여 환자나 중증 질환자는 균혈증 위험이 있으므로 전문의와 상의하세요.',
-    foodGood: '미온수',
-    foodCaution: '뜨거운 차 · 알코올',
-    foodAdvice: '아침 기상 직후 공복 물 한 잔 후 복용하거나 취침 전 복용을 권장합니다.'
+function useRemote(url) {
+  const [retry, setRetry] = useState(0)
+  const [result, setResult] = useState(null)
+  const key = url + ':' + retry
+  useEffect(() => {
+    if (!url) return
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 20000)
+    let active = true
+    async function load() {
+      try {
+        const response = await fetch(url, { signal: controller.signal })
+        if (!(response.headers.get('content-type') || '').includes('application/json'))
+          throw new Error('생활가이드 API에 연결할 수 없습니다. 서버 배포 상태를 확인해주세요.')
+        const data = await response.json()
+        if (!response.ok) throw Object.assign(new Error(data.error || '약 정보를 불러오지 못했습니다.'), { status: response.status })
+        if (active) setResult({ key, data })
+      } catch (error) {
+        if (active) setResult({ key, status: error.status, error: error.name === 'AbortError' ? '요청 시간이 초과됐습니다. 다시 시도해주세요.' : error.message })
+      } finally { clearTimeout(timer) }
+    }
+    load()
+    return () => { active = false; clearTimeout(timer); controller.abort() }
+  }, [url, key])
+  return {
+    loading: Boolean(url) && result?.key !== key,
+    data: url && result?.key === key ? result.data : null,
+    error: url && result?.key === key ? result.error : null,
+    status: url && result?.key === key ? result.status : null,
+    retry: () => setRetry(value => value + 1),
   }
-};
+}
+
+function valueOrMissing(value) { return value?.trim() || '등록된 정보가 없습니다.' }
 
 export default function GuidePage() {
-  const [searchParams] = useSearchParams();
-  const medParam = searchParams.get('med');
-
-  const [selectedMed, setSelectedMed] = useState(null);
-  const [searchWord, setSearchWord] = useState('');
-
-  const activeMed = selectedMed || (medParam && GUIDE_DATA[medParam] ? medParam : '아모잘탄정 5/50mg');
-  const current = GUIDE_DATA[activeMed] || GUIDE_DATA['아모잘탄정 5/50mg'];
-
-  return (
-    <div className="guide-page-wrapper">
-      <header className="guide-page-header">
-        <div className="header-left">
-          <span className="section-meta-tag">PERSONAL HEALTH GUIDE</span>
-          <h1 className="section-title">맞춤 생활 가이드</h1>
+  const [params, setParams] = useSearchParams()
+  const selectedId = params.get('medicationId') || ''
+  const keyword = (params.get('med') || '').trim()
+  const page = Math.max(1, Math.min(100000, Number.parseInt(params.get('page'), 10) || 1))
+  const [draft, setDraft] = useState(null)
+  const registered = useRemote('/api/guides/my-medications')
+  const medicationId = selectedId || (!keyword ? registered.data?.items.find(item => item.medicationId)?.medicationId : '') || ''
+  const search = useRemote(keyword ? '/api/medications/search?' + new URLSearchParams({ q: keyword, page }) : null)
+  const guide = useRemote(medicationId ? '/api/guides/medications/' + encodeURIComponent(medicationId) : null)
+  const medication = guide.data?.medication
+  function submit(event) {
+    event.preventDefault()
+    const q = (draft ?? keyword).trim()
+    if (!q) return
+    if (q === keyword && page === 1 && !medicationId) search.retry()
+    else setParams({ med: q })
+    setDraft(null)
+  }
+  function select(id) {
+    const next = new URLSearchParams(params)
+    next.set('medicationId', id)
+    setParams(next)
+  }
+  function turnPage(nextPage) {
+    const next = new URLSearchParams(params)
+    next.set('page', nextPage)
+    setParams(next)
+  }
+  return <div className="guide-page-wrapper">
+    <header className="guide-page-header">
+      <div><span className="section-meta-tag">PERSONAL HEALTH GUIDE</span><h1 className="section-title">맞춤 생활 가이드</h1></div>
+      <form className="guide-search-form" onSubmit={submit}>
+        <label htmlFor="guide-search">약 이름 검색</label>
+        <div className="guide-search-input">
+          <input id="guide-search" type="search" maxLength={100} value={draft ?? keyword}
+            onChange={event => setDraft(event.target.value)} placeholder="텐, 텐텐처럼 일부 이름으로 검색"
+            onKeyDown={event => { if (event.key === 'Enter' && (event.nativeEvent.isComposing || event.keyCode === 229)) event.preventDefault() }} />
+          <button type="submit" disabled={!(draft ?? keyword).trim()}>검색</button>
         </div>
-
-        <div className="header-search">
-          <div className="guide-search-input">
-            <svg className="guide-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 19l-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="다른 약 이름 검색"
-              value={searchWord}
-              onChange={(e) => setSearchWord(e.target.value)}
-            />
-          </div>
-        </div>
-      </header>
-
-      {/* 약 선택 탭 (와이어프레임 4.png) */}
-      <div className="med-pills-row">
-        {Object.keys(GUIDE_DATA).map((medName) => (
-          <button
-            key={medName}
-            type="button"
-            className={`med-pill-tab ${activeMed === medName ? 'active' : ''}`}
-            onClick={() => setSelectedMed(medName)}
-          >
-            <span className={`pill-dot ${GUIDE_DATA[medName].type}`} />
-            {medName}
-          </button>
-        ))}
+      </form>
+    </header>
+    <section className="guide-registered" aria-label="내 등록 약">
+      <div className="guide-registered-header"><h2>내 등록 약</h2><button onClick={registered.retry} disabled={registered.loading}>목록 새로고침</button></div>
+      <p className="guide-note">현재 처방 기간에 해당하는 약과 직접 등록한 약을 보여드려요. 상비약 등록 여부는 실제 복용 여부와 다를 수 있어요.</p>
+      {registered.loading && <p role="status">등록한 약을 불러오고 있어요…</p>}
+      {registered.error && (registered.status === 401 ? <p className="guide-note">로그인하면 내 등록 약을 볼 수 있어요. <a href="/login">로그인</a></p>
+        : <p role="alert">{registered.error}</p>)}
+      {registered.data && <RegisteredMedications items={registered.data.items} selectedId={medicationId} onSelect={select}
+        onSearch={name => { setParams({ med: name }); setDraft(null) }} />}
+    </section>
+    {search.loading && <p role="status">약을 찾고 있어요…</p>}
+    {search.error && <div role="alert">{search.error} <button onClick={search.retry}>검색 다시 시도</button></div>}
+    {search.data && <section aria-label="약 검색 결과">
+      <p className="guide-note">검색 결과 {search.data.total}개 · 이름과 제조사를 확인하고 제품을 선택해주세요.</p>
+      <div className="med-pills-row">{search.data.items.map(item => <button type="button" key={item.itemSeq}
+        className={'med-pill-tab' + (item.itemSeq === medicationId ? ' active' : '')}
+        aria-pressed={item.itemSeq === medicationId} onClick={() => select(item.itemSeq)}>
+        <span>{item.itemName}<small className="guide-maker">{item.entpName || '업체 정보 없음'}</small></span>
+      </button>)}</div>
+      {search.data.total === 0 && <p>일치하는 약이 없습니다. 더 짧은 이름으로 검색해주세요.</p>}
+      <div className="guide-pagination">
+        {page > 1 && <button onClick={() => turnPage(page - 1)}>이전 결과</button>}
+        {search.data.total > 0 && <span>{page} 페이지</span>}
+        {search.data.hasMore && <button onClick={() => turnPage(page + 1)}>다음 결과</button>}
       </div>
-
-      {/* 메인 가이드 카드 (와이어프레임 4.png 3단 구조) */}
+    </section>}
+    {!medicationId && !registered.loading && <div className="guide-empty">{keyword ? '검색 결과에서 확인할 약을 선택해주세요.' : '약 이름을 검색하면 등록된 약별 정보를 확인할 수 있어요.'}</div>}
+    {guide.loading && <p role="status">선택한 약의 정보를 불러오고 있어요…</p>}
+    {guide.error && <div role="alert">{guide.error} <button onClick={guide.retry}>다시 시도</button></div>}
+    {medication && <>
       <div className="guide-detail-card">
-        {/* 좌측 사이드: 약 이름 및 기본정보 */}
-        <div className="guide-med-intro">
-          <span className="meta-kicker">GUIDE FOR</span>
-          <h2 className="intro-med-name">{activeMed}</h2>
-          <span className={`intro-tag ${current.type}`}>{current.tag}</span>
-        </div>
-
-        {/* 01: 일상 제약 */}
-        <div className="guide-col col-01">
-          <span className="col-num">01</span>
-          <h3 className="col-title">일상 제약</h3>
-
-          <div className="restrictions-list">
-            {current.restrictions.map((item, idx) => (
-              <div key={idx} className="restriction-item">
-                <strong className="restriction-label">{item.label}</strong>
-                <p className="restriction-text">{item.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 02: 부작용 & 대처 */}
-        <div className="guide-col col-02">
-          <span className="col-num">02</span>
-          <h3 className="col-title">부작용 &amp; 대처</h3>
-          <p className="side-effect-text">{current.sideEffects}</p>
-
-          <div className="side-effect-alert-box">
-            {current.warningBox}
-          </div>
-        </div>
-
-        {/* 03: 음식 궁합 */}
-        <div className="guide-col col-03">
-          <span className="col-num">03</span>
-          <h3 className="col-title">음식 궁합</h3>
-
-          <div className="food-match-boxes">
-            <div className="food-box good">
-              <span className="food-status">GOOD</span>
-              <strong>{current.foodGood}</strong>
-            </div>
-            <div className="food-box caution">
-              <span className="food-status">CAUTION</span>
-              <strong>{current.foodCaution}</strong>
-            </div>
-          </div>
-
-          <p className="food-advice-text">
-            {current.foodAdvice}
-          </p>
-        </div>
+        <aside className="guide-med-intro"><span className="meta-kicker">GUIDE FOR</span>
+          <h2 className="intro-med-name">{medication.itemName}</h2>
+          <span className="intro-tag rx">{medication.etcOtcCode || '구분 정보 없음'}</span>
+          <p className="guide-note">{valueOrMissing(medication.entpName)}</p>
+          <strong>성분</strong><p className="guide-db-text">{valueOrMissing(medication.materialName)}</p>
+        </aside>
+        <section className="guide-col"><span className="col-num">01</span><h3 className="col-title">효능 · 복용법</h3>
+          <strong>효능·효과</strong><p className="guide-db-text">{valueOrMissing(medication.efficacy)}</p>
+          <strong>용법·용량</strong><p className="guide-db-text">{valueOrMissing(medication.usageDosage)}</p>
+        </section>
+        <section className="guide-col"><span className="col-num">02</span><h3 className="col-title">일상 제약 · 부작용</h3>
+          <p className="guide-db-text">현재 연결된 자료에는 일상 활동 주의사항과 부작용·대처 정보가 없습니다.</p>
+          <div className="side-effect-alert-box">정보가 없다는 것이 주의사항이나 부작용이 없다는 뜻은 아닙니다.</div>
+        </section>
+        <section className="guide-col"><span className="col-num">03</span><h3 className="col-title">DUR 주의정보</h3>
+          <DurInformation dur={guide.data.dur} />
+        </section>
       </div>
-    </div>
-  );
+      <p className="guide-note">자료: {guide.data.source} · 개인의 전체 복약 내역을 반영한 가이드는 아닙니다.</p>
+    </>}
+  </div>
 }
