@@ -6,7 +6,6 @@ export default function Navbar({
   onToggleSidebar,
   isSidebarOpen,
   isLoggedIn,
-  user,
   onLogout,
   onLoginDemoToggle
 }) {
@@ -38,7 +37,7 @@ export default function Navbar({
   return (
     <header className="site-navbar">
       <div className="navbar-container">
-        {/* 좌측: 사이드바 토글 버튼 & 브랜드 로고 */}
+        {/* 좌측: 사이드바 토글 버튼 */}
         <div className="navbar-left">
           <button
             type="button"
@@ -54,14 +53,17 @@ export default function Navbar({
               <span className="bar-row"><i className="dot" /><span className="line" /></span>
             </div>
           </button>
+        </div>
 
+        {/* 중앙: 브랜드 로고 (한가운데 배치) */}
+        <div className="navbar-center">
           <Link to="/" className="navbar-logo">
             <span className="logo-text">Jette-Yak</span>
             <span className="logo-badge">mediary</span>
           </Link>
         </div>
 
-        {/* 우측: 로그인 전 / 후 상태 (와이어프레임 메인화면 & 내비게이션바 명세) */}
+        {/* 우측: 알림 및 로그인/로그아웃 액션 */}
         <div className="navbar-right">
           {isLoggedIn ? (
             <div className="logged-in-actions">
@@ -108,14 +110,6 @@ export default function Navbar({
               </div>
 
               <span className="nav-divider">|</span>
-
-              {/* 프로필 칩 */}
-              <Link to="/mypage" className="user-profile-chip" title="마이페이지로 이동">
-                <div className="avatar-mini">
-                  {user?.name ? user.name[0] : '김'}
-                </div>
-                <span className="user-name-text">{user?.name || '김메디'}님</span>
-              </Link>
 
               {/* 로그아웃 버튼 */}
               <button

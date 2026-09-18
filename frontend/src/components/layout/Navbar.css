@@ -18,20 +18,19 @@
   margin: 0 auto;
   height: 100%;
   padding: 0 24px;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
 }
 
 /* --------------------------------------------------------------------------
-   Navbar Left: Menu Toggle & Brand Logo
+   Navbar Left: Menu Toggle
    -------------------------------------------------------------------------- */
 .navbar-left {
   display: flex;
   align-items: center;
-  gap: 16px;
-  flex-shrink: 0;
+  justify-content: flex-start;
 }
 
 /* 와이어프레임 메뉴 아이콘 (3개의 점과 선 구조) */
@@ -84,6 +83,15 @@
   flex: 1;
 }
 
+/* --------------------------------------------------------------------------
+   Navbar Center: Brand Logo (한가운데 배치)
+   -------------------------------------------------------------------------- */
+.navbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .navbar-logo {
   display: flex;
   align-items: center;
@@ -115,16 +123,14 @@
   letter-spacing: 0.5px;
 }
 
-
-
 /* --------------------------------------------------------------------------
    Navbar Right: 로그인 전 / 후 상태
    -------------------------------------------------------------------------- */
 .navbar-right {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 12px;
-  flex-shrink: 0;
 }
 
 .logged-in-actions {
@@ -285,41 +291,7 @@
   color: #a49b90;
 }
 
-/* 프로필 칩 */
-.user-profile-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-decoration: none;
-  padding: 4px 10px;
-  border-radius: 20px;
-  background: #f1ebd0;
-  background: rgba(125, 38, 56, 0.08);
-  transition: all 0.15s ease;
-}
 
-.user-profile-chip:hover {
-  background: rgba(125, 38, 56, 0.15);
-}
-
-.avatar-mini {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: #7d2638;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.user-name-text {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #4a151e;
-}
 
 /* 로그아웃 버튼 */
 .logout-btn {
@@ -387,9 +359,6 @@
   }
 
   .logo-badge {
-    display: none;
-  }
-  .user-name-text {
     display: none;
   }
 }
