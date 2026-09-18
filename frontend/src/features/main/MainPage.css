@@ -614,6 +614,11 @@
   box-shadow: 0 2px 8px rgba(60, 45, 35, 0.04);
 }
 
+.note-alert-box.discontinued-alert {
+  background: #fff8f8;
+  border-color: #e5a7ad;
+}
+
 .note-alert-icon {
   width: 20px;
   height: 20px;

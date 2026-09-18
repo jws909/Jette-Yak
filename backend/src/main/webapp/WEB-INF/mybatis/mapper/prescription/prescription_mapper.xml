@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.prescription.dao.PrescriptionDAO">
+
+    <!-- 1. 처방전 마스터 등록 (Oracle GENERATED ALWAYS AS IDENTITY 컬럼 자동 채번) -->
+    <insert id="insertPrescription" parameterType="com.app.prescription.dto.PrescriptionDTO">
+        <selectKey keyProperty="prescriptionId" resultType="long" order="AFTER">
+            SELECT NVL(MAX(prescription_id), 0) FROM prescriptions WHERE user_id = #{userId}
+        </selectKey>
+        INSERT INTO prescriptions (
+            user_id,
+            dispensed_date,
+            total_days,
+            prescription_image_url,
+            ai_summary_json,
+            has_discontinued_drug,
+            created_at
+        ) VALUES (
+            #{userId},
+            #{dispensedDate},
+            #{totalDays},
+            #{prescriptionImageUrl},
+            #{aiSummaryJson},
+            #{hasDiscontinuedDrug},
+            SYSDATE
+        )
+    </insert>
+
+    <!-- 2. 처방전 세부 약품 항목 등록 (Oracle GENERATED ALWAYS AS IDENTITY 컬럼 자동 채번) -->
+    <insert id="insertPrescriptionItem" parameterType="com.app.prescription.dto.PrescriptionItemDTO">
+        INSERT INTO prescription_items (
+            prescription_id,
+            medication_id,
+            daily_dose,
+            daily_frequency,
+            total_days,
+            usage_timing
+        ) VALUES (
+            #{prescriptionId},
+            #{medicationId},
+            #{dailyDose},
+            #{dailyFrequency},
+            #{totalDays},
+            #{usageTiming, jdbcType=VARCHAR}
+        )
+    </insert>
+
+    <!-- 3. 사용자의 최신 처방전 조회 -->
+    <select id="getLatestPrescriptionByUserId" parameterType="long" resultType="com.app.prescription.dto.PrescriptionDTO">
+        SELECT *
+        FROM (
+            SELECT 
+                prescription_id AS prescriptionId,
+                user_id AS userId,
+                dispensed_date AS dispensedDate,
+                total_days AS totalDays,
+                prescription_image_url AS prescriptionImageUrl,
+                ai_summary_json AS aiSummaryJson,
+                has_discontinued_drug AS hasDiscontinuedDrug,
+                created_at AS createdAt
+            FROM prescriptions
+            WHERE user_id = #{userId}
+            ORDER BY prescription_id DESC
+        )
+        WHERE ROWNUM = 1
+    </select>
+
+    <!-- 4. 처방전의 약품 목록 (의약품 마스터 조인: medication_id) -->
+    <select id="getPrescriptionItemsByPrescriptionId" parameterType="long" resultType="com.app.prescription.dto.PrescriptionItemDTO">
+        SELECT 
+            pi.item_id AS itemId,
+            pi.prescription_id AS prescriptionId,
+            pi.medication_id AS medicationId,
+            pi.daily_dose AS dailyDose,
+            pi.daily_frequency AS dailyFrequency,
+            pi.total_days AS totalDays,
+            pi.usage_timing AS usageTiming,
+            NVL(m.item_name, '처방약품') AS itemName,
+            m.edi_code AS ediCode,
+            m.class_name AS className,
+            m.is_discontinued AS isDiscontinued
+        FROM prescription_items pi
+        LEFT JOIN medications m ON pi.medication_id = m.medication_id
+        WHERE pi.prescription_id = #{prescriptionId}
+        ORDER BY pi.item_id ASC
+    </select>
+
+    <!-- 5. EDI 코드로 의약품 DB 검색 (medications 테이블은 읽기 전용으로만 조회) -->
+    <select id="findMedicationByEdiCode" parameterType="string" resultType="com.app.prescription.dto.MatchedMedicationDTO">
+        SELECT *
+        FROM (
+            SELECT 
+                medication_id AS itemSeq,
+                edi_code AS ediCode,
+                item_name AS itemName,
+                class_name AS className,
+                is_discontinued AS isDiscontinued
+            FROM medications
+            WHERE edi_code = #{ediCode}
+               OR INSTR(',' || REPLACE(edi_code, ' ', '') || ',', ',' || #{ediCode} || ',') > 0
+               OR edi_code LIKE '%' || #{ediCode} || '%'
+            ORDER BY CASE 
+                WHEN edi_code = #{ediCode} THEN 1
+                WHEN INSTR(',' || REPLACE(edi_code, ' ', '') || ',', ',' || #{ediCode} || ',') > 0 THEN 2
+                ELSE 3 
+            END
+        )
+        WHERE ROWNUM = 1
+    </select>
+
+    <!-- 6. OCR로 추출된 약품명으로 의약품 DB 검색/매칭 (EDI 미인식 또는 미존재 시 Fallback, medications 테이블 읽기 전용) -->
+    <select id="findMedicationByName" parameterType="string" resultType="com.app.prescription.dto.MatchedMedicationDTO">
+        SELECT *
+        FROM (
+            SELECT 
+                medication_id AS itemSeq,
+                edi_code AS ediCode,
+                item_name AS itemName,
+                class_name AS className,
+                is_discontinued AS isDiscontinued
+            FROM medications
+            WHERE INSTR(LOWER(REGEXP_REPLACE(item_name, '[[:space:]]', '')), LOWER(REGEXP_REPLACE(#{keyword}, '[[:space:]]', ''))) > 0
+               OR item_name LIKE '%' || #{keyword} || '%'
+            ORDER BY CASE 
+                WHEN LOWER(REGEXP_REPLACE(item_name, '[[:space:]]', '')) = LOWER(REGEXP_REPLACE(#{keyword}, '[[:space:]]', '')) THEN 1
+                WHEN item_name LIKE #{keyword} || '%' THEN 2
+                ELSE 3 
+            END
+        )
+        WHERE ROWNUM = 1
+    </select>
+
+</mapper>

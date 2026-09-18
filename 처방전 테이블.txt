@@ -1,0 +1,42 @@
+desc prescriptions;
+
+이름                     널?       유형             
+---------------------- -------- -------------- 
+PRESCRIPTION_ID        NOT NULL NUMBER         
+USER_ID                NOT NULL NUMBER         
+DISPENSED_DATE         NOT NULL DATE           
+TOTAL_DAYS             NOT NULL NUMBER(3)      
+PRESCRIPTION_IMAGE_URL NOT NULL VARCHAR2(500)  
+AI_SUMMARY_JSON        NOT NULL VARCHAR2(4000) 
+HAS_DISCONTINUED_DRUG  NOT NULL NUMBER(1)      
+CREATED_AT             NOT NULL DATE      
+
+desc prescription_items;
+
+이름              널?       유형            
+--------------- -------- ------------- 
+ITEM_ID         NOT NULL NUMBER        
+PRESCRIPTION_ID NOT NULL NUMBER        
+MEDICATION_ID   NOT NULL VARCHAR2(20)  
+DAILY_DOSE      NOT NULL NUMBER(3,1)   
+DAILY_FREQUENCY NOT NULL NUMBER(2)     
+TOTAL_DAYS      NOT NULL NUMBER(3)     
+USAGE_TIMING             VARCHAR2(100)
+
+desc medications;
+
+이름              널?       유형                 
+--------------- -------- ------------------ 
+MEDICATION_ID   NOT NULL VARCHAR2(20)       
+EDI_CODE                 VARCHAR2(1000)     
+ITEM_NAME       NOT NULL VARCHAR2(500 CHAR) 
+ENTP_NAME                VARCHAR2(200)      
+CLASS_NAME               VARCHAR2(100)      
+MATERIAL_NAME            VARCHAR2(4000)     
+ETC_OTC_CODE             VARCHAR2(20)       
+EFFICACY                 VARCHAR2(4000)     
+USAGE_DOSAGE             VARCHAR2(4000)     
+ITEM_IMAGE_URL           VARCHAR2(500)      
+AI_SUMMARY_JSON          VARCHAR2(4000)     
+IS_DISCONTINUED NOT NULL NUMBER(1)          
+UPDATED_AT      NOT NULL DATE      

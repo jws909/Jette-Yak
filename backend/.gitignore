@@ -1,8 +1,8 @@
 # Created by https://www.toptal.com/developers/gitignore/api/windows,eclipse,java,maven
 # Edit at https://www.toptal.com/developers/gitignore?templates=windows,eclipse,java,maven
 
-db.properties
-mail.properties
+src/main/resources/config/*.properties
+src/main/resources/config/*.json
 
 ### Eclipse ###
 .metadata
