@@ -2,6 +2,22 @@
    Jette-Yak Global Navigation Bar Styles
    ========================================================================== */
 
+/* 친근하고 부드러운 헬스케어 브랜드 웹폰트 (엄마까투리 & 나눔스퀘어라운드) */
+@font-face {
+  font-family: 'Eommakkaturi';
+  src: url('https://gcore.jsdelivr.net/gh/projectnoonnu/noonfonts_13@1.0/Katuri.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'NanumSquareRound';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/NanumSquareRound.woff') format('woff');
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 .site-navbar {
   position: sticky;
   top: 0;
@@ -14,23 +30,24 @@
 }
 
 .navbar-container {
-  max-width: 1320px;
-  margin: 0 auto;
+  width: 100%;
   height: 100%;
   padding: 0 24px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 16px;
+  box-sizing: border-box;
 }
 
 /* --------------------------------------------------------------------------
-   Navbar Left: Menu Toggle
+   Navbar Left: 모바일 메뉴 토글 & 2번 로고 심볼
    -------------------------------------------------------------------------- */
 .navbar-left {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  gap: 14px;
 }
 
 /* 와이어프레임 메뉴 아이콘 (3개의 점과 선 구조) */
@@ -72,19 +89,40 @@
   width: 3.5px;
   height: 3.5px;
   border-radius: 50%;
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   display: inline-block;
 }
 
 .menu-icon-bars .line {
   height: 2px;
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   border-radius: 2px;
   flex: 1;
 }
 
+/* 좌측 로고 심볼: logo.png (2번 시안) */
+.navbar-logo-symbol {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.navbar-logo-symbol:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.logo-symbol-img {
+  height: 36px;
+  width: auto;
+  max-width: 44px;
+  object-fit: contain;
+  display: block;
+}
+
 /* --------------------------------------------------------------------------
-   Navbar Center: Brand Logo (한가운데 배치)
+   Navbar Center: 브랜드 글씨 (아까대로 한가운데 배치)
    -------------------------------------------------------------------------- */
 .navbar-center {
   display: flex;
@@ -92,35 +130,30 @@
   justify-content: center;
 }
 
-.navbar-logo {
+.navbar-brand-text {
   display: flex;
   align-items: center;
   gap: 8px;
   text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.navbar-brand-text:hover {
+  opacity: 0.92;
 }
 
 .logo-text {
-  font-family: 'Playfair Display', 'Georgia', serif;
-  font-size: 22px;
-  font-weight: 700;
+  font-family: 'Eommakkaturi', 'NanumSquareRound', sans-serif;
+  font-size: 26px;
+  font-weight: normal;
   letter-spacing: -0.5px;
-  color: #4a151e;
-  transition: color 0.2s ease;
+  color: #8b3e4b;
+  transition: color 0.2s ease, transform 0.2s ease;
+  user-select: none;
 }
 
-.navbar-logo:hover .logo-text {
-  color: #7d2638;
-}
-
-.logo-badge {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: lowercase;
-  background-color: #eedcd9;
-  color: #7d2638;
-  padding: 2px 7px;
-  border-radius: 12px;
-  letter-spacing: 0.5px;
+.navbar-brand-text:hover .logo-text {
+  color: #6e2c38;
 }
 
 /* --------------------------------------------------------------------------
@@ -168,7 +201,7 @@
 
 .notif-btn:hover {
   background-color: #eee7dc;
-  color: #7d2638;
+  color: #8b3e4b;
 }
 
 .bell-icon {
@@ -223,7 +256,7 @@
 .mark-read-btn {
   background: none;
   border: none;
-  color: #7d2638;
+  color: #8b3e4b;
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
@@ -331,11 +364,11 @@
 
 .nav-link-login:hover,
 .nav-link-signup:hover {
-  color: #7d2638;
+  color: #8b3e4b;
 }
 
 .demo-login-btn {
-  background-color: #7d2638;
+  background-color: #8b3e4b;
   color: #ffffff;
   border: none;
   border-radius: 6px;
@@ -348,24 +381,37 @@
 }
 
 .demo-login-btn:hover {
-  background-color: #631c2b;
+  background-color: #732f3c;
 }
 
 /* 반응형 */
 @media (min-width: 768px) {
-  /* 태블릿 및 PC: 사이드바가 항상 열려있으므로 상단 메뉴 토글 버튼 숨김 */
+  /* 태블릿 및 PC: 사이드바가 항상 열려있으므로 상단 메뉴 토글 버튼 숨김 & 좌측 로고 심볼 표시 */
   .menu-toggle-btn {
-    display: none;
+    display: none !important;
+  }
+
+  .navbar-logo-symbol {
+    display: flex !important;
   }
 }
 
-@media (max-width: 840px) {
-  .navbar-container {
-    padding: 0 14px;
-    gap: 10px;
+@media (max-width: 767.98px) {
+  /* 모바일: 햄버거 메뉴를 가리지 않도록 좌측 로고 심볼 숨김 & 햄버거 토글 버튼 노출 */
+  .navbar-logo-symbol {
+    display: none !important;
   }
 
-  .logo-badge {
-    display: none;
+  .menu-toggle-btn {
+    display: flex !important;
+  }
+
+  .navbar-container {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .logo-text {
+    font-size: 21px;
   }
 }

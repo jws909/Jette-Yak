@@ -44,8 +44,8 @@
   }
 }
 
-/* 모바일 (767px 이하): 전체 폭 사용 */
-@media (max-width: 767px) {
+/* 모바일 (767.98px 이하): 전체 폭 사용 */
+@media (max-width: 767.98px) {
   .main-layout-content {
     margin-left: 0;
     width: 100%;

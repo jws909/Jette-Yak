@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import logoImg from '../../assets/logo.png';
 import './Navbar.css';
 
 export default function Navbar({
@@ -37,7 +38,7 @@ export default function Navbar({
   return (
     <header className="site-navbar">
       <div className="navbar-container">
-        {/* 좌측: 사이드바 토글 버튼 */}
+        {/* 좌측: 모바일 메뉴 토글 버튼 & 2번 로고 심볼 (logo.png) */}
         <div className="navbar-left">
           <button
             type="button"
@@ -53,13 +54,17 @@ export default function Navbar({
               <span className="bar-row"><i className="dot" /><span className="line" /></span>
             </div>
           </button>
+
+          {/* 2번 로고 심볼: 클릭 시 메인 홈 이동 (모바일에서는 햄버거 메뉴를 가리지 않도록 숨김) */}
+          <Link to="/" className="navbar-logo-symbol" title="제때약 홈으로 이동">
+            <img src={logoImg} alt="제때약 로고 심볼" className="logo-symbol-img" />
+          </Link>
         </div>
 
-        {/* 중앙: 브랜드 로고 (한가운데 배치) */}
+        {/* 중앙: 브랜드 글씨 (아까대로 한가운데 배치, mediary 캡슐 뱃지 제거) */}
         <div className="navbar-center">
-          <Link to="/" className="navbar-logo">
-            <span className="logo-text">Jette-Yak</span>
-            <span className="logo-badge">mediary</span>
+          <Link to="/" className="navbar-brand-text" title="제때약 홈으로 이동">
+            <span className="logo-text">제때약</span>
           </Link>
         </div>
 
