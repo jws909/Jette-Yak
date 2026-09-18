@@ -355,3 +355,38 @@
 .sidebar-login-link:hover {
   background: #631c2b;
 }
+
+/* ==========================================================================
+   태블릿 & PC웹: 사이드바 항상 노출 및 상단 고정 레이아웃
+   ========================================================================== */
+@media (min-width: 768px) {
+  /* 백드롭 숨김 */
+  .sidebar-backdrop {
+    display: none !important;
+  }
+
+  /* 사이드바 본체: 상단 Navbar(64px) 아래 좌측에 항상 고정 */
+  .site-sidebar {
+    top: 64px;
+    width: 240px;
+    transform: translateX(0) !important;
+    box-shadow: 2px 0 10px rgba(40, 25, 20, 0.03);
+    z-index: 900;
+  }
+
+  /* 태블릿/PC에서는 닫기 버튼 숨김 */
+  .sidebar-top-bar {
+    display: none;
+  }
+
+  .sidebar-inner {
+    padding-top: 20px;
+  }
+}
+
+/* 데스크탑 (1024px 이상): 사이드바 너비 260px 확장 */
+@media (min-width: 1024px) {
+  .site-sidebar {
+    width: 260px;
+  }
+}

@@ -17,6 +17,7 @@
   display: flex;
   flex-direction: column;
   width: 100%;
+  transition: margin-left 0.2s ease, width 0.2s ease;
 }
 
 .main-content-container {
@@ -27,7 +28,29 @@
   box-sizing: border-box;
 }
 
-@media (max-width: 768px) {
+/* 태블릿 (768px ~ 1023px): 사이드바 너비 240px 반영 */
+@media (min-width: 768px) {
+  .main-layout-content {
+    margin-left: 240px;
+    width: calc(100% - 240px);
+  }
+}
+
+/* 데스크탑 (1024px 이상): 사이드바 너비 260px 반영 */
+@media (min-width: 1024px) {
+  .main-layout-content {
+    margin-left: 260px;
+    width: calc(100% - 260px);
+  }
+}
+
+/* 모바일 (767px 이하): 전체 폭 사용 */
+@media (max-width: 767px) {
+  .main-layout-content {
+    margin-left: 0;
+    width: 100%;
+  }
+
   .main-content-container {
     padding: 20px 16px 48px;
   }

@@ -11,8 +11,8 @@ export default function Sidebar({
   const navigate = useNavigate();
 
   const handleLinkClick = () => {
-    // 모바일이나 화면 폭이 좁은 경우 링크 클릭 시 사이드바 자동 닫힘
-    if (window.innerWidth < 1024) {
+    // 모바일(768px 미만)인 경우에만 링크 클릭 시 사이드바 자동 닫힘
+    if (window.innerWidth < 768) {
       onClose();
     }
   };
