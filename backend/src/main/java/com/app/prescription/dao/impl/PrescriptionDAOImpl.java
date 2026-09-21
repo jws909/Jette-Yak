@@ -33,6 +33,16 @@ public class PrescriptionDAOImpl implements PrescriptionDAO {
     }
 
     @Override
+    public List<PrescriptionDTO> getPrescriptionListByUserId(Long userId) {
+        return sqlSession.selectList(NAMESPACE + "getPrescriptionListByUserId", userId);
+    }
+
+    @Override
+    public PrescriptionDTO getPrescriptionById(Long prescriptionId) {
+        return sqlSession.selectOne(NAMESPACE + "getPrescriptionById", prescriptionId);
+    }
+
+    @Override
     public List<PrescriptionItemDTO> getPrescriptionItemsByPrescriptionId(Long prescriptionId) {
         return sqlSession.selectList(NAMESPACE + "getPrescriptionItemsByPrescriptionId", prescriptionId);
     }
@@ -48,7 +58,17 @@ public class PrescriptionDAOImpl implements PrescriptionDAO {
     }
 
     @Override
+    public int updatePrescription(PrescriptionDTO prescription) {
+        return sqlSession.update(NAMESPACE + "updatePrescription", prescription);
+    }
+
+    @Override
     public int deletePrescription(Long prescriptionId) {
         return sqlSession.delete(NAMESPACE + "deletePrescription", prescriptionId);
+    }
+
+    @Override
+    public int deletePrescriptionItemsByPrescriptionId(Long prescriptionId) {
+        return sqlSession.delete(NAMESPACE + "deletePrescriptionItemsByPrescriptionId", prescriptionId);
     }
 }
