@@ -1,15 +1,16 @@
 package com.app.service;
 
-import com.app.dao.ScheduleDAO;
-import com.app.dto.ScheduleAddDTO;
-import com.app.dto.ScheduleDTO;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import com.app.dao.ScheduleDAO;
+import com.app.dto.ScheduleAddDTO;
+import com.app.dto.ScheduleDTO;
 
 @Service
 public class ScheduleServiceImpl implements ScheduleService {
@@ -20,6 +21,19 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Override
     public List<ScheduleDTO> getDailySchedules(Long userId, String date) {
         return scheduleDAO.selectDailySchedules(userId, date);
+    }
+
+    @Override
+    public List<Map<String, Object>> getMonthlySummary(Long userId, String yearMonth) {
+        return scheduleDAO.selectMonthlyScheduleSummary(userId, yearMonth);
+    }
+
+    @Override
+    public List<Map<String, Object>> searchMedications(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return scheduleDAO.searchMedications(keyword.trim());
     }
 
     @Override
@@ -39,17 +53,10 @@ public class ScheduleServiceImpl implements ScheduleService {
     public boolean addSchedule(ScheduleAddDTO dto) {
         return scheduleDAO.insertSchedule(dto) > 0;
     }
-    
+
     @Override
-    public List<Map<String, Object>> searchMedications(String keyword) {
-        if (keyword == null || keyword.trim().isEmpty()) {
-            return new ArrayList<>();
-        }
-        return scheduleDAO.searchMedications(keyword.trim());
-    }
-    
-    @Override
-    public List<Map<String, Object>> getMonthlySummary(Long userId, String yearMonth) {
-        return scheduleDAO.selectMonthlyScheduleSummary(userId, yearMonth);
+    @Transactional
+    public boolean removeSchedule(Long scheduleId) {
+        return scheduleDAO.deleteSchedule(scheduleId) > 0;
     }
 }

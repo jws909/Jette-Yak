@@ -14,10 +14,10 @@ export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
   const [schedules, setSchedules] = useState([]);
-  const [monthSummary, setMonthSummary] = useState({}); // { '2026-09-21': { hasPrescription: 1, ... } }
+  const [monthSummary, setMonthSummary] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // 알람 모달
+  // 알람 모달 상태
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [ampm, setAmpm] = useState('오전');
@@ -25,22 +25,26 @@ export default function CalendarPage() {
   const [minute, setMinute] = useState('00');
   const [alarmOn, setAlarmOn] = useState(true);
 
-  // 복약 추가 모달
+  // 복약 추가 모달 상태
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newMedName, setNewMedName] = useState('');
   const [selectedMed, setSelectedMed] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
-  const [newMedType, setNewMedType] = useState('regular'); // 상시약 기본
+  const [newMedType, setNewMedType] = useState('regular'); // 'regular' | 'supplement'
   const [newAmpm, setNewAmpm] = useState('오전');
   const [newHour, setNewHour] = useState('09');
   const [newMinute, setNewMinute] = useState('00');
   const [addedSuccessMsg, setAddedSuccessMsg] = useState('');
 
+  // 삭제 확인 커스텀 모달 상태
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // 1. 해당 월 전체 복약 요약 조회 (달력 점/바 렌더링용)
+  // 1. 월별 요약 조회 (달력 점/바 인디케이터)
   const fetchMonthSummary = useCallback(async () => {
     try {
       const res = await fetch(`http://localhost:8080/api/calendar/summary?userId=1&yearMonth=${currentYearMonth}`);
@@ -61,7 +65,7 @@ export default function CalendarPage() {
     }
   }, [currentYearMonth]);
 
-  // 2. 일별 일정 조회
+  // 2. 일별 일정 목록 조회
   const fetchDailySchedules = useCallback(async (targetDateStr) => {
     setLoading(true);
     try {
@@ -88,7 +92,7 @@ export default function CalendarPage() {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
 
-  // 약품명 검색 자동완성
+  // 약품 검색 자동완성
   useEffect(() => {
     if (!newMedName.trim()) {
       setSearchResults([]);
@@ -133,6 +137,7 @@ export default function CalendarPage() {
     setSelectedDate(getFormattedDate(now));
   };
 
+  // 체크박스 토글
   const toggleTaken = async (item) => {
     const isTaken = !item.takenAt;
     try {
@@ -142,10 +147,42 @@ export default function CalendarPage() {
         body: JSON.stringify({ taken: isTaken }),
       });
       if (response.ok) {
-        fetchDailySchedules(selectedDate);
+        setSchedules((prev) =>
+          prev.map((s) => (s.scheduleId === item.scheduleId ? { ...s, takenAt: isTaken ? new Date().toISOString() : null } : s))
+        );
       }
     } catch (err) {
       console.error("체크박스 토글 실패:", err);
+    }
+  };
+
+  // 삭제 모달 열기
+  const openDeleteModal = (item, e) => {
+    e.stopPropagation();
+    setItemToDelete(item);
+    setIsDeleteModalOpen(true);
+  };
+
+  // 모달 내 [삭제] 버튼 클릭 시 실행
+  const confirmDeleteSchedule = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      const response = await fetch(`http://localhost:8080/api/calendar/${itemToDelete.scheduleId}/delete`, {
+        method: 'POST',
+      });
+      if (response.ok) {
+        setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
+        fetchMonthSummary();
+      } else {
+        alert("삭제에 실패했습니다.");
+      }
+    } catch (err) {
+      console.error("삭제 통신 실패:", err);
+      alert("삭제 통신 중 오류가 발생했습니다.");
+    } finally {
+      setIsDeleteModalOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -201,7 +238,9 @@ export default function CalendarPage() {
         { method: 'POST' }
       );
       if (response.ok) {
-        fetchDailySchedules(selectedDate);
+        setSchedules((prev) =>
+          prev.map((s) => (s.scheduleId === activeItem.scheduleId ? { ...s, time: newTime, alarmEnabled: alarmOn } : s))
+        );
       }
     } catch (err) {
       console.error("알람 수정 실패:", err);
@@ -209,7 +248,7 @@ export default function CalendarPage() {
     setIsAlarmModalOpen(false);
   };
 
-  // 복약 추가 제출 핸들러
+  // 복약 추가 제출 핸들러 (사용자가 선택한 '영양제/상시약' 상태를 화면에 즉시 보장)
   const handleAddMedication = async (e) => {
     e.preventDefault();
     if (!selectedMed) {
@@ -224,6 +263,7 @@ export default function CalendarPage() {
     const formattedTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
 
     const savedMedName = selectedMed.name;
+    const chosenType = newMedType; // 'supplement' 또는 'regular'
 
     try {
       const response = await fetch(`http://localhost:8080/api/calendar`, {
@@ -233,16 +273,39 @@ export default function CalendarPage() {
           userId: 1,
           medicationId: selectedMed.id,
           name: savedMedName,
-          type: newMedType,
+          type: chosenType,
           scheduledDate: selectedDate,
           scheduledTime: formattedTime,
         }),
       });
 
       if (response.ok) {
-        // 일별 일정 & 월별 요약(점/바) 모두 새로고침
-        fetchDailySchedules(selectedDate);
-        fetchMonthSummary();
+        // 백엔드 반환값과 무관하게 사용자가 등록한 타입을 즉시 화면 상태에 주입
+        const tempId = Date.now();
+        setSchedules((prev) => [
+          ...prev,
+          {
+            scheduleId: tempId,
+            name: savedMedName,
+            time: formattedTime,
+            type: chosenType,
+            takenAt: null,
+            alarmEnabled: true,
+          }
+        ]);
+
+        // 달력 인디케이터 점 즉시 갱신
+        setMonthSummary((prev) => {
+          const prevStatus = prev[selectedDate] || {};
+          return {
+            ...prev,
+            [selectedDate]: {
+              ...prevStatus,
+              hasSupplement: chosenType === 'supplement' ? true : prevStatus.hasSupplement,
+              hasRegular: chosenType === 'regular' ? true : prevStatus.hasRegular,
+            }
+          };
+        });
 
         setAddedSuccessMsg(`'${savedMedName}' 등록 완료!`);
         setTimeout(() => setAddedSuccessMsg(''), 2000);
@@ -250,6 +313,7 @@ export default function CalendarPage() {
         setSelectedMed(null);
         setNewMedName('');
         setSearchResults([]);
+        setIsAddModalOpen(false);
       } else {
         const errorText = await response.text();
         console.error("서버 등록 실패:", errorText);
@@ -270,7 +334,7 @@ export default function CalendarPage() {
     setIsAddModalOpen(false);
   };
 
-  // 달력 날짜 그리드
+  // 달력 날짜 계산
   const firstDayIndex = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month + 1, 0).getDate();
 
@@ -297,8 +361,9 @@ export default function CalendarPage() {
         <h1>복약캘린더</h1>
       </header>
 
+      {/* 메인 캘린더 카드 */}
       <div className="calendar-main-card">
-        {/* 달력 영역 */}
+        {/* 좌측 달력 영역 */}
         <div className="calendar-left">
           <div className="cal-nav">
             <div className="month-controls">
@@ -334,7 +399,6 @@ export default function CalendarPage() {
                 >
                   <span className="day-number">{day}</span>
                   
-                  {/* 날짜 밑 복약 인디케이터 (처방약 바, 상시약/영양제 점) */}
                   {dayStatus && (
                     <div className="cell-indicators">
                       {dayStatus.hasPrescription && <div className="indicator-bar prescription" />}
@@ -358,66 +422,100 @@ export default function CalendarPage() {
 
         {/* 우측 목록 패널 */}
         <div className="calendar-right">
-          <div className="panel-header">
-            <span className="panel-sub">SELECTED DATE</span>
-            <h3>{selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일</h3>
-          </div>
+          <div>
+            <div className="panel-header">
+              <span className="panel-sub">SELECTED DATE</span>
+              <h3>{selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일</h3>
+            </div>
 
-          <div className="dose-list">
-            {loading ? (
-              <div style={{ color: '#888', padding: '20px 0' }}>일정을 불러오는 중입니다...</div>
-            ) : sortedList.length === 0 ? (
-              <div style={{ color: '#aaa', padding: '20px 0' }}>복약 일정이 없습니다.</div>
-            ) : (
-              sortedList.map((item) => {
-                const isTaken = !!item.takenAt;
-                const currentCat = categoryMap[item.type] || { label: '상시약', className: 'cat-regular' };
+            <div className="dose-list">
+              {loading ? (
+                <div style={{ color: '#7a7066', padding: '20px 0' }}>일정을 불러오는 중입니다...</div>
+              ) : sortedList.length === 0 ? (
+                <div style={{ color: '#7a7066', padding: '20px 0' }}>복약 일정이 없습니다.</div>
+              ) : (
+                sortedList.map((item) => {
+                  const isTaken = !!item.takenAt;
+                  const currentCat = categoryMap[item.type] || { label: '상시약', className: 'cat-regular' };
 
-                return (
-                  <div key={item.scheduleId} className={`dose-item ${isTaken ? 'done' : ''}`}>
-                    <input
-                      type="checkbox"
-                      className="check-box"
-                      checked={isTaken}
-                      onChange={() => toggleTaken(item)}
-                    />
+                  return (
+                    <div
+                      key={item.scheduleId}
+                      className={`dose-item ${isTaken ? 'done' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="check-box"
+                        checked={isTaken}
+                        onChange={() => toggleTaken(item)}
+                      />
 
-                    <div className="dose-info">
-                      <div className="time-row">
-                        <span className={`type-dot ${item.type || 'regular'}`} />
-                        <span className="time">{item.time}</span>
+                      <div className="dose-info">
+                        <div className="time-row">
+                          <span className={`type-dot ${item.type || 'regular'}`} />
+                          <span className="time">{item.time}</span>
+                        </div>
+                        
+                        <div className="name-row">
+                          <strong
+                            className="name"
+                            title={item.name}
+                            style={{ textDecoration: isTaken ? 'line-through' : 'none' }}
+                          >
+                            {item.name}
+                          </strong>
+
+                          <span className={`category-tag ${currentCat.className}`}>
+                            {currentCat.label}
+                          </span>
+                        </div>
                       </div>
-                      <div className="name-row">
-                        <strong className="name" title={item.name}>{item.name}</strong>
-                        {/* 배경색 제거하고 글자 색상만 나오는 심플한 카테고리 태그 */}
-                        <span className={`category-tag ${currentCat.className}`}>
-                          {currentCat.label}
-                        </span>
+
+                      {/* 알람 종 & 삭제 버튼 그룹 */}
+                      <div className="dose-item-actions">
+                        <button
+                          className={`btn-alarm ${item.alarmEnabled ? 'active' : ''}`}
+                          onClick={() => openAlarmModal(item)}
+                          title="알람 시간 설정"
+                        >
+                          <svg
+                            className="bell-icon"
+                            viewBox="0 0 24 24"
+                            fill={item.alarmEnabled ? "currentColor" : "none"}
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                          </svg>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn-delete-schedule"
+                          onClick={(e) => openDeleteModal(item, e)}
+                          title="일정 삭제"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                        </button>
                       </div>
                     </div>
-
-                    <button
-                      className={`btn-alarm ${item.alarmEnabled ? 'active' : ''}`}
-                      onClick={() => openAlarmModal(item)}
-                      title="알람 시간 설정"
-                    >
-                      <svg
-                        className="bell-icon"
-                        viewBox="0 0 24 24"
-                        fill={item.alarmEnabled ? "currentColor" : "none"}
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                      </svg>
-                    </button>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
 
           <button className="btn-add-dose" onClick={() => setIsAddModalOpen(true)}>
@@ -426,10 +524,10 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* 알람 모달 */}
+      {/* 모달 1: 알람 시간 설정 */}
       {isAlarmModalOpen && (
-        <div className="modal-overlay">
-          <div className="alarm-modal">
+        <div className="modal-overlay" onClick={() => setIsAlarmModalOpen(false)}>
+          <div className="alarm-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h4>복약 알림 시간 설정</h4>
               <button className="btn-close" onClick={() => setIsAlarmModalOpen(false)}>✕</button>
@@ -504,10 +602,10 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* 복약 추가 모달 */}
+      {/* 모달 2: 이 날짜에 복약 추가 */}
       {isAddModalOpen && (
-        <div className="modal-overlay">
-          <div className="add-med-modal">
+        <div className="modal-overlay" onClick={handleCloseAddModal}>
+          <div className="add-med-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h4>복약 일정 추가</h4>
               <button className="btn-close" onClick={handleCloseAddModal}>✕</button>
@@ -557,6 +655,7 @@ export default function CalendarPage() {
                 )}
               </div>
 
+              {/* 분류: 상시약 & 영양제 */}
               <div className="form-group">
                 <label>분류</label>
                 <div className="category-select-group">
@@ -645,6 +744,48 @@ export default function CalendarPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 모달 3: 화면 정중앙 커스텀 삭제 모달 */}
+      {isDeleteModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsDeleteModalOpen(false)}>
+          <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#7d2638" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '28px', height: '28px' }}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            
+            <h4 className="delete-modal-title">복약 일정을 삭제하시겠습니까?</h4>
+            
+            {itemToDelete && (
+              <p className="delete-modal-target">
+                [{itemToDelete.time}] <strong>{itemToDelete.name}</strong>
+              </p>
+            )}
+            
+            <p className="delete-modal-desc">삭제된 복약 기록은 되돌릴 수 없습니다.</p>
+
+            <div className="delete-modal-actions">
+              <button 
+                type="button" 
+                className="btn-modal-cancel" 
+                onClick={() => setIsDeleteModalOpen(false)}
+              >
+                취소
+              </button>
+              <button 
+                type="button" 
+                className="btn-modal-delete" 
+                onClick={confirmDeleteSchedule}
+              >
+                삭제
+              </button>
+            </div>
           </div>
         </div>
       )}

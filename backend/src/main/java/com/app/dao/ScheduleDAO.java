@@ -1,14 +1,15 @@
 package com.app.dao;
 
-import com.app.dto.ScheduleAddDTO;
-import com.app.dto.ScheduleDTO;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.app.dto.ScheduleAddDTO;
+import com.app.dto.ScheduleDTO;
 
 @Repository
 public class ScheduleDAO {
@@ -16,47 +17,44 @@ public class ScheduleDAO {
     @Autowired
     private SqlSessionTemplate sqlSession;
 
-    private static final String NS = "schedule.";
-
-    // 1. 일별 복약 일정 조회
     public List<ScheduleDTO> selectDailySchedules(Long userId, String date) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("userId", userId);
-        map.put("date", date);
-        return sqlSession.selectList(NS + "selectDailySchedules", map);
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("date", date);
+        return sqlSession.selectList("schedule.selectDailySchedules", params);
     }
 
-    // 2. 복용 여부 토글
-    public int updateTakenStatus(Long scheduleId, boolean isTaken) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("scheduleId", scheduleId);
-        map.put("isTaken", isTaken);
-        return sqlSession.update(NS + "updateTakenStatus", map);
-    }
-
-    // 3. 알람 시간 및 상태 수정
-    public int updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("scheduleId", scheduleId);
-        map.put("newTime", newTime);
-        map.put("alarmEnabled", alarmEnabled);
-        return sqlSession.update(NS + "updateAlarmTime", map);
-    }
-
-    // 4. 복약 일정 추가
-    public int insertSchedule(ScheduleAddDTO dto) {
-        return sqlSession.insert(NS + "insertSchedule", dto);
-    }
-    
- // 약품 검색 (자동완성용 최대 10건)
     public List<Map<String, Object>> searchMedications(String keyword) {
-        return sqlSession.selectList(NS + "searchMedications", keyword);
+        return sqlSession.selectList("schedule.searchMedications", keyword);
     }
-    
+
     public List<Map<String, Object>> selectMonthlyScheduleSummary(Long userId, String yearMonth) {
         Map<String, Object> params = new HashMap<>();
         params.put("userId", userId);
         params.put("yearMonth", yearMonth);
         return sqlSession.selectList("schedule.selectMonthlyScheduleSummary", params);
+    }
+
+    public int updateTakenStatus(Long scheduleId, boolean isTaken) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("scheduleId", scheduleId);
+        params.put("isTaken", isTaken ? 1 : 0);
+        return sqlSession.update("schedule.updateTakenStatus", params);
+    }
+
+    public int updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("scheduleId", scheduleId);
+        params.put("newTime", newTime);
+        params.put("alarmEnabled", alarmEnabled ? 1 : 0);
+        return sqlSession.update("schedule.updateAlarmTime", params);
+    }
+
+    public int insertSchedule(ScheduleAddDTO dto) {
+        return sqlSession.insert("schedule.insertSchedule", dto);
+    }
+
+    public int deleteSchedule(Long scheduleId) {
+        return sqlSession.delete("schedule.deleteSchedule", scheduleId);
     }
 }
