@@ -16,8 +16,11 @@ export default function MyPage({ user, onUserUpdated }) {
       .then((profile) => {
         if (!profile) return;
         setNickname(profile.nickname || user.name);
-        setProfileImage(profile.profileImageUrl || '');
-        onUserUpdated?.({ name: profile.nickname || user.name, profileImageUrl: profile.profileImageUrl || '' });
+        onUserUpdated?.({
+          name: profile.nickname || user.name,
+          profileImageUrl: profile.profileImageUrl || '',
+          userId: profile.userId || user?.userId,
+        });
       })
       .catch(() => {});
   }, [user?.username]);
