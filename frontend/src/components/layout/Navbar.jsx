@@ -7,16 +7,106 @@ export default function Navbar({
   onToggleSidebar,
   isSidebarOpen,
   isLoggedIn,
+  user,
   onLogout,
   onLoginDemoToggle
 }) {
   const [showNotification, setShowNotification] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: 'warning', title: '복용 주의 알림', text: '오메가-3와 아스피린 병용 시 출혈 위험이 있으니 주의하세요.', time: '10분 전', read: false },
-    { id: 2, type: 'routine', title: '복약 예정 안내', text: '오후 21:00 듀오락 골드 복용 예정입니다.', time: '1시간 전', read: false }
-  ]);
+  const [notifications, setNotifications] = useState([]);
 
   const notifBoxRef = useRef(null);
+
+  // 로그인 시 사용자의 실제 복약 일정 및 처방전 주의사항을 알림으로 로드
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setNotifications([]);
+      return;
+    }
+
+    const userId = user?.userId || 1;
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+
+    let isMounted = true;
+
+    const loadNotifications = async () => {
+      const items = [];
+
+      try {
+        // 1. 처방전 주의사항 및 판매중단 약품 알림
+        const rxRes = await fetch(`/api/prescriptions/latest?userId=${userId}`);
+        if (rxRes.ok) {
+          const rxData = await rxRes.json();
+          if (rxData && rxData.found && rxData.prescription) {
+            const rx = rxData.prescription;
+            if (Number(rx.hasDiscontinuedDrug) === 1) {
+              items.push({
+                id: 'rx-discontinued',
+                type: 'warning',
+                title: '복용 주의 알림',
+                text: '처방전에 판매중단 또는 주의 대상 의약품이 포함되어 있습니다. 복용 전 의료진과 상담하세요.',
+                time: '주의',
+                read: false,
+              });
+            }
+
+            if (Array.isArray(rx.items)) {
+              rx.items.forEach((it, idx) => {
+                if (it.caution && it.caution.trim()) {
+                  items.push({
+                    id: `rx-caution-${it.itemId || idx}`,
+                    type: 'warning',
+                    title: `${it.name} 복약 주의`,
+                    text: it.caution,
+                    time: '주의사항',
+                    read: false,
+                  });
+                }
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Navbar 처방전 알림 조회 실패:', err);
+      }
+
+      try {
+        // 2. 오늘의 실제 복약 일정 알림 (캘린더 연동)
+        const calRes = await fetch(`/api/calendar?userId=${userId}&date=${todayStr}`);
+        if (calRes.ok) {
+          const calList = await calRes.json();
+          if (Array.isArray(calList)) {
+            calList.forEach((sched) => {
+              const medName = sched.name ? sched.name.trim() : '약품';
+              items.push({
+                id: `sched-${sched.scheduleId}`,
+                type: 'routine',
+                title: '복약 예정 안내',
+                text: `${sched.time || ''} ${medName} 복용 예정입니다.`.trim(),
+                time: sched.time || '오늘',
+                read: false,
+              });
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Navbar 복약 일정 조회 실패:', err);
+      }
+
+      if (isMounted) {
+        setNotifications(items);
+      }
+    };
+
+    loadNotifications();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoggedIn, user?.userId]);
 
   // 외부 클릭 시 알림창 닫기
   useEffect(() => {
@@ -33,6 +123,10 @@ export default function Navbar({
 
   const markAllAsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const markAsRead = (id) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
   return (
@@ -99,16 +193,33 @@ export default function Navbar({
                       )}
                     </div>
                     <div className="notif-list">
-                      {notifications.map((n) => (
-                        <div key={n.id} className={`notif-item ${n.read ? 'read' : 'unread'}`}>
-                          <div className={`notif-indicator ${n.type}`} />
-                          <div className="notif-item-body">
-                            <span className="notif-item-title">{n.title}</span>
-                            <p className="notif-item-text">{n.text}</p>
-                            <span className="notif-item-time">{n.time}</span>
+                      {notifications.length === 0 ? (
+                        <div className="notif-empty">
+                          <div className="notif-empty-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="28" height="28">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9" />
+                            </svg>
                           </div>
+                          <p className="notif-empty-text">새로운 알림이 없습니다.</p>
                         </div>
-                      ))}
+                      ) : (
+                        notifications.map((n) => (
+                          <div
+                            key={n.id}
+                            className={`notif-item ${n.read ? 'read' : 'unread'}`}
+                            onClick={() => markAsRead(n.id)}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <div className={`notif-indicator ${n.type}`} />
+                            <div className="notif-item-body">
+                              <span className="notif-item-title">{n.title}</span>
+                              <p className="notif-item-text">{n.text}</p>
+                              <span className="notif-item-time">{n.time}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}

@@ -33,8 +33,20 @@ public class CalendarController {
 
     @GetMapping
     public ResponseEntity<List<ScheduleDTO>> getDailySchedules(
-            @RequestParam("userId") Long userId,
-            @RequestParam("date") String date) {
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam("date") String date,
+            javax.servlet.http.HttpServletRequest request) {
+        if (userId == null || userId <= 0L) {
+            var session = request.getSession(false);
+            Object sessionVal = session != null ? session.getAttribute("userId") : null;
+            if (sessionVal instanceof Long) {
+                userId = (Long) sessionVal;
+            } else if (sessionVal instanceof Number) {
+                userId = ((Number) sessionVal).longValue();
+            } else {
+                userId = 1L;
+            }
+        }
         List<ScheduleDTO> list = scheduleService.getDailySchedules(userId, date);
         return ResponseEntity.ok(list);
     }
@@ -82,5 +94,33 @@ public class CalendarController {
     public ResponseEntity<Void> deleteSchedulePost(@PathVariable("scheduleId") Long scheduleId) {
         boolean isDeleted = scheduleService.removeSchedule(scheduleId);
         return isDeleted ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
+    }
+    
+    // 6. 약품 검색 API (복약 추가 모달 자동완성)
+    @GetMapping("/search-medications")
+    public ResponseEntity<List<Map<String, Object>>> searchMedications(
+            @RequestParam("keyword") String keyword) {
+        List<Map<String, Object>> list = scheduleService.searchMedications(keyword);
+        return ResponseEntity.ok(list);
+    }
+    
+    @GetMapping("/summary")
+    public ResponseEntity<List<Map<String, Object>>> getMonthlySummary(
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam("yearMonth") String yearMonth,
+            javax.servlet.http.HttpServletRequest request) {
+        if (userId == null || userId <= 0L) {
+            var session = request.getSession(false);
+            Object sessionVal = session != null ? session.getAttribute("userId") : null;
+            if (sessionVal instanceof Long) {
+                userId = (Long) sessionVal;
+            } else if (sessionVal instanceof Number) {
+                userId = ((Number) sessionVal).longValue();
+            } else {
+                userId = 1L;
+            }
+        }
+        List<Map<String, Object>> summary = scheduleService.getMonthlySummary(userId, yearMonth);
+        return ResponseEntity.ok(summary);
     }
 }

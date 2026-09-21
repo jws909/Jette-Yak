@@ -9,8 +9,12 @@ public interface PrescriptionDAO {
     int insertPrescription(PrescriptionDTO prescription);
     int insertPrescriptionItem(PrescriptionItemDTO item);
     PrescriptionDTO getLatestPrescriptionByUserId(Long userId);
+    List<PrescriptionDTO> getPrescriptionListByUserId(Long userId);
+    PrescriptionDTO getPrescriptionById(Long prescriptionId);
     List<PrescriptionItemDTO> getPrescriptionItemsByPrescriptionId(Long prescriptionId);
     MatchedMedicationDTO findMedicationByEdiCode(String ediCode);
     MatchedMedicationDTO findMedicationByName(String keyword);
+    int updatePrescription(PrescriptionDTO prescription);
     int deletePrescription(Long prescriptionId);
+    int deletePrescriptionItemsByPrescriptionId(Long prescriptionId);
 }

@@ -22,9 +22,24 @@
 
     <select id="findByLoginId" resultType="com.app.domain.User">
         SELECT user_id AS userId, login_id AS loginId, password_hash AS passwordHash,
-               email, nickname, profile_image_url AS profileImageUrl
+               email, nickname, profile_image_url AS profileImageUrl,
+               NVL(breakfast_time, '07:30') AS breakfastTime,
+               NVL(lunch_time, '12:00') AS lunchTime,
+               NVL(dinner_time, '18:30') AS dinnerTime,
+               NVL(bedtime, '22:00') AS bedtime
         FROM users
         WHERE login_id = #{loginId}
+    </select>
+
+    <select id="findById" resultType="com.app.domain.User">
+        SELECT user_id AS userId, login_id AS loginId, password_hash AS passwordHash,
+               email, nickname, profile_image_url AS profileImageUrl,
+               NVL(breakfast_time, '07:30') AS breakfastTime,
+               NVL(lunch_time, '12:00') AS lunchTime,
+               NVL(dinner_time, '18:30') AS dinnerTime,
+               NVL(bedtime, '22:00') AS bedtime
+        FROM users
+        WHERE user_id = #{userId}
     </select>
 
     <select id="findByEmail" resultType="com.app.domain.User">
@@ -47,6 +62,19 @@
     <update id="updateProfileImageUrl">
         UPDATE users SET profile_image_url = #{profileImageUrl}, updated_at = CURRENT_TIMESTAMP
         WHERE login_id = #{loginId}
+    </update>
+
+    <update id="updateMealTimes">
+        UPDATE users
+        SET breakfast_time = #{breakfastTime},
+            lunch_time = #{lunchTime},
+            dinner_time = #{dinnerTime},
+            bedtime = #{bedtime},
+            updated_at = CURRENT_TIMESTAMP
+        WHERE <choose>
+                <when test="userId != null">user_id = #{userId}</when>
+                <otherwise>login_id = #{loginId}</otherwise>
+              </choose>
     </update>
 
     <!--

@@ -573,8 +573,7 @@ input:checked + .slider:before { transform: translateX(18px); }
   display: flex;
   justify-content: center;
 }
-
-.btn-confirm {
+.modal-actions .btn-confirm {
   background: none;
   border: 1px solid #777;
   color: #fff;
@@ -583,8 +582,9 @@ input:checked + .slider:before { transform: translateX(18px); }
   font-size: 13px;
   cursor: pointer;
 }
-
-.btn-confirm:hover { background: #3a3d3d; }
+.modal-actions .btn-confirm:hover {
+  background: #3a3d3d;
+}
 
 /* 복약 추가 모달 */
 .add-med-modal {

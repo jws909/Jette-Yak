@@ -2,6 +2,7 @@ package com.app.prescription.dto;
 
 import java.util.Date;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 
 @Data
@@ -13,6 +14,7 @@ public class PrescriptionDTO {
     private Long userId;
 
     /** 처방/조제 일자 */
+    @JsonFormat(pattern = "yyyy-MM-dd", timezone = "Asia/Seoul")
     private Date dispensedDate;
 
     /** 총 투약 일수 */
@@ -28,6 +30,7 @@ public class PrescriptionDTO {
     private Integer hasDiscontinuedDrug;
 
     /** 등록 일시 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Seoul")
     private Date createdAt;
 
     /** 포함된 처방 약품 목록 */

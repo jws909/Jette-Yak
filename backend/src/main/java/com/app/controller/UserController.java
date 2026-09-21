@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -80,15 +81,94 @@ public class UserController {
     }
 
     @GetMapping(value = "/profile", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> getProfile(@RequestParam("username") String username) {
+    public ResponseEntity<?> getProfile(@RequestParam("username") String username, javax.servlet.http.HttpServletRequest httpRequest) {
         User user = userMapper.findByLoginId(username);
         if (user == null) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(Map.of(
-                "nickname", user.getNickname(),
-                "profileImageUrl", profileImagePath(user)
-        ));
+        if (httpRequest != null) {
+            javax.servlet.http.HttpSession session = httpRequest.getSession(true);
+            session.setAttribute("userId", user.getUserId());
+            session.setAttribute("username", user.getLoginId());
+        }
+        Map<String, Object> response = new HashMap<>();
+        response.put("userId", user.getUserId());
+        response.put("username", user.getLoginId());
+        response.put("nickname", user.getNickname());
+        response.put("profileImageUrl", profileImagePath(user));
+        response.put("breakfastTime", user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+        response.put("lunchTime", user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+        response.put("dinnerTime", user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+        response.put("bedtime", user.getBedtime() != null ? user.getBedtime() : "22:00");
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 사용자별 기준 식사/취침 시간 조회 API
+     * GET /api/users/meal-times?userId=1 또는 ?username=demo
+     */
+    @GetMapping(value = "/meal-times", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> getMealTimes(
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "username", required = false) String username) {
+        User user = null;
+        if (userId != null) {
+            user = userMapper.findById(userId);
+        } else if (username != null && !username.isBlank()) {
+            user = userMapper.findByLoginId(username);
+        }
+        if (user == null) {
+            user = userMapper.findById(1L);
+        }
+
+        String bTime = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
+        String lTime = (user != null && user.getLunchTime() != null) ? user.getLunchTime() : "12:00";
+        String dTime = (user != null && user.getDinnerTime() != null) ? user.getDinnerTime() : "18:30";
+        String bedTime = (user != null && user.getBedtime() != null) ? user.getBedtime() : "22:00";
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("success", true);
+        res.put("userId", user != null ? user.getUserId() : (userId != null ? userId : 1L));
+        res.put("username", user != null ? user.getLoginId() : null);
+        res.put("breakfastTime", bTime);
+        res.put("lunchTime", lTime);
+        res.put("dinnerTime", dTime);
+        res.put("bedtime", bedTime);
+        return ResponseEntity.ok(res);
+    }
+
+    /**
+     * 사용자별 기준 식사/취침 시간 저장 API
+     * POST /api/users/meal-times
+     */
+    @PostMapping(value = "/meal-times", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> updateMealTimes(@RequestBody Map<String, Object> body) {
+        Long userId = body.get("userId") != null ? Long.valueOf(body.get("userId").toString()) : null;
+        String username = body.get("username") != null ? body.get("username").toString() : null;
+        String bTime = body.get("breakfastTime") != null ? body.get("breakfastTime").toString().trim() : "07:30";
+        String lTime = body.get("lunchTime") != null ? body.get("lunchTime").toString().trim() : "12:00";
+        String dTime = body.get("dinnerTime") != null ? body.get("dinnerTime").toString().trim() : "18:30";
+        String bedTime = body.get("bedtime") != null ? body.get("bedtime").toString().trim() : "22:00";
+
+        if (userId == null && (username == null || username.isBlank())) {
+            userId = 1L;
+        }
+
+        String timeRegex = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$";
+        if (!bTime.matches(timeRegex) || !lTime.matches(timeRegex) || !dTime.matches(timeRegex) || !bedTime.matches(timeRegex)) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "시간 형식이 올바르지 않습니다. (예: 07:30)"));
+        }
+
+        userMapper.updateMealTimes(userId, username, bTime, lTime, dTime, bedTime);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("success", true);
+        res.put("message", "식사 기준 시간이 성공적으로 저장되었습니다.");
+        res.put("breakfastTime", bTime);
+        res.put("lunchTime", lTime);
+        res.put("dinnerTime", dTime);
+        res.put("bedtime", bedTime);
+        return ResponseEntity.ok(res);
     }
 
     @PostMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)

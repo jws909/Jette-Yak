@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import MainPage from './features/main/MainPage';
@@ -25,8 +25,27 @@ function App() {
     }
   });
 
+  // 이미 로그인되어 있으나 과거 세션 데이터로 인해 userId가 누락된 경우 서버 프로필에서 자동 복구
+  useEffect(() => {
+    if (user?.username && !user?.userId && user.username !== 'demo') {
+      fetch(`/api/users/profile?username=${encodeURIComponent(user.username)}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.userId) {
+            setUser((curr) => {
+              const updated = { ...curr, userId: data.userId };
+              localStorage.setItem('user', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.username, user?.userId]);
+
   const handleLoginSuccess = (loginData) => {
     const loggedInUser = {
+      userId: loginData.userId,
       username: loginData.username,
       name: loginData.nickname || loginData.username,
       email: loginData.email || '',
@@ -98,7 +117,7 @@ function App() {
             onLogout={handleLogout}
             onLoginDemoToggle={handleLoginDemoToggle}
           >
-            <CalendarPage />
+            <CalendarPage user={user} />
           </MainLayout>
         }
       />

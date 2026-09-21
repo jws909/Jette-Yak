@@ -24,6 +24,10 @@ public class User {
     private String sex;
     private Integer isPregnant;
     private String tel;
+    private String breakfastTime;
+    private String lunchTime;
+    private String dinnerTime;
+    private String bedtime;
 
     public Long getUserId() {
         return userId;
@@ -151,5 +155,37 @@ public class User {
 
     public void setTel(String tel) {
         this.tel = tel;
+    }
+
+    public String getBreakfastTime() {
+        return breakfastTime;
+    }
+
+    public void setBreakfastTime(String breakfastTime) {
+        this.breakfastTime = breakfastTime;
+    }
+
+    public String getLunchTime() {
+        return lunchTime;
+    }
+
+    public void setLunchTime(String lunchTime) {
+        this.lunchTime = lunchTime;
+    }
+
+    public String getDinnerTime() {
+        return dinnerTime;
+    }
+
+    public void setDinnerTime(String dinnerTime) {
+        this.dinnerTime = dinnerTime;
+    }
+
+    public String getBedtime() {
+        return bedtime;
+    }
+
+    public void setBedtime(String bedtime) {
+        this.bedtime = bedtime;
     }
 }

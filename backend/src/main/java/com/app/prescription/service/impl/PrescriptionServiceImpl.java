@@ -151,9 +151,18 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
                     PrescriptionItemDTO item = new PrescriptionItemDTO();
                     item.setDailyDose(parsed.getDailyDose() != null ? parsed.getDailyDose() : 1.0);
-                    item.setDailyFrequency(parsed.getDailyFrequency() != null ? parsed.getDailyFrequency() : 1);
+                    int dFreq = parsed.getDailyFrequency() != null ? parsed.getDailyFrequency() : 1;
+                    String uTiming = parsed.getUsageTiming();
+                    if (dFreq <= 1 && uTiming != null) {
+                        if (uTiming.contains("3회") || (uTiming.contains("아침") && uTiming.contains("점심") && uTiming.contains("저녁")) || uTiming.contains("매 식후") || uTiming.contains("매식후")) {
+                            dFreq = 3;
+                        } else if (uTiming.contains("2회") || (uTiming.contains("아침") && uTiming.contains("저녁"))) {
+                            dFreq = 2;
+                        }
+                    }
+                    item.setDailyFrequency(dFreq);
                     item.setTotalDays(parsed.getTotalDays() != null ? parsed.getTotalDays() : prescription.getTotalDays());
-                    item.setUsageTiming(safeTruncateUsageTiming(parsed.getUsageTiming()));
+                    item.setUsageTiming(safeTruncateUsageTiming(uTiming));
                     item.setMedicationId(matched.getItemSeq());
                     item.setItemName(matched.getItemName());
                     item.setEdiCode(matched.getEdiCode() != null ? matched.getEdiCode() : ediCode);
@@ -359,6 +368,23 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
     }
 
+    private void populateHospitalAndDoctor(PrescriptionDTO p) {
+        if (p == null) return;
+        if (p.getAiSummaryJson() != null && !p.getAiSummaryJson().isBlank()) {
+            try {
+                com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(p.getAiSummaryJson());
+                if ((p.getHospitalName() == null || p.getHospitalName().isBlank()) && root.has("hospitalName") && !root.get("hospitalName").isNull()) {
+                    p.setHospitalName(root.get("hospitalName").asText());
+                }
+                if ((p.getDoctorName() == null || p.getDoctorName().isBlank()) && root.has("doctorName") && !root.get("doctorName").isNull()) {
+                    p.setDoctorName(root.get("doctorName").asText());
+                }
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
+
     @Override
     public PrescriptionDTO getLatestPrescription(Long userId) {
         if (userId == null) userId = 1L;
@@ -366,7 +392,141 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         if (prescription != null && prescription.getPrescriptionId() != null) {
             List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(prescription.getPrescriptionId());
             prescription.setItems(items);
+            populateHospitalAndDoctor(prescription);
         }
         return prescription;
+    }
+
+    @Override
+    public List<PrescriptionDTO> getPrescriptionList(Long userId) {
+        if (userId == null) userId = 1L;
+        List<PrescriptionDTO> list = prescriptionDAO.getPrescriptionListByUserId(userId);
+        if (list != null) {
+            for (PrescriptionDTO p : list) {
+                if (p.getPrescriptionId() != null) {
+                    List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(p.getPrescriptionId());
+                    p.setItems(items);
+                    populateHospitalAndDoctor(p);
+                }
+            }
+        }
+        return list != null ? list : new ArrayList<>();
+    }
+
+    @Override
+    public PrescriptionDTO getPrescriptionDetail(Long prescriptionId) {
+        if (prescriptionId == null) return null;
+        PrescriptionDTO prescription = prescriptionDAO.getPrescriptionById(prescriptionId);
+        if (prescription != null) {
+            List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(prescriptionId);
+            prescription.setItems(items);
+            populateHospitalAndDoctor(prescription);
+        }
+        return prescription;
+    }
+
+    @Override
+    @Transactional
+    public PrescriptionDTO updatePrescription(PrescriptionDTO prescription) {
+        if (prescription == null || prescription.getPrescriptionId() == null) {
+            throw new IllegalArgumentException("수정할 처방전 정보가 올바르지 않습니다.");
+        }
+
+        PrescriptionDTO existing = prescriptionDAO.getPrescriptionById(prescription.getPrescriptionId());
+        if (existing == null) {
+            throw new IllegalArgumentException("존재하지 않는 처방전입니다: ID=" + prescription.getPrescriptionId());
+        }
+
+        // 병원명/의사명 갱신 및 aiSummaryJson 보존/업데이트
+        String currentJson = existing.getAiSummaryJson();
+        com.fasterxml.jackson.databind.node.ObjectNode root;
+        if (currentJson != null && !currentJson.isBlank()) {
+            try {
+                root = (com.fasterxml.jackson.databind.node.ObjectNode) objectMapper.readTree(currentJson);
+            } catch (Exception e) {
+                root = objectMapper.createObjectNode();
+            }
+        } else {
+            root = objectMapper.createObjectNode();
+        }
+
+        if (prescription.getHospitalName() != null) {
+            root.put("hospitalName", prescription.getHospitalName().trim());
+        }
+        if (prescription.getDoctorName() != null) {
+            root.put("doctorName", prescription.getDoctorName().trim());
+        }
+        prescription.setAiSummaryJson(root.toString());
+
+        if (prescription.getDispensedDate() == null) {
+            prescription.setDispensedDate(existing.getDispensedDate());
+        }
+        if (prescription.getTotalDays() == null) {
+            prescription.setTotalDays(existing.getTotalDays());
+        }
+
+        // 약품 목록 수정
+        if (prescription.getItems() != null) {
+            prescriptionDAO.deletePrescriptionItemsByPrescriptionId(prescription.getPrescriptionId());
+
+            boolean hasDiscontinued = false;
+            for (PrescriptionItemDTO item : prescription.getItems()) {
+                item.setPrescriptionId(prescription.getPrescriptionId());
+
+                if (item.getMedicationId() == null || item.getMedicationId().isBlank()) {
+                    MatchedMedicationDTO matched = findBestMatch(item.getItemName());
+                    if (matched != null) {
+                        item.setMedicationId(matched.getItemSeq());
+                        item.setItemName(matched.getItemName());
+                        item.setEdiCode(matched.getEdiCode());
+                        item.setClassName(matched.getClassName());
+                        item.setIsDiscontinued(matched.getIsDiscontinued());
+                    } else {
+                        // DB에 품목이 없는 경우에도 기본 약품 식별값 부여 (예: 임의 등록)
+                        item.setMedicationId("MANUAL_" + System.currentTimeMillis());
+                    }
+                }
+
+                if (Boolean.TRUE.equals(item.getIsDiscontinued())) {
+                    hasDiscontinued = true;
+                }
+
+                if (item.getDailyDose() == null) item.setDailyDose(1.0);
+                if (item.getDailyFrequency() == null) item.setDailyFrequency(1);
+                if (item.getTotalDays() == null) item.setTotalDays(prescription.getTotalDays());
+                item.setUsageTiming(safeTruncateUsageTiming(item.getUsageTiming()));
+
+                prescriptionDAO.insertPrescriptionItem(item);
+            }
+            prescription.setHasDiscontinuedDrug(hasDiscontinued ? 1 : 0);
+        } else {
+            prescription.setHasDiscontinuedDrug(existing.getHasDiscontinuedDrug());
+        }
+
+        prescriptionDAO.updatePrescription(prescription);
+        return getPrescriptionDetail(prescription.getPrescriptionId());
+    }
+
+    @Override
+    @Transactional
+    public boolean deletePrescription(Long prescriptionId, Long userId) {
+        if (prescriptionId == null) return false;
+
+        PrescriptionDTO existing = prescriptionDAO.getPrescriptionById(prescriptionId);
+        if (existing == null) {
+            log.warn("[PRESCRIPTION] 삭제 대상 처방전 미존재: ID={}", prescriptionId);
+            return false;
+        }
+
+        if (userId != null && existing.getUserId() != null && !userId.equals(existing.getUserId())) {
+            log.warn("[PRESCRIPTION] 처방전 삭제 권한 불일치: 요청 userId={}, 실제 userId={}", userId, existing.getUserId());
+            // 필요한 경우 권한 제약 적용
+        }
+
+        log.info("[PRESCRIPTION] 처방전 및 세부 항목 삭제 시작: ID={}, userId={}", prescriptionId, userId);
+        prescriptionDAO.deletePrescriptionItemsByPrescriptionId(prescriptionId);
+        prescriptionDAO.deletePrescription(prescriptionId);
+        log.info("[PRESCRIPTION] 처방전 삭제 완료: ID={}", prescriptionId);
+        return true;
     }
 }

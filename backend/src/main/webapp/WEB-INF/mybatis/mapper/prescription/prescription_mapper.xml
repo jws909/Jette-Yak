@@ -135,9 +135,56 @@
         WHERE ROWNUM = 1
     </select>
 
-    <!-- 7. 처방전 마스터 삭제 (트랜잭션 실패 시 고아 데이터 정리용) -->
+    <!-- 7. 처방전 마스터 삭제 (트랜잭션 실패 시 고아 데이터 정리 및 삭제 기능용) -->
     <delete id="deletePrescription" parameterType="long">
         DELETE FROM prescriptions
+        WHERE prescription_id = #{prescriptionId}
+    </delete>
+
+    <!-- 8. 사용자의 전체 처방전 목록 조회 (최신 조제일자/등록일 순) -->
+    <select id="getPrescriptionListByUserId" parameterType="long" resultType="com.app.prescription.dto.PrescriptionDTO">
+        SELECT 
+            p.prescription_id AS prescriptionId,
+            p.user_id AS userId,
+            p.dispensed_date AS dispensedDate,
+            p.total_days AS totalDays,
+            p.prescription_image_url AS prescriptionImageUrl,
+            p.ai_summary_json AS aiSummaryJson,
+            p.has_discontinued_drug AS hasDiscontinuedDrug,
+            p.created_at AS createdAt
+        FROM prescriptions p
+        WHERE p.user_id = #{userId}
+        ORDER BY p.dispensed_date DESC NULLS LAST, p.prescription_id DESC
+    </select>
+
+    <!-- 9. 특정 처방전 단건 마스터 조회 -->
+    <select id="getPrescriptionById" parameterType="long" resultType="com.app.prescription.dto.PrescriptionDTO">
+        SELECT 
+            p.prescription_id AS prescriptionId,
+            p.user_id AS userId,
+            p.dispensed_date AS dispensedDate,
+            p.total_days AS totalDays,
+            p.prescription_image_url AS prescriptionImageUrl,
+            p.ai_summary_json AS aiSummaryJson,
+            p.has_discontinued_drug AS hasDiscontinuedDrug,
+            p.created_at AS createdAt
+        FROM prescriptions p
+        WHERE p.prescription_id = #{prescriptionId}
+    </select>
+
+    <!-- 10. 처방전 마스터 수정 -->
+    <update id="updatePrescription" parameterType="com.app.prescription.dto.PrescriptionDTO">
+        UPDATE prescriptions
+        SET dispensed_date = #{dispensedDate, jdbcType=DATE},
+            total_days = #{totalDays, jdbcType=INTEGER},
+            ai_summary_json = #{aiSummaryJson, jdbcType=CLOB},
+            has_discontinued_drug = #{hasDiscontinuedDrug, jdbcType=INTEGER}
+        WHERE prescription_id = #{prescriptionId}
+    </update>
+
+    <!-- 11. 처방전 세부 약품 전체 삭제 -->
+    <delete id="deletePrescriptionItemsByPrescriptionId" parameterType="long">
+        DELETE FROM prescription_items
         WHERE prescription_id = #{prescriptionId}
     </delete>
 
