@@ -51,14 +51,6 @@ public class CalendarController {
         return ResponseEntity.ok(list);
     }
 
-    @GetMapping("/summary")
-    public ResponseEntity<List<Map<String, Object>>> getMonthlySummary(
-            @RequestParam("userId") Long userId,
-            @RequestParam("yearMonth") String yearMonth) {
-        List<Map<String, Object>> summary = scheduleService.getMonthlySummary(userId, yearMonth);
-        return ResponseEntity.ok(summary);
-    }
-
     @GetMapping("/search-medications")
     public ResponseEntity<List<Map<String, Object>>> searchMedications(
             @RequestParam("keyword") String keyword) {
