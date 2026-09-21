@@ -23,8 +23,20 @@ public class CalendarController {
     // 1. 선택 일자 복약 목록 조회
     @GetMapping
     public ResponseEntity<List<ScheduleDTO>> getDailySchedules(
-            @RequestParam(value = "userId", defaultValue = "1") Long userId,
-            @RequestParam("date") String date) {
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam("date") String date,
+            javax.servlet.http.HttpServletRequest request) {
+        if (userId == null || userId <= 0L) {
+            var session = request.getSession(false);
+            Object sessionVal = session != null ? session.getAttribute("userId") : null;
+            if (sessionVal instanceof Long) {
+                userId = (Long) sessionVal;
+            } else if (sessionVal instanceof Number) {
+                userId = ((Number) sessionVal).longValue();
+            } else {
+                userId = 1L;
+            }
+        }
         List<ScheduleDTO> list = scheduleService.getDailySchedules(userId, date);
         return new ResponseEntity<>(list, HttpStatus.OK);
     }
@@ -65,8 +77,20 @@ public class CalendarController {
     
     @GetMapping("/summary")
     public ResponseEntity<List<Map<String, Object>>> getMonthlySummary(
-            @RequestParam(value = "userId", defaultValue = "1") Long userId,
-            @RequestParam("yearMonth") String yearMonth) {
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam("yearMonth") String yearMonth,
+            javax.servlet.http.HttpServletRequest request) {
+        if (userId == null || userId <= 0L) {
+            var session = request.getSession(false);
+            Object sessionVal = session != null ? session.getAttribute("userId") : null;
+            if (sessionVal instanceof Long) {
+                userId = (Long) sessionVal;
+            } else if (sessionVal instanceof Number) {
+                userId = ((Number) sessionVal).longValue();
+            } else {
+                userId = 1L;
+            }
+        }
         List<Map<String, Object>> summary = scheduleService.getMonthlySummary(userId, yearMonth);
         return ResponseEntity.ok(summary);
     }

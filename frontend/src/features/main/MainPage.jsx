@@ -77,20 +77,29 @@ function mapPrescriptionToState(prescription) {
   }
 
   const items = (prescription.items && prescription.items.length > 0)
-    ? prescription.items.map((item, idx) => ({
-        id: item.itemId ? `rx-${item.itemId}` : `rx-${idx}`,
-        name: item.itemName || '처방 의약품',
-        desc: item.className ? `${item.className} · ${item.usageTiming || '식후 복용'}` : (item.usageTiming || '식후 30분 복용'),
-        badge: '처방',
-        dotColor: DOT_COLORS[idx % DOT_COLORS.length],
-        dosage: `1일 ${item.dailyFrequency || 1}회 · 1회 ${item.dailyDose || 1}정 (${item.usageTiming || '식후 복용'})`,
-        efficacy: item.className || '전문의 처방 의약품',
-        caution: item.isDiscontinued
-          ? '⚠️ 판매중단 또는 재검토 대상 의약품입니다. 복용 전 의료진과 상담하세요.'
-          : '정해진 용법과 용량을 준수하여 복용하세요.',
-        timing: item.usageTiming || '08:00',
-        isDiscontinued: Boolean(item.isDiscontinued)
-      }))
+    ? prescription.items.map((item, idx) => {
+        const freq = Number(item.dailyFrequency) || 1;
+        const dose = item.dailyDose != null ? item.dailyDose : 1;
+        const timing = item.usageTiming || '식후 복용';
+        return {
+          id: item.itemId ? `rx-${item.itemId}` : `rx-${idx}`,
+          name: item.itemName || '처방 의약품',
+          desc: item.className ? `${item.className} · ${timing}` : (timing || '식후 30분 복용'),
+          badge: '처방',
+          dotColor: DOT_COLORS[idx % DOT_COLORS.length],
+          dosage: `1일 ${freq}회 · 1회 ${dose}정 (${timing})`,
+          dailyFrequency: freq,
+          dailyDose: dose,
+          totalDays: item.totalDays || prescription.totalDays || 14,
+          usageTiming: timing,
+          efficacy: item.className || '전문의 처방 의약품',
+          caution: item.isDiscontinued
+            ? '⚠️ 판매중단 또는 재검토 대상 의약품입니다. 복용 전 의료진과 상담하세요.'
+            : '정해진 용법과 용량을 준수하여 복용하세요.',
+          timing: timing,
+          isDiscontinued: Boolean(item.isDiscontinued)
+        };
+      })
     : PRESCRIBED_MEDICINES;
 
   return {
@@ -104,27 +113,133 @@ function mapPrescriptionToState(prescription) {
   };
 }
 
-function buildRoutineItems(prescribedMeds) {
+// 사용자별 식사 및 취침 기준 시간 기본값
+const DEFAULT_MEAL_TIMES = {
+  breakfast: '07:30',
+  lunch: '12:00',
+  dinner: '18:30',
+  bedtime: '22:00',
+};
+
+// 시간 문자열(HH:mm)에 minutes(양수 또는 음수)를 가감하여 반환 (24시간 순환 보정)
+function addMinutes(timeStr, minutes) {
+  if (!timeStr || !timeStr.includes(':')) return timeStr || '08:00';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10);
+  let m = parseInt(mStr, 10);
+  if (isNaN(h) || isNaN(m)) return timeStr;
+
+  let totalMinutes = h * 60 + m + minutes;
+  totalMinutes = (totalMinutes % 1440 + 1440) % 1440;
+
+  const newH = Math.floor(totalMinutes / 60);
+  const newM = totalMinutes % 60;
+  return `${String(newH).padStart(2, '0')}:${String(newM).padStart(2, '0')}`;
+}
+
+// 처방전 용법 문구에서 오프셋 분(기본 +30분, 식사 직후 0분, 식전 -30분 등) 추출
+function parseTimingOffset(usageTiming) {
+  const str = (usageTiming || '').toLowerCase();
+
+  // "10분", "30분", "60분" 등 분 단위 명시된 숫자 추출
+  const minuteMatch = str.match(/(\d+)\s*분/);
+  const explicitMinutes = minuteMatch ? parseInt(minuteMatch[1], 10) : 30;
+
+  if (str.includes('직후') || str.includes('식사 직후') || str.includes('식사직후')) {
+    return 0;
+  }
+  if (str.includes('식전') || str.includes('식사전') || str.includes('식사 전')) {
+    return -explicitMinutes;
+  }
+  if (str.includes('식간') || str.includes('공복')) {
+    return -60;
+  }
+  // "식후 30분", "식후", "매 식후" 등 일반 식후는 기본 +30분
+  return explicitMinutes;
+}
+
+// 1일 복용 횟수(dailyFrequency), 복약 시점 문구, 사용자 맞춤 식사 시간에 따른 실제 알림 시간대 슬롯 생성
+function getIntakeTimes(dailyFrequency, usageTiming = '', mealTimes = DEFAULT_MEAL_TIMES) {
+  const freq = Number(dailyFrequency) || 0;
+  const timing = (usageTiming || '').toLowerCase();
+  const offset = parseTimingOffset(usageTiming);
+
+  const bTime = addMinutes(mealTimes.breakfast || '07:30', offset);
+  const lTime = addMinutes(mealTimes.lunch || '12:00', offset);
+  const dTime = addMinutes(mealTimes.dinner || '18:30', offset);
+  const bedTime = mealTimes.bedtime || '22:00';
+
+  // 1) 횟수가 명시적으로 지정된 경우
+  if (freq === 1) {
+    if (timing.includes('취침') || timing.includes('자기전') || timing.includes('취침전')) return [bedTime];
+    if (timing.includes('저녁')) return [dTime];
+    if (timing.includes('점심')) return [lTime];
+    return [bTime];
+  }
+  if (freq === 2) {
+    if (timing.includes('점심') && timing.includes('저녁')) return [lTime, dTime];
+    if (timing.includes('아침') && timing.includes('점심')) return [bTime, lTime];
+    if (timing.includes('취침') || timing.includes('자기전')) return [bTime, bedTime];
+    return [bTime, dTime];
+  }
+  if (freq === 3) {
+    return [bTime, lTime, dTime]; // 아침, 점심, 저녁 (+오프셋)
+  }
+  if (freq >= 4) {
+    return [bTime, lTime, addMinutes(dTime, -30), bedTime];
+  }
+
+  // 2) 횟수가 누락된 경우 용법 텍스트에서 유추
+  if (timing.includes('3회') || (timing.includes('아침') && timing.includes('점심') && timing.includes('저녁')) || timing.includes('매 식후') || timing.includes('매식후')) {
+    return [bTime, lTime, dTime];
+  }
+  if (timing.includes('2회') || (timing.includes('아침') && timing.includes('저녁'))) {
+    return [bTime, dTime];
+  }
+  if (timing.includes('취침') || timing.includes('자기전')) {
+    return [bedTime];
+  }
+
+  // 기본값: 3회 복용 (아침, 점심, 저녁)
+  return [bTime, lTime, dTime];
+}
+
+function buildRoutineItems(prescribedMeds, mealTimes = DEFAULT_MEAL_TIMES) {
   if (!prescribedMeds || prescribedMeds.length === 0) {
     return [
-      { id: 'r1', time: '08:00', name: '아모잘탄정 5/50mg', dotColor: '#c04b4b', taken: false, type: '처방' },
+      { id: 'r1', time: addMinutes(mealTimes.breakfast || '07:30', 30), name: '아모잘탄정 5/50mg', dotColor: '#c04b4b', taken: false, type: '처방' },
       ...BASE_SUPPLEMENTS
     ];
   }
-  const rxRoutines = prescribedMeds.map((med, idx) => {
-    let t = '08:00';
-    if (idx === 1) t = '12:30';
-    if (idx === 2) t = '19:00';
-    return {
-      id: `rt-${med.id || idx}`,
-      time: t,
-      name: med.name,
-      dotColor: med.dotColor || DOT_COLORS[idx % DOT_COLORS.length],
-      taken: false,
-      type: '처방'
-    };
+
+  // 영양제/상시약이 아닌 처방약만 필터링하여 일별 복약 시간 슬롯 생성
+  const prescriptionOnly = prescribedMeds.filter(m => !m.badge || m.badge === '처방');
+  const rxRoutines = [];
+
+  prescriptionOnly.forEach((med, medIdx) => {
+    const times = getIntakeTimes(med.dailyFrequency, med.usageTiming || med.dosage || med.desc, mealTimes);
+    times.forEach((t, timeIdx) => {
+      rxRoutines.push({
+        id: `rt-${med.id || medIdx}-${timeIdx}`,
+        time: t,
+        name: med.name,
+        dotColor: med.dotColor || DOT_COLORS[medIdx % DOT_COLORS.length],
+        taken: false,
+        type: '처방',
+        orderIndex: medIdx
+      });
+    });
   });
-  return [...rxRoutines, ...BASE_SUPPLEMENTS];
+
+  const combined = [...rxRoutines, ...BASE_SUPPLEMENTS];
+  // 시간 순(08:00 -> 08:10 -> 12:30 -> 19:00 -> 21:00) 정렬 (동일 시간대는 약품 순서 유지)
+  combined.sort((a, b) => {
+    const cmp = (a.time || '').localeCompare(b.time || '');
+    if (cmp !== 0) return cmp;
+    return (a.orderIndex ?? 99) - (b.orderIndex ?? 99);
+  });
+
+  return combined;
 }
 
 export default function MainPage({ user }) {
@@ -160,8 +275,45 @@ export default function MainPage({ user }) {
     { id: 'r3', time: '21:00', name: '듀오락 골드', dotColor: '#5c9e76', taken: false, type: '상시약' },
   ]);
 
+  // 사용자별 식사 및 취침 기준 시간 상태 (기본값: 아침 07:30, 점심 12:00, 저녁 18:30, 취침 22:00)
+  const [mealTimes, setMealTimes] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`jette_meal_times_${user?.userId || 1}`);
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return DEFAULT_MEAL_TIMES;
+  });
+
+  // 식사 시간 설정 모달 상태
+  const [isMealModalOpen, setIsMealModalOpen] = useState(false);
+  const [tempMealTimes, setTempMealTimes] = useState(DEFAULT_MEAL_TIMES);
+  const [isSavingMealTimes, setIsSavingMealTimes] = useState(false);
+
   // 활성화된 처방약 목록 (DB 등록된 데이터 또는 기본 샘플)
   const activeMedList = prescriptionData?.items || PRESCRIBED_MEDICINES;
+
+  // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
+  useEffect(() => {
+    const userId = user?.userId || 1;
+    fetch(`/api/users/meal-times?userId=${userId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.success) {
+          const loaded = {
+            breakfast: data.breakfastTime || '07:30',
+            lunch: data.lunchTime || '12:00',
+            dinner: data.dinnerTime || '18:30',
+            bedtime: data.bedtime || '22:00',
+          };
+          setMealTimes(loaded);
+          setTempMealTimes(loaded);
+          try {
+            localStorage.setItem(`jette_meal_times_${userId}`, JSON.stringify(loaded));
+          } catch {}
+        }
+      })
+      .catch((err) => console.warn('식사 시간 로드 대기:', err));
+  }, [user?.userId]);
 
   // 컴포넌트 마운트 시 최신 처방전 DB 조회
   useEffect(() => {
@@ -175,7 +327,7 @@ export default function MainPage({ user }) {
           if (isMounted && data.success && data.found && data.prescription) {
             const mapped = mapPrescriptionToState(data.prescription);
             setPrescriptionData(mapped);
-            setRoutineItems(buildRoutineItems(mapped.items));
+            setRoutineItems(buildRoutineItems(mapped.items, mealTimes));
             setHasPrescription(true);
           }
         }
@@ -189,6 +341,50 @@ export default function MainPage({ user }) {
       isMounted = false;
     };
   }, [user?.userId]);
+
+  // 식사 시간이나 처방 데이터 변경 시 복약 루틴 알림 시간 재계산
+  useEffect(() => {
+    const meds = prescriptionData?.items || PRESCRIBED_MEDICINES;
+    setRoutineItems(buildRoutineItems(meds, mealTimes));
+  }, [mealTimes, prescriptionData]);
+
+  // 식사 시간 저장 핸들러
+  const handleSaveMealTimes = async (e) => {
+    e.preventDefault();
+    setIsSavingMealTimes(true);
+    const userId = user?.userId || 1;
+
+    try {
+      setMealTimes(tempMealTimes);
+      try {
+        localStorage.setItem(`jette_meal_times_${userId}`, JSON.stringify(tempMealTimes));
+      } catch {}
+
+      const res = await fetch('/api/users/meal-times', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          username: user?.username,
+          breakfastTime: tempMealTimes.breakfast,
+          lunchTime: tempMealTimes.lunch,
+          dinnerTime: tempMealTimes.dinner,
+          bedtime: tempMealTimes.bedtime,
+        }),
+      });
+
+      if (res.ok) {
+        setIsMealModalOpen(false);
+      } else {
+        setIsMealModalOpen(false);
+      }
+    } catch (err) {
+      console.warn('식사 시간 저장 요청 실패:', err);
+      setIsMealModalOpen(false);
+    } finally {
+      setIsSavingMealTimes(false);
+    }
+  };
 
   // 오늘의 복용 체크박스 토글
   const toggleRoutine = (id) => {
@@ -380,7 +576,7 @@ export default function MainPage({ user }) {
         if (data.success && data.prescription) {
           const mapped = mapPrescriptionToState(data.prescription);
           setPrescriptionData(mapped);
-          setRoutineItems(buildRoutineItems(mapped.items));
+          setRoutineItems(buildRoutineItems(mapped.items, mealTimes));
           setHasPrescription(true);
           closeUploadModal();
           alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
@@ -687,7 +883,20 @@ export default function MainPage({ user }) {
       <section className="today-routine-dark-card">
         <div className="routine-header-row">
           <span className="routine-label">TODAY'S ROUTINE</span>
-          <span className="routine-date-badge">09.14</span>
+          <div className="routine-header-actions">
+            <span className="routine-date-badge">09.14</span>
+            <button
+              type="button"
+              className="meal-setting-btn"
+              onClick={() => {
+                setTempMealTimes(mealTimes);
+                setIsMealModalOpen(true);
+              }}
+              title="아침/점심/저녁 식사 및 취침 시간 설정"
+            >
+              ⚙️ 식사 시간 설정
+            </button>
+          </div>
         </div>
 
         <div className="routine-title-row">
@@ -985,6 +1194,164 @@ export default function MainPage({ user }) {
                 내 약 관리에서 전체 확인하기
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* -------------------------------------------------------------
+         모달 4: 사용자 맞춤 식사 시간 설정 모달
+         ------------------------------------------------------------- */}
+      {isMealModalOpen && (
+        <div className="modal-backdrop" onClick={() => !isSavingMealTimes && setIsMealModalOpen(false)}>
+          <div className="modal-content-box meal-time-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h3 className="modal-title">🍽️ 맞춤 식사 및 취침 시간 설정</h3>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setIsMealModalOpen(false)}
+                disabled={isSavingMealTimes}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveMealTimes} className="meal-modal-form">
+              <div className="meal-modal-intro">
+                <p>
+                  평소 식사하시는 시간을 설정해 두시면, 처방전의 <strong>‘식후 30분’</strong>, <strong>‘식전 30분’</strong> 등의 복약 알림 시간이 자동으로 계산되어 딱 맞춰집니다.
+                </p>
+              </div>
+
+              <div className="meal-inputs-grid">
+                <div className="meal-input-group">
+                  <label htmlFor="meal-breakfast">
+                    <span className="meal-icon">🌅</span> 아침 식사 시간
+                  </label>
+                  <input
+                    id="meal-breakfast"
+                    type="time"
+                    className="styled-time-input"
+                    value={tempMealTimes.breakfast}
+                    onChange={(e) =>
+                      setTempMealTimes((prev) => ({ ...prev, breakfast: e.target.value }))
+                    }
+                    required
+                  />
+                  <span className="meal-calc-hint">
+                    식후 30분 복용 시 <strong>{addMinutes(tempMealTimes.breakfast, 30)}</strong>
+                  </span>
+                </div>
+
+                <div className="meal-input-group">
+                  <label htmlFor="meal-lunch">
+                    <span className="meal-icon">☀️</span> 점심 식사 시간
+                  </label>
+                  <input
+                    id="meal-lunch"
+                    type="time"
+                    className="styled-time-input"
+                    value={tempMealTimes.lunch}
+                    onChange={(e) =>
+                      setTempMealTimes((prev) => ({ ...prev, lunch: e.target.value }))
+                    }
+                    required
+                  />
+                  <span className="meal-calc-hint">
+                    식후 30분 복용 시 <strong>{addMinutes(tempMealTimes.lunch, 30)}</strong>
+                  </span>
+                </div>
+
+                <div className="meal-input-group">
+                  <label htmlFor="meal-dinner">
+                    <span className="meal-icon">🌙</span> 저녁 식사 시간
+                  </label>
+                  <input
+                    id="meal-dinner"
+                    type="time"
+                    className="styled-time-input"
+                    value={tempMealTimes.dinner}
+                    onChange={(e) =>
+                      setTempMealTimes((prev) => ({ ...prev, dinner: e.target.value }))
+                    }
+                    required
+                  />
+                  <span className="meal-calc-hint">
+                    식후 30분 복용 시 <strong>{addMinutes(tempMealTimes.dinner, 30)}</strong>
+                  </span>
+                </div>
+
+                <div className="meal-input-group">
+                  <label htmlFor="meal-bedtime">
+                    <span className="meal-icon">🛌</span> 취침 시간
+                  </label>
+                  <input
+                    id="meal-bedtime"
+                    type="time"
+                    className="styled-time-input"
+                    value={tempMealTimes.bedtime}
+                    onChange={(e) =>
+                      setTempMealTimes((prev) => ({ ...prev, bedtime: e.target.value }))
+                    }
+                    required
+                  />
+                  <span className="meal-calc-hint">
+                    취침 전 복용 시 <strong>{tempMealTimes.bedtime}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* 실시간 알림 시간대 미리보기 박스 */}
+              <div className="meal-preview-box">
+                <div className="preview-title">
+                  <span>💡 1일 3회 식후 30분 처방약 기준 복약 스케줄 미리보기</span>
+                </div>
+                <div className="preview-schedule-pills">
+                  <div className="preview-pill">
+                    <span className="pill-badge">아침</span>
+                    <span className="pill-time">{addMinutes(tempMealTimes.breakfast, 30)}</span>
+                  </div>
+                  <span className="preview-arrow">→</span>
+                  <div className="preview-pill">
+                    <span className="pill-badge">점심</span>
+                    <span className="pill-time">{addMinutes(tempMealTimes.lunch, 30)}</span>
+                  </div>
+                  <span className="preview-arrow">→</span>
+                  <div className="preview-pill">
+                    <span className="pill-badge">저녁</span>
+                    <span className="pill-time">{addMinutes(tempMealTimes.dinner, 30)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="modal-foot">
+                <button
+                  type="button"
+                  className="btn-default-reset"
+                  onClick={() => setTempMealTimes(DEFAULT_MEAL_TIMES)}
+                  disabled={isSavingMealTimes}
+                  title="기본값(07:30, 12:00, 18:30, 22:00)으로 초기화"
+                >
+                  기본값 복원
+                </button>
+                <div className="modal-foot-right">
+                  <button
+                    type="button"
+                    className="btn-cancel modal-cancel-btn"
+                    onClick={() => setIsMealModalOpen(false)}
+                    disabled={isSavingMealTimes}
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-confirm modal-confirm-btn"
+                    disabled={isSavingMealTimes}
+                  >
+                    {isSavingMealTimes ? '저장 중...' : '저장하기'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       )}

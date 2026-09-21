@@ -41,7 +41,7 @@ public class AuthController {
     private final Map<String, PasswordResetVerification> verifiedPasswordResetEmails = new ConcurrentHashMap<>();
 
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
         User user = request.getUsername() == null ? null : userMapper.findByLoginId(request.getUsername());
         boolean isValid = user != null && request.getPassword() != null
                 && user.getPasswordHash().equals(PasswordUtil.sha256(request.getPassword()));
@@ -55,8 +55,15 @@ public class AuthController {
             return ResponseEntity.status(401).body(failResponse);
         }
 
+        if (httpRequest != null) {
+            javax.servlet.http.HttpSession session = httpRequest.getSession(true);
+            session.setAttribute("userId", user.getUserId());
+            session.setAttribute("username", user.getLoginId());
+        }
+
         LoginResponse successResponse = new LoginResponse(
                 UUID.randomUUID().toString(),
+                user.getUserId(),
                 user.getLoginId(),
                 user.getNickname(),
                 user.getEmail(),

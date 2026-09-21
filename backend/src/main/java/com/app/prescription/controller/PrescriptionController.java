@@ -38,7 +38,20 @@ public class PrescriptionController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> uploadPrescription(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "userId", required = false, defaultValue = "1") Long userId) {
+            @RequestParam(value = "userId", required = false) Long userId,
+            javax.servlet.http.HttpServletRequest request) {
+
+        if (userId == null || userId <= 0L) {
+            var session = request.getSession(false);
+            Object sessionVal = session != null ? session.getAttribute("userId") : null;
+            if (sessionVal instanceof Long) {
+                userId = (Long) sessionVal;
+            } else if (sessionVal instanceof Number) {
+                userId = ((Number) sessionVal).longValue();
+            } else {
+                userId = 1L;
+            }
+        }
 
         log.info("처방전 업로드 요청 수신: fileName={}, size={}, userId={}", 
                 file != null ? file.getOriginalFilename() : "null", 
@@ -74,7 +87,20 @@ public class PrescriptionController {
      */
     @GetMapping(value = "/latest", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> getLatestPrescription(
-            @RequestParam(value = "userId", required = false, defaultValue = "1") Long userId) {
+            @RequestParam(value = "userId", required = false) Long userId,
+            javax.servlet.http.HttpServletRequest request) {
+
+        if (userId == null || userId <= 0L) {
+            var session = request.getSession(false);
+            Object sessionVal = session != null ? session.getAttribute("userId") : null;
+            if (sessionVal instanceof Long) {
+                userId = (Long) sessionVal;
+            } else if (sessionVal instanceof Number) {
+                userId = ((Number) sessionVal).longValue();
+            } else {
+                userId = 1L;
+            }
+        }
 
         try {
             PrescriptionDTO result = prescriptionService.getLatestPrescription(userId);

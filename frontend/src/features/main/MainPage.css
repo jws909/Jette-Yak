@@ -1449,4 +1449,205 @@
   .routine-item-row {
     padding: 14px 4px;
   }
+  .meal-inputs-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
 }
+
+/* --------------------------------------------------------------------------
+   5. 식사 시간 설정 버튼 & 모달 (User Meal Times Settings)
+   -------------------------------------------------------------------------- */
+.routine-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.meal-setting-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: #e0d8cf;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.meal-setting-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.meal-time-modal {
+  max-width: 540px !important;
+  width: 90% !important;
+}
+
+.meal-modal-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.meal-modal-intro {
+  padding: 16px 24px 0 24px;
+}
+
+.meal-modal-intro p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #554d45;
+  background: #faf6f0;
+  border-left: 3px solid #8b3e4b;
+  border-radius: 4px;
+  padding: 10px 14px;
+}
+
+.meal-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+  padding: 20px 24px;
+}
+
+.meal-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meal-input-group label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38302b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meal-icon {
+  font-size: 15px;
+}
+
+.styled-time-input {
+  width: 100%;
+  height: 42px;
+  border: 1.5px solid #dfd7cc;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #2b2523;
+  background-color: #ffffff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.styled-time-input:focus {
+  outline: none;
+  border-color: #8b3e4b;
+  box-shadow: 0 0 0 3px rgba(139, 62, 75, 0.12);
+}
+
+.meal-calc-hint {
+  font-size: 11.5px;
+  color: #7d7267;
+  padding-left: 2px;
+}
+
+.meal-calc-hint strong {
+  color: #8b3e4b;
+  font-weight: 700;
+}
+
+/* 스케줄 미리보기 박스 */
+.meal-preview-box {
+  margin: 0 24px 20px 24px;
+  background: #fdfaf5;
+  border: 1px dashed #d8cbbe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b5c4f;
+}
+
+.preview-schedule-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #e2d7cb;
+  border-radius: 20px;
+  padding: 4px 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.pill-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #fbf2f3;
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+
+.pill-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.preview-arrow {
+  color: #a89f95;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.btn-default-reset {
+  background: transparent;
+  border: 1px dashed #b5a999;
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a6e62;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: auto;
+}
+
+.btn-default-reset:hover:not(:disabled) {
+  background: #f5efe6;
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+}
+
+.modal-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+

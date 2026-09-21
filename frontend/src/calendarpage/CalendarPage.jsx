@@ -8,8 +8,9 @@ const getFormattedDate = (targetDate) => {
   return `${y}-${m}-${d}`;
 };
 
-export default function CalendarPage() {
+export default function CalendarPage({ user }) {
   const today = new Date();
+  const currentUserId = user?.userId || 1;
   
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
@@ -23,7 +24,7 @@ export default function CalendarPage() {
   const [ampm, setAmpm] = useState('오전');
   const [hour, setHour] = useState('08');
   const [minute, setMinute] = useState('00');
-  const [alarmOn, setAlarmOn] = useState(true);
+  const [isAlarmEnabled, setIsAlarmEnabled] = useState(true);
 
   // 복약 추가 모달
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -43,7 +44,7 @@ export default function CalendarPage() {
   // 1. 해당 월 전체 복약 요약 조회 (달력 점/바 렌더링용)
   const fetchMonthSummary = useCallback(async () => {
     try {
-      const res = await fetch(`http://localhost:8080/api/calendar/summary?userId=1&yearMonth=${currentYearMonth}`);
+      const res = await fetch(`/api/calendar/summary?userId=${currentUserId}&yearMonth=${currentYearMonth}`);
       if (res.ok) {
         const list = await res.json();
         const map = {};
@@ -59,13 +60,13 @@ export default function CalendarPage() {
     } catch (err) {
       console.error("월별 요약 조회 실패:", err);
     }
-  }, [currentYearMonth]);
+  }, [currentYearMonth, currentUserId]);
 
   // 2. 일별 일정 조회
   const fetchDailySchedules = useCallback(async (targetDateStr) => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8080/api/calendar?userId=1&date=${targetDateStr}`);
+      const response = await fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`);
       if (response.ok) {
         const data = await response.json();
         setSchedules(data);
@@ -78,7 +79,7 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
     fetchMonthSummary();
@@ -97,7 +98,7 @@ export default function CalendarPage() {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/calendar/search-medications?keyword=${encodeURIComponent(newMedName)}`);
+        const res = await fetch(`/api/calendar/search-medications?keyword=${encodeURIComponent(newMedName)}`);
         if (res.ok) {
           const list = await res.json();
           setSearchResults(list);
@@ -226,11 +227,11 @@ export default function CalendarPage() {
     const savedMedName = selectedMed.name;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/calendar`, {
+      const response = await fetch(`/api/calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 1,
+          userId: currentUserId,
           medicationId: selectedMed.id,
           name: savedMedName,
           type: newMedType,
