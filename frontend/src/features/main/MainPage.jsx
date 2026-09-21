@@ -968,14 +968,6 @@ export default function MainPage({ user }) {
             <div className="summary-col-right">
               <button
                 type="button"
-                className="manage-prescription-btn"
-                onClick={openManageModal}
-                title="등록된 모든 처방전 조회 및 수정/삭제"
-              >
-                처방전 관리
-              </button>
-              <button
-                type="button"
                 className="new-prescription-btn"
                 onClick={openUploadModal}
               >
