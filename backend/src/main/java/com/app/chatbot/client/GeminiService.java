@@ -1,7 +1,10 @@
 package com.app.chatbot.client;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -34,7 +37,33 @@ public class GeminiService {
         """;
 
     public GeminiService() {
-        this(createClient(), System.getenv("GEMINI_API_KEY"), System.getenv("GEMINI_MODEL"));
+        this(createClient(), resolveApiKey(), System.getenv("GEMINI_MODEL"));
+    }
+
+    private static String resolveApiKey() {
+        String key = System.getenv("GEMINI_API_KEY");
+        if (key != null && !key.isBlank()) return key.trim();
+        key = System.getProperty("GEMINI_API_KEY");
+        if (key != null && !key.isBlank()) return key.trim();
+        try {
+            File propFile = new File("src/main/resources/config/gemini.properties");
+            if (!propFile.exists()) {
+                propFile = new File("backend/src/main/resources/config/gemini.properties");
+            }
+            if (propFile.exists()) {
+                Properties p = new Properties();
+                try (FileInputStream fis = new FileInputStream(propFile)) {
+                    p.load(fis);
+                    String propKey = p.getProperty("gemini.api.key");
+                    if (propKey != null && !propKey.isBlank()) return propKey.trim();
+                }
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    public boolean isAvailable() {
+        return apiKey != null && !apiKey.isBlank();
     }
 
     // Test constructor: no real API key or external request is needed in tests.
@@ -142,6 +171,61 @@ public class GeminiService {
             '그거랑 같이 먹어도 돼?'처럼 비교 대상이 불명확하거나 분류를 확신하지 못하면 needsClarification=true.
             """, "현재 선택한 약: " + (selectedName == null ? "없음" : selectedName) + "\n최근 사용자 질문(오래된 순): " + recentQuestions + "\n현재 사용자 질문: " + question,
             Map.of("temperature", 0, "maxOutputTokens", 1536, "responseMimeType", "application/json", "responseJsonSchema", schema));
+    }
+
+    /**
+     * [처리방법.txt ③] Gemini를 활용한 처방전 OCR 텍스트 정규화 및 표준 제품명 추출
+     */
+    public String normalizePrescriptionOcr(String ocrText) {
+        String instructions = """
+            너는 대한민국 처방전 OCR 결과에서 의약품 및 처방 정보를 정제하는 전문 도우미다.
+            각 항목에서 불필요한 성분 표기, 복용법, 단위를 제거하고 대한민국 식약처 의약품 DB에서 검색하기 가장 적합한 '표준 제품명'을 추출한다.
+            병원명, 의사명, 조제일자(YYYY-MM-DD), 총투약일수, 처방 약품 목록(표준제품명, EDI코드, 1회투약량, 1일투여횟수, 총일수, 용법)을 JSON으로 반환한다.
+            [작성 규칙]:
+            1. standardName: 비급여 접두어('비)', '[비]', '비급여' 등), 포장 규격('/1정', '/1캡슐' 등), '수출명:', '수출용' 등의 라벨을 완전히 제거하고, 식약처 품목명으로 검색 가능한 핵심 약품명(예: '피나온정1mg' -> '피나온정1밀리그램' 또는 '피나온정')만 순수하게 추출한다.
+            2. usageTiming: '매일 아침 식후 30분', '1일 1회 취침 전'과 같이 반드시 20자 이내의 아주 간결한 복약 시점 문구만 작성한다. 긴 복약 지도문이나 부가 설명은 절대 쓰지 않는다.
+            3. 중복 금지: 처방전에 처방된 서로 다른 약품만 1건씩 추출한다. 동일한 약품에 대해 성분명이나 수출명 등을 분리하여 2개 이상의 항목으로 절대 만들지 말 것. 1개의 처방 라인은 반드시 1개의 item 객체로만 생성한다.
+            """;
+        String prompt = """
+            아래는 처방전 OCR 결과에서 추출한 텍스트야.
+            각 항목에서 불필요한 성분 표기, 복용법, 단위를 제거하고
+            대한민국 식약처 의약품 DB에서 검색하기 가장 적합한 '표준 제품명'만 JSON 형식으로 뽑아줘.
+
+            [OCR 텍스트]:
+            """ + ocrText;
+
+        Map<String, Object> schema = Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "hospitalName", Map.of("type", "string"),
+                "doctorName", Map.of("type", "string"),
+                "dispensedDate", Map.of("type", "string"),
+                "totalDays", Map.of("type", "integer"),
+                "items", Map.of(
+                    "type", "array",
+                    "items", Map.of(
+                        "type", "object",
+                        "properties", Map.of(
+                            "standardName", Map.of("type", "string"),
+                            "ediCode", Map.of("type", "string"),
+                            "dailyDose", Map.of("type", "number"),
+                            "dailyFrequency", Map.of("type", "integer"),
+                            "totalDays", Map.of("type", "integer"),
+                            "usageTiming", Map.of("type", "string")
+                        ),
+                        "required", List.of("standardName")
+                    )
+                )
+            ),
+            "required", List.of("items")
+        );
+
+        return generate(instructions, prompt, Map.of(
+            "temperature", 0.0,
+            "maxOutputTokens", 2048,
+            "responseMimeType", "application/json",
+            "responseJsonSchema", schema
+        ));
     }
 
     private String generate(String instructions, String prompt, Map<String, Object> generationConfig) {

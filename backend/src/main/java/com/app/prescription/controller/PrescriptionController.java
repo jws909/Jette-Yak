@@ -1,0 +1,100 @@
+package com.app.prescription.controller;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.app.prescription.dto.PrescriptionDTO;
+import com.app.prescription.service.PrescriptionService;
+
+@RestController
+@RequestMapping("/api/prescriptions")
+@CrossOrigin(origins = "*")
+public class PrescriptionController {
+    private static final Logger log = LogManager.getLogger(PrescriptionController.class);
+
+    private final PrescriptionService prescriptionService;
+
+    public PrescriptionController(PrescriptionService prescriptionService) {
+        this.prescriptionService = prescriptionService;
+    }
+
+    /**
+     * 처방전 사진 업로드 및 OCR 텍스트 분석/의약품 DB 매칭/DB 등록
+     * POST /api/prescriptions/upload
+     */
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> uploadPrescription(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "userId", required = false, defaultValue = "1") Long userId) {
+
+        log.info("처방전 업로드 요청 수신: fileName={}, size={}, userId={}", 
+                file != null ? file.getOriginalFilename() : "null", 
+                file != null ? file.getSize() : 0, 
+                userId);
+
+        if (file == null || file.isEmpty()) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "업로드할 처방전 사진 파일이 제공되지 않았습니다.");
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+
+        try {
+            PrescriptionDTO result = prescriptionService.uploadAndProcessPrescription(file, userId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "처방전 분석 및 등록이 성공적으로 완료되었습니다.");
+            response.put("prescription", result);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("처방전 분석 및 저장 중 오류 발생", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "처방전 처리 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+
+    /**
+     * 사용자의 가장 최근 처방전 및 포함된 처방 약품 목록 조회
+     * GET /api/prescriptions/latest?userId=1
+     */
+    @GetMapping(value = "/latest", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> getLatestPrescription(
+            @RequestParam(value = "userId", required = false, defaultValue = "1") Long userId) {
+
+        try {
+            PrescriptionDTO result = prescriptionService.getLatestPrescription(userId);
+            Map<String, Object> response = new HashMap<>();
+            if (result != null) {
+                response.put("success", true);
+                response.put("found", true);
+                response.put("prescription", result);
+            } else {
+                response.put("success", true);
+                response.put("found", false);
+                response.put("message", "등록된 처방전 내역이 없습니다.");
+            }
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("최근 처방전 조회 실패: userId={}", userId, e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "최근 처방전 조회 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
+    }
+}

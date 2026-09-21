@@ -162,7 +162,7 @@ export default function SignupPage() {
       setEmailVerifyError("");
       setSecondsLeft(5 * 60); // 5분
       setSendingCode(false);
-    } catch (err) {
+    } catch {
       setEmailVerifyError("서버에 연결할 수 없습니다.");
       setEmailSendSuccessMsg("");
       setSendingCode(false);
@@ -192,7 +192,7 @@ export default function SignupPage() {
       setEmailVerifyError("");
       setEmailSendSuccessMsg("");
       setVerifyingCode(false);
-    } catch (err) {
+    } catch {
       setEmailVerifyError("서버에 연결할 수 없습니다.");
       setVerifyingCode(false);
     }
@@ -244,7 +244,7 @@ export default function SignupPage() {
     try {
       const available = await checkDuplicate(field, value);
       setAvailability((prev) => ({ ...prev, [field]: available }));
-    } catch (err) {
+    } catch {
       setCheckError((prev) => ({
         ...prev,
         [field]: "중복확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
@@ -273,7 +273,7 @@ export default function SignupPage() {
     try {
       const available = await checkDuplicate(field, value);
       setAvailability((prev) => ({ ...prev, [field]: available }));
-    } catch (err) {
+    } catch {
       setCheckError((prev) => ({
         ...prev,
         [field]: "중복확인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.",
@@ -351,7 +351,7 @@ export default function SignupPage() {
 
       setIsSubmitting(false);
       setStep(2);
-    } catch (err) {
+    } catch {
       setFormError("서버에 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.");
       setIsSubmitting(false);
     }

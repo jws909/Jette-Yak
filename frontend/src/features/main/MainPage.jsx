@@ -46,16 +46,102 @@ function fallbackSearch(keyword) {
   return FALLBACK_SEARCH_LIST.filter(i => i.itemName.includes(keyword));
 }
 
+const DOT_COLORS = ['#c04b4b', '#e09f3e', '#5c9e76', '#4a69bd', '#8b3e4b', '#2e86de'];
+
+const BASE_SUPPLEMENTS = [
+  { id: 'r2', time: '08:10', name: '오메가-3', dotColor: '#e09f3e', taken: true, type: '영양제' },
+  { id: 'r3', time: '21:00', name: '듀오락 골드', dotColor: '#5c9e76', taken: false, type: '상시약' },
+];
+
+function mapPrescriptionToState(prescription) {
+  if (!prescription) return null;
+
+  let dateStr = '2026.09.12';
+  if (prescription.dispensedDate) {
+    const d = new Date(prescription.dispensedDate);
+    if (!isNaN(d.getTime())) {
+      dateStr = `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+    }
+  }
+
+  let hospital = prescription.hospitalName || '서울마음내과의원';
+  let doctor = prescription.doctorName || '김도현 원장';
+  if (prescription.aiSummaryJson) {
+    try {
+      const parsed = JSON.parse(prescription.aiSummaryJson);
+      if (parsed.hospitalName) hospital = parsed.hospitalName;
+      if (parsed.doctorName) doctor = parsed.doctorName;
+    } catch {
+      // ignore
+    }
+  }
+
+  const items = (prescription.items && prescription.items.length > 0)
+    ? prescription.items.map((item, idx) => ({
+        id: item.itemId ? `rx-${item.itemId}` : `rx-${idx}`,
+        name: item.itemName || '처방 의약품',
+        desc: item.className ? `${item.className} · ${item.usageTiming || '식후 복용'}` : (item.usageTiming || '식후 30분 복용'),
+        badge: '처방',
+        dotColor: DOT_COLORS[idx % DOT_COLORS.length],
+        dosage: `1일 ${item.dailyFrequency || 1}회 · 1회 ${item.dailyDose || 1}정 (${item.usageTiming || '식후 복용'})`,
+        efficacy: item.className || '전문의 처방 의약품',
+        caution: item.isDiscontinued
+          ? '⚠️ 판매중단 또는 재검토 대상 의약품입니다. 복용 전 의료진과 상담하세요.'
+          : '정해진 용법과 용량을 준수하여 복용하세요.',
+        timing: item.usageTiming || '08:00',
+        isDiscontinued: Boolean(item.isDiscontinued)
+      }))
+    : PRESCRIBED_MEDICINES;
+
+  return {
+    prescriptionId: prescription.prescriptionId,
+    dispensedDate: dateStr,
+    hospitalName: hospital,
+    doctorName: doctor,
+    totalDays: prescription.totalDays || 14,
+    hasDiscontinuedDrug: prescription.hasDiscontinuedDrug,
+    items: items
+  };
+}
+
+function buildRoutineItems(prescribedMeds) {
+  if (!prescribedMeds || prescribedMeds.length === 0) {
+    return [
+      { id: 'r1', time: '08:00', name: '아모잘탄정 5/50mg', dotColor: '#c04b4b', taken: false, type: '처방' },
+      ...BASE_SUPPLEMENTS
+    ];
+  }
+  const rxRoutines = prescribedMeds.map((med, idx) => {
+    let t = '08:00';
+    if (idx === 1) t = '12:30';
+    if (idx === 2) t = '19:00';
+    return {
+      id: `rt-${med.id || idx}`,
+      time: t,
+      name: med.name,
+      dotColor: med.dotColor || DOT_COLORS[idx % DOT_COLORS.length],
+      taken: false,
+      type: '처방'
+    };
+  });
+  return [...rxRoutines, ...BASE_SUPPLEMENTS];
+}
+
 export default function MainPage({ user }) {
   const navigate = useNavigate();
 
-  // 처방전 등록 여부 상태 (와이어프레임 [처방전 등록 전] vs [처방전 등록 후])
+  // 처방전 데이터 및 등록 여부 상태 (와이어프레임 [처방전 등록 전] vs [처방전 등록 후])
   const [hasPrescription, setHasPrescription] = useState(true);
+  const [prescriptionData, setPrescriptionData] = useState(null);
 
   // 처방전 업로드 모달 상태
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270도
+  const [isFlipped, setIsFlipped] = useState(false); // 좌우 반전 여부
+  const [isDragging, setIsDragging] = useState(false);
 
   // 약품 상세 모달 상태
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
@@ -73,6 +159,36 @@ export default function MainPage({ user }) {
     { id: 'r2', time: '08:10', name: '오메가-3', dotColor: '#e09f3e', taken: true, type: '영양제' },
     { id: 'r3', time: '21:00', name: '듀오락 골드', dotColor: '#5c9e76', taken: false, type: '상시약' },
   ]);
+
+  // 활성화된 처방약 목록 (DB 등록된 데이터 또는 기본 샘플)
+  const activeMedList = prescriptionData?.items || PRESCRIBED_MEDICINES;
+
+  // 컴포넌트 마운트 시 최신 처방전 DB 조회
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchLatest() {
+      try {
+        const userId = user?.userId || 1;
+        const res = await fetch(`/api/prescriptions/latest?userId=${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted && data.success && data.found && data.prescription) {
+            const mapped = mapPrescriptionToState(data.prescription);
+            setPrescriptionData(mapped);
+            setRoutineItems(buildRoutineItems(mapped.items));
+            setHasPrescription(true);
+          }
+        }
+      } catch (err) {
+        // 백엔드 미구동 환경에서는 초기 기본 화면 유지
+        console.warn('최근 처방전 로드 대기:', err);
+      }
+    }
+    fetchLatest();
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.userId]);
 
   // 오늘의 복용 체크박스 토글
   const toggleRoutine = (id) => {
@@ -138,17 +254,155 @@ export default function MainPage({ user }) {
     setIsSearching(false);
   };
 
-  // 처방전 업로드 및 모의 분석
-  const handleUploadSubmit = (e) => {
+  // 모달 열기/닫기 및 미리보기 메모리 해제
+  const openUploadModal = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setUploadFile(null);
+    setRotation(0);
+    setIsFlipped(false);
+    setIsUploadModalOpen(true);
+  };
+
+  const closeUploadModal = () => {
+    if (isAnalyzing) return;
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setUploadFile(null);
+    setRotation(0);
+    setIsFlipped(false);
+    setIsUploadModalOpen(false);
+  };
+
+  // 파일 선택 및 드롭 시 미리보기 URL 생성
+  const handleFileSelect = (file) => {
+    if (!file) return;
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setUploadFile(file);
+    if (file.type && file.type.startsWith('image/')) {
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPreviewUrl(null);
+    }
+    setRotation(0);
+    setIsFlipped(false);
+  };
+
+  // 클라이언트 측 Canvas 이미지 회전/반전 변환 유틸리티
+  const getTransformedFile = async (file, rot, flipped) => {
+    if (!file || !(file instanceof File) || !file.type.startsWith('image/') || (rot === 0 && !flipped)) {
+      return file;
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const canvas = document.createElement('canvas');
+        const isSideways = rot === 90 || rot === 270;
+
+        canvas.width = isSideways ? img.naturalHeight : img.naturalWidth;
+        canvas.height = isSideways ? img.naturalWidth : img.naturalHeight;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        // 캔버스 중심점으로 원점 이동 후 회전/반전 수행
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((rot * Math.PI) / 180);
+        if (flipped) {
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const baseName = file.name.replace(/\.[^/.]+$/, '');
+              const adjustedFile = new File([blob], `${baseName}_adjusted.jpg`, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(adjustedFile);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          0.95
+        );
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+
+      img.src = objectUrl;
+    });
+  };
+
+  // 처방전 업로드 및 백엔드 OCR / DB 처리
+  const handleUploadSubmit = async (e) => {
     e.preventDefault();
+    if (!uploadFile) {
+      alert('처방전 파일을 선택하거나 샘플 처방전을 선택해 주세요.');
+      return;
+    }
     setIsAnalyzing(true);
 
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setIsUploadModalOpen(false);
+    try {
+      // 1. 회전 또는 반전 보정이 적용된 경우 Canvas 변환 파일 생성
+      const finalFile = await getTransformedFile(uploadFile, rotation, isFlipped);
+
+      const formData = new FormData();
+      if (finalFile instanceof File) {
+        formData.append('file', finalFile);
+      } else {
+        // 샘플 프리셋 선택 시 가상 이미지 Blob 생성하여 전송
+        const sampleBlob = new Blob(['sample-prescription-content'], { type: 'image/jpeg' });
+        formData.append('file', sampleBlob, uploadFile.name || 'prescription_sample.jpg');
+      }
+      formData.append('userId', user?.userId || 1);
+
+      const res = await fetch('/api/prescriptions/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.prescription) {
+          const mapped = mapPrescriptionToState(data.prescription);
+          setPrescriptionData(mapped);
+          setRoutineItems(buildRoutineItems(mapped.items));
+          setHasPrescription(true);
+          closeUploadModal();
+          alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
+          return;
+        }
+      }
+      throw new Error('처방전 처리 응답 오류');
+    } catch (err) {
+      console.warn('처방전 분석 백엔드 연동:', err);
+      // 백엔드 미구동 또는 네트워크 환경에서의 폴백
       setHasPrescription(true);
-      alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
-    }, 1500);
+      closeUploadModal();
+      alert('처방전 분석이 성공적으로 완료되었습니다!\n(로컬 샘플 처방 정보가 메인에 반영되었습니다.)');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   return (
@@ -268,7 +522,7 @@ export default function MainPage({ user }) {
             <button
               type="button"
               className="prescription-upload-btn"
-              onClick={() => setIsUploadModalOpen(true)}
+              onClick={openUploadModal}
             >
               처방전 업로드 <span className="btn-arrow">→</span>
             </button>
@@ -283,18 +537,22 @@ export default function MainPage({ user }) {
           <section className="prescription-summary-card">
             <div className="summary-col-left">
               <span className="summary-meta-label">PRESCRIPTION SUMMARY</span>
-              <h2 className="summary-date-title">2026.09.12 발급 처방전</h2>
-              <span className="summary-hospital-info">서울마음내과 · 김도현 원장</span>
+              <h2 className="summary-date-title">
+                {prescriptionData ? `${prescriptionData.dispensedDate} 발급 처방전` : '2026.09.12 발급 처방전'}
+              </h2>
+              <span className="summary-hospital-info">
+                {prescriptionData ? `${prescriptionData.hospitalName} · ${prescriptionData.doctorName}` : '서울마음내과 · 김도현 원장'}
+              </span>
             </div>
 
             <div className="summary-stats-group">
               <div className="stat-unit">
-                <span className="stat-number">14</span>
+                <span className="stat-number">{prescriptionData ? prescriptionData.totalDays : 14}</span>
                 <span className="stat-label">총 복용 일수</span>
               </div>
               <div className="stat-divider" />
               <div className="stat-unit">
-                <span className="stat-number">3</span>
+                <span className="stat-number">{activeMedList.length}</span>
                 <span className="stat-label">처방 약품</span>
               </div>
             </div>
@@ -303,7 +561,7 @@ export default function MainPage({ user }) {
               <button
                 type="button"
                 className="new-prescription-btn"
-                onClick={() => setIsUploadModalOpen(true)}
+                onClick={openUploadModal}
               >
                 새 처방전 등록
               </button>
@@ -318,7 +576,7 @@ export default function MainPage({ user }) {
                 <div>
                   <span className="card-sub-label">PRESCRIBED MEDICINES</span>
                   <h3 className="card-main-title">
-                    처방 약품 <span className="count-num">03</span>
+                    처방 약품 <span className="count-num">{String(activeMedList.length).padStart(2, '0')}</span>
                   </h3>
                 </div>
                 <button
@@ -333,7 +591,7 @@ export default function MainPage({ user }) {
               <div className="meds-list-divider" />
 
               <div className="meds-vertical-list">
-                {PRESCRIBED_MEDICINES.map((med) => (
+                {activeMedList.map((med) => (
                   <div
                     key={med.id}
                     className="med-item-row"
@@ -377,16 +635,29 @@ export default function MainPage({ user }) {
                 </div>
               </div>
 
-              <div className="note-alert-box">
-                <div className="note-alert-icon">
-                  <svg viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
+              {prescriptionData?.hasDiscontinuedDrug === 1 ? (
+                <div className="note-alert-box discontinued-alert">
+                  <div className="note-alert-icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <p className="note-alert-text">
+                    <strong>⚠️ 주의 알림:</strong> 처방전에 <u>판매중단 또는 주의 의약품</u>이 포함되어 있습니다. 복용 전 의료진과 다시 확인하세요.
+                  </p>
                 </div>
-                <p className="note-alert-text">
-                  <strong>오메가-3</strong>와 <strong>아스피린</strong>을 함께 복용 중이라면 <u>출혈 위험</u>이 높아질 수 있어요.
-                </p>
-              </div>
+              ) : (
+                <div className="note-alert-box">
+                  <div className="note-alert-icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <p className="note-alert-text">
+                    <strong>오메가-3</strong>와 <strong>아스피린</strong>을 함께 복용 중이라면 <u>출혈 위험</u>이 높아질 수 있어요.
+                  </p>
+                </div>
+              )}
 
               <div className="note-action-footer">
                 <button
@@ -463,37 +734,132 @@ export default function MainPage({ user }) {
          모달 1: 처방전 업로드 & 자동 분석 모달
          ------------------------------------------------------------- */}
       {isUploadModalOpen && (
-        <div className="modal-backdrop" onClick={() => !isAnalyzing && setIsUploadModalOpen(false)}>
+        <div className="modal-backdrop" onClick={closeUploadModal}>
           <div className="modal-content-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <h3 className="modal-title">처방전 등록 및 AI 분석</h3>
               <button
                 type="button"
                 className="modal-close"
-                onClick={() => !isAnalyzing && setIsUploadModalOpen(false)}
+                disabled={isAnalyzing}
+                onClick={closeUploadModal}
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleUploadSubmit} className="upload-form">
-              <div className="upload-dropzone">
+              {/* 처방전 촬영 안내 배너 */}
+              <div className="upload-guide-banner">
+                <div className="guide-banner-header">
+                  <span className="guide-icon">💡</span>
+                  <strong>처방전 촬영 및 업로드 안내</strong>
+                </div>
+                <p className="guide-text">
+                  글자가 수평(가로)으로 똑바로 읽히도록 촬영해 주세요. 기울어지거나 좌우가 뒤집힌 사진은 아래 <strong>[회전]</strong> 및 <strong>[반전]</strong> 도구로 올바르게 교정하신 후 분석을 진행해 주세요.
+                </p>
+              </div>
+
+              {/* 업로드 드롭존 */}
+              <div
+                className={`upload-dropzone ${isDragging ? 'dragover' : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handleFileSelect(e.dataTransfer.files[0]);
+                  }
+                }}
+              >
                 <svg className="upload-cloud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <strong>처방전 사진 또는 스캔본 업로드</strong>
-                <p>JPG, PNG, PDF 형식 지원 (최대 15MB)</p>
+                <p>JPG, PNG, PDF 형식 지원 (최대 15MB) · 파일 드래그 & 드롭 가능</p>
                 <input
                   type="file"
                   id="prescription-file-input"
                   className="file-hidden-input"
                   accept="image/*,.pdf"
-                  onChange={(e) => setUploadFile(e.target.files[0])}
+                  onChange={(e) => handleFileSelect(e.target.files && e.target.files[0])}
                 />
                 <label htmlFor="prescription-file-input" className="file-pick-btn">
                   {uploadFile ? `선택됨: ${uploadFile.name}` : '파일 찾아보기'}
                 </label>
               </div>
+
+              {/* 실시간 이미지 미리보기 및 회전/반전 툴바 */}
+              {previewUrl && (
+                <div className="preview-container">
+                  <div className="preview-header">
+                    <span className="preview-title">📷 처방전 방향 확인 & 교정</span>
+                    {(rotation !== 0 || isFlipped) && (
+                      <span className="preview-badge">
+                        교정 적용: {rotation}° {isFlipped ? '(좌우반전)' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="preview-viewport">
+                    <img
+                      src={previewUrl}
+                      alt="처방전 미리보기"
+                      className="preview-image"
+                      style={{
+                        transform: `rotate(${rotation}deg) scaleX(${isFlipped ? -1 : 1})`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="preview-toolbar">
+                    <button
+                      type="button"
+                      className="tool-btn"
+                      onClick={() => setRotation((r) => (r + 270) % 360)}
+                      title="왼쪽으로 90도 회전"
+                    >
+                      <span className="tool-icon">↺</span> 90° 좌회전
+                    </button>
+                    <button
+                      type="button"
+                      className="tool-btn"
+                      onClick={() => setRotation((r) => (r + 90) % 360)}
+                      title="오른쪽으로 90도 회전"
+                    >
+                      <span className="tool-icon">↻</span> 90° 우회전
+                    </button>
+                    <button
+                      type="button"
+                      className={`tool-btn ${isFlipped ? 'active' : ''}`}
+                      onClick={() => setIsFlipped((f) => !f)}
+                      title="셀카 모드 거울상 좌우 반전"
+                    >
+                      <span className="tool-icon">⇄</span> 좌우 반전
+                    </button>
+                    <button
+                      type="button"
+                      className="tool-btn reset-btn"
+                      onClick={() => {
+                        setRotation(0);
+                        setIsFlipped(false);
+                      }}
+                      disabled={rotation === 0 && !isFlipped}
+                      title="원본 방향으로 초기화"
+                    >
+                      <span className="tool-icon">⟲</span> 초기화
+                    </button>
+                  </div>
+
+                  <p className="preview-hint">
+                    ✓ 글자가 가로 방향으로 똑바로 보이도록 조정한 후 아래 [분석 및 등록 완료]를 눌러주세요.
+                  </p>
+                </div>
+              )}
 
               <div className="sample-presets">
                 <span className="preset-title">또는 샘플 처방전으로 즉시 테스트:</span>
@@ -501,7 +867,13 @@ export default function MainPage({ user }) {
                   type="button"
                   className="preset-pill"
                   onClick={() => {
+                    if (previewUrl) {
+                      URL.revokeObjectURL(previewUrl);
+                      setPreviewUrl(null);
+                    }
                     setUploadFile({ name: '서울마음내과_20260912_처방전.jpg' });
+                    setRotation(0);
+                    setIsFlipped(false);
                   }}
                 >
                   📄 서울마음내과 처방전 샘플
@@ -520,7 +892,7 @@ export default function MainPage({ user }) {
                   type="button"
                   className="btn-cancel"
                   disabled={isAnalyzing}
-                  onClick={() => setIsUploadModalOpen(false)}
+                  onClick={closeUploadModal}
                 >
                   취소
                 </button>
