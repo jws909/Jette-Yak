@@ -96,14 +96,6 @@ public class CalendarController {
         return isDeleted ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
     
-    // 6. 약품 검색 API (복약 추가 모달 자동완성)
-    @GetMapping("/search-medications")
-    public ResponseEntity<List<Map<String, Object>>> searchMedications(
-            @RequestParam("keyword") String keyword) {
-        List<Map<String, Object>> list = scheduleService.searchMedications(keyword);
-        return ResponseEntity.ok(list);
-    }
-    
     @GetMapping("/summary")
     public ResponseEntity<List<Map<String, Object>>> getMonthlySummary(
             @RequestParam(value = "userId", required = false) Long userId,
