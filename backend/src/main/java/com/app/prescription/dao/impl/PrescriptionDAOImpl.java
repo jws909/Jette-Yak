@@ -46,4 +46,9 @@ public class PrescriptionDAOImpl implements PrescriptionDAO {
     public MatchedMedicationDTO findMedicationByName(String keyword) {
         return sqlSession.selectOne(NAMESPACE + "findMedicationByName", keyword);
     }
+
+    @Override
+    public int deletePrescription(Long prescriptionId) {
+        return sqlSession.delete(NAMESPACE + "deletePrescription", prescriptionId);
+    }
 }

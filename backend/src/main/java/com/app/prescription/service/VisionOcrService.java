@@ -6,19 +6,25 @@ import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.app.chatbot.client.GeminiService;
 import com.app.prescription.dto.OcrParseResult;
 import com.app.prescription.dto.OcrParseResult.ParsedItem;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.vision.v1.AnnotateImageRequest;
@@ -33,6 +39,18 @@ import com.google.protobuf.ByteString;
 @Service
 public class VisionOcrService {
     private static final Logger log = LogManager.getLogger(VisionOcrService.class);
+
+    private final GeminiService geminiService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public VisionOcrService() {
+        this(null);
+    }
+
+    @Autowired(required = false)
+    public VisionOcrService(GeminiService geminiService) {
+        this.geminiService = geminiService;
+    }
 
     /**
      * MultipartFile 처방전 이미지를 받아 바이트 배열로 안전하게 추출 후 OCR 분석을 수행합니다.
@@ -182,8 +200,104 @@ public class VisionOcrService {
 
     /**
      * OCR 원시 텍스트에서 날짜, 병원명, 약품 정보를 파싱합니다.
+     * [처리방법.txt ③] Gemini Flash 모델을 1순위로 시도하고, 미연결/실패 시 규칙 기반 전처리 엔진으로 폴백합니다.
      */
     public OcrParseResult parseOcrText(String text) {
+        // [처리방법.txt ③] 1순위: Gemini Flash 모델을 활용한 OCR 후처리 및 정규화
+        if (geminiService != null && geminiService.isAvailable()) {
+            try {
+                log.info("[VISION OCR] 🤖 [처리방법.txt ③] Gemini Flash AI로 처방전 OCR 후처리 및 표준 제품명 정규화 시도...");
+                OcrParseResult geminiResult = parseWithGemini(text);
+                if (geminiResult != null && geminiResult.getItems() != null && !geminiResult.getItems().isEmpty()) {
+                    log.info("[VISION OCR] ✅ Gemini Flash 정규화 성공! 추출 약품 {}건", geminiResult.getItems().size());
+                    return geminiResult;
+                }
+            } catch (Exception e) {
+                log.warn("[VISION OCR] ⚠️ Gemini Flash 호출 중 예외 발생 (규칙 기반 전처리로 폴백): {}", e.getMessage());
+            }
+        } else {
+            log.info("[VISION OCR] Gemini API 미연결 상태 -> [처리방법.txt ①, ②] 규칙 기반 정규화 엔진으로 동작합니다.");
+        }
+
+        // 2순위: 규칙 기반 파서
+        return parseWithRules(text);
+    }
+
+    private OcrParseResult parseWithGemini(String text) throws Exception {
+        String json = geminiService.normalizePrescriptionOcr(text);
+        if (json == null || json.isBlank()) return null;
+
+        JsonNode root = objectMapper.readTree(json);
+        OcrParseResult result = new OcrParseResult();
+        result.setRawOcrText(text);
+
+        String hosp = root.path("hospitalName").asText(null);
+        result.setHospitalName(hosp != null && !hosp.isBlank() ? hosp : extractHospitalName(text));
+
+        String doc = root.path("doctorName").asText(null);
+        result.setDoctorName(doc != null && !doc.isBlank() ? doc : extractDoctorName(text));
+
+        String dateStr = root.path("dispensedDate").asText(null);
+        if (dateStr != null && !dateStr.isBlank()) {
+            try {
+                result.setDispensedDate(new SimpleDateFormat("yyyy-MM-dd").parse(dateStr));
+            } catch (Exception e) {
+                result.setDispensedDate(extractDate(text));
+            }
+        } else {
+            result.setDispensedDate(extractDate(text));
+        }
+
+        int totalDays = root.path("totalDays").asInt(0);
+
+        List<ParsedItem> items = new ArrayList<>();
+        Set<String> seenMedicineKeys = new HashSet<>();
+        JsonNode itemsNode = root.path("items");
+        if (itemsNode.isArray()) {
+            for (JsonNode it : itemsNode) {
+                String stdName = it.path("standardName").asText("");
+                stdName = cleanMedicineName(stdName);
+                if (stdName.length() < 2) continue;
+
+                // 중복 항목 감지 (정규화된 문자열이 완전히 동일하거나 포함 관계인 경우 중복 스킵)
+                String normKey = stdName.replaceAll("[^가-힣A-Za-z0-9]", "");
+                boolean isDup = false;
+                for (String seen : seenMedicineKeys) {
+                    if (seen.equals(normKey) || (seen.length() >= 3 && normKey.contains(seen)) || (normKey.length() >= 3 && seen.contains(normKey))) {
+                        isDup = true;
+                        break;
+                    }
+                }
+                if (isDup) {
+                    log.info("[VISION OCR] Gemini 파싱 중복 품목 감지되어 제외: '{}'", stdName);
+                    continue;
+                }
+                seenMedicineKeys.add(normKey);
+
+                ParsedItem item = new ParsedItem();
+                item.setMedicineName(stdName);
+                String edi = it.path("ediCode").asText(null);
+                if (edi != null && (edi.isBlank() || edi.equalsIgnoreCase("null"))) edi = null;
+                item.setEdiCode(edi);
+                item.setDailyDose(it.path("dailyDose").asDouble(1.0));
+                item.setDailyFrequency(it.path("dailyFrequency").asInt(1));
+                int itemDays = it.path("totalDays").asInt(totalDays > 0 ? totalDays : 14);
+                item.setTotalDays(itemDays > 0 ? itemDays : 14);
+                item.setUsageTiming(safeTruncateUsageTiming(it.path("usageTiming").asText("매일 식후 30분")));
+                items.add(item);
+            }
+        }
+
+        if (items.isEmpty()) return null;
+        result.setItems(items);
+
+        int maxDays = items.stream().mapToInt(it -> it.getTotalDays() != null ? it.getTotalDays() : 0).max().orElse(totalDays);
+        result.setTotalDays(maxDays > 0 ? maxDays : (totalDays > 0 ? totalDays : 14));
+
+        return result;
+    }
+
+    public OcrParseResult parseWithRules(String text) {
         OcrParseResult result = new OcrParseResult();
         result.setRawOcrText(text);
 
@@ -205,7 +319,7 @@ public class VisionOcrService {
         int maxDays = items.stream().mapToInt(it -> it.getTotalDays() != null ? it.getTotalDays() : 0).max().orElse(14);
         result.setTotalDays(maxDays > 0 ? maxDays : 14);
 
-        log.info("[VISION OCR] 파싱 결과 요약:");
+        log.info("[VISION OCR] 규칙 기반 파싱 결과 요약:");
         log.info("[VISION OCR]  - 처방일자: {}", new SimpleDateFormat("yyyy-MM-dd").format(result.getDispensedDate()));
         log.info("[VISION OCR]  - 의료기관: {}", result.getHospitalName());
         log.info("[VISION OCR]  - 담당의사: {}", result.getDoctorName());
@@ -255,8 +369,12 @@ public class VisionOcrService {
     private String extractDoctorName(String text) {
         Pattern pattern = Pattern.compile("(?:의사|원장|교부자|담당의|성명)\\s*[:：]?\\s*([가-힣]{2,4})");
         Matcher matcher = pattern.matcher(text);
-        if (matcher.find()) {
-            return matcher.group(1) + " 원장";
+        while (matcher.find()) {
+            String candidate = matcher.group(1).trim();
+            if (!candidate.equals("면허") && !candidate.equals("면허번호") && 
+                !candidate.equals("성명") && !candidate.equals("의사") && !candidate.equals("원장")) {
+                return candidate + " 원장";
+            }
         }
         return "담당의";
     }
@@ -315,19 +433,22 @@ public class VisionOcrService {
                 pendingEdiCode = null;
             }
 
-            // 2. 약품명 파싱을 위해 라인에서 EDI 코드 및 괄호/코드 라벨 문자열 제거
+            // 2. 약품명 파싱을 위해 라인에서 EDI 코드 및 비급여/급여 접두어, 괄호/코드 라벨 문자열 제거
             String lineForMedicine = trimmed;
             if (lineEdiCode != null) {
-                lineForMedicine = lineForMedicine.replace(lineEdiCode, "")
-                                                 .replaceAll("[\\[\\]\\(\\)]", " ")
-                                                 .replaceAll("(?:EDI|edi|보험코드|약품코드|의약품코드|코드)\\s*[:：]?", " ")
-                                                 .trim();
+                lineForMedicine = lineForMedicine.replace(lineEdiCode, "");
             }
+            lineForMedicine = lineForMedicine
+                .replaceAll("^(?:비|급|급여|비급여|전액|본인|일반)[\\s\\)\\]\\.\\-:]+", " ")
+                .replaceAll("(?:비|급|급여|비급여)[\\)\\]]", " ")
+                .replaceAll("[\\[\\]\\(\\)]", " ")
+                .replaceAll("(?:EDI|edi|보험코드|약품코드|의약품코드|코드)\\s*[:：]?", " ")
+                .trim();
 
             Matcher m = itemPattern.matcher(lineForMedicine);
             if (m.find()) {
                 ParsedItem item = new ParsedItem();
-                String name = m.group(1).trim();
+                String name = cleanMedicineName(m.group(1));
                 if (name.length() < 2) continue;
 
                 item.setEdiCode(lineEdiCode);
@@ -351,10 +472,11 @@ public class VisionOcrService {
                     (trimmed.matches(".*[0-9]+.*") || trimmed.matches(".*[가-힣]+.*"))) {
                     ParsedItem item = new ParsedItem();
                     String fallbackEdi = findEdiCodeInText(trimmed);
-                    String cleanedName = trimmed;
+                    String cleanedName = cleanMedicineName(trimmed);
                     if (fallbackEdi != null) {
-                        cleanedName = cleanedName.replace(fallbackEdi, "").replaceAll("[\\[\\]\\(\\)]", " ").trim();
+                        cleanedName = cleanMedicineName(cleanedName.replace(fallbackEdi, ""));
                     }
+                    if (cleanedName.length() < 2) continue;
                     item.setEdiCode(fallbackEdi);
                     item.setMedicineName(cleanedName);
                     item.setDailyDose(1.0);
@@ -367,7 +489,58 @@ public class VisionOcrService {
             }
         }
 
+        // 표 형태 투약량/횟수/일수 (예: 1회 1일 투약량 ... 1 1 90) 보정
+        Pattern tablePattern = Pattern.compile("(?:1회|투약량|투여횟수)[\\s\\S]*?([0-9.]+)[\\s\\r\\n]+([0-9]+)[\\s\\r\\n]+([0-9]{2,3})");
+        Matcher tm = tablePattern.matcher(text);
+        if (tm.find() && !items.isEmpty()) {
+            double dDose = parseDouble(tm.group(1), 1.0);
+            int dFreq = parseInt(tm.group(2), 1);
+            int tDays = parseInt(tm.group(3), 14);
+            for (ParsedItem it : items) {
+                if (it.getTotalDays() == 14 && tDays > 14) {
+                    it.setDailyDose(dDose);
+                    it.setDailyFrequency(dFreq);
+                    it.setTotalDays(tDays);
+                }
+            }
+        }
+
         return items;
+    }
+
+    private String cleanMedicineName(String raw) {
+        if (raw == null) return "";
+        return raw
+            .replaceAll("^(?:비|급|급여|비급여|전액|본인|일반)[\\s\\)\\]\\.\\-:]+", "")
+            .replaceAll("(?:비|급|급여|비급여)[\\)\\]]", "")
+            .replaceAll("/[0-9]+(?:정|캡슐|포|ml|g|캅셀)?", "")
+            .replaceAll("(?i)(?:수출명|수출용)\\s*[:：]?[가-힣A-Za-z0-9\\s]*", " ")
+            .replaceAll("[\\[\\]\\(\\)]", " ")
+            .replaceAll("[\\s]+", " ")
+            .trim();
+    }
+
+    public static String safeTruncateUsageTiming(String timing) {
+        if (timing == null || timing.isBlank()) {
+            return "매일 식후 30분";
+        }
+        String cleaned = timing.replaceAll("[\\r\\n\\t]+", " ").trim();
+        // Oracle DB VARCHAR2(100) 컬럼 제약(최대 100바이트) 보호: UTF-8 기준 90바이트 이하로 안전 절삭
+        byte[] bytes = cleaned.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (bytes.length <= 90) {
+            return cleaned;
+        }
+        StringBuilder sb = new StringBuilder();
+        int currentBytes = 0;
+        for (char c : cleaned.toCharArray()) {
+            int charBytes = String.valueOf(c).getBytes(java.nio.charset.StandardCharsets.UTF_8).length;
+            if (currentBytes + charBytes > 90) {
+                break;
+            }
+            sb.append(c);
+            currentBytes += charBytes;
+        }
+        return sb.toString().trim();
     }
 
     private double parseDouble(String str, double def) {

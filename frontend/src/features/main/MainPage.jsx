@@ -138,6 +138,10 @@ export default function MainPage({ user }) {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270도
+  const [isFlipped, setIsFlipped] = useState(false); // 좌우 반전 여부
+  const [isDragging, setIsDragging] = useState(false);
 
   // 약품 상세 모달 상태
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
@@ -250,6 +254,105 @@ export default function MainPage({ user }) {
     setIsSearching(false);
   };
 
+  // 모달 열기/닫기 및 미리보기 메모리 해제
+  const openUploadModal = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setUploadFile(null);
+    setRotation(0);
+    setIsFlipped(false);
+    setIsUploadModalOpen(true);
+  };
+
+  const closeUploadModal = () => {
+    if (isAnalyzing) return;
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+    }
+    setUploadFile(null);
+    setRotation(0);
+    setIsFlipped(false);
+    setIsUploadModalOpen(false);
+  };
+
+  // 파일 선택 및 드롭 시 미리보기 URL 생성
+  const handleFileSelect = (file) => {
+    if (!file) return;
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
+    }
+    setUploadFile(file);
+    if (file.type && file.type.startsWith('image/')) {
+      setPreviewUrl(URL.createObjectURL(file));
+    } else {
+      setPreviewUrl(null);
+    }
+    setRotation(0);
+    setIsFlipped(false);
+  };
+
+  // 클라이언트 측 Canvas 이미지 회전/반전 변환 유틸리티
+  const getTransformedFile = async (file, rot, flipped) => {
+    if (!file || !(file instanceof File) || !file.type.startsWith('image/') || (rot === 0 && !flipped)) {
+      return file;
+    }
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const canvas = document.createElement('canvas');
+        const isSideways = rot === 90 || rot === 270;
+
+        canvas.width = isSideways ? img.naturalHeight : img.naturalWidth;
+        canvas.height = isSideways ? img.naturalWidth : img.naturalHeight;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(file);
+          return;
+        }
+
+        // 캔버스 중심점으로 원점 이동 후 회전/반전 수행
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((rot * Math.PI) / 180);
+        if (flipped) {
+          ctx.scale(-1, 1);
+        }
+        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const baseName = file.name.replace(/\.[^/.]+$/, '');
+              const adjustedFile = new File([blob], `${baseName}_adjusted.jpg`, {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              });
+              resolve(adjustedFile);
+            } else {
+              resolve(file);
+            }
+          },
+          'image/jpeg',
+          0.95
+        );
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+
+      img.src = objectUrl;
+    });
+  };
+
   // 처방전 업로드 및 백엔드 OCR / DB 처리
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
@@ -260,11 +363,14 @@ export default function MainPage({ user }) {
     setIsAnalyzing(true);
 
     try {
+      // 1. 회전 또는 반전 보정이 적용된 경우 Canvas 변환 파일 생성
+      const finalFile = await getTransformedFile(uploadFile, rotation, isFlipped);
+
       const formData = new FormData();
-      if (uploadFile instanceof File) {
-        formData.append('file', uploadFile);
+      if (finalFile instanceof File) {
+        formData.append('file', finalFile);
       } else {
-        // 샘플 프리셋 선택 시 이미지 Blob 생성하여 전송
+        // 샘플 프리셋 선택 시 가상 이미지 Blob 생성하여 전송
         const sampleBlob = new Blob(['sample-prescription-content'], { type: 'image/jpeg' });
         formData.append('file', sampleBlob, uploadFile.name || 'prescription_sample.jpg');
       }
@@ -282,7 +388,7 @@ export default function MainPage({ user }) {
           setPrescriptionData(mapped);
           setRoutineItems(buildRoutineItems(mapped.items));
           setHasPrescription(true);
-          setIsUploadModalOpen(false);
+          closeUploadModal();
           alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
           return;
         }
@@ -292,7 +398,7 @@ export default function MainPage({ user }) {
       console.warn('처방전 분석 백엔드 연동:', err);
       // 백엔드 미구동 또는 네트워크 환경에서의 폴백
       setHasPrescription(true);
-      setIsUploadModalOpen(false);
+      closeUploadModal();
       alert('처방전 분석이 성공적으로 완료되었습니다!\n(로컬 샘플 처방 정보가 메인에 반영되었습니다.)');
     } finally {
       setIsAnalyzing(false);
@@ -416,7 +522,7 @@ export default function MainPage({ user }) {
             <button
               type="button"
               className="prescription-upload-btn"
-              onClick={() => setIsUploadModalOpen(true)}
+              onClick={openUploadModal}
             >
               처방전 업로드 <span className="btn-arrow">→</span>
             </button>
@@ -455,7 +561,7 @@ export default function MainPage({ user }) {
               <button
                 type="button"
                 className="new-prescription-btn"
-                onClick={() => setIsUploadModalOpen(true)}
+                onClick={openUploadModal}
               >
                 새 처방전 등록
               </button>
@@ -628,37 +734,132 @@ export default function MainPage({ user }) {
          모달 1: 처방전 업로드 & 자동 분석 모달
          ------------------------------------------------------------- */}
       {isUploadModalOpen && (
-        <div className="modal-backdrop" onClick={() => !isAnalyzing && setIsUploadModalOpen(false)}>
+        <div className="modal-backdrop" onClick={closeUploadModal}>
           <div className="modal-content-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <h3 className="modal-title">처방전 등록 및 AI 분석</h3>
               <button
                 type="button"
                 className="modal-close"
-                onClick={() => !isAnalyzing && setIsUploadModalOpen(false)}
+                disabled={isAnalyzing}
+                onClick={closeUploadModal}
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleUploadSubmit} className="upload-form">
-              <div className="upload-dropzone">
+              {/* 처방전 촬영 안내 배너 */}
+              <div className="upload-guide-banner">
+                <div className="guide-banner-header">
+                  <span className="guide-icon">💡</span>
+                  <strong>처방전 촬영 및 업로드 안내</strong>
+                </div>
+                <p className="guide-text">
+                  글자가 수평(가로)으로 똑바로 읽히도록 촬영해 주세요. 기울어지거나 좌우가 뒤집힌 사진은 아래 <strong>[회전]</strong> 및 <strong>[반전]</strong> 도구로 올바르게 교정하신 후 분석을 진행해 주세요.
+                </p>
+              </div>
+
+              {/* 업로드 드롭존 */}
+              <div
+                className={`upload-dropzone ${isDragging ? 'dragover' : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDragging(false);
+                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    handleFileSelect(e.dataTransfer.files[0]);
+                  }
+                }}
+              >
                 <svg className="upload-cloud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 <strong>처방전 사진 또는 스캔본 업로드</strong>
-                <p>JPG, PNG, PDF 형식 지원 (최대 15MB)</p>
+                <p>JPG, PNG, PDF 형식 지원 (최대 15MB) · 파일 드래그 & 드롭 가능</p>
                 <input
                   type="file"
                   id="prescription-file-input"
                   className="file-hidden-input"
                   accept="image/*,.pdf"
-                  onChange={(e) => setUploadFile(e.target.files[0])}
+                  onChange={(e) => handleFileSelect(e.target.files && e.target.files[0])}
                 />
                 <label htmlFor="prescription-file-input" className="file-pick-btn">
                   {uploadFile ? `선택됨: ${uploadFile.name}` : '파일 찾아보기'}
                 </label>
               </div>
+
+              {/* 실시간 이미지 미리보기 및 회전/반전 툴바 */}
+              {previewUrl && (
+                <div className="preview-container">
+                  <div className="preview-header">
+                    <span className="preview-title">📷 처방전 방향 확인 & 교정</span>
+                    {(rotation !== 0 || isFlipped) && (
+                      <span className="preview-badge">
+                        교정 적용: {rotation}° {isFlipped ? '(좌우반전)' : ''}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="preview-viewport">
+                    <img
+                      src={previewUrl}
+                      alt="처방전 미리보기"
+                      className="preview-image"
+                      style={{
+                        transform: `rotate(${rotation}deg) scaleX(${isFlipped ? -1 : 1})`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="preview-toolbar">
+                    <button
+                      type="button"
+                      className="tool-btn"
+                      onClick={() => setRotation((r) => (r + 270) % 360)}
+                      title="왼쪽으로 90도 회전"
+                    >
+                      <span className="tool-icon">↺</span> 90° 좌회전
+                    </button>
+                    <button
+                      type="button"
+                      className="tool-btn"
+                      onClick={() => setRotation((r) => (r + 90) % 360)}
+                      title="오른쪽으로 90도 회전"
+                    >
+                      <span className="tool-icon">↻</span> 90° 우회전
+                    </button>
+                    <button
+                      type="button"
+                      className={`tool-btn ${isFlipped ? 'active' : ''}`}
+                      onClick={() => setIsFlipped((f) => !f)}
+                      title="셀카 모드 거울상 좌우 반전"
+                    >
+                      <span className="tool-icon">⇄</span> 좌우 반전
+                    </button>
+                    <button
+                      type="button"
+                      className="tool-btn reset-btn"
+                      onClick={() => {
+                        setRotation(0);
+                        setIsFlipped(false);
+                      }}
+                      disabled={rotation === 0 && !isFlipped}
+                      title="원본 방향으로 초기화"
+                    >
+                      <span className="tool-icon">⟲</span> 초기화
+                    </button>
+                  </div>
+
+                  <p className="preview-hint">
+                    ✓ 글자가 가로 방향으로 똑바로 보이도록 조정한 후 아래 [분석 및 등록 완료]를 눌러주세요.
+                  </p>
+                </div>
+              )}
 
               <div className="sample-presets">
                 <span className="preset-title">또는 샘플 처방전으로 즉시 테스트:</span>
@@ -666,7 +867,13 @@ export default function MainPage({ user }) {
                   type="button"
                   className="preset-pill"
                   onClick={() => {
+                    if (previewUrl) {
+                      URL.revokeObjectURL(previewUrl);
+                      setPreviewUrl(null);
+                    }
                     setUploadFile({ name: '서울마음내과_20260912_처방전.jpg' });
+                    setRotation(0);
+                    setIsFlipped(false);
                   }}
                 >
                   📄 서울마음내과 처방전 샘플
@@ -685,7 +892,7 @@ export default function MainPage({ user }) {
                   type="button"
                   className="btn-cancel"
                   disabled={isAnalyzing}
-                  onClick={() => setIsUploadModalOpen(false)}
+                  onClick={closeUploadModal}
                 >
                   취소
                 </button>

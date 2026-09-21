@@ -12,4 +12,5 @@ public interface PrescriptionDAO {
     List<PrescriptionItemDTO> getPrescriptionItemsByPrescriptionId(Long prescriptionId);
     MatchedMedicationDTO findMedicationByEdiCode(String ediCode);
     MatchedMedicationDTO findMedicationByName(String keyword);
+    int deletePrescription(Long prescriptionId);
 }

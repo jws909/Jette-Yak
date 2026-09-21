@@ -45,22 +45,27 @@
         )
     </insert>
 
-    <!-- 3. 사용자의 최신 처방전 조회 -->
+    <!-- 3. 사용자의 최신 처방전 조회 (등록된 세부 약품 항목이 존재하는 유효 처방전만 조회) -->
     <select id="getLatestPrescriptionByUserId" parameterType="long" resultType="com.app.prescription.dto.PrescriptionDTO">
         SELECT *
         FROM (
             SELECT 
-                prescription_id AS prescriptionId,
-                user_id AS userId,
-                dispensed_date AS dispensedDate,
-                total_days AS totalDays,
-                prescription_image_url AS prescriptionImageUrl,
-                ai_summary_json AS aiSummaryJson,
-                has_discontinued_drug AS hasDiscontinuedDrug,
-                created_at AS createdAt
-            FROM prescriptions
-            WHERE user_id = #{userId}
-            ORDER BY prescription_id DESC
+                p.prescription_id AS prescriptionId,
+                p.user_id AS userId,
+                p.dispensed_date AS dispensedDate,
+                p.total_days AS totalDays,
+                p.prescription_image_url AS prescriptionImageUrl,
+                p.ai_summary_json AS aiSummaryJson,
+                p.has_discontinued_drug AS hasDiscontinuedDrug,
+                p.created_at AS createdAt
+            FROM prescriptions p
+            WHERE p.user_id = #{userId}
+              AND EXISTS (
+                  SELECT 1 
+                  FROM prescription_items pi 
+                  WHERE pi.prescription_id = p.prescription_id
+              )
+            ORDER BY p.prescription_id DESC
         )
         WHERE ROWNUM = 1
     </select>
@@ -129,5 +134,11 @@
         )
         WHERE ROWNUM = 1
     </select>
+
+    <!-- 7. 처방전 마스터 삭제 (트랜잭션 실패 시 고아 데이터 정리용) -->
+    <delete id="deletePrescription" parameterType="long">
+        DELETE FROM prescriptions
+        WHERE prescription_id = #{prescriptionId}
+    </delete>
 
 </mapper>
