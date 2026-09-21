@@ -151,9 +151,18 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
                     PrescriptionItemDTO item = new PrescriptionItemDTO();
                     item.setDailyDose(parsed.getDailyDose() != null ? parsed.getDailyDose() : 1.0);
-                    item.setDailyFrequency(parsed.getDailyFrequency() != null ? parsed.getDailyFrequency() : 1);
+                    int dFreq = parsed.getDailyFrequency() != null ? parsed.getDailyFrequency() : 1;
+                    String uTiming = parsed.getUsageTiming();
+                    if (dFreq <= 1 && uTiming != null) {
+                        if (uTiming.contains("3회") || (uTiming.contains("아침") && uTiming.contains("점심") && uTiming.contains("저녁")) || uTiming.contains("매 식후") || uTiming.contains("매식후")) {
+                            dFreq = 3;
+                        } else if (uTiming.contains("2회") || (uTiming.contains("아침") && uTiming.contains("저녁"))) {
+                            dFreq = 2;
+                        }
+                    }
+                    item.setDailyFrequency(dFreq);
                     item.setTotalDays(parsed.getTotalDays() != null ? parsed.getTotalDays() : prescription.getTotalDays());
-                    item.setUsageTiming(safeTruncateUsageTiming(parsed.getUsageTiming()));
+                    item.setUsageTiming(safeTruncateUsageTiming(uTiming));
                     item.setMedicationId(matched.getItemSeq());
                     item.setItemName(matched.getItemName());
                     item.setEdiCode(matched.getEdiCode() != null ? matched.getEdiCode() : ediCode);

@@ -280,10 +280,15 @@ public class VisionOcrService {
                 if (edi != null && (edi.isBlank() || edi.equalsIgnoreCase("null"))) edi = null;
                 item.setEdiCode(edi);
                 item.setDailyDose(it.path("dailyDose").asDouble(1.0));
-                item.setDailyFrequency(it.path("dailyFrequency").asInt(1));
+                int parsedFreq = it.path("dailyFrequency").asInt(1);
+                item.setDailyFrequency(parsedFreq > 0 ? parsedFreq : 1);
                 int itemDays = it.path("totalDays").asInt(totalDays > 0 ? totalDays : 14);
                 item.setTotalDays(itemDays > 0 ? itemDays : 14);
                 item.setUsageTiming(safeTruncateUsageTiming(it.path("usageTiming").asText("매일 식후 30분")));
+
+                // OCR 원문 기반 정밀 보정 (EDI 코드 및 1일 투약횟수 3회/2회 보정)
+                refineParsedItemWithOcr(item, text);
+
                 items.add(item);
             }
         }
@@ -453,10 +458,43 @@ public class VisionOcrService {
 
                 item.setEdiCode(lineEdiCode);
                 item.setMedicineName(name);
-                item.setDailyDose(m.group(2) != null ? parseDouble(m.group(2), 1.0) : 1.0);
-                item.setDailyFrequency(m.group(3) != null ? parseInt(m.group(3), 3) : 3);
-                item.setTotalDays(m.group(4) != null ? parseInt(m.group(4), 14) : 14);
-                item.setUsageTiming(trimmed.contains("식후") ? "매일 식후 30분" : (trimmed.contains("취침") ? "취침 전" : "아침, 저녁 식후"));
+
+                double dDose = m.group(2) != null ? parseDouble(m.group(2), 1.0) : 1.0;
+                int dFreq = m.group(3) != null ? parseInt(m.group(3), 0) : 0;
+                int tDays = m.group(4) != null ? parseInt(m.group(4), 0) : 0;
+
+                // 같은 줄에 횟수/일수가 없는 경우 (OCR 표 열이 다음 행으로 분리된 경우) 다음 행들에서 숫자 탐색
+                if (dFreq == 0) {
+                    List<String> nextNums = new ArrayList<>();
+                    for (int nextIdx = i + 1; nextIdx < lines.length && nextNums.size() < 3; nextIdx++) {
+                        String nLine = lines[nextIdx].trim();
+                        if (nLine.matches("^[0-9.]+$")) {
+                            nextNums.add(nLine);
+                        } else if (nLine.equals("-") || nLine.isBlank()) {
+                            continue;
+                        } else {
+                            break;
+                        }
+                    }
+                    if (nextNums.size() >= 3) {
+                        dDose = parseDouble(nextNums.get(0), 1.0);
+                        dFreq = parseInt(nextNums.get(1), 3);
+                        tDays = parseInt(nextNums.get(2), 14);
+                    } else if (nextNums.size() == 2) {
+                        dFreq = parseInt(nextNums.get(0), 3);
+                        tDays = parseInt(nextNums.get(1), 14);
+                    } else if (nextNums.size() == 1) {
+                        dFreq = parseInt(nextNums.get(0), 3);
+                    }
+                }
+
+                if (dFreq == 0) dFreq = 3;
+                if (tDays == 0) tDays = 14;
+
+                item.setDailyDose(dDose);
+                item.setDailyFrequency(dFreq);
+                item.setTotalDays(tDays);
+                item.setUsageTiming(dFreq == 3 ? "매일 3회 식후 30분" : (dFreq == 2 ? "매일 2회 (아침, 저녁) 식후" : (trimmed.contains("취침") ? "취침 전" : "매일 식후 30분")));
                 items.add(item);
                 pendingEdiCode = null; // 소비 완료
             }
@@ -482,25 +520,29 @@ public class VisionOcrService {
                     item.setDailyDose(1.0);
                     item.setDailyFrequency(3);
                     item.setTotalDays(14);
-                    item.setUsageTiming("식후 30분");
+                    item.setUsageTiming("1일 3회 식후 30분");
                     items.add(item);
                     if (items.size() >= 5) break; // 최대 5건
                 }
             }
         }
 
-        // 표 형태 투약량/횟수/일수 (예: 1회 1일 투약량 ... 1 1 90) 보정
-        Pattern tablePattern = Pattern.compile("(?:1회|투약량|투여횟수)[\\s\\S]*?([0-9.]+)[\\s\\r\\n]+([0-9]+)[\\s\\r\\n]+([0-9]{2,3})");
+        // 표 형태 투약량/횟수/일수 (예: 1회 1일 투약량 ... 1 3 2 또는 1 1 90) 보정
+        Pattern tablePattern = Pattern.compile("(?:1회|투약량|투여횟수)[\\s\\S]*?([0-9.]+)[\\s\\r\\n]+([0-9]+)[\\s\\r\\n]+([0-9]{1,3})");
         Matcher tm = tablePattern.matcher(text);
         if (tm.find() && !items.isEmpty()) {
             double dDose = parseDouble(tm.group(1), 1.0);
             int dFreq = parseInt(tm.group(2), 1);
             int tDays = parseInt(tm.group(3), 14);
             for (ParsedItem it : items) {
-                if (it.getTotalDays() == 14 && tDays > 14) {
-                    it.setDailyDose(dDose);
+                if (it.getDailyFrequency() == 1 && dFreq > 1) {
                     it.setDailyFrequency(dFreq);
+                }
+                if (it.getTotalDays() == 14 && tDays != 14 && tDays > 0) {
                     it.setTotalDays(tDays);
+                }
+                if (it.getDailyDose() == 1.0 && dDose != 1.0) {
+                    it.setDailyDose(dDose);
                 }
             }
         }
@@ -549,6 +591,119 @@ public class VisionOcrService {
 
     private int parseInt(String str, int def) {
         try { return Integer.parseInt(str); } catch (Exception e) { return def; }
+    }
+
+    /**
+     * Gemini 파싱 후처리 보강:
+     * 1) EDI 코드 누락 시 OCR 원문에서 추출
+     * 2) 1일 투약횟수(dailyFrequency)가 1로 잡혔거나 누락되었을 때, OCR 표(1 \n 3 \n 2 등)나 용법(식후/3회 등)에서 정확히 3회/2회 보정
+     * 3) usageTiming 정규화
+     */
+    private void refineParsedItemWithOcr(ParsedItem item, String text) {
+        if (item == null || text == null || text.isBlank()) return;
+
+        // 1. EDI 코드 보강
+        if (item.getEdiCode() == null || item.getEdiCode().isBlank()) {
+            String medName = item.getMedicineName();
+            String ediFound = findEdiCodeNearMedicine(medName, text);
+            if (ediFound != null) {
+                item.setEdiCode(ediFound);
+            }
+        }
+
+        // 2. 1일 투약횟수 (dailyFrequency) 정밀 보정
+        int freq = item.getDailyFrequency() != null ? item.getDailyFrequency() : 1;
+        if (freq <= 1) {
+            // (a) 용법 문구에서 확인: 3회, 아침/점심/저녁, 매 식후
+            String usage = item.getUsageTiming() != null ? item.getUsageTiming() : "";
+            if (usage.contains("3회") || (usage.contains("아침") && usage.contains("점심") && usage.contains("저녁")) || usage.contains("매 식후") || usage.contains("매식후")) {
+                freq = 3;
+            } else if (usage.contains("2회") || (usage.contains("아침") && usage.contains("저녁"))) {
+                freq = 2;
+            }
+
+            // (b) OCR 원문에서 해당 약품명이나 EDI 코드 다음 줄들의 숫자 패턴 탐색 ([1회투약량] \n [1일투여횟수] \n [총투약일수])
+            if (freq <= 1) {
+                int detectedFreq = findFrequencyAfterMedicineInText(item.getMedicineName(), item.getEdiCode(), text);
+                if (detectedFreq > 1) {
+                    freq = detectedFreq;
+                }
+            }
+
+            // (c) OCR 원문 전체에서 한국 처방전의 '1일 3회' 표 패턴 검출 (예: 약품 아래 '1 \n 3 \n 2' 같은 형태)
+            if (freq <= 1) {
+                Pattern p = Pattern.compile("(?:1회|투약량|투여횟수)?[\\s\\S]*?([0-9.]+)[\\s\\r\\n]+([1-6])[\\s\\r\\n]+([0-9]{1,3})");
+                Matcher m = p.matcher(text);
+                if (m.find()) {
+                    int candFreq = parseInt(m.group(2), 1);
+                    if (candFreq > 1) {
+                        freq = candFreq;
+                    }
+                }
+            }
+            item.setDailyFrequency(freq);
+        }
+
+        // 3. usageTiming 보강: dailyFrequency가 3인데 모호한 경우 "1일 3회 식후 30분"으로 명확화
+        if (item.getDailyFrequency() != null && item.getDailyFrequency() == 3) {
+            String timing = item.getUsageTiming();
+            if (timing == null || timing.isBlank() || timing.equals("매일 식후 30분") || timing.equals("식후 30분") || timing.equals("식후")) {
+                item.setUsageTiming("1일 3회 식후 30분");
+            }
+        } else if (item.getDailyFrequency() != null && item.getDailyFrequency() == 2) {
+            String timing = item.getUsageTiming();
+            if (timing == null || timing.isBlank() || timing.equals("매일 식후 30분") || timing.equals("식후 30분") || timing.equals("식후")) {
+                item.setUsageTiming("1일 2회 (아침, 저녁) 식후");
+            }
+        }
+    }
+
+    private String findEdiCodeNearMedicine(String medName, String text) {
+        if (medName == null || medName.length() < 2 || text == null) return null;
+        String[] lines = text.split("\\r?\\n");
+        String cleanTarget = medName.replaceAll("[^가-힣A-Za-z0-9]", "");
+        for (String line : lines) {
+            String cleanLine = line.replaceAll("[^가-힣A-Za-z0-9]", "");
+            if (cleanLine.contains(cleanTarget) || (cleanTarget.length() >= 3 && cleanLine.contains(cleanTarget.substring(0, 3)))) {
+                String edi = findEdiCodeInText(line);
+                if (edi != null) return edi;
+            }
+        }
+        return null;
+    }
+
+    private int findFrequencyAfterMedicineInText(String medName, String ediCode, String text) {
+        if (text == null) return 0;
+        String[] lines = text.split("\\r?\\n");
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i].trim();
+            boolean match = false;
+            if (ediCode != null && !ediCode.isBlank() && line.contains(ediCode)) {
+                match = true;
+            } else if (medName != null && medName.length() >= 3 && line.contains(medName.substring(0, Math.min(4, medName.length())))) {
+                match = true;
+            }
+            if (match) {
+                // 이 줄 다음 행들에서 연속 숫자 2~3개 탐색
+                List<Integer> nums = new ArrayList<>();
+                for (int j = i + 1; j < Math.min(lines.length, i + 6); j++) {
+                    String nl = lines[j].trim();
+                    if (nl.matches("^[0-9]+$")) {
+                        nums.add(Integer.parseInt(nl));
+                    } else if (!nl.equals("-") && !nl.isBlank()) {
+                        break;
+                    }
+                }
+                // [1회투약량, 1일투여횟수, 총투약일수] 중 두 번째 숫자 (index 1)
+                if (nums.size() >= 2) {
+                    int candFreq = nums.get(1);
+                    if (candFreq >= 1 && candFreq <= 6) {
+                        return candFreq;
+                    }
+                }
+            }
+        }
+        return 0;
     }
 
     /**
