@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './CalendarPage.css';
 
-// 날짜 포맷 유틸리티 (YYYY-MM-DD)
 const getFormattedDate = (targetDate) => {
   const y = targetDate.getFullYear();
   const m = String(targetDate.getMonth() + 1).padStart(2, '0');
@@ -12,15 +11,13 @@ const getFormattedDate = (targetDate) => {
 export default function CalendarPage() {
   const today = new Date();
   
-  // 현재 보고 있는 달력의 연/월 (실제 오늘 기준)
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
-  // 선택된 날짜 (기본값: 오늘)
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
-  // 백엔드에서 가져온 복약 목록 데이터
   const [schedules, setSchedules] = useState([]);
+  const [monthSummary, setMonthSummary] = useState({}); // { '2026-09-21': { hasPrescription: 1, ... } }
   const [loading, setLoading] = useState(false);
 
-  // 알람 시간 수정 모달
+  // 알람 모달
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [ampm, setAmpm] = useState('오전');
@@ -31,19 +28,43 @@ export default function CalendarPage() {
   // 복약 추가 모달
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newMedName, setNewMedName] = useState('');
-  const [newMedType, setNewMedType] = useState('prescription');
+  const [selectedMed, setSelectedMed] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
+  const [newMedType, setNewMedType] = useState('regular'); // 상시약 기본
   const [newAmpm, setNewAmpm] = useState('오전');
   const [newHour, setNewHour] = useState('09');
   const [newMinute, setNewMinute] = useState('00');
+  const [addedSuccessMsg, setAddedSuccessMsg] = useState('');
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+  const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // ★ 선택된 날짜가 바뀌거나, 월이 바뀔 때 백엔드 자동 조회
-  const fetchDailySchedules = async (targetDateStr) => {
+  // 1. 해당 월 전체 복약 요약 조회 (달력 점/바 렌더링용)
+  const fetchMonthSummary = useCallback(async () => {
+    try {
+      const res = await fetch(`http://localhost:8080/api/calendar/summary?userId=1&yearMonth=${currentYearMonth}`);
+      if (res.ok) {
+        const list = await res.json();
+        const map = {};
+        list.forEach((item) => {
+          map[item.scheduleDate] = {
+            hasPrescription: Number(item.hasPrescription) === 1,
+            hasRegular: Number(item.hasRegular) === 1,
+            hasSupplement: Number(item.hasSupplement) === 1,
+          };
+        });
+        setMonthSummary(map);
+      }
+    } catch (err) {
+      console.error("월별 요약 조회 실패:", err);
+    }
+  }, [currentYearMonth]);
+
+  // 2. 일별 일정 조회
+  const fetchDailySchedules = useCallback(async (targetDateStr) => {
     setLoading(true);
     try {
-      // 백엔드 CalendarController 연동
       const response = await fetch(`http://localhost:8080/api/calendar?userId=1&date=${targetDateStr}`);
       if (response.ok) {
         const data = await response.json();
@@ -57,25 +78,61 @@ export default function CalendarPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchMonthSummary();
+  }, [fetchMonthSummary]);
 
   useEffect(() => {
     fetchDailySchedules(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, fetchDailySchedules]);
 
-  // 이전달 / 다음달 이동
+  // 약품명 검색 자동완성
+  useEffect(() => {
+    if (!newMedName.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`http://localhost:8080/api/calendar/search-medications?keyword=${encodeURIComponent(newMedName)}`);
+        if (res.ok) {
+          const list = await res.json();
+          setSearchResults(list);
+        }
+      } catch (err) {
+        console.error("약품 검색 실패:", err);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [newMedName]);
+
+  const handleSelectMed = (med) => {
+    setSelectedMed({
+      id: med.medicationId,
+      name: med.itemName
+    });
+    setNewMedName('');
+    setSearchResults([]);
+  };
+
+  const handleRemoveSelectedMed = () => {
+    setSelectedMed(null);
+  };
+
   const changeMonth = (offset) => {
     setCurrentDate(new Date(year, month + offset, 1));
   };
 
-  // 오늘(Today)로 즉시 돌아가기
   const handleGoToday = () => {
     const now = new Date();
     setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
     setSelectedDate(getFormattedDate(now));
   };
 
-  // 체크박스 클릭 (복용 완료 토글) -> 백엔드 업데이트 후 자동 재조회
   const toggleTaken = async (item) => {
     const isTaken = !item.takenAt;
     try {
@@ -92,7 +149,6 @@ export default function CalendarPage() {
     }
   };
 
-  // 알람 시간 증감 유틸리티 (1분 단위, 마우스 휠)
   const stepHour = (current, delta) => {
     let val = parseInt(current, 10) || 1;
     val = ((val - 1 + delta) % 12 + 12) % 12 + 1;
@@ -120,7 +176,6 @@ export default function CalendarPage() {
     }
   };
 
-  // 알람 모달 열기
   const openAlarmModal = (item) => {
     setActiveItem(item);
     const [h, m] = (item.time || '08:00').split(':').map(Number);
@@ -132,7 +187,6 @@ export default function CalendarPage() {
     setIsAlarmModalOpen(true);
   };
 
-  // 알람 시간 저장 -> 백엔드 업데이트 후 자동 재조회
   const saveAlarmSetting = async () => {
     if (!activeItem) return;
     let numericHour = parseInt(hour, 10) || 12;
@@ -155,11 +209,11 @@ export default function CalendarPage() {
     setIsAlarmModalOpen(false);
   };
 
-  // 새 복약 일정 추가 -> 백엔드 저장 후 자동 재조회
+  // 복약 추가 제출 핸들러
   const handleAddMedication = async (e) => {
     e.preventDefault();
-    if (!newMedName.trim()) {
-      alert('약 이름을 입력해 주세요.');
+    if (!selectedMed) {
+      alert('추가할 약을 검색하여 선택해 주세요.');
       return;
     }
 
@@ -169,52 +223,65 @@ export default function CalendarPage() {
     const formattedMinute = String(Math.min(59, Math.max(0, parseInt(newMinute, 10) || 0))).padStart(2, '0');
     const formattedTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
 
+    const savedMedName = selectedMed.name;
+
     try {
       const response = await fetch(`http://localhost:8080/api/calendar`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: 1,
-          name: newMedName.trim(),
+          medicationId: selectedMed.id,
+          name: savedMedName,
           type: newMedType,
           scheduledDate: selectedDate,
           scheduledTime: formattedTime,
         }),
       });
+
       if (response.ok) {
+        // 일별 일정 & 월별 요약(점/바) 모두 새로고침
         fetchDailySchedules(selectedDate);
+        fetchMonthSummary();
+
+        setAddedSuccessMsg(`'${savedMedName}' 등록 완료!`);
+        setTimeout(() => setAddedSuccessMsg(''), 2000);
+
+        setSelectedMed(null);
+        setNewMedName('');
+        setSearchResults([]);
+      } else {
+        const errorText = await response.text();
+        console.error("서버 등록 실패:", errorText);
+        alert(`일정 등록 실패: ${errorText}`);
       }
     } catch (err) {
-      console.error("일정 등록 실패:", err);
+      console.error("일정 등록 통신 실패:", err);
+      alert("서버 통신 중 오류가 발생했습니다.");
     }
+  };
 
+  const handleCloseAddModal = () => {
+    setSelectedMed(null);
     setNewMedName('');
-    setNewMedType('prescription');
-    setNewAmpm('오전');
-    setNewHour('09');
-    setNewMinute('00');
+    setSearchResults([]);
+    setAddedSuccessMsg('');
+    setNewMedType('regular');
     setIsAddModalOpen(false);
   };
 
-  // ★ 자동 달력 요일 및 날짜 그리드 생성
-  const firstDayIndex = new Date(year, month, 1).getDay(); // 해당 월 1일의 요일
-  const lastDate = new Date(year, month + 1, 0).getDate(); // 해당 월 말일
+  // 달력 날짜 그리드
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month + 1, 0).getDate();
 
   const days = [];
-  for (let i = 0; i < firstDayIndex; i++) {
-    days.push(null);
-  }
-  for (let d = 1; d <= lastDate; d++) {
-    days.push(d);
-  }
+  for (let i = 0; i < firstDayIndex; i++) days.push(null);
+  for (let d = 1; d <= lastDate; d++) days.push(d);
   const remainingCells = 7 - (days.length % 7);
   if (remainingCells < 7) {
-    for (let i = 0; i < remainingCells; i++) {
-      days.push(null);
-    }
+    for (let i = 0; i < remainingCells; i++) days.push(null);
   }
 
-  // 복용 미완료 우선 정렬
   const sortedList = [...schedules].sort((a, b) => Number(!!a.takenAt) - Number(!!b.takenAt));
 
   const categoryMap = {
@@ -231,7 +298,7 @@ export default function CalendarPage() {
       </header>
 
       <div className="calendar-main-card">
-        {/* 좌측 달력 */}
+        {/* 달력 영역 */}
         <div className="calendar-left">
           <div className="cal-nav">
             <div className="month-controls">
@@ -257,6 +324,7 @@ export default function CalendarPage() {
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               const isSelected = selectedDate === dateStr;
               const isToday = getFormattedDate(today) === dateStr;
+              const dayStatus = monthSummary[dateStr];
 
               return (
                 <div
@@ -265,6 +333,17 @@ export default function CalendarPage() {
                   onClick={() => setSelectedDate(dateStr)}
                 >
                   <span className="day-number">{day}</span>
+                  
+                  {/* 날짜 밑 복약 인디케이터 (처방약 바, 상시약/영양제 점) */}
+                  {dayStatus && (
+                    <div className="cell-indicators">
+                      {dayStatus.hasPrescription && <div className="indicator-bar prescription" />}
+                      <div className="indicator-dots">
+                        {dayStatus.hasRegular && <div className="indicator-dot regular" />}
+                        {dayStatus.hasSupplement && <div className="indicator-dot supplement" />}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -277,7 +356,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* 우측 상세 목록 패널 */}
+        {/* 우측 목록 패널 */}
         <div className="calendar-right">
           <div className="panel-header">
             <span className="panel-sub">SELECTED DATE</span>
@@ -292,7 +371,7 @@ export default function CalendarPage() {
             ) : (
               sortedList.map((item) => {
                 const isTaken = !!item.takenAt;
-                const currentCat = categoryMap[item.type] || { label: '처방약', className: 'cat-prescription' };
+                const currentCat = categoryMap[item.type] || { label: '상시약', className: 'cat-regular' };
 
                 return (
                   <div key={item.scheduleId} className={`dose-item ${isTaken ? 'done' : ''}`}>
@@ -305,11 +384,12 @@ export default function CalendarPage() {
 
                     <div className="dose-info">
                       <div className="time-row">
-                        <span className={`type-dot ${item.type || 'prescription'}`} />
+                        <span className={`type-dot ${item.type || 'regular'}`} />
                         <span className="time">{item.time}</span>
                       </div>
                       <div className="name-row">
-                        <strong className="name">{item.name}</strong>
+                        <strong className="name" title={item.name}>{item.name}</strong>
+                        {/* 배경색 제거하고 글자 색상만 나오는 심플한 카테고리 태그 */}
                         <span className={`category-tag ${currentCat.className}`}>
                           {currentCat.label}
                         </span>
@@ -346,7 +426,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* 모달 1: 알람 시간 수정 */}
+      {/* 알람 모달 */}
       {isAlarmModalOpen && (
         <div className="modal-overlay">
           <div className="alarm-modal">
@@ -424,37 +504,62 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* 모달 2: 이 날짜에 복약 추가 */}
+      {/* 복약 추가 모달 */}
       {isAddModalOpen && (
         <div className="modal-overlay">
           <div className="add-med-modal">
             <div className="modal-header">
               <h4>복약 일정 추가</h4>
-              <button className="btn-close" onClick={() => setIsAddModalOpen(false)}>✕</button>
+              <button className="btn-close" onClick={handleCloseAddModal}>✕</button>
             </div>
 
             <form onSubmit={handleAddMedication}>
               <div className="form-group">
-                <label>약 이름</label>
-                <input
-                  type="text"
-                  placeholder="예: 타이레놀, 비타민C"
-                  value={newMedName}
-                  onChange={(e) => setNewMedName(e.target.value)}
-                  autoFocus
-                />
+                <label>약 이름 검색</label>
+                <div className="search-input-wrapper">
+                  <input
+                    type="text"
+                    placeholder={selectedMed ? "다른 약으로 변경하려면 검색하세요" : "약 이름을 입력하세요 (예: 비타민, 아모잘탄)"}
+                    value={newMedName}
+                    onChange={(e) => setNewMedName(e.target.value)}
+                    autoComplete="off"
+                    autoFocus
+                  />
+                  {searchResults.length > 0 && (
+                    <ul className="search-results-dropdown">
+                      {searchResults.map((item) => (
+                        <li
+                          key={item.medicationId}
+                          className="search-result-item"
+                          onClick={() => handleSelectMed(item)}
+                        >
+                          {item.itemName}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {selectedMed && (
+                  <div className="selected-med-chip">
+                    <span className="chip-name" title={selectedMed.name}>
+                      {selectedMed.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-remove-chip"
+                      onClick={handleRemoveSelectedMed}
+                      title="선택 취소"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="form-group">
                 <label>분류</label>
                 <div className="category-select-group">
-                  <button
-                    type="button"
-                    className={`cat-btn ${newMedType === 'prescription' ? 'active pres' : ''}`}
-                    onClick={() => setNewMedType('prescription')}
-                  >
-                    처방약
-                  </button>
                   <button
                     type="button"
                     className={`cat-btn ${newMedType === 'regular' ? 'active reg' : ''}`}
@@ -525,8 +630,19 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              <div className="modal-actions">
-                <button type="submit" className="btn-save-med">추가하기</button>
+              {addedSuccessMsg && (
+                <div className="toast-success-banner">
+                  ✓ {addedSuccessMsg}
+                </div>
+              )}
+
+              <div className="modal-actions-dual">
+                <button type="button" className="btn-cancel" onClick={handleCloseAddModal}>
+                  닫기
+                </button>
+                <button type="submit" className="btn-save-med">
+                  추가하기
+                </button>
               </div>
             </form>
           </div>

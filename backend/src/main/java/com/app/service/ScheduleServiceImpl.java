@@ -7,7 +7,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ScheduleServiceImpl implements ScheduleService {
@@ -36,5 +38,18 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Transactional
     public boolean addSchedule(ScheduleAddDTO dto) {
         return scheduleDAO.insertSchedule(dto) > 0;
+    }
+    
+    @Override
+    public List<Map<String, Object>> searchMedications(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return scheduleDAO.searchMedications(keyword.trim());
+    }
+    
+    @Override
+    public List<Map<String, Object>> getMonthlySummary(Long userId, String yearMonth) {
+        return scheduleDAO.selectMonthlyScheduleSummary(userId, yearMonth);
     }
 }

@@ -4,16 +4,20 @@
 
 <mapper namespace="schedule">
 
-    <!-- 1. 일별 복약 목록 조회 (미복용 위, 복용 완료 아래 정렬) -->
+    <!-- 1. 일별 복약 목록 조회 (외래키 제약조건에 맞춰 안전하게 조회) -->
     <select id="selectDailySchedules" parameterType="map" resultType="com.app.dto.ScheduleDTO">
         SELECT 
             s.schedule_id AS scheduleId,
             s.medication_id AS medicationId,
             NVL(m.item_name, '복약') AS name,
-            NVL(s.category, 'prescription') AS type,
+            CASE 
+                WHEN m.item_name LIKE '%비타%' OR m.item_name LIKE '%유산균%' OR m.item_name LIKE '%오메가%' THEN 'supplement'
+                WHEN s.cabinet_id IS NOT NULL THEN 'supplement'
+                ELSE 'regular'
+            END AS type,
             TO_CHAR(s.scheduled_at, 'HH24:MI') AS time,
             TO_CHAR(s.taken_at, 'YYYY-MM-DD HH24:MI:SS') AS takenAt,
-            NVL(s.alarm_enabled, 1) AS alarmEnabled
+            1 AS alarmEnabled
         FROM schedules s
         LEFT JOIN medications m ON s.medication_id = m.medication_id
         WHERE s.user_id = #{userId}
@@ -23,7 +27,21 @@
             s.scheduled_at ASC
     </select>
 
-    <!-- 2. 복용 체크 여부 수정 (체크 시 SYSDATE, 해제 시 NULL) -->
+    <!-- 1-2. 월별 복약 현황 요약 (달력에 점/바 표시용) -->
+    <select id="selectMonthlyScheduleSummary" parameterType="map" resultType="map">
+        SELECT 
+            TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS "scheduleDate",
+            0 AS "hasPrescription",
+            1 AS "hasRegular",
+            MAX(CASE WHEN m.item_name LIKE '%비타%' OR m.item_name LIKE '%유산균%' THEN 1 ELSE 0 END) AS "hasSupplement"
+        FROM schedules s
+        LEFT JOIN medications m ON s.medication_id = m.medication_id
+        WHERE s.user_id = #{userId}
+          AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
+        GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
+    </select>
+
+    <!-- 2. 복용 체크 토글 -->
     <update id="updateTakenStatus" parameterType="map">
         UPDATE schedules
            SET taken_at = <choose>
@@ -33,58 +51,58 @@
          WHERE schedule_id = #{scheduleId}
     </update>
 
-    <!-- 3. 알람 시간 및 활성화 여부 수정 -->
+    <!-- 3. 복약 시간 수정 -->
     <update id="updateAlarmTime" parameterType="map">
         UPDATE schedules
-           SET scheduled_at = TO_DATE(TO_CHAR(scheduled_at, 'YYYY-MM-DD') || ' ' || #{newTime}, 'YYYY-MM-DD HH24:MI'),
-               alarm_enabled = <choose><when test="alarmEnabled == true">1</when><otherwise>0</otherwise></choose>
+           SET scheduled_at = TO_DATE(TO_CHAR(scheduled_at, 'YYYY-MM-DD') || ' ' || #{newTime}, 'YYYY-MM-DD HH24:MI')
          WHERE schedule_id = #{scheduleId}
     </update>
 
-    <!-- 4. 단건 복약 일정 직접 추가 -->
+    <!-- 4. 단건 복약 일정 직접 추가 (외래키 오류를 원천 차단하기 위해 cabinet_id 컬럼 완전 제외) -->
     <insert id="insertSchedule" parameterType="com.app.dto.ScheduleAddDTO">
         INSERT INTO schedules (
-            schedule_id,
             user_id,
             medication_id,
-            category,
             scheduled_at,
-            taken_at,
-            alarm_enabled
+            taken_at
         ) VALUES (
-            schedules_seq.NEXTVAL,
             #{userId},
             #{medicationId, jdbcType=VARCHAR},
-            #{type},
             TO_DATE(#{scheduledDate} || ' ' || #{scheduledTime}, 'YYYY-MM-DD HH24:MI'),
-            NULL,
-            1
+            NULL
         )
     </insert>
 
-    <!-- 5. 처방전 분석 결과로 일별 일정 대량 생성 (Batch Insert) -->
+    <!-- 5. 처방전 대량 생성 -->
     <insert id="insertBatchSchedules" parameterType="java.util.List">
         INSERT ALL
         <foreach collection="list" item="item">
             INTO schedules (
-                schedule_id,
                 user_id,
                 medication_id,
-                category,
                 scheduled_at,
                 taken_at,
-                alarm_enabled
+                cabinet_id
             ) VALUES (
-                schedules_seq.NEXTVAL,
                 #{item.userId},
                 #{item.medicationId},
-                'prescription',
                 TO_DATE(#{item.scheduledAt}, 'YYYY-MM-DD HH24:MI'),
                 NULL,
-                1
+                NULL
             )
         </foreach>
         SELECT * FROM DUAL
     </insert>
+
+    <!-- 6. 약품 검색 -->
+    <select id="searchMedications" parameterType="string" resultType="map">
+        SELECT 
+            medication_id AS "medicationId",
+            item_name     AS "itemName"
+        FROM medications
+        WHERE item_name LIKE '%' || #{keyword} || '%'
+          AND ROWNUM &lt;= 10
+        ORDER BY item_name ASC
+    </select>
 
 </mapper>

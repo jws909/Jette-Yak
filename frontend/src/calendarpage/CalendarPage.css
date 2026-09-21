@@ -1,12 +1,12 @@
 .calendar-page-wrap {
-  padding: 0;
-  background-color: transparent;
-  min-height: auto;
+  padding: 40px;
+  background-color: #f6f3ed;
+  min-height: 100vh;
   box-sizing: border-box;
   color: #333;
 }
 
-/* 상단 타이틀 좌측 정렬 */
+/* 상단 헤더 */
 .page-header {
   margin-bottom: 24px;
   text-align: left;
@@ -33,7 +33,7 @@
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
 }
 
-/* 달력 */
+/* 달력 영역 */
 .calendar-left {
   flex: 1.3;
   padding: 32px;
@@ -79,11 +79,20 @@
   grid-template-columns: repeat(7, 1fr);
 }
 .cal-cell {
-  min-height: 64px;
-  padding: 6px;
+  min-height: 72px;
+  height: 72px;
+  padding: 8px;
   border-bottom: 1px solid #f4f0ea;
   cursor: pointer;
   position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.cal-cell.empty {
+  cursor: default;
+  background-color: transparent;
 }
 .cal-cell.selected {
   background-color: #f7e6e8;
@@ -91,25 +100,34 @@
 .day-number {
   font-size: 13px;
   font-weight: 500;
+  text-align: left;
 }
-.prescription-bar {
-  height: 4px;
-  background: #7d2638;
-  margin-top: 12px;
+
+/* 달력 셀 내부 일정 표시 인디케이터 */
+.cell-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: auto;
+}
+.indicator-bar.prescription {
+  width: 100%;
+  height: 3px;
+  background-color: #7d2638;
   border-radius: 2px;
 }
-.cell-dots {
+.indicator-dots {
   display: flex;
-  gap: 3px;
-  margin-top: 4px;
+  gap: 4px;
+  justify-content: flex-start;
 }
-.dot {
+.indicator-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
 }
-.dot-regular { background: #4d7a46; }
-.dot-supplement { background: #c2883f; }
+.indicator-dot.regular { background-color: #4d7a46; }
+.indicator-dot.supplement { background-color: #c2883f; }
 
 .cal-legend {
   display: flex;
@@ -123,7 +141,7 @@
 .legend-dot.regular { width: 6px; height: 6px; border-radius: 50%; background: #4d7a46; }
 .legend-dot.supplement { width: 6px; height: 6px; border-radius: 50%; background: #c2883f; }
 
-/* 우측 상세 영역 */
+/* 우측 상세 패널 */
 .calendar-right {
   flex: 0.9;
   padding: 32px;
@@ -150,7 +168,7 @@
   flex: 1;
 }
 
-/* 복약 카드 내부 (좌측 정렬) */
+/* 복약 카드 */
 .dose-item {
   display: flex;
   align-items: center;
@@ -171,14 +189,16 @@
   height: 18px;
   accent-color: #7d2638;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .dose-info {
   flex: 1;
+  min-width: 0; /* 말줄임 작동 필수 속성 */
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 3px;
 }
 .time-row {
   display: flex;
@@ -191,44 +211,48 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
 .type-dot.prescription { background: #7d2638; }
 .type-dot.regular { background: #4d7a46; }
 .type-dot.supplement { background: #c2883f; }
 
+/* 약 이름과 카테고리 태그 한 줄 배치 & 말줄임 처리 */
 .name-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
 }
 
 .dose-info strong.name {
-  display: inline-block;
   font-size: 14px;
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
-/* 카테고리 뱃지 */
+/* 카테고리 태그: 배경색/테두리 제거, 글자 색상만 깔끔하게 표시 */
 .category-tag {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 2px 6px;
-  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  white-space: nowrap;
+  flex-shrink: 0; /* 절대로 세로로 찌그러지지 않음 */
 }
 .category-tag.cat-prescription {
-  background-color: #fceced;
   color: #7d2638;
-  border: 1px solid #f2cfd4;
 }
 .category-tag.cat-regular {
-  background-color: #eff6ed;
-  color: #436e3c;
-  border: 1px solid #cce2c7;
+  color: #3b6b33;
 }
 .category-tag.cat-supplement {
-  background-color: #fdf6ec;
   color: #b0752b;
-  border: 1px solid #f4dec0;
 }
 
 /* 알람 버튼 */
@@ -245,6 +269,7 @@
   color: #bfaea2;
   transition: all 0.2s ease;
   padding: 0;
+  flex-shrink: 0;
 }
 .btn-alarm:hover {
   background-color: #f1ede5;
@@ -257,10 +282,6 @@
 .bell-icon {
   width: 18px;
   height: 18px;
-  transition: transform 0.15s ease;
-}
-.btn-alarm:active .bell-icon {
-  transform: scale(0.9);
 }
 
 .btn-add-dose {
@@ -277,7 +298,7 @@
   background-color: #f5f0e6;
 }
 
-/* ================= 모달 공통 스타일 ================= */
+/* 모달 기본 레이아웃 */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -317,7 +338,6 @@
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
 }
 
-/* 롤링 휠 피커 (스크롤 및 직접 입력 최적화) */
 .wheel-picker-box {
   display: flex;
   align-items: center;
@@ -334,7 +354,7 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  cursor: ns-resize; /* 스크롤 가능 마우스 커서 */
+  cursor: ns-resize;
 }
 .picker-column button {
   background: none;
@@ -358,7 +378,6 @@
   cursor: pointer;
 }
 
-/* 직접 입력용 인풋 */
 .picker-input {
   width: 44px;
   height: 28px;
@@ -382,7 +401,6 @@
   background-color: #4a4d4d;
 }
 
-/* 알람 토글 스위치 */
 .alarm-toggle-row {
   display: flex;
   justify-content: space-between;
@@ -470,24 +488,117 @@ input:checked + .slider:before {
   border-radius: 4px;
   box-sizing: border-box;
 }
+
+/* 자동완성 검색창 & 드롭다운 */
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+.search-results-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #dcd5c9;
+  border-top: none;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  z-index: 1050;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.search-result-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  border-bottom: 1px solid #f4f0ea;
+  text-align: left;
+}
+.search-result-item:last-child {
+  border-bottom: none;
+}
+.search-result-item:hover {
+  background-color: #f7e6e8;
+  color: #7d2638;
+}
+
+/* 선택된 약품 칩 & 삭제 버튼 */
+.selected-med-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  background-color: #f7e6e8;
+  border: 1px solid #e8c5ca;
+  border-radius: 18px;
+  color: #7d2638;
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.selected-med-chip .chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.btn-remove-chip {
+  background: none;
+  border: none;
+  color: #7d2638;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  transition: background-color 0.15s ease;
+}
+.btn-remove-chip:hover {
+  background-color: rgba(125, 38, 56, 0.15);
+}
+
+/* 분류 탭: 상시약 & 영양제 */
 .category-select-group {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 .cat-btn {
   flex: 1;
-  padding: 7px 0;
+  padding: 8px 0;
   background: #f7f4ee;
   border: 1px solid #e2ddd5;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #666;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
-.cat-btn.active.pres { background: #fceced; color: #7d2638; border-color: #f2cfd4; }
-.cat-btn.active.reg { background: #eff6ed; color: #436e3c; border-color: #cce2c7; }
-.cat-btn.active.sup { background: #fdf6ec; color: #b0752b; border-color: #f4dec0; }
+.cat-btn.active.reg { 
+  background: #eff6ed; 
+  color: #436e3c; 
+  border-color: #cce2c7; 
+  font-weight: 700; 
+}
+.cat-btn.active.sup { 
+  background: #fdf6ec; 
+  color: #b0752b; 
+  border-color: #f4dec0; 
+  font-weight: 700; 
+}
 
-/* 추가 모달 내 피커 스타일 (라이트 모드 대응) */
 .wheel-picker-box.add-picker {
   background: #fdfbf7;
   border: 1px solid #e8e2d8;
@@ -495,9 +606,7 @@ input:checked + .slider:before {
   margin-bottom: 0;
 }
 .wheel-picker-box.add-picker .picker-value { color: #333; }
-.wheel-picker-box.add-picker .picker-input {
-  color: #333;
-}
+.wheel-picker-box.add-picker .picker-input { color: #333; }
 .wheel-picker-box.add-picker .picker-input:focus {
   background: #f3efe6;
   border-color: #7d2638;
@@ -505,15 +614,59 @@ input:checked + .slider:before {
 .wheel-picker-box.add-picker .picker-divider { background-color: #e5dfd5; }
 .wheel-picker-box.add-picker .picker-column button { color: #999; }
 
+/* 토스트 피드백 메시지 */
+.toast-success-banner {
+  background-color: #eff6ed;
+  border: 1px solid #cce2c7;
+  color: #3b6335;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 6px;
+  text-align: center;
+  margin-top: 14px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 모달 하단 2버튼 */
+.modal-actions-dual {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.btn-cancel {
+  flex: 1;
+  background: #f7f4ee;
+  border: 1px solid #dcd5c9;
+  color: #666;
+  padding: 10px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.btn-cancel:hover {
+  background: #ece7de;
+  color: #333;
+}
 .btn-save-med {
-  width: 100%;
+  flex: 1.5;
   background: #7d2638;
   color: #fff;
   border: none;
   padding: 10px;
   border-radius: 4px;
   font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  margin-top: 10px;
+  transition: background-color 0.15s ease;
 }
-.btn-save-med:hover { background: #5c1825; }
+.btn-save-med:hover {
+  background: #5c1825;
+}
