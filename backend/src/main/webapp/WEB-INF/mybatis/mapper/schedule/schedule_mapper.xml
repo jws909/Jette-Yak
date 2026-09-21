@@ -5,22 +5,17 @@
 
 <mapper namespace="schedule">
 
-    <!-- 1. 일별 복약 일정 조회: cabinets 테이블 조인으로 영양제/상시약/처방약 완벽 판별 -->
+    <!-- 1. 일별 복약 일정 조회 (schedules, medications 2개만 조인) -->
     <select id="selectDailySchedules" parameterType="map" resultType="com.app.dto.ScheduleDTO">
         SELECT 
             s.schedule_id   AS scheduleId,
             m.item_name     AS name,
             TO_CHAR(s.scheduled_at, 'HH24:MI') AS time,
-            CASE 
-                WHEN s.cabinet_id IS NULL THEN 'prescription'
-                WHEN c.category = 'supplement' THEN 'supplement'
-                ELSE 'regular'
-            END AS type,
+            'regular'       AS type,
             s.taken_at      AS takenAt,
             1               AS alarmEnabled
         FROM schedules s
         JOIN medications m ON s.medication_id = m.medication_id
-        LEFT JOIN cabinets c ON s.cabinet_id = c.cabinet_id
         WHERE s.user_id = #{userId}
           AND TRUNC(s.scheduled_at) = TO_DATE(#{date}, 'YYYY-MM-DD')
         ORDER BY s.scheduled_at ASC
@@ -40,11 +35,10 @@
     <select id="selectMonthlyScheduleSummary" parameterType="map" resultType="map">
         SELECT 
             TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS "scheduleDate",
-            MAX(CASE WHEN s.cabinet_id IS NULL THEN 1 ELSE 0 END) AS "hasPrescription",
-            MAX(CASE WHEN s.cabinet_id IS NOT NULL AND (c.category = 'regular' OR c.category IS NULL) THEN 1 ELSE 0 END) AS "hasRegular",
-            MAX(CASE WHEN s.cabinet_id IS NOT NULL AND c.category = 'supplement' THEN 1 ELSE 0 END) AS "hasSupplement"
+            0 AS "hasPrescription",
+            1 AS "hasRegular",
+            0 AS "hasSupplement"
         FROM schedules s
-        LEFT JOIN cabinets c ON s.cabinet_id = c.cabinet_id
         WHERE s.user_id = #{userId}
           AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
         GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
@@ -64,25 +58,18 @@
          WHERE schedule_id = #{scheduleId}
     </update>
 
-    <!-- 6. 일정 등록: 가짜 숫자가 아니라 사용자의 실제 cabinet_id를 찾아 안전하게 연결 -->
+    <!-- 6. 일정 등록 -->
     <insert id="insertSchedule" parameterType="com.app.dto.ScheduleAddDTO">
         INSERT INTO schedules (
             user_id,
             medication_id,
             scheduled_at,
-            taken_at,
-            cabinet_id
+            taken_at
         ) VALUES (
             #{userId},
             #{medicationId},
             TO_DATE(#{scheduledDate} || ' ' || #{scheduledTime}, 'YYYY-MM-DD HH24:MI'),
-            NULL,
-            (
-                SELECT MIN(cabinet_id) 
-                FROM cabinets 
-                WHERE user_id = #{userId} 
-                  AND category = #{type}
-            )
+            NULL
         )
     </insert>
 
