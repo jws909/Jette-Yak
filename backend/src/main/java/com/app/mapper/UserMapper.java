@@ -11,11 +11,17 @@ public interface UserMapper {
 
     int countByNickname(@Param("nickname") String nickname);
 
+    int countByNicknameExceptLoginId(@Param("nickname") String nickname, @Param("loginId") String loginId);
+
     User findByLoginId(@Param("loginId") String loginId);
 
     User findByEmail(@Param("email") String email);
 
     int updatePasswordHash(@Param("loginId") String loginId, @Param("passwordHash") String passwordHash);
+
+    int updateNickname(@Param("loginId") String loginId, @Param("nickname") String nickname);
+
+    int updateProfileImageUrl(@Param("loginId") String loginId, @Param("profileImageUrl") String profileImageUrl);
 
     int insertUser(User user);
 }

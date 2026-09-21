@@ -15,9 +15,14 @@
         SELECT COUNT(*) FROM users WHERE nickname = #{nickname}
     </select>
 
+    <select id="countByNicknameExceptLoginId" resultType="int">
+        SELECT COUNT(*) FROM users
+        WHERE nickname = #{nickname} AND login_id != #{loginId}
+    </select>
+
     <select id="findByLoginId" resultType="com.app.domain.User">
         SELECT user_id AS userId, login_id AS loginId, password_hash AS passwordHash,
-               email, nickname
+               email, nickname, profile_image_url AS profileImageUrl
         FROM users
         WHERE login_id = #{loginId}
     </select>
@@ -31,6 +36,16 @@
     <update id="updatePasswordHash">
         UPDATE users
         SET password_hash = #{passwordHash}, updated_at = CURRENT_TIMESTAMP
+        WHERE login_id = #{loginId}
+    </update>
+
+    <update id="updateNickname">
+        UPDATE users SET nickname = #{nickname}, updated_at = CURRENT_TIMESTAMP
+        WHERE login_id = #{loginId}
+    </update>
+
+    <update id="updateProfileImageUrl">
+        UPDATE users SET profile_image_url = #{profileImageUrl}, updated_at = CURRENT_TIMESTAMP
         WHERE login_id = #{loginId}
     </update>
 
