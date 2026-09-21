@@ -16,7 +16,10 @@
 		<result property="usageDosage" column="usage_dosage"
 			javaType="java.lang.String" />
 
-	</resultMap>
+        <result property="ediCode" column="edi_code" />
+        <result property="isDiscontinued" column="is_discontinued" />
+        <result property="updatedAt" column="updated_at" />
+    </resultMap>
 
 <select id="findChatMedicationByItemSeq" parameterType="map"
 		resultMap="medicationChatResult" timeout="10">
@@ -30,8 +33,8 @@
 		class_name,
 		etc_otc_code,
 		efficacy,
-		usage_dosage
-		FROM medications
+		usage_dosage, edi_code, is_discontinued, TO_CHAR(updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+        FROM medications
 		WHERE medication_id = #{itemSeq}
 
 	</select>

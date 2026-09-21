@@ -34,7 +34,9 @@ public class QuestionRoutingCheck {
     }
     static Map<String,Object> chat(String question, String id, Map<String,String> choices) {
         queries.clear(); var r=new MedicationChatRequest(); r.setQuestion(question); r.setItemSeq(id); r.setSelections(choices);
-        return new MedicationChatService(dao,ai).chat(r);
+        return new MedicationChatService(dao,ai,null,new com.app.guide.service.DurGuideService(null) {
+            @Override public DurResult find(String material) { return new DurResult("NO_MATCH",List.of(),List.of(),List.of(),List.of()); }
+        }).chat(r);
     }
     static void check(boolean b,String label) { if(!b)throw new AssertionError(label); checks++; }
     public static void main(String[] args) throws Exception {
@@ -63,11 +65,17 @@ public class QuestionRoutingCheck {
         analysis=parsed("DRUG_INTERACTION",List.of("타이레놀정"),List.of(),List.of(),true,false);
         check(((List<?>)chat("이 약이랑 타이레놀정 함께 먹어?","1",Map.of()).get("sources")).size()==2,"current plus explicit second medicine");
         analysis=parsed("DRUG_INTERACTION",List.of(),List.of(),List.of(),true,true);
-        check(chat("그거랑 같이 먹어?","1",Map.of()).get("answer").toString().contains("구체적"),"unclear pronoun clarified");
+        check(chat("그거랑 같이 먹어?","1",Map.of()).get("answer").toString().contains("궁금한가요"),"unclear pronoun clarified");
         for(String bad:List.of("{}", "not-json", parsed("MEDICATION_INFO",List.of("임의생성약"),List.of(),List.of(),false,false),
             parsed("FOOD_INTERACTION",List.of("맥주"),List.of("맥주"),List.of(),false,false))) {
             try {QuestionAnalysis.parse(bad,"맥주");throw new AssertionError("bad classification accepted");}catch(GeminiException expected){checks++;}
         }
+        String catalogJson = "{\"intent\":\"DB_SEARCH\",\"medications\":[],\"foods\":[],\"topics\":[\"임산부\"],\"useSelectedMedication\":false,\"needsClarification\":false,\"query\":{\"kind\":\"MEDICATIONS\",\"filters\":[],\"tabooType\":1,\"grade\":\"\",\"ageBase\":\"\",\"status\":\"ANY\"}}";
+        check(QuestionAnalysis.parse(catalogJson,"임산부가 피할 약은?").intent()==QuestionAnalysis.Intent.DB_SEARCH,"population topic does not override catalog intent");
+        String inherited = parsed("MEDICATION_INFO",List.of("타이레놀"),List.of(),List.of(),false,false);
+        check(QuestionAnalysis.parse(inherited,"그 약의 성분은?",List.of("타이레놀 알려줘")).medications().equals(List.of("타이레놀")),"followup can reference prior literal medicine");
+        try {QuestionAnalysis.parse(inherited,"그 약의 성분은?");throw new AssertionError("invented entity accepted");}catch(GeminiException expected){checks++;}
+        try {QuestionAnalysis.parse(inherited,"성분은?",java.util.Collections.nCopies(5,"타이레놀"));throw new AssertionError("unbounded history accepted");}catch(GeminiException expected){checks++;}
         System.out.println("PASS: "+checks+" intent routing and validation checks");
     }
 }

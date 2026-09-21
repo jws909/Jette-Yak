@@ -13,12 +13,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class MedicationChatService {
     private final ChatbotDao medicationDao;
     private final GeminiService geminiService;
+    private final CatalogService catalog;
+    private final com.app.guide.service.DurGuideService dur;
+    public Map<String,Object> catalog(CatalogQuery query, int page) { return catalog.search(query,page); }
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final int PAGE_SIZE = 20;
 
-    public MedicationChatService(ChatbotDao medicationDao, GeminiService geminiService) {
+    public MedicationChatService(ChatbotDao medicationDao, GeminiService geminiService, CatalogService catalog, com.app.guide.service.DurGuideService dur) {
         this.medicationDao = medicationDao;
-        this.geminiService = geminiService;
+        this.geminiService = geminiService; this.catalog = catalog; this.dur = dur;
     }
 
     public Map<String, Object> search(String keyword, int page) {
@@ -35,11 +38,16 @@ public class MedicationChatService {
         MedicationChatDto selected = request.getItemSeq() == null || request.getItemSeq().isBlank() ? null
             : medicationDao.findChatMedicationByItemSeq(request.getItemSeq().trim());
         QuestionAnalysis analysis = QuestionAnalysis.parse(
-            geminiService.analyzeQuestion(question, selected == null ? null : selected.getItemName()), question);
+            geminiService.analyzeQuestion(question, selected == null ? null : selected.getItemName(), request.getRecentQuestions()), question, request.getRecentQuestions());
         if (analysis.needsClarification())
-            return reply("어떤 약과 무엇에 관한 질문인지 조금 더 구체적으로 알려주세요.", List.of(), List.of());
+            return reply(analysis.clarificationQuestion().isBlank() ? "특정 약의 주의사항이 궁금한가요, 아니면 조건에 해당하는 약 목록이 궁금한가요?" : analysis.clarificationQuestion(), List.of(), List.of());
         if (analysis.intent() == QuestionAnalysis.Intent.OTHER)
-            return reply("약 이름과 궁금한 효능·복용법·생활 관련 내용을 질문해주세요.", List.of(), List.of());
+            return reply("약 이름·성분·효능·제조사·분류·코드·허가 상태나 DUR 금기 조건을 질문해주세요. 개인 처방 내역 조회는 로그인 연동 후 제공할 수 있습니다.", List.of(), List.of());
+        if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH) {
+            var data = catalog.search(analysis.query(), 1);
+            var response = reply("조건에 맞는 DB 기록 " + data.get("total") + "건을 찾았습니다. 아래 목록과 원문을 확인해주세요.", List.of(), List.of());
+            response.put("catalog", data); return response;
+        }
         List<String> hints = analysis.medications();
         if (hints.size() > 8) return reply("약 이름을 짧게 적거나, 왼쪽 검색에서 약을 선택해주세요.", List.of(), List.of());
         LinkedHashMap<String, MedicationChatDto> targets = new LinkedHashMap<>();
@@ -97,10 +105,8 @@ public class MedicationChatService {
         if (analysis.intent() == QuestionAnalysis.Intent.LIFESTYLE)
             return reply("현재 조회한 " + names + " 자료에는 " + String.join(", ", analysis.topics())
                 + " 관련 주의사항이 없어 해당 활동의 안전 여부를 판단할 수 없습니다.", sources, List.of());
-        if (analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION) {
-            if (sources.size() < 2) return reply("함께 복용하려는 다른 약 이름도 알려주세요.", sources, List.of());
-            return reply("현재 조회 자료에는 약 사이의 병용금기·상호작용 정보가 없어 함께 복용해도 되는지 판단할 수 없습니다.", sources, List.of());
-        }
+        if (analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION || analysis.intent() == QuestionAnalysis.Intent.DUR_INFO)
+            return durReply(sources, analysis);
         String references;
         try { references = objectMapper.writeValueAsString(sources); }
         catch (JsonProcessingException e) { throw new IllegalStateException("약 정보 변환 실패", e); }
@@ -110,6 +116,39 @@ public class MedicationChatService {
         return reply(answer, sources, List.of());
     }
 
+    private Map<String,Object> durReply(List<MedicationChatDto> sources, QuestionAnalysis analysis) {
+        boolean pair = analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION && sources.size() > 1;
+        int type = analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION ? 4 : analysis.query().tabooType();
+        List<Map<String,Object>> reports = new ArrayList<>();
+        List<Set<String>> ingredients = sources.stream().map(m -> Set.copyOf(com.app.guide.service.DurGuideService.ingredients(m.getMaterialName()).stream().map(MedicationChatService::normalize).toList())).toList();
+        LinkedHashMap<String,com.app.guide.dto.DurInfoDto> pairs = new LinkedHashMap<>();
+        List<String> unmatched = new ArrayList<>();
+        for (MedicationChatDto source : sources) {
+            var found = dur.find(source.getMaterialName());
+            unmatched.addAll(found.unmatchedIngredients());
+            var rows = found.items().stream().filter(r -> (type == 0 || r.getTabooType() == type)
+                && (analysis.query().grade().isEmpty() || analysis.query().grade().equals(r.getGrade()))
+                && (analysis.query().ageBase().isEmpty() || r.getAgeBase() != null && r.getAgeBase().contains(analysis.query().ageBase()))).toList();
+            if (pair) {
+                for (var row : rows) if (bridges(ingredients, row))
+                    pairs.put(row.getIngrAName()+"|"+row.getIngrBName()+"|"+row.getTabooEffect(),row);
+            } else reports.add(Map.of("label",source.getItemName(),"items",rows.stream().limit(100).toList(),"total",rows.size(),
+                "unmatchedIngredients",found.unmatchedIngredients(),"status",found.status()));
+        }
+        if (pair) reports.add(Map.of("label","선택한 약 사이의 병용금기", "items",pairs.values().stream().limit(100).toList(),"total",pairs.size(),
+            "unmatchedIngredients",unmatched.stream().distinct().toList(),"status",pairs.isEmpty()?"NO_MATCH":"MATCHED"));
+        var response = reply(pair ? "선택한 약들의 성분을 서로 대조한 병용금기 조회 결과입니다."
+            : "선택한 약의 성분에 연결된 DUR 조회 결과입니다.",sources,List.of());
+        response.put("durReports",reports);
+        response.put("durNotice","성분명 일치로 조회한 DB 원문입니다. 표기가 다른 성분은 연결되지 않을 수 있습니다. 조회 기록이 없다고 안전하다고 판단할 수 없습니다. 개인별 복용 가능 여부를 판정한 결과가 아닙니다. 기록은 항목별 최대 100건까지 표시합니다.");
+        return response;
+    }
+    static boolean bridges(List<Set<String>> ingredients, com.app.guide.dto.DurInfoDto row) {
+        if (row.getTabooType()!=4 || row.getIngrBName()==null) return false;
+        for(int i=0;i<ingredients.size();i++) for(int j=0;j<ingredients.size();j++)
+            if(i!=j && ingredients.get(i).contains(normalize(row.getIngrAName())) && ingredients.get(j).contains(normalize(row.getIngrBName()))) return true;
+        return false;
+    }
     private static String normalize(String text) {
         return text == null ? "" : text.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
     }

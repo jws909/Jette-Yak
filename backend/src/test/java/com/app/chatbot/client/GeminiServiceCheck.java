@@ -54,7 +54,11 @@ public class GeminiServiceCheck {
             check(sent.has("systemInstruction") && !sent.has("tools"), "DB-only instructions, no search tools");
             service.analyzeQuestion("텐텐이랑 맥주?", "텐텐츄정");
             check(sent.path("generationConfig").path("responseMimeType").asText().equals("application/json"), "Classifier JSON response format");
-            check(sent.path("generationConfig").path("responseJsonSchema").path("required").size() == 6, "Classifier output schema");
+            check(sent.path("generationConfig").path("responseJsonSchema").path("required").size() == 8, "Classifier output schema");
+            service.analyzeQuestion("그럼 임산부는?", "텐텐츄정", java.util.List.of("노인이 주의할 약 알려줘"));
+            String prompt = sent.path("contents").get(0).path("parts").get(0).path("text").asText();
+            check(prompt.contains("노인이 주의할 약 알려줘") && prompt.contains("그럼 임산부는?"), "Classifier receives recent and current questions");
+            check(sent.path("generationConfig").path("responseJsonSchema").path("properties").has("clarificationQuestion"), "Targeted clarification schema");
             int before = calls.get();
             expect(new GeminiService(client, null, null), 503);
             expect(new GeminiService(client, "fake", "../bad"), 503);

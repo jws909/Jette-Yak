@@ -1,4 +1,4 @@
-.chat-page { max-width: 1200px; margin: auto; padding: 48px 32px 24px; }
+.chat-page { max-width: 1200px; margin: auto; padding: 24px 32px 24px; }
 .eyebrow { font: 10px/1.5 ui-monospace, monospace; letter-spacing: 1.8px; color: #75695f; }
 .page-heading { margin-bottom: 32px; }
 .page-heading h1 { font-size: clamp(28px, 3.3vw, 42px); font-weight: 500; line-height: 1.4; letter-spacing: -1.8px; margin: 18px 0 12px; }
@@ -69,3 +69,18 @@
 .choice-list { margin-top: 12px; max-height: 260px; overflow-y: auto; }
 .active-medication strong { font-weight: 600; }
 .answer-subject { font-size: 11px !important; color: #7d3541; }
+
+/* DB 조건 검색과 DUR 원문 */
+.chat-catalog-search { margin: 20px 0; border: 1px solid #ded5c8; border-radius: 8px; padding: 12px; }
+.chat-catalog-search summary { color: #7d2638; font-weight: 600; cursor: pointer; font-size: 13px; }
+.chat-catalog-search fieldset { border: 0; padding: 12px 0 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.chat-catalog-search label { display: grid; gap: 4px; font-size: 12px; }
+.chat-catalog-search input, .chat-catalog-search select { width: 100%; min-width: 0; padding: 8px; border: 1px solid #ded5c8; background: #fff; border-radius: 4px; font: inherit; }
+.chat-catalog-results, .chat-dur-reports { margin-top: 16px; overflow-wrap: anywhere; }
+.chat-catalog-product, .chat-dur-record { border: 1px solid #e3d9cd; border-radius: 8px; padding: 14px; margin: 12px 0; background: #fffdf9; }
+.chat-catalog-results details { margin: 12px 0; }
+.chat-catalog-results summary, .chat-dur-reports summary { cursor: pointer; color: #7d2638; font-weight: 600; }
+.chat-catalog-results dd { margin: 4px 0 12px; white-space: pre-wrap; }
+.chat-catalog-results dt { font-weight: 600; }
+.chat-dur-record p { white-space: pre-wrap; font-size: 13px; }
+.chat-dur-record small { color: #736b63; }
