@@ -11,5 +11,7 @@ public interface UserMapper {
 
     int countByNickname(@Param("nickname") String nickname);
 
+    User findByLoginId(@Param("loginId") String loginId);
+
     int insertUser(User user);
 }

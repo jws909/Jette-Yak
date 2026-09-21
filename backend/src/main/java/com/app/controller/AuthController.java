@@ -1,5 +1,8 @@
 package com.app.controller;
 
+import java.util.UUID;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -8,6 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.app.dto.LoginRequest;
 import com.app.dto.LoginResponse;
+import com.app.domain.User;
+import com.app.mapper.UserMapper;
+import com.app.util.PasswordUtil;
 
 /**
  * 로그인 화면 동작 확인용 임시 컨트롤러.
@@ -18,14 +24,14 @@ import com.app.dto.LoginResponse;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    // TODO: DB 연동 시 이 하드코딩된 값 대신 UserRepository 조회로 교체
-    private static final String TEST_USERNAME = "test";
-    private static final String TEST_PASSWORD = "1234";
+    @Autowired
+    private UserMapper userMapper;
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
-        boolean isValid = TEST_USERNAME.equals(request.getUsername())
-                && TEST_PASSWORD.equals(request.getPassword());
+        User user = request.getUsername() == null ? null : userMapper.findByLoginId(request.getUsername());
+        boolean isValid = user != null && request.getPassword() != null
+                && user.getPasswordHash().equals(PasswordUtil.sha256(request.getPassword()));
 
         if (!isValid) {
             LoginResponse failResponse = new LoginResponse(
@@ -37,8 +43,10 @@ public class AuthController {
         }
 
         LoginResponse successResponse = new LoginResponse(
-                "dummy-token",
-                request.getUsername(),
+                UUID.randomUUID().toString(),
+                user.getLoginId(),
+                user.getNickname(),
+                user.getEmail(),
                 "로그인 성공"
         );
         return ResponseEntity.ok(successResponse);
