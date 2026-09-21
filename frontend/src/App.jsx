@@ -14,28 +14,44 @@ import './App.css';
 function App() {
   const navigate = useNavigate();
 
-  // 와이어프레임 기본 사용자 상태 (김메디님)
-  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(localStorage.getItem('token') || 'demo-token'));
-  const [user] = useState({
-    name: '김메디',
-    email: 'mediary_2026 · hello@mediary.kr'
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(
+    localStorage.getItem('token') && localStorage.getItem('user')
+  ));
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user'));
+    } catch {
+      return null;
+    }
   });
 
-  const handleLoginSuccess = (receivedToken) => {
+  const handleLoginSuccess = (loginData) => {
+    const loggedInUser = {
+      username: loginData.username,
+      name: loginData.nickname || loginData.username,
+      email: loginData.email || '',
+    };
     setIsLoggedIn(true);
-    localStorage.setItem('token', receivedToken);
+    setUser(loggedInUser);
+    localStorage.setItem('token', loginData.token);
+    localStorage.setItem('user', JSON.stringify(loggedInUser));
     navigate('/');
   };
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setUser(null);
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
   };
 
   const handleLoginDemoToggle = () => {
     const demoToken = 'demo-token';
+    const demoUser = { username: 'demo', name: '체험 사용자', email: '' };
     setIsLoggedIn(true);
+    setUser(demoUser);
     localStorage.setItem('token', demoToken);
+    localStorage.setItem('user', JSON.stringify(demoUser));
   };
 
   return (

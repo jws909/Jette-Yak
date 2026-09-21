@@ -9,11 +9,19 @@ public class LoginResponse {
 
     private String token;
     private String username;
+    private String nickname;
+    private String email;
     private String message;
 
     public LoginResponse(String token, String username, String message) {
+        this(token, username, null, null, message);
+    }
+
+    public LoginResponse(String token, String username, String nickname, String email, String message) {
         this.token = token;
         this.username = username;
+        this.nickname = nickname;
+        this.email = email;
         this.message = message;
     }
 
@@ -23,6 +31,14 @@ public class LoginResponse {
 
     public String getUsername() {
         return username;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public String getEmail() {
+        return email;
     }
 
     public String getMessage() {
