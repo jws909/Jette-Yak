@@ -1,6 +1,8 @@
 package com.app.controller;
 
 import java.util.UUID;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +15,7 @@ import com.app.dto.LoginRequest;
 import com.app.dto.LoginResponse;
 import com.app.dto.EmailCodeRequest;
 import com.app.dto.EmailVerifyRequest;
+import com.app.dto.PasswordResetRequest;
 import com.app.domain.User;
 import com.app.mapper.UserMapper;
 import com.app.service.EmailVerificationService;
@@ -34,6 +37,8 @@ public class AuthController {
     private EmailVerificationService emailVerificationService;
 
     private static final String EMAIL_PATTERN = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
+    private static final long PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS = 5 * 60 * 1000L;
+    private final Map<String, PasswordResetVerification> verifiedPasswordResetEmails = new ConcurrentHashMap<>();
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
@@ -91,5 +96,77 @@ public class AuthController {
             return ResponseEntity.status(404).body(java.util.Map.of("message", "등록된 이메일을 찾을 수 없습니다."));
         }
         return ResponseEntity.ok(java.util.Map.of("username", user.getLoginId()));
+    }
+
+    @PostMapping("/reset-password/send-code")
+    public ResponseEntity<?> sendPasswordResetCode(@RequestBody PasswordResetRequest request) {
+        User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
+        if (user == null) {
+            return ResponseEntity.status(404).body(java.util.Map.of("message", "아이디와 이메일이 일치하는 계정을 찾을 수 없습니다."));
+        }
+
+        try {
+            String email = request.getEmail().trim();
+            verifiedPasswordResetEmails.remove(user.getLoginId());
+            emailVerificationService.clearVerification(email);
+            emailVerificationService.sendCode(email);
+            return ResponseEntity.ok(java.util.Map.of("message", "인증번호를 등록된 이메일로 보냈습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(java.util.Map.of("message", "인증번호 발송에 실패했습니다."));
+        }
+    }
+
+    @PostMapping("/reset-password/verify-code")
+    public ResponseEntity<?> verifyPasswordResetCode(@RequestBody PasswordResetRequest request) {
+        User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
+        String email = request.getEmail() == null ? "" : request.getEmail().trim();
+        if (user == null || !emailVerificationService.verifyCode(email, request.getCode())) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "인증번호가 올바르지 않거나 만료되었습니다."));
+        }
+        verifiedPasswordResetEmails.put(
+                user.getLoginId(),
+                new PasswordResetVerification(email, System.currentTimeMillis() + PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS)
+        );
+        return ResponseEntity.ok(java.util.Map.of("message", "이메일 인증이 완료되었습니다."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody PasswordResetRequest request) {
+        User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
+        String email = request.getEmail() == null ? "" : request.getEmail().trim();
+        PasswordResetVerification verification = user == null ? null : verifiedPasswordResetEmails.get(user.getLoginId());
+        if (verification == null || System.currentTimeMillis() > verification.expiresAt
+                || !email.equalsIgnoreCase(verification.email)) {
+            if (user != null) {
+                verifiedPasswordResetEmails.remove(user.getLoginId());
+            }
+            return ResponseEntity.status(403).body(java.util.Map.of("message", "이메일 인증 후 비밀번호를 재설정할 수 있습니다."));
+        }
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 8) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "새 비밀번호는 8자 이상이어야 합니다."));
+        }
+
+        userMapper.updatePasswordHash(user.getLoginId(), PasswordUtil.sha256(request.getNewPassword()));
+        verifiedPasswordResetEmails.remove(user.getLoginId());
+        emailVerificationService.clearVerification(email);
+        return ResponseEntity.ok(java.util.Map.of("message", "비밀번호가 재설정되었습니다."));
+    }
+
+    private User findUserByUsernameAndEmail(String username, String email) {
+        if (username == null || username.isBlank() || email == null || !email.trim().matches(EMAIL_PATTERN)) {
+            return null;
+        }
+        User user = userMapper.findByLoginId(username.trim());
+        return user != null && user.getEmail() != null && user.getEmail().equalsIgnoreCase(email.trim()) ? user : null;
+    }
+
+    private static class PasswordResetVerification {
+        private final String email;
+        private final long expiresAt;
+
+        private PasswordResetVerification(String email, long expiresAt) {
+            this.email = email;
+            this.expiresAt = expiresAt;
+        }
     }
 }

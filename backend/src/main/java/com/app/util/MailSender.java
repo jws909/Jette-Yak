@@ -98,7 +98,7 @@ public class MailSender implements InitializingBean {
             MimeMessage message = new MimeMessage(session);
             message.setFrom(new InternetAddress(effectiveFrom));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail));
-            message.setSubject("[mediary] 이메일 인증번호", "UTF-8");
+            message.setSubject("[제때약] 이메일 인증번호", "UTF-8");
             message.setText(
                     "요청하신 인증번호는 [" + code + "] 입니다.\n"
                             + "인증번호는 발급 시점으로부터 5분간 유효합니다.",

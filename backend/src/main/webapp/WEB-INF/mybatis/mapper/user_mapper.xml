@@ -28,6 +28,12 @@
         WHERE LOWER(email) = LOWER(#{email})
     </select>
 
+    <update id="updatePasswordHash">
+        UPDATE users
+        SET password_hash = #{passwordHash}, updated_at = CURRENT_TIMESTAMP
+        WHERE login_id = #{loginId}
+    </update>
+
     <!--
       user_id: IDENTITY 컬럼이라 생략(자동 채번)
       created_at / updated_at / push_enabled / role: DB 기본값 사용을 위해 생략

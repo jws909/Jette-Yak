@@ -15,5 +15,7 @@ public interface UserMapper {
 
     User findByEmail(@Param("email") String email);
 
+    int updatePasswordHash(@Param("loginId") String loginId, @Param("passwordHash") String passwordHash);
+
     int insertUser(User user);
 }

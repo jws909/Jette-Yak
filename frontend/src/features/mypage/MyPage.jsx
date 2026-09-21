@@ -4,7 +4,7 @@ import './MyPage.css';
 export default function MyPage({ user }) {
   const [nickname, setNickname] = useState(user?.name || '김메디');
   const [isEditingNick, setIsEditingNick] = useState(false);
-  const [email] = useState(user?.email || 'mediary_2026 · hello@mediary.kr');
+  const [email] = useState(user?.email || 'jetteyak_2026 · hello@jetteyak.kr');
 
   // 비밀번호 변경 폼
   const [currentPw, setCurrentPw] = useState('');
