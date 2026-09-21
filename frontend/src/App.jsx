@@ -45,6 +45,14 @@ function App() {
     localStorage.removeItem('user');
   };
 
+  const handleUserUpdated = (changes) => {
+    setUser((currentUser) => {
+      const updatedUser = { ...currentUser, ...changes };
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      return updatedUser;
+    });
+  };
+
   const handleLoginDemoToggle = () => {
     const demoToken = 'demo-token';
     const demoUser = { username: 'demo', name: '체험 사용자', email: '' };
@@ -118,7 +126,7 @@ function App() {
             onLogout={handleLogout}
             onLoginDemoToggle={handleLoginDemoToggle}
           >
-            <MyPage user={user} />
+            <MyPage user={user} onUserUpdated={handleUserUpdated} />
           </MainLayout>
         }
       />

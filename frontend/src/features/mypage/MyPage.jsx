@@ -1,10 +1,66 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './MyPage.css';
 
-export default function MyPage({ user }) {
+export default function MyPage({ user, onUserUpdated }) {
   const [nickname, setNickname] = useState(user?.name || '김메디');
   const [isEditingNick, setIsEditingNick] = useState(false);
   const [email] = useState(user?.email || 'jetteyak_2026 · hello@jetteyak.kr');
+  const [profileImage, setProfileImage] = useState(user?.profileImageUrl || '');
+  const [profileMessage, setProfileMessage] = useState('');
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.username || user.username === 'demo') return;
+    fetch(`/api/users/profile?username=${encodeURIComponent(user.username)}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((profile) => {
+        if (!profile) return;
+        setNickname(profile.nickname || user.name);
+        setProfileImage(profile.profileImageUrl || '');
+        onUserUpdated?.({ name: profile.nickname || user.name, profileImageUrl: profile.profileImageUrl || '' });
+      })
+      .catch(() => {});
+  }, [user?.username]);
+
+  const updateProfile = async ({ nextNickname, file } = {}) => {
+    if (!user?.username || user.username === 'demo') {
+      setProfileMessage('체험 계정에서는 프로필을 변경할 수 없습니다.');
+      return false;
+    }
+    const formData = new FormData();
+    formData.append('username', user.username);
+    if (nextNickname !== undefined) formData.append('nickname', nextNickname);
+    if (file) formData.append('file', file);
+    const response = await fetch('/api/users/profile', { method: 'POST', body: formData });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setProfileMessage(data.message || '프로필 저장에 실패했습니다.');
+      return false;
+    }
+    setNickname(data.nickname);
+    setProfileImage(data.profileImageUrl || '');
+    onUserUpdated?.({ name: data.nickname, profileImageUrl: data.profileImageUrl || '' });
+    setProfileMessage('프로필이 저장되었습니다.');
+    return true;
+  };
+
+  const handleNicknameSave = async () => {
+    const trimmedNickname = nickname.trim();
+    if (!trimmedNickname) return;
+    setIsEditingNick(false);
+    await updateProfile({ nextNickname: trimmedNickname });
+  };
+
+  const handleProfilePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setProfileMessage('이미지 파일만 등록할 수 있습니다.');
+      return;
+    }
+    await updateProfile({ file });
+    e.target.value = '';
+  };
 
   // 비밀번호 변경 폼
   const [currentPw, setCurrentPw] = useState('');
@@ -78,8 +134,14 @@ export default function MyPage({ user }) {
 
       {/* 1. 상단 프로필 영역 */}
       <section className="mypage-profile-card">
-        <div className="profile-photo-unit">
-          <div className="profile-photo-circle">김</div>
+        <div className="profile-photo-unit" onClick={(e) => {
+          if (e.target.closest('button')) fileInputRef.current?.click();
+        }}>
+          <div
+            className={`profile-photo-circle ${profileImage ? 'has-image' : ''}`}
+            style={profileImage ? { backgroundImage: `url(${profileImage})` } : undefined}
+          >김</div>
+          <input ref={fileInputRef} className="profile-photo-input" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleProfilePhotoChange} />
           <button type="button" className="photo-change-btn">사진 변경</button>
         </div>
 
@@ -92,7 +154,7 @@ export default function MyPage({ user }) {
                 className="nickname-input"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                onBlur={() => setIsEditingNick(false)}
+                onBlur={handleNicknameSave}
                 autoFocus
               />
             ) : (
@@ -101,13 +163,14 @@ export default function MyPage({ user }) {
             <button
               type="button"
               className="nickname-edit-icon"
-              onClick={() => setIsEditingNick(!isEditingNick)}
+              onClick={() => isEditingNick ? handleNicknameSave() : setIsEditingNick(true)}
               title="닉네임 수정"
             >
               ✎
             </button>
           </div>
           <span className="email-display">{email}</span>
+          {profileMessage && <span className="profile-message">{profileMessage}</span>}
         </div>
       </section>
 

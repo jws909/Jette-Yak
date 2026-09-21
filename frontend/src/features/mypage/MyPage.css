@@ -81,6 +81,18 @@
   justify-content: center;
 }
 
+.profile-photo-circle.has-image {
+  color: transparent;
+  background-color: #e2cec0;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.profile-photo-input {
+  display: none;
+}
+
 .photo-change-btn {
   background: #2b2523;
   color: #ffffff;
@@ -144,6 +156,12 @@
   margin-top: 4px;
   font-size: 13px;
   color: #8a8177;
+}
+
+.profile-message {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #7d2638;
 }
 
 /* 2단 그리드 */
