@@ -20,6 +20,65 @@ export default function LoginPage({ onLoginSuccess }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFindIdOpen, setIsFindIdOpen] = useState(false);
+  const [findIdEmail, setFindIdEmail] = useState("");
+  const [findIdCode, setFindIdCode] = useState("");
+  const [findIdMessage, setFindIdMessage] = useState("");
+  const [foundUsername, setFoundUsername] = useState("");
+  const [isSendingCode, setIsSendingCode] = useState(false);
+
+  const closeFindId = () => {
+    setIsFindIdOpen(false);
+    setFindIdEmail("");
+    setFindIdCode("");
+    setFindIdMessage("");
+    setFoundUsername("");
+  };
+
+  const sendFindIdCode = async (e) => {
+    e.preventDefault();
+    const email = findIdEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFindIdMessage("올바른 이메일 형식을 입력해 주세요.");
+      return;
+    }
+    setIsSendingCode(true);
+    setFindIdMessage("");
+    setFoundUsername("");
+    try {
+      const response = await fetch("/api/auth/find-id/send-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json().catch(() => ({}));
+      setFindIdMessage(data.message || "인증번호 발송에 실패했습니다.");
+    } catch {
+      setFindIdMessage("서버에 연결할 수 없습니다.");
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
+
+  const verifyFindIdCode = async (e) => {
+    e.preventDefault();
+    setFindIdMessage("");
+    try {
+      const response = await fetch("/api/auth/find-id/verify-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: findIdEmail.trim(), code: findIdCode.trim() }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setFindIdMessage(data.message || "인증번호 확인에 실패했습니다.");
+        return;
+      }
+      setFoundUsername(data.username);
+    } catch {
+      setFindIdMessage("서버에 연결할 수 없습니다.");
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -140,7 +199,14 @@ export default function LoginPage({ onLoginSuccess }) {
             <span aria-hidden="true">←</span>
           </button>
 
-          <div className="login-links">
+          <div
+            className="login-links"
+            onClick={(e) => {
+              if (e.target.closest("button") === e.currentTarget.querySelector("button")) {
+                setIsFindIdOpen(true);
+              }
+            }}
+          >
             <button type="button" className="login-links__item">
               아이디 찾기
             </button>
@@ -158,6 +224,41 @@ export default function LoginPage({ onLoginSuccess }) {
             </button>
           </div>
         </form>
+
+        {isFindIdOpen && (
+          <div className="find-id-backdrop" role="presentation" onMouseDown={closeFindId}>
+            <section className="find-id-dialog" role="dialog" aria-modal="true" aria-labelledby="find-id-title" onMouseDown={(e) => e.stopPropagation()}>
+              <button type="button" className="find-id-close" onClick={closeFindId} aria-label="닫기">×</button>
+              <h2 id="find-id-title">아이디 찾기</h2>
+              <p>가입할 때 사용한 이메일로 인증번호를 보내드립니다.</p>
+              {!foundUsername ? (
+                <>
+                  <form onSubmit={sendFindIdCode} className="find-id-form">
+                    <label htmlFor="find-id-email">이메일</label>
+                    <div className="find-id-row">
+                      <input id="find-id-email" type="email" value={findIdEmail} onChange={(e) => setFindIdEmail(e.target.value)} placeholder="name@example.com" disabled={isSendingCode} />
+                      <button type="submit" disabled={isSendingCode}>{isSendingCode ? "발송 중" : "인증번호 받기"}</button>
+                    </div>
+                  </form>
+                  <form onSubmit={verifyFindIdCode} className="find-id-form">
+                    <label htmlFor="find-id-code">인증번호</label>
+                    <div className="find-id-row">
+                      <input id="find-id-code" inputMode="numeric" maxLength="6" value={findIdCode} onChange={(e) => setFindIdCode(e.target.value)} placeholder="6자리 인증번호" />
+                      <button type="submit">확인</button>
+                    </div>
+                  </form>
+                  {findIdMessage && <p className="find-id-message" role="alert">{findIdMessage}</p>}
+                </>
+              ) : (
+                <div className="find-id-result">
+                  <p>회원님의 아이디입니다.</p>
+                  <strong>{foundUsername}</strong>
+                  <button type="button" onClick={closeFindId}>로그인하기</button>
+                </div>
+              )}
+            </section>
+          </div>
+        )}
       </main>
     </div>
   );

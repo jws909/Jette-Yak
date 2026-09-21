@@ -162,3 +162,114 @@
   color: var(--line);
   font-size: 13px;
 }
+
+.find-id-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(42 35 32 / 45%);
+}
+
+.find-id-dialog {
+  position: relative;
+  width: min(100%, 390px);
+  padding: 28px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 50px rgb(42 35 32 / 22%);
+}
+
+.find-id-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+.find-id-dialog > p {
+  margin: 0 0 20px;
+  color: var(--ink-soft);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.find-id-close {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.find-id-form {
+  margin-top: 14px;
+}
+
+.find-id-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.find-id-row {
+  display: flex;
+  gap: 8px;
+}
+
+.find-id-row input {
+  min-width: 0;
+  flex: 1;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.find-id-row button,
+.find-id-result button {
+  border: 0;
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #fff;
+  background: var(--wine);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.find-id-row button:disabled {
+  opacity: 0.65;
+}
+
+.find-id-message {
+  margin: 12px 0 0;
+  color: var(--error);
+  font-size: 13px;
+}
+
+.find-id-result {
+  display: grid;
+  gap: 14px;
+  text-align: center;
+}
+
+.find-id-result p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.find-id-result strong {
+  padding: 13px;
+  border-radius: 8px;
+  background: var(--wine-soft-bg);
+  color: var(--wine-deep);
+  font-size: 18px;
+}
+
+.find-id-result button {
+  min-height: 42px;
+}
