@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/calendar")
@@ -52,5 +53,21 @@ public class CalendarController {
     public ResponseEntity<String> addSchedule(@RequestBody ScheduleAddDTO dto) {
         boolean success = scheduleService.addSchedule(dto);
         return success ? ResponseEntity.ok("SUCCESS") : ResponseEntity.status(HttpStatus.BAD_REQUEST).body("FAIL");
+    }
+    
+ // 6. 약품 검색 API (복약 추가 모달 자동완성)
+    @GetMapping("/search-medications")
+    public ResponseEntity<List<Map<String, Object>>> searchMedications(
+            @RequestParam("keyword") String keyword) {
+        List<Map<String, Object>> list = scheduleService.searchMedications(keyword);
+        return ResponseEntity.ok(list);
+    }
+    
+    @GetMapping("/summary")
+    public ResponseEntity<List<Map<String, Object>>> getMonthlySummary(
+            @RequestParam(value = "userId", defaultValue = "1") Long userId,
+            @RequestParam("yearMonth") String yearMonth) {
+        List<Map<String, Object>> summary = scheduleService.getMonthlySummary(userId, yearMonth);
+        return ResponseEntity.ok(summary);
     }
 }

@@ -47,4 +47,16 @@ public class ScheduleDAO {
     public int insertSchedule(ScheduleAddDTO dto) {
         return sqlSession.insert(NS + "insertSchedule", dto);
     }
+    
+ // 약품 검색 (자동완성용 최대 10건)
+    public List<Map<String, Object>> searchMedications(String keyword) {
+        return sqlSession.selectList(NS + "searchMedications", keyword);
+    }
+    
+    public List<Map<String, Object>> selectMonthlyScheduleSummary(Long userId, String yearMonth) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("yearMonth", yearMonth);
+        return sqlSession.selectList("schedule.selectMonthlyScheduleSummary", params);
+    }
 }
