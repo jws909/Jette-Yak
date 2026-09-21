@@ -230,6 +230,16 @@
   font: inherit;
 }
 
+.find-id-full-input {
+  box-sizing: border-box;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+}
+
 .find-id-row button,
 .find-id-result button {
   border: 0;
@@ -272,4 +282,16 @@
 
 .find-id-result button {
   min-height: 42px;
+}
+
+.find-id-submit {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--wine);
+  font-weight: 700;
+  cursor: pointer;
 }
