@@ -229,7 +229,7 @@ export default function MainPage({ user }) {
                     className="result-row-card"
                     onClick={() => {
                       setShowSearchResults(false);
-                      navigate(`/guide?med=${encodeURIComponent(item.itemName)}`);
+                      navigate('/chat');
                     }}
                   >
                     <div>
@@ -237,7 +237,7 @@ export default function MainPage({ user }) {
                       <span className="entp-label">{item.entpName}</span>
                       <p className="efficacy-label">{item.efficacy || item.desc}</p>
                     </div>
-                    <span className="view-link">상세 가이드 보기 →</span>
+                    <span className="view-link">챗봇에서 약 조회 →</span>
                   </div>
                 ))}
               </div>
@@ -573,10 +573,10 @@ export default function MainPage({ user }) {
                 className="btn-confirm"
                 onClick={() => {
                   setSelectedMedDetail(null);
-                  navigate(`/guide?med=${encodeURIComponent(selectedMedDetail.name)}`);
+                  navigate('/guide');
                 }}
               >
-                맞춤 생활 가이드 보기 →
+                내 약 관리 보기 →
               </button>
             </div>
           </div>
@@ -619,7 +619,7 @@ export default function MainPage({ user }) {
                   navigate('/guide');
                 }}
               >
-                가이드에서 전체 확인하기
+                내 약 관리에서 전체 확인하기
               </button>
             </div>
           </div>

@@ -13,4 +13,7 @@ public class MedicationChatDto {
 	private String etcOtcCode;
 	private String efficacy;
 	private String usageDosage;
+    private String ediCode;
+    private Integer isDiscontinued;
+    private String updatedAt;
 }

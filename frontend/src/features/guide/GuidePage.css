@@ -337,3 +337,48 @@
 .guide-registered-item { border: 1px solid #e2dbd0; padding: 16px; border-radius: 8px; overflow-wrap: anywhere; }
 .guide-registered-item .guide-note { margin-bottom: 0; }
 .guide-registered button { cursor: pointer; }
+
+/* 내 약 관리: 전체 목록과 개별 약 탭 */
+.my-med-header-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.my-med-header-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 9px 16px;
+  border: 1px solid #e4cdd2;
+  border-radius: 8px;
+  background: #f3e8eb;
+  color: #7d2638;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.my-med-header-actions a:hover {
+  background: #ead9de;
+  border-color: #b77b89;
+}
+.my-med-header-actions a:focus-visible {
+  outline: 2px solid #7d2638;
+  outline-offset: 3px;
+}
+.my-med-action { border: 1px solid #ded5c8; border-radius: 4px; background: #fff; color: #7d2638; padding: 8px 14px; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.my-med-action:hover:not(:disabled) { background: #f6f1ea; border-color: #7d2638; }
+.my-med-tabs { display: flex; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #ded5c8; padding-bottom: 20px; }
+.my-med-tabs .med-pill-tab { text-align: left; overflow-wrap: anywhere; max-width: 100%; }
+.my-med-overview-heading h2 { font-size: 20px; margin: 0; }
+.my-med-overview-heading h2 span { color: #7d2638; font-size: 15px; }
+.my-med-overview { display: flex; flex-direction: column; gap: 16px; }
+.my-med-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 2.5fr) auto; gap: 24px; padding: 24px; border: 1px solid #e2dbd0; background: #fff; align-items: start; }
+.my-med-row-name { overflow-wrap: anywhere; }
+.my-med-name { border: 0; padding: 0; background: none; color: #7d2638; font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; text-align: left; }
+.my-med-row-description h3 { margin: 0; font-size: 14px; }
+.my-med-row-description .guide-db-text { margin: 6px 0 16px; }
+.my-med-registrations { list-style: none; padding: 0; margin: 12px 0; }
+.my-med-registrations li { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; color: #736b63; font-size: 12px; line-height: 1.6; }
+.my-med-source { background: #ede6dc; color: #7d2638; border-radius: 4px; padding: 1px 6px; }
+.my-med-registration { padding: 20px 24px; background: #fffdf9; border: 1px solid #e2dbd0; margin-bottom: 20px; }
+.my-med-registration h2 { font-size: 20px; margin: 0; }
+@media (max-width: 760px) { .my-med-row { grid-template-columns: 1fr; gap: 16px; } .my-med-row > .my-med-action { justify-self: start; } }

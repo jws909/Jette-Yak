@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.chatbot.dao.CatalogDao">
+<sql id="durConditions">
+  <if test="tabooType != 0">AND d.taboo_type = #{tabooType}</if>
+  <if test="grade != ''">AND d.grade = #{grade}</if>
+  <if test="ageBase != ''">AND INSTR(d.age_base, #{ageBase}) &gt; 0</if>
+</sql>
+<sql id="medWhere">WHERE 1=1
+ <foreach collection="filters" item="f">AND <choose>
+ <when test="f.field == 'NAME'">INSTR(LOWER(REGEXP_REPLACE(m.item_name, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
+<when test="f.field == 'EFFICACY'">INSTR(LOWER(REGEXP_REPLACE(m.efficacy, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
+<when test="f.field == 'USAGE'">INSTR(LOWER(REGEXP_REPLACE(m.usage_dosage, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
+<when test="f.field == 'COMPANY'">INSTR(LOWER(REGEXP_REPLACE(m.entp_name, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
+<when test="f.field == 'CLASSIFICATION'">INSTR(LOWER(REGEXP_REPLACE(m.class_name, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
+<when test="f.field == 'CATEGORY'">INSTR(LOWER(REGEXP_REPLACE(m.etc_otc_code, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
+ <when test="f.field == 'INGREDIENT'">(INSTR(LOWER(REGEXP_REPLACE(m.material_name, '[[:space:]]', '')), #{f.value}) &gt; 0 OR INSTR(LOWER(REGEXP_REPLACE(REGEXP_SUBSTR(m.item_name, '\([^)]*\)'), '[[:space:]]', '')), #{f.value}) &gt; 0)</when>
+ <when test="f.field == 'CODE'">(INSTR(LOWER(REGEXP_REPLACE(m.medication_id, '[[:space:]]', '')), #{f.value}) &gt; 0 OR INSTR(LOWER(REGEXP_REPLACE(m.edi_code, '[[:space:]]', '')), #{f.value}) &gt; 0)</when>
+ <otherwise>1=0</otherwise></choose></foreach>
+ <if test="status == 'ACTIVE'">AND m.is_discontinued = 0</if>
+ <if test="status == 'DISCONTINUED'">AND m.is_discontinued = 1</if>
+ <if test="tabooType != 0 or grade != '' or ageBase != ''">AND m.medication_id IN (SELECT medication_id FROM dur_matches)</if>
+</sql>
+<sql id="durWhere">WHERE d.taboo_type IN (1,2,3,4)
+ <include refid="durConditions" />
+ <foreach collection="filters" item="f">AND <choose>
+ <when test="f.field == 'INGREDIENT'">(INSTR(LOWER(REGEXP_REPLACE(d.ingr_a_name, '[[:space:]]', '')), #{f.value}) &gt; 0 OR (d.taboo_type=4 AND INSTR(LOWER(REGEXP_REPLACE(d.ingr_b_name, '[[:space:]]', '')), #{f.value}) &gt; 0))</when>
+ <when test="f.field == 'EFFECT'">INSTR(LOWER(REGEXP_REPLACE(d.taboo_effect, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
+ <otherwise>1=0</otherwise></choose></foreach>
+</sql>
+<sql id="durMatchCte"><if test="tabooType != 0 or grade != '' or ageBase != ''">
+ WITH filtered_dur AS (SELECT /*+ MATERIALIZE */ ingr_a_name, ingr_b_name, taboo_type FROM medication_interactions d WHERE 1=1 <include refid="durConditions" />),
+ dur_keys AS (
+   SELECT LOWER(REGEXP_REPLACE(ingr_a_name, '[[:space:]]', '')) ingredient FROM filtered_dur
+   UNION SELECT LOWER(REGEXP_REPLACE(ingr_b_name, '[[:space:]]', '')) FROM filtered_dur WHERE taboo_type=4 AND ingr_b_name IS NOT NULL
+ ), med_ingredients AS (
+   SELECT /*+ MATERIALIZE */ m.medication_id, LOWER(REGEXP_REPLACE(part.ingredient, '[[:space:]]', '')) ingredient
+   FROM medications m CROSS APPLY (
+      SELECT REGEXP_SUBSTR(m.material_name, '[^/]+', 1, LEVEL) ingredient FROM dual
+      CONNECT BY LEVEL &lt;= REGEXP_COUNT(m.material_name, '/') + 1
+   ) part WHERE m.material_name IS NOT NULL
+ ), dur_matches AS (
+   SELECT DISTINCT mi.medication_id FROM med_ingredients mi JOIN dur_keys dk ON dk.ingredient=mi.ingredient
+ )
+ </if></sql>
+<select id="countMedications" parameterType="map" resultType="int" timeout="15">
+ <include refid="durMatchCte" /> SELECT COUNT(*) FROM medications m <include refid="medWhere" />
+</select>
+<select id="medications" parameterType="map" resultType="map" timeout="15">
+ <include refid="durMatchCte" /> SELECT m.medication_id AS "itemSeq", m.item_name AS "itemName", m.entp_name AS "entpName",
+ m.material_name AS "materialName", m.class_name AS "className", m.etc_otc_code AS "etcOtcCode",
+ m.efficacy AS "efficacy", m.usage_dosage AS "usageDosage", m.edi_code AS "ediCode",
+ m.is_discontinued AS "isDiscontinued", TO_CHAR(m.updated_at,'YYYY-MM-DD HH24:MI:SS') AS "updatedAt"
+ FROM medications m <include refid="medWhere" /> ORDER BY m.item_name, m.medication_id
+ OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+</select>
+<select id="countDur" parameterType="map" resultType="int" timeout="15">
+ SELECT COUNT(*) FROM (SELECT DISTINCT d.ingr_a_name AS "ingrAName", d.ingr_b_name AS "ingrBName", d.taboo_type AS "tabooType",
+ d.taboo_effect AS "tabooEffect", d.age_base AS "ageBase", d.grade AS "grade", TO_CHAR(d.updated_at,'YYYY-MM-DD HH24:MI:SS') AS "updatedAt" FROM medication_interactions d <include refid="durWhere" />)
+</select>
+<select id="dur" parameterType="map" resultType="map" timeout="15">
+ SELECT DISTINCT d.ingr_a_name AS "ingrAName", d.ingr_b_name AS "ingrBName", d.taboo_type AS "tabooType",
+ d.taboo_effect AS "tabooEffect", d.age_base AS "ageBase", d.grade AS "grade", TO_CHAR(d.updated_at,'YYYY-MM-DD HH24:MI:SS') AS "updatedAt" FROM medication_interactions d <include refid="durWhere" />
+ ORDER BY "tabooType", "ingrAName", "ingrBName", "grade", "ageBase", "tabooEffect", "updatedAt"
+ OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+</select>
+</mapper>
