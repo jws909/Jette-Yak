@@ -22,6 +22,12 @@
         WHERE login_id = #{loginId}
     </select>
 
+    <select id="findByEmail" resultType="com.app.domain.User">
+        SELECT user_id AS userId, login_id AS loginId, email, nickname
+        FROM users
+        WHERE LOWER(email) = LOWER(#{email})
+    </select>
+
     <!--
       user_id: IDENTITY 컬럼이라 생략(자동 채번)
       created_at / updated_at / push_enabled / role: DB 기본값 사용을 위해 생략
