@@ -2,41 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './MainPage.css';
 
-const PRESCRIBED_MEDICINES = [
-  {
-    id: 'm1',
-    name: '아모잘탄정 5/50mg',
-    desc: '혈압을 안정적으로 관리해요',
-    badge: '처방',
-    dotColor: '#c04b4b',
-    dosage: '1일 1회 아침 식후 30분',
-    efficacy: '본태성 고혈압 치료',
-    caution: '어지러움이 있을 수 있으니 일어날 때 천천히 움직이세요.'
-  },
-  {
-    id: 'm2',
-    name: '오메가-3',
-    desc: '식후 흡수율이 좋아요',
-    badge: '영양제',
-    dotColor: '#e09f3e',
-    dosage: '1일 1회 식후 복용',
-    efficacy: '혈중 중성지질 및 혈행 개선',
-    caution: '아스피린 등 항응고제와 함께 복용 시 출혈 경향에 유의하세요.'
-  },
-  {
-    id: 'm3',
-    name: '듀오락 골드',
-    desc: '장 건강을 위한 유익균 증식',
-    badge: '상시약',
-    dotColor: '#5c9e76',
-    dosage: '1일 1회 취침 전 1캡슐',
-    efficacy: '장내 유익균 증식 및 원활한 배변 활동',
-    caution: '항생제 복용 시 2시간 간격을 두고 복용하세요.'
-  }
-];
-
 const FALLBACK_SEARCH_LIST = [
-  ...PRESCRIBED_MEDICINES.map(m => ({ itemName: m.name, entpName: '제약사', efficacy: m.efficacy, desc: m.desc })),
   { itemName: '타이레놀정 500mg', entpName: '한국존슨앤드존슨', efficacy: '해열 및 감기로 인한 통증 완화', desc: '해열 진통제' },
   { itemName: '아스피린프로텍트정 100mg', entpName: '바이엘코리아', efficacy: '혈전 생성 억제', desc: '혈전 예방' },
   { itemName: '비타민D 1000IU', entpName: '종근당', efficacy: '뼈의 형성과 유지', desc: '면역력 및 뼈 건강' },
@@ -47,11 +13,6 @@ function fallbackSearch(keyword) {
 }
 
 const DOT_COLORS = ['#c04b4b', '#e09f3e', '#5c9e76', '#4a69bd', '#8b3e4b', '#2e86de'];
-
-const BASE_SUPPLEMENTS = [
-  { id: 'r2', time: '08:10', name: '오메가-3', dotColor: '#e09f3e', taken: true, type: '영양제' },
-  { id: 'r3', time: '21:00', name: '듀오락 골드', dotColor: '#5c9e76', taken: false, type: '상시약' },
-];
 
 function mapPrescriptionToState(prescription) {
   if (!prescription) return null;
@@ -100,7 +61,7 @@ function mapPrescriptionToState(prescription) {
           isDiscontinued: Boolean(item.isDiscontinued)
         };
       })
-    : PRESCRIBED_MEDICINES;
+    : [];
 
   return {
     prescriptionId: prescription.prescriptionId,
@@ -206,17 +167,11 @@ function getIntakeTimes(dailyFrequency, usageTiming = '', mealTimes = DEFAULT_ME
 
 function buildRoutineItems(prescribedMeds, mealTimes = DEFAULT_MEAL_TIMES) {
   if (!prescribedMeds || prescribedMeds.length === 0) {
-    return [
-      { id: 'r1', time: addMinutes(mealTimes.breakfast || '07:30', 30), name: '아모잘탄정 5/50mg', dotColor: '#c04b4b', taken: false, type: '처방' },
-      ...BASE_SUPPLEMENTS
-    ];
+    return [];
   }
 
-  // 영양제/상시약이 아닌 처방약만 필터링하여 일별 복약 시간 슬롯 생성
-  const prescriptionOnly = prescribedMeds.filter(m => !m.badge || m.badge === '처방');
   const rxRoutines = [];
-
-  prescriptionOnly.forEach((med, medIdx) => {
+  prescribedMeds.forEach((med, medIdx) => {
     const times = getIntakeTimes(med.dailyFrequency, med.usageTiming || med.dosage || med.desc, mealTimes);
     times.forEach((t, timeIdx) => {
       rxRoutines.push({
@@ -225,28 +180,26 @@ function buildRoutineItems(prescribedMeds, mealTimes = DEFAULT_MEAL_TIMES) {
         name: med.name,
         dotColor: med.dotColor || DOT_COLORS[medIdx % DOT_COLORS.length],
         taken: false,
-        type: '처방',
+        type: med.badge || '처방',
         orderIndex: medIdx
       });
     });
   });
 
-  const combined = [...rxRoutines, ...BASE_SUPPLEMENTS];
-  // 시간 순(08:00 -> 08:10 -> 12:30 -> 19:00 -> 21:00) 정렬 (동일 시간대는 약품 순서 유지)
-  combined.sort((a, b) => {
+  rxRoutines.sort((a, b) => {
     const cmp = (a.time || '').localeCompare(b.time || '');
     if (cmp !== 0) return cmp;
     return (a.orderIndex ?? 99) - (b.orderIndex ?? 99);
   });
 
-  return combined;
+  return rxRoutines;
 }
 
 export default function MainPage({ user }) {
   const navigate = useNavigate();
 
-  // 처방전 데이터 및 등록 여부 상태 (와이어프레임 [처방전 등록 전] vs [처방전 등록 후])
-  const [hasPrescription, setHasPrescription] = useState(true);
+  // 처방전 데이터 및 등록 여부 상태 (DB 조회 결과에 따라 실시간 반영)
+  const [hasPrescription, setHasPrescription] = useState(false);
   const [prescriptionData, setPrescriptionData] = useState(null);
 
   // 처방전 업로드 모달 상태
@@ -268,12 +221,8 @@ export default function MainPage({ user }) {
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
 
-  // 오늘의 복약 루틴 리스트 (다크 테마 영역)
-  const [routineItems, setRoutineItems] = useState([
-    { id: 'r1', time: '08:00', name: '아모잘탄정 5/50mg', dotColor: '#c04b4b', taken: false, type: '처방' },
-    { id: 'r2', time: '08:10', name: '오메가-3', dotColor: '#e09f3e', taken: true, type: '영양제' },
-    { id: 'r3', time: '21:00', name: '듀오락 골드', dotColor: '#5c9e76', taken: false, type: '상시약' },
-  ]);
+  // 오늘의 복약 루틴 리스트 (DB 처방 데이터 기반 생성)
+  const [routineItems, setRoutineItems] = useState([]);
 
   // 사용자별 식사 및 취침 기준 시간 상태 (기본값: 아침 07:30, 점심 12:00, 저녁 18:30, 취침 22:00)
   const [mealTimes, setMealTimes] = useState(() => {
@@ -289,8 +238,8 @@ export default function MainPage({ user }) {
   const [tempMealTimes, setTempMealTimes] = useState(DEFAULT_MEAL_TIMES);
   const [isSavingMealTimes, setIsSavingMealTimes] = useState(false);
 
-  // 활성화된 처방약 목록 (DB 등록된 데이터 또는 기본 샘플)
-  const activeMedList = prescriptionData?.items || PRESCRIBED_MEDICINES;
+  // 활성화된 처방약 목록 (DB 등록된 데이터만 표시)
+  const activeMedList = prescriptionData?.items || [];
 
   // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
   useEffect(() => {
@@ -315,25 +264,50 @@ export default function MainPage({ user }) {
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
   }, [user?.userId]);
 
-  // 컴포넌트 마운트 시 최신 처방전 DB 조회
+  // 컴포넌트 마운트 및 user.userId 변경 시 최신 처방전 DB 조회
   useEffect(() => {
     let isMounted = true;
     async function fetchLatest() {
+      const userId = user?.userId;
+      if (!userId) {
+        if (isMounted) {
+          setPrescriptionData(null);
+          setRoutineItems([]);
+          setHasPrescription(false);
+        }
+        return;
+      }
+
       try {
-        const userId = user?.userId || 1;
         const res = await fetch(`/api/prescriptions/latest?userId=${userId}`);
         if (res.ok) {
           const data = await res.json();
-          if (isMounted && data.success && data.found && data.prescription) {
-            const mapped = mapPrescriptionToState(data.prescription);
-            setPrescriptionData(mapped);
-            setRoutineItems(buildRoutineItems(mapped.items, mealTimes));
-            setHasPrescription(true);
+          if (isMounted) {
+            if (data.success && data.found && data.prescription) {
+              const mapped = mapPrescriptionToState(data.prescription);
+              setPrescriptionData(mapped);
+              setRoutineItems(buildRoutineItems(mapped.items, mealTimes));
+              setHasPrescription(true);
+            } else {
+              setPrescriptionData(null);
+              setRoutineItems([]);
+              setHasPrescription(false);
+            }
+          }
+        } else {
+          if (isMounted) {
+            setPrescriptionData(null);
+            setRoutineItems([]);
+            setHasPrescription(false);
           }
         }
       } catch (err) {
-        // 백엔드 미구동 환경에서는 초기 기본 화면 유지
-        console.warn('최근 처방전 로드 대기:', err);
+        console.warn('최근 처방전 로드 실패:', err);
+        if (isMounted) {
+          setPrescriptionData(null);
+          setRoutineItems([]);
+          setHasPrescription(false);
+        }
       }
     }
     fetchLatest();
@@ -344,8 +318,11 @@ export default function MainPage({ user }) {
 
   // 식사 시간이나 처방 데이터 변경 시 복약 루틴 알림 시간 재계산
   useEffect(() => {
-    const meds = prescriptionData?.items || PRESCRIBED_MEDICINES;
-    setRoutineItems(buildRoutineItems(meds, mealTimes));
+    if (prescriptionData?.items && prescriptionData.items.length > 0) {
+      setRoutineItems(buildRoutineItems(prescriptionData.items, mealTimes));
+    } else {
+      setRoutineItems([]);
+    }
   }, [mealTimes, prescriptionData]);
 
   // 식사 시간 저장 핸들러
@@ -395,11 +372,8 @@ export default function MainPage({ user }) {
     );
   };
 
-  // 처방전 등록 전에는 상시약/영양제만 표시 (와이어프레임 명세), 등록 후에는 전체 처방약 포함
-  const activeRoutineList = hasPrescription
-    ? routineItems
-    : routineItems.filter(item => item.type !== '처방');
-
+  // DB에 등록된 활성 복약 루틴 리스트
+  const activeRoutineList = routineItems;
   const takenCount = activeRoutineList.filter((i) => i.taken).length;
   const totalCount = activeRoutineList.length;
 
@@ -581,52 +555,30 @@ export default function MainPage({ user }) {
           closeUploadModal();
           alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
           return;
-        }
+        }        throw new Error(data.message || '처방전 처리 응답 오류');
       }
       throw new Error('처방전 처리 응답 오류');
     } catch (err) {
-      console.warn('처방전 분석 백엔드 연동:', err);
-      // 백엔드 미구동 또는 네트워크 환경에서의 폴백
-      setHasPrescription(true);
-      closeUploadModal();
-      alert('처방전 분석이 성공적으로 완료되었습니다!\n(로컬 샘플 처방 정보가 메인에 반영되었습니다.)');
+      console.warn('처방전 분석 오류:', err);
+      alert('처방전 분석 및 저장에 실패했습니다. 사진 파일 상태를 확인하고 다시 시도해 주세요.');
     } finally {
       setIsAnalyzing(false);
     }
   };
 
+  const today = new Date();
+  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
+  const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+  const greetingDateStr = `${dayNames[today.getDay()]}, ${today.getDate()} ${monthNames[today.getMonth()]}`;
+  const routineDateBadge = `${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+
   return (
     <div className="main-page-wrapper">
-      {/* 상태 시연용 상단 툴바 (와이어프레임의 처방전 등록 전/후 상태 비교용) */}
-      <div className="state-switcher-banner">
-        <div className="state-switcher-content">
-          <span className="state-tip">
-            <strong>와이어프레임 뷰 모드:</strong> {hasPrescription ? '처방전 등록 후 (메인.png)' : '처방전 등록 전 (메인,navbar,sidebar.jpg)'}
-          </span>
-          <div className="state-buttons">
-            <button
-              type="button"
-              className={`state-btn ${!hasPrescription ? 'active' : ''}`}
-              onClick={() => setHasPrescription(false)}
-            >
-              처방전 등록 전 화면
-            </button>
-            <button
-              type="button"
-              className={`state-btn ${hasPrescription ? 'active' : ''}`}
-              onClick={() => setHasPrescription(true)}
-            >
-              처방전 등록 후 화면
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 1. 상단 인사말 영역 (메인.png 헤더) */}
+      {/* 1. 상단 인사말 영역 */}
       <header className="main-greeting-header">
-        <span className="greeting-date">MONDAY, 14 SEPTEMBER</span>
+        <span className="greeting-date">{greetingDateStr}</span>
         <h1 className="greeting-title">
-          안녕하세요, <span className="user-highlight">{user?.name || '김메디'}</span>님.
+          안녕하세요, <span className="user-highlight">{user?.name || user?.username || '사용자'}</span>님.
         </h1>
         <p className="greeting-subtitle">오늘도 몸의 이야기에 귀 기울여 볼까요?</p>
       </header>
@@ -737,16 +689,16 @@ export default function MainPage({ user }) {
             <div className="summary-col-left">
               <span className="summary-meta-label">PRESCRIPTION SUMMARY</span>
               <h2 className="summary-date-title">
-                {prescriptionData ? `${prescriptionData.dispensedDate} 발급 처방전` : '2026.09.12 발급 처방전'}
+                {prescriptionData?.dispensedDate ? `${prescriptionData.dispensedDate} 발급 처방전` : '최신 발급 처방전'}
               </h2>
               <span className="summary-hospital-info">
-                {prescriptionData ? `${prescriptionData.hospitalName} · ${prescriptionData.doctorName}` : '서울마음내과 · 김도현 원장'}
+                {prescriptionData?.hospitalName || '의료기관'} · {prescriptionData?.doctorName || '처방의'}
               </span>
             </div>
 
             <div className="summary-stats-group">
               <div className="stat-unit">
-                <span className="stat-number">{prescriptionData ? prescriptionData.totalDays : 14}</span>
+                <span className="stat-number">{prescriptionData?.totalDays || 0}</span>
                 <span className="stat-label">총 복용 일수</span>
               </div>
               <div className="stat-divider" />
@@ -860,7 +812,13 @@ export default function MainPage({ user }) {
                     </svg>
                   </div>
                   <p className="note-alert-text">
-                    <strong>오메가-3</strong>와 <strong>아스피린</strong>을 함께 복용 중이라면 <u>출혈 위험</u>이 높아질 수 있어요.
+                    {prescriptionData?.items && prescriptionData.items.length > 0 ? (
+                      <>
+                        <strong>{prescriptionData.items[0].name}</strong> 등 처방된 약품의 정해진 용법과 복용 시간을 준수하세요.
+                      </>
+                    ) : (
+                      <>처방된 약품의 정해진 용법과 복용 시간을 준수하세요.</>
+                    )}
                   </p>
                 </div>
               )}
@@ -884,7 +842,7 @@ export default function MainPage({ user }) {
         <div className="routine-header-row">
           <span className="routine-label">TODAY'S ROUTINE</span>
           <div className="routine-header-actions">
-            <span className="routine-date-badge">09.14</span>
+            <span className="routine-date-badge">{routineDateBadge}</span>
             <button
               type="button"
               className="meal-setting-btn"
@@ -904,37 +862,61 @@ export default function MainPage({ user }) {
             오늘의 복용 <span className="taken-highlight">{takenCount}</span>/{totalCount}
           </h3>
           <span className="routine-rate-tip">
-            {takenCount === totalCount ? '🎉 오늘 모든 복약을 완료했습니다!' : '복용 후 체크박스를 눌러 완료하세요'}
+            {totalCount === 0
+              ? '처방전을 등록하시면 복약 루틴이 생성됩니다'
+              : takenCount === totalCount
+              ? '🎉 오늘 모든 복약을 완료했습니다!'
+              : '복용 후 체크박스를 눌러 완료하세요'}
           </span>
         </div>
 
         {/* 체크리스트 항목들 */}
         <div className="routine-items-list">
-          {activeRoutineList.map((item) => (
-            <div
-              key={item.id}
-              className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
-              onClick={() => toggleRoutine(item.id)}
-            >
-              <div className="routine-item-left">
-                {/* 커스텀 체크박스 */}
-                <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
-                  {item.taken && (
-                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                    </svg>
-                  )}
+          {activeRoutineList.length === 0 ? (
+            <div className="routine-empty-box">
+              <div className="routine-empty-icon">📋</div>
+              <p className="routine-empty-text">
+                {hasPrescription
+                  ? '등록된 복약 일정이 없습니다.'
+                  : '처방전을 등록하시면 1일 복용 횟수와 식사 시간에 맞춰 오늘의 복약 루틴이 자동으로 계산되어 등록됩니다.'}
+              </p>
+              {!hasPrescription && (
+                <button
+                  type="button"
+                  className="routine-empty-cta-btn"
+                  onClick={openUploadModal}
+                >
+                  처방전 등록하고 시작하기 →
+                </button>
+              )}
+            </div>
+          ) : (
+            activeRoutineList.map((item) => (
+              <div
+                key={item.id}
+                className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
+                onClick={() => toggleRoutine(item.id)}
+              >
+                <div className="routine-item-left">
+                  {/* 커스텀 체크박스 */}
+                  <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
+                    {item.taken && (
+                      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
+                      </svg>
+                    )}
+                  </div>
+
+                  <span className="routine-time">{item.time}</span>
+                  <span className="routine-name">{item.name}</span>
                 </div>
 
-                <span className="routine-time">{item.time}</span>
-                <span className="routine-name">{item.name}</span>
+                <div className="routine-item-right">
+                  <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
+                </div>
               </div>
-
-              <div className="routine-item-right">
-                <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
 
         {/* 복약 기록 전체 보기 버튼 (와이어프레임 캘린더 연동) */}
@@ -1167,17 +1149,25 @@ export default function MainPage({ user }) {
             </div>
 
             <div className="caution-modal-body">
-              <div className="caution-summary-card">
-                <strong>오메가-3 × 아스피린 (항응고제)</strong>
-                <p>오메가-3(EPA/DHA)와 아스피린을 병용할 경우 지혈 지연 및 멍이나 출혈 위험이 증가할 수 있습니다.</p>
-              </div>
+              {prescriptionData?.hasDiscontinuedDrug === 1 && (
+                <div className="caution-summary-card" style={{ borderColor: '#e5a7ad', background: '#fff8f8' }}>
+                  <strong style={{ color: '#c04b4b' }}>⚠️ 판매중단 또는 주의 대상 의약품 포함</strong>
+                  <p>처방전에 판매중단 또는 재검토 대상 의약품이 포함되어 있습니다. 복용 전 반드시 처방의료진과 재확인하세요.</p>
+                </div>
+              )}
 
               <div className="caution-guidance">
-                <h4>의료진 권고사항:</h4>
+                <h4>처방 약품별 주의사항 및 복용 안내:</h4>
                 <ul>
-                  <li>수술이나 치과 치료 예정이 있는 경우 1~2주 전 주치의에게 병용 사실을 알리세요.</li>
-                  <li>잇몸 출혈, 코피, 멍이 평소보다 쉽게 생기는지 모니터링하세요.</li>
-                  <li>복용 시간대를 오전/저녁으로 분리하거나 전문가와 상담하여 복용량을 조절하세요.</li>
+                  {prescriptionData?.items && prescriptionData.items.length > 0 ? (
+                    prescriptionData.items.map((item, idx) => (
+                      <li key={idx}>
+                        <strong>{item.name}:</strong> {item.caution || '정해진 용법과 용량을 준수하여 복용하세요.'} ({item.dosage})
+                      </li>
+                    ))
+                  ) : (
+                    <li>등록된 처방 의약품의 개별 복용 주의사항을 확인하세요.</li>
+                  )}
                 </ul>
               </div>
             </div>

@@ -1651,3 +1651,51 @@
   gap: 10px;
 }
 
+/* 루틴 비어있을 때 다크 테마 박스 */
+.routine-empty-box {
+  padding: 36px 20px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  margin: 12px 0 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.routine-empty-icon {
+  font-size: 28px;
+  opacity: 0.7;
+}
+
+.routine-empty-text {
+  margin: 0;
+  font-size: 13.5px;
+  color: #c4bbb0;
+  line-height: 1.5;
+  max-width: 440px;
+}
+
+.routine-empty-cta-btn {
+  background: #8b3e4b;
+  border: 1px solid #8b3e4b;
+  border-radius: 20px;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 22px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.35);
+  margin-top: 4px;
+}
+
+.routine-empty-cta-btn:hover {
+  background: #732f3c;
+  border-color: #732f3c;
+  transform: translateY(-1px);
+}
+
+
