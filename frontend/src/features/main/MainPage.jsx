@@ -357,7 +357,7 @@ export default function MainPage({ user }) {
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
     if (!uploadFile) {
-      alert('처방전 파일을 선택하거나 샘플 처방전을 선택해 주세요.');
+      alert('처방전 사진 또는 스캔본 파일을 선택해 주세요.');
       return;
     }
     setIsAnalyzing(true);
@@ -367,13 +367,7 @@ export default function MainPage({ user }) {
       const finalFile = await getTransformedFile(uploadFile, rotation, isFlipped);
 
       const formData = new FormData();
-      if (finalFile instanceof File) {
-        formData.append('file', finalFile);
-      } else {
-        // 샘플 프리셋 선택 시 가상 이미지 Blob 생성하여 전송
-        const sampleBlob = new Blob(['sample-prescription-content'], { type: 'image/jpeg' });
-        formData.append('file', sampleBlob, uploadFile.name || 'prescription_sample.jpg');
-      }
+      formData.append('file', finalFile);
       formData.append('userId', user?.userId || 1);
 
       const res = await fetch('/api/prescriptions/upload', {
@@ -519,13 +513,22 @@ export default function MainPage({ user }) {
             </div>
             <h2 className="empty-title">처방전을 등록해주세요.</h2>
             <p className="empty-subtitle">처방전 등록시 복용 일정과 성분을 자동으로 분석해 드립니다.</p>
-            <button
-              type="button"
-              className="prescription-upload-btn"
-              onClick={openUploadModal}
-            >
-              처방전 업로드 <span className="btn-arrow">→</span>
-            </button>
+            <div className="empty-actions-row">
+              <button
+                type="button"
+                className="prescription-upload-btn"
+                onClick={openUploadModal}
+              >
+                처방전 등록 <span className="btn-arrow">→</span>
+              </button>
+              <button
+                type="button"
+                className="guide-register-btn"
+                onClick={() => navigate('/guide')}
+              >
+                내 약 관리 등록 <span className="btn-arrow">→</span>
+              </button>
+            </div>
           </div>
         </section>
       ) : (
@@ -564,6 +567,13 @@ export default function MainPage({ user }) {
                 onClick={openUploadModal}
               >
                 새 처방전 등록
+              </button>
+              <button
+                type="button"
+                className="summary-guide-btn"
+                onClick={() => navigate('/guide')}
+              >
+                내 약 관리 등록 →
               </button>
             </div>
           </section>
@@ -861,25 +871,6 @@ export default function MainPage({ user }) {
                 </div>
               )}
 
-              <div className="sample-presets">
-                <span className="preset-title">또는 샘플 처방전으로 즉시 테스트:</span>
-                <button
-                  type="button"
-                  className="preset-pill"
-                  onClick={() => {
-                    if (previewUrl) {
-                      URL.revokeObjectURL(previewUrl);
-                      setPreviewUrl(null);
-                    }
-                    setUploadFile({ name: '서울마음내과_20260912_처방전.jpg' });
-                    setRotation(0);
-                    setIsFlipped(false);
-                  }}
-                >
-                  📄 서울마음내과 처방전 샘플
-                </button>
-              </div>
-
               {isAnalyzing && (
                 <div className="analyzing-progress">
                   <div className="progress-spinner" />
@@ -890,7 +881,7 @@ export default function MainPage({ user }) {
               <div className="modal-foot">
                 <button
                   type="button"
-                  className="btn-cancel"
+                  className="btn-cancel modal-cancel-btn"
                   disabled={isAnalyzing}
                   onClick={closeUploadModal}
                 >
@@ -898,7 +889,7 @@ export default function MainPage({ user }) {
                 </button>
                 <button
                   type="submit"
-                  className="btn-confirm"
+                  className="btn-confirm modal-confirm-btn"
                   disabled={isAnalyzing}
                 >
                   {isAnalyzing ? '분석 중...' : '분석 및 등록 완료'}
@@ -942,7 +933,7 @@ export default function MainPage({ user }) {
             <div className="modal-foot">
               <button
                 type="button"
-                className="btn-confirm"
+                className="btn-confirm modal-confirm-btn"
                 onClick={() => {
                   setSelectedMedDetail(null);
                   navigate('/guide');
@@ -985,7 +976,7 @@ export default function MainPage({ user }) {
             <div className="modal-foot">
               <button
                 type="button"
-                className="btn-confirm"
+                className="btn-confirm modal-confirm-btn"
                 onClick={() => {
                   setIsCautionModalOpen(false);
                   navigate('/guide');

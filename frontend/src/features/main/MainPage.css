@@ -12,10 +12,11 @@
    상태 전환 배너 (와이어프레임 기획 확인용 편의 기능)
    -------------------------------------------------------------------------- */
 .state-switcher-banner {
-  background: #ede6dc;
-  border: 1px dashed #c9bfb0;
+  background: #f5eee6;
+  border: 1.5px solid #dcd1c2;
   border-radius: 8px;
-  padding: 8px 16px;
+  padding: 10px 18px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
 }
 
 .state-switcher-content {
@@ -27,12 +28,14 @@
 }
 
 .state-tip {
-  font-size: 12.5px;
-  color: #5c524a;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3f362f;
 }
 
 .state-tip strong {
   color: #8b3e4b;
+  font-weight: 700;
 }
 
 .state-buttons {
@@ -42,26 +45,30 @@
 
 .state-btn {
   background: #ffffff;
-  border: 1px solid #d4cab9;
+  border: 1.5px solid #9c8e82;
   border-radius: 6px;
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #635b54;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2b2523;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .state-btn:hover {
-  background: #f7f3ed;
+  background: #8b3e4b;
   border-color: #8b3e4b;
-  color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.25);
 }
 
 .state-btn.active {
   background: #8b3e4b;
   border-color: #8b3e4b;
   color: #ffffff;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.35);
 }
 
 /* --------------------------------------------------------------------------
@@ -290,32 +297,65 @@
 }
 
 .empty-subtitle {
-  margin: 0 0 28px;
+  margin: 0 0 16px;
   font-size: 14.5px;
   color: #787067;
   line-height: 1.5;
 }
 
+.empty-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
 .prescription-upload-btn {
   background-color: #8b3e4b;
   color: #ffffff;
-  border: none;
+  border: 1.5px solid #8b3e4b;
   border-radius: 8px;
-  padding: 13px 28px;
-  font-size: 15px;
-  font-weight: 600;
+  padding: 12px 24px;
+  font-size: 14.5px;
+  font-weight: 700;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.25);
+  box-shadow: 0 3px 12px rgba(139, 62, 75, 0.25);
   transition: all 0.2s ease;
 }
 
 .prescription-upload-btn:hover {
   background-color: #732f3c;
+  border-color: #732f3c;
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(139, 62, 75, 0.35);
+}
+
+.guide-register-btn {
+  background-color: #ffffff;
+  color: #8b3e4b;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.1);
+  transition: all 0.2s ease;
+}
+
+.guide-register-btn:hover {
+  background-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 16px rgba(139, 62, 75, 0.3);
 }
 
 .btn-arrow {
@@ -323,7 +363,8 @@
   transition: transform 0.2s ease;
 }
 
-.prescription-upload-btn:hover .btn-arrow {
+.prescription-upload-btn:hover .btn-arrow,
+.guide-register-btn:hover .btn-arrow {
   transform: translateX(4px);
 }
 
@@ -404,25 +445,51 @@
 }
 
 .summary-col-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
 .new-prescription-btn {
   background: #ffffff;
-  border: 1px solid #d5cbbe;
+  border: 1.5px solid #8b3e4b;
   border-radius: 6px;
-  padding: 10px 18px;
+  padding: 9px 18px;
   font-size: 13.5px;
-  font-weight: 600;
-  color: #4a413a;
+  font-weight: 700;
+  color: #8b3e4b;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.08);
 }
 
 .new-prescription-btn:hover {
-  background: #faf6f0;
-  border-color: #8b3e4b;
-  color: #8b3e4b;
+  background: #8b3e4b;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.25);
+  transform: translateY(-1px);
+}
+
+.summary-guide-btn {
+  background: #8b3e4b;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.2);
+}
+
+.summary-guide-btn:hover {
+  background: #732f3c;
+  border-color: #732f3c;
+  box-shadow: 0 4px 12px rgba(139, 62, 75, 0.35);
+  transform: translateY(-1px);
 }
 
 /* --------------------------------------------------------------------------
@@ -476,18 +543,27 @@
 }
 
 .card-link-action {
-  background: none;
-  border: none;
+  background: #fdfaf6;
+  border: 1.5px solid #d4c6b5;
+  border-radius: 6px;
   font-size: 12.5px;
-  font-weight: 600;
-  color: #8c8278;
+  font-weight: 700;
+  color: #8b3e4b;
   cursor: pointer;
-  padding: 4px 0;
-  transition: color 0.15s ease;
+  padding: 5px 12px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .card-link-action:hover {
-  color: #8b3e4b;
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.25);
 }
 
 .meds-list-divider {
@@ -655,19 +731,27 @@
 }
 
 .note-detail-btn {
-  background: none;
-  border: none;
+  background: #fdfaf6;
+  border: 1.5px solid #d4c6b5;
+  border-radius: 6px;
   font-size: 13px;
   font-weight: 700;
   color: #8b3e4b;
   cursor: pointer;
-  padding: 4px 0;
-  transition: opacity 0.15s ease;
+  padding: 6px 14px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .note-detail-btn:hover {
-  opacity: 0.8;
-  text-decoration: underline;
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.25);
 }
 
 /* --------------------------------------------------------------------------
@@ -820,24 +904,27 @@
 }
 
 .view-all-records-btn {
-  background-color: transparent;
-  border: 1px solid #443e3c;
+  background-color: #35302e;
+  border: 1.5px solid #635b57;
   border-radius: 6px;
-  color: #c7beaf;
+  color: #f0eae1;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 700;
   padding: 10px 28px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
 }
 
 .view-all-records-btn:hover {
   border-color: #8b3e4b;
   color: #ffffff;
-  background-color: rgba(139, 62, 75, 0.15);
+  background-color: #8b3e4b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 62, 75, 0.35);
 }
 
 .arrow-left {
@@ -913,35 +1000,72 @@
 .modal-foot {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   padding: 16px 24px;
   background: #faf7f2;
   border-top: 1px solid #eee5da;
 }
 
-.btn-cancel {
+.modal-foot .btn-cancel,
+.modal-foot .modal-cancel-btn {
   background: #ffffff;
-  border: 1px solid #ded6c9;
-  border-radius: 6px;
-  padding: 8px 16px;
-  font-size: 13.5px;
-  color: #635b54;
-  cursor: pointer;
-}
-
-.btn-confirm {
-  background: #8b3e4b;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 8px 20px;
+  border: 1.5px solid #c7bcae;
+  border-radius: 24px;
+  padding: 9px 20px;
   font-size: 13.5px;
   font-weight: 600;
+  color: #4a3f35;
   cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1.4;
 }
 
-.btn-confirm:hover {
-  background: #732f3c;
+.modal-foot .btn-cancel:hover:not(:disabled),
+.modal-foot .modal-cancel-btn:hover:not(:disabled) {
+  background: #f7f3ed;
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+}
+
+.modal-foot .btn-confirm,
+.modal-foot .modal-confirm-btn,
+.modal-content-box .btn-confirm,
+.btn-confirm {
+  background: #8b3e4b !important;
+  color: #ffffff !important;
+  border: 1.5px solid #8b3e4b !important;
+  border-radius: 24px !important;
+  padding: 9px 26px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.25) !important;
+  line-height: 1.4 !important;
+  text-decoration: none !important;
+}
+
+.modal-foot .btn-confirm:hover:not(:disabled),
+.modal-foot .modal-confirm-btn:hover:not(:disabled),
+.modal-content-box .btn-confirm:hover:not(:disabled),
+.btn-confirm:hover:not(:disabled) {
+  background: #732f3c !important;
+  border-color: #732f3c !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.35) !important;
+}
+
+.modal-foot .btn-confirm:disabled,
+.modal-foot .modal-confirm-btn:disabled,
+.btn-confirm:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
 }
 
 /* 업로드 모달 */
@@ -1113,15 +1237,16 @@
   align-items: center;
   gap: 5px;
   background: #ffffff;
-  border: 1px solid #ded6c9;
+  border: 1.5px solid #c9bfb0;
   border-radius: 6px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   font-size: 12.5px;
-  font-weight: 600;
-  color: #4a413a;
+  font-weight: 700;
+  color: #3b322c;
   cursor: pointer;
   transition: all 0.15s ease;
   user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .tool-btn:hover:not(:disabled) {
@@ -1163,34 +1288,6 @@
   font-size: 11.5px;
   color: #787067;
   text-align: center;
-}
-
-.sample-presets {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.preset-title {
-  font-size: 12px;
-  color: #787067;
-}
-
-.preset-pill {
-  background: #fdfbf8;
-  border: 1px solid #dfd7cb;
-  border-radius: 6px;
-  padding: 8px 12px;
-  font-size: 13px;
-  color: #4f4741;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.preset-pill:hover {
-  border-color: #8b3e4b;
-  background: #fffdfa;
 }
 
 .analyzing-progress {
@@ -1311,8 +1408,13 @@
   .prescription-summary-card {
     flex-direction: column;
     align-items: flex-start;
+    gap: 18px;
   }
   .summary-stats-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .summary-col-right {
     width: 100%;
     justify-content: flex-start;
   }
@@ -1321,6 +1423,25 @@
 @media (max-width: 600px) {
   .greeting-title {
     font-size: 26px;
+  }
+  .empty-actions-row {
+    flex-direction: column;
+    width: 100%;
+  }
+  .prescription-upload-btn,
+  .guide-register-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .summary-col-right {
+    flex-direction: column;
+    width: 100%;
+  }
+  .new-prescription-btn,
+  .summary-guide-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
   }
   .today-routine-dark-card {
     padding: 20px 16px;
