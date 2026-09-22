@@ -83,6 +83,9 @@
             NVL(m.item_name, '처방약품') AS itemName,
             m.edi_code AS ediCode,
             m.class_name AS className,
+            m.material_name AS materialName,
+            m.efficacy AS efficacy,
+            m.usage_dosage AS usageDosage,
             m.is_discontinued AS isDiscontinued
         FROM prescription_items pi
         LEFT JOIN medications m ON pi.medication_id = m.medication_id

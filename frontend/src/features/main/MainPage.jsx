@@ -46,23 +46,35 @@ function mapPrescriptionToState(prescription) {
         const freq = Number(item.dailyFrequency) || 1;
         const dose = item.dailyDose != null ? item.dailyDose : 1;
         const timing = item.usageTiming || '식후 복용';
+        const className = item.className || '';
+        const materialName = item.materialName || '';
+        const efficacy = item.efficacy || className || '전문의 처방 의약품';
+        const usageDosage = item.usageDosage || `1일 ${freq}회 · 1회 ${dose}정 (${timing})`;
+        const isDiscontinued = Boolean(item.isDiscontinued);
+
         return {
           id: item.itemId ? `rx-${item.itemId}` : `rx-${idx}`,
           name: item.itemName || '처방 의약품',
-          desc: item.className ? `${item.className} · ${timing}` : (timing || '식후 30분 복용'),
+          desc: className ? `${className} · ${timing}` : (timing || '식후 30분 복용'),
           badge: '처방',
           dotColor: DOT_COLORS[idx % DOT_COLORS.length],
-          dosage: `1일 ${freq}회 · 1회 ${dose}정 (${timing})`,
+          dosage: usageDosage,
           dailyFrequency: freq,
           dailyDose: dose,
           totalDays: item.totalDays || prescription.totalDays || 14,
           usageTiming: timing,
-          efficacy: item.className || '전문의 처방 의약품',
-          caution: item.isDiscontinued
-            ? '[주의] 판매중단 또는 재검토 대상 의약품입니다. 복용 전 의료진과 상담하세요.'
-            : '정해진 용법과 용량을 준수하여 복용하세요.',
+          efficacy: efficacy,
+          usageDosage: usageDosage,
+          materialName: materialName,
+          className: className,
+          caution: getMedicineCaution({
+            isDiscontinued,
+            className,
+            name: item.itemName,
+            materialName
+          }),
           timing: timing,
-          isDiscontinued: Boolean(item.isDiscontinued)
+          isDiscontinued: isDiscontinued
         };
       })
     : [];
@@ -75,6 +87,166 @@ function mapPrescriptionToState(prescription) {
     totalDays: prescription.totalDays || 14,
     hasDiscontinuedDrug: prescription.hasDiscontinuedDrug,
     items: items
+  };
+}
+
+// 효능군 및 약품명 기반 스마트 복약 주의사항 룰 매칭 (DB null 대응 및 Fallback)
+function getMedicineCaution(item) {
+  if (item.isDiscontinued) {
+    return '[주의] 판매중단 또는 재검토 대상 의약품입니다. 복용 전 의료진과 다시 확인하세요.';
+  }
+
+  const keyword = `${item.className || ''} ${item.name || item.itemName || ''} ${item.materialName || ''}`;
+
+  if (keyword.includes('혈압') || keyword.includes('암로디핀') || keyword.includes('아모잘탄') || keyword.includes('발사르탄')) {
+    return '매일 일정한 시간에 복용하세요. 복용 초기 기립성 저혈압(어지러움)이 나타날 수 있으니 천천히 일어나세요.';
+  }
+  if (keyword.includes('진통') || keyword.includes('소염') || keyword.includes('해열') || keyword.includes('아세트아미노펜') || keyword.includes('이부프로펜')) {
+    return '위장 장애를 예방하기 위해 공복을 피하고 식후에 충분한 물과 함께 복용하세요. 복용 기간 중 음주는 절대 금지됩니다.';
+  }
+  if (keyword.includes('항생') || keyword.includes('항균') || keyword.includes('세파') || keyword.includes('아목시')) {
+    return '증상이 나아지더라도 균의 내성을 방지하기 위해 처방받은 기간 동안 끝까지 복용을 완료해야 합니다.';
+  }
+  if (keyword.includes('알레르기') || keyword.includes('항히스타민') || keyword.includes('비염') || keyword.includes('감기')) {
+    return '졸음이나 나른함이 나타날 수 있으므로 운전이나 위험한 기계 조작 시 각별한 주의가 필요합니다.';
+  }
+  if (keyword.includes('소화') || keyword.includes('위장') || keyword.includes('궤양') || keyword.includes('제산')) {
+    return '위 점막 보호를 위해 카페인, 탄산음료, 자극적인 매운 음식의 섭취를 삼가고 지정된 복용법을 따르세요.';
+  }
+  if (keyword.includes('탈모') || keyword.includes('피나') || keyword.includes('두타')) {
+    return '가임기 여성의 정제 파편 접촉을 금하며, 매일 일정한 시간에 꾸준히 지속적으로 복용하세요.';
+  }
+  if (keyword.includes('당뇨') || keyword.includes('혈당') || keyword.includes('메트포르민')) {
+    return '식사를 거르지 마시고, 저혈당 증상(식은땀, 손떨림, 어지러움) 발생에 대비해 사탕 등 당분을 휴대하세요.';
+  }
+  if (keyword.includes('취침') || keyword.includes('수면') || keyword.includes('진정')) {
+    return '취침 직전에 복용하시고, 복용 후에는 알코올 섭취를 절대 피하세요.';
+  }
+
+  return '정해진 용법과 용량을 준수하여 충분한 물과 함께 복용하세요. 임의로 복용을 중단하지 마세요.';
+}
+
+// '복용 전, 잠깐만요 (MEDICATION NOTE)' 맞춤형 체크포인트 생성 엔진 (API 비용 0원, 0ms 실시간 분석)
+function generateMedicationNotes(prescriptionData) {
+  if (!prescriptionData || !prescriptionData.items || prescriptionData.items.length === 0) {
+    return {
+      hasDiscontinued: false,
+      badgeText: '기본 수칙',
+      badgeType: 'safe',
+      points: [
+        {
+          icon: '💡',
+          category: '복약 수칙 안내',
+          text: '등록된 처방 의약품이 없습니다. 처방전을 등록하시면 약품별 맞춤 복용 주의사항이 자동으로 계산되어 안내됩니다.'
+        }
+      ]
+    };
+  }
+
+  const items = prescriptionData.items;
+  const hasDiscontinued = prescriptionData.hasDiscontinuedDrug === 1 || items.some((i) => i.isDiscontinued);
+  const discontinuedItem = items.find((i) => i.isDiscontinued);
+
+  const points = [];
+
+  // 1. 판매중단 또는 주의 약품이 포함된 경우 (최우선 배치)
+  if (hasDiscontinued) {
+    points.push({
+      icon: '🚨',
+      category: '의약품 안전 주의',
+      highlight: true,
+      text: `[주의] ${discontinuedItem?.name || '처방 약품'} 등 판매중단 또는 허가 재검토 대상 의약품이 포함되어 있습니다. 복용 전 의료진과 다시 확인하세요.`
+    });
+  }
+
+  // 2. 식사 및 복용 타이밍 분석 (Usage Timing)
+  const timingTexts = items.map((i) => i.usageTiming || '').join(' ');
+  if (timingTexts.includes('식전')) {
+    points.push({
+      icon: '🍽️',
+      category: '식사 및 복용 시점',
+      text: '식전 복용 약품 포함: 흡수율을 높이고 약효를 발휘하기 위해 식사 30분 전 공복에 복용하세요.'
+    });
+  } else if (timingTexts.includes('취침')) {
+    points.push({
+      icon: '🌙',
+      category: '식사 및 복용 시점',
+      text: '취침 전 복용 약품 포함: 잠들기 직전에 미온수와 함께 편안한 상태에서 복용하세요.'
+    });
+  } else {
+    points.push({
+      icon: '🍚',
+      category: '식사 및 복용 시점',
+      text: '식후 30분 복용: 위장 자극을 줄이고 흡수를 돕기 위해 식사 후 미온수와 함께 복용하세요.'
+    });
+  }
+
+  // 3. 약품 효능군(className) 및 주성분(materialName) 기반 스마트 룰 매칭 (Gemini API 대체)
+  const classNames = items.map((i) => `${i.className || ''} ${i.name || ''} ${i.materialName || ''}`).join(' ');
+
+  if (classNames.includes('혈압') || classNames.includes('암로디핀') || classNames.includes('아모잘탄') || classNames.includes('발사르탄')) {
+    points.push({
+      icon: '🩺',
+      category: '혈압약 복용 주의',
+      text: '혈압강하제 포함: 갑자기 일어설 때 어지러움이 생길 수 있으니 천천히 일어나시고, 매일 일정한 시간에 꾸준히 복용하세요.'
+    });
+  } else if (classNames.includes('진통') || classNames.includes('소염') || classNames.includes('해열') || classNames.includes('아세트아미노펜') || classNames.includes('NSAID')) {
+    points.push({
+      icon: '🚫',
+      category: '음주 및 위장 주의',
+      text: '해열·소염진통제 포함: 간 및 위장 점막 손상을 막기 위해 복용 기간 중 음주는 절대 삼가시고, 공복 복용을 피하세요.'
+    });
+  } else if (classNames.includes('항생') || classNames.includes('항균') || classNames.includes('세파') || classNames.includes('아목시')) {
+    points.push({
+      icon: '💊',
+      category: '항생제 내성 예방',
+      text: '항생제 포함: 증상이 호전되더라도 균의 내성 발생을 방지하기 위해 처방된 일수 동안 끝까지 복용하세요.'
+    });
+  } else if (classNames.includes('알레르기') || classNames.includes('항히스타민') || classNames.includes('비염') || classNames.includes('감기')) {
+    points.push({
+      icon: '🚗',
+      category: '졸음 유발 주의',
+      text: '항히스타민 성분 포함: 졸음이나 나른함이 발생할 수 있으므로 운전이나 위험한 기계 조작 시 각별히 주의하세요.'
+    });
+  } else if (classNames.includes('소화') || classNames.includes('위장') || classNames.includes('궤양') || classNames.includes('제산')) {
+    points.push({
+      icon: '☕',
+      category: '위장 보호 수칙',
+      text: '위장약 포함: 위 점막 보호와 빠른 회복을 위해 카페인, 탄산음료, 자극적인 매운 음식 섭취를 줄이세요.'
+    });
+  } else if (classNames.includes('탈모') || classNames.includes('피나') || classNames.includes('두타')) {
+    points.push({
+      icon: '⚠️',
+      category: '탈모치료제 주의',
+      text: '피나스테리드 계열 포함: 가임기 여성의 정제 파편 접촉을 금하며, 매일 일정한 시간에 지속적으로 복용하세요.'
+    });
+  } else if (classNames.includes('당뇨') || classNames.includes('메트포르민') || classNames.includes('혈당')) {
+    points.push({
+      icon: '🍬',
+      category: '저혈당 대비 안내',
+      text: '당뇨병용제 포함: 식사를 거르지 마시고, 식은땀이나 떨림 등 저혈당 증상에 대비해 사탕이나 당분을 휴대하세요.'
+    });
+  } else {
+    points.push({
+      icon: '⚠️',
+      category: '복약 준수 수칙',
+      text: '정해진 1회 투약량과 복용 횟수를 준수하시고, 다른 약물이나 건강기능식품과 병용 시 전문가와 상담하세요.'
+    });
+  }
+
+  // 4. 총 투약일수 안내
+  const totalDays = prescriptionData.totalDays || 14;
+  points.push({
+    icon: '⏱️',
+    category: '처방 기간 준수',
+    text: `총 ${totalDays}일 처방: 증상이 일시적으로 완화되더라도 임의로 복용을 중단하지 마시고 처방 기간을 완료하세요.`
+  });
+
+  return {
+    hasDiscontinued,
+    badgeText: hasDiscontinued ? '주의 대상 포함' : `${points.length}가지 핵심 체크`,
+    badgeType: hasDiscontinued ? 'danger' : 'safe',
+    points
   };
 }
 
@@ -1043,54 +1215,46 @@ export default function MainPage({ user }) {
             </div>
 
             {/* 우측: 복용 전, 잠깐만요. (MEDICATION NOTE) */}
-            <div className="medication-note-card">
-              <div className="card-top-row">
-                <div>
-                  <span className="card-sub-label">MEDICATION NOTE</span>
-                  <h3 className="card-main-title">복용 전, 잠깐만요.</h3>
-                </div>
-              </div>
-
-              {prescriptionData?.hasDiscontinuedDrug === 1 ? (
-                <div className="note-alert-box discontinued-alert">
-                  <div className="note-alert-icon">
-                    <svg viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <p className="note-alert-text">
-                    <strong>[주의 알림]</strong> 처방전에 <u>판매중단 또는 주의 의약품</u>이 포함되어 있습니다. 복용 전 의료진과 다시 확인하세요.
-                  </p>
-                </div>
-              ) : (
-                <div className="note-alert-box">
-                  <div className="note-alert-icon">
-                    <svg viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <p className="note-alert-text">
-                    {prescriptionData?.items && prescriptionData.items.length > 0 ? (
-                      <>
-                        <strong>{prescriptionData.items[0].name}</strong> 등 처방된 약품의 정해진 용법과 복용 시간을 준수하세요.
-                      </>
-                    ) : (
-                      <>처방된 약품의 정해진 용법과 복용 시간을 준수하세요.</>
+            {(() => {
+              const medNotes = generateMedicationNotes(prescriptionData);
+              return (
+                <div className="medication-note-card">
+                  <div className="card-top-row">
+                    <div>
+                      <span className="card-sub-label">MEDICATION NOTE</span>
+                      <h3 className="card-main-title">복용 전, 잠깐만요.</h3>
+                    </div>
+                    {medNotes && (
+                      <span className={`note-status-badge ${medNotes.badgeType}`}>
+                        {medNotes.badgeText}
+                      </span>
                     )}
-                  </p>
-                </div>
-              )}
+                  </div>
 
-              <div className="note-action-footer">
-                <button
-                  type="button"
-                  className="note-detail-btn"
-                  onClick={() => setIsCautionModalOpen(true)}
-                >
-                  주의사항 자세히 보기 &gt;
-                </button>
-              </div>
-            </div>
+                  <div className="note-points-list">
+                    {medNotes.points.map((pt, idx) => (
+                      <div key={idx} className={`note-point-item ${pt.highlight ? 'highlight' : ''}`}>
+                        <span className="note-point-icon">{pt.icon}</span>
+                        <div className="note-point-content">
+                          <strong className="note-point-category">{pt.category}</strong>
+                          <p className="note-point-text">{pt.text}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="note-action-footer">
+                    <button
+                      type="button"
+                      className="note-detail-btn"
+                      onClick={() => setIsCautionModalOpen(true)}
+                    >
+                      주의사항 자세히 보기 &gt;
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </section>
         </>
       )}

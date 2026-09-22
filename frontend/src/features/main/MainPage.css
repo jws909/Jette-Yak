@@ -669,65 +669,102 @@
 
 /* 우측: 복용 전, 잠깐만요. 카드 */
 .medication-note-card {
-  background: #f2ece3;
-  border: 1px solid #e2d8cb;
+  background: #ffffff;
+  border: 1px solid #e4ddd2;
   border-radius: 8px;
   padding: 24px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
 }
 
-.note-alert-box {
-  background: #ffffff;
-  border: 1px solid #e7decb;
-  border-radius: 8px;
-  padding: 16px;
+.note-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+  letter-spacing: 0.3px;
+}
+
+.note-status-badge.safe {
+  background: #fbf0ee;
+  color: #8b3e4b;
+  border: 1px solid #ebd3d0;
+}
+
+.note-status-badge.danger {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}
+
+.note-points-list {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 16px;
+}
+
+.note-point-item {
+  display: flex;
   align-items: flex-start;
-  margin: 18px 0;
-  box-shadow: 0 2px 8px rgba(60, 45, 35, 0.04);
+  gap: 12px;
+  background: #faf7f2;
+  border: 1.5px solid #ede3d6;
+  border-radius: 8px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
 }
 
-.note-alert-box.discontinued-alert {
-  background: #fff8f8;
-  border-color: #e5a7ad;
+.note-point-item:hover {
+  background: #ffffff;
+  border-color: #8b3e4b;
+  box-shadow: 0 2px 8px rgba(139, 62, 75, 0.08);
 }
 
-.note-alert-icon {
-  width: 20px;
-  height: 20px;
-  color: #b84444;
+.note-point-item.highlight {
+  background: #fff5f5;
+  border-color: #f5c2c7;
+}
+
+.note-point-icon {
+  font-size: 17px;
+  line-height: 1.2;
   flex-shrink: 0;
   margin-top: 1px;
 }
 
-.note-alert-icon svg {
-  width: 20px;
-  height: 20px;
+.note-point-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
 }
 
-.note-alert-text {
-  margin: 0;
-  font-size: 13.5px;
-  color: #38302b;
-  line-height: 1.5;
-}
-
-.note-alert-text strong {
+.note-point-category {
+  font-size: 11.5px;
+  font-weight: 800;
   color: #8b3e4b;
-  font-weight: 700;
+  letter-spacing: 0.2px;
 }
 
-.note-alert-text u {
-  text-decoration-color: #d9534f;
-  text-underline-offset: 3px;
-  font-weight: 600;
+.note-point-item.highlight .note-point-category {
+  color: #c62828;
+}
+
+.note-point-text {
+  margin: 0;
+  font-size: 13px;
+  color: #3b332f;
+  line-height: 1.5;
+  font-weight: 500;
 }
 
 .note-action-footer {
   text-align: left;
+  margin-top: auto;
+  padding-top: 4px;
 }
 
 .note-detail-btn {
