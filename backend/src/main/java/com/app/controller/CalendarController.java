@@ -1,5 +1,6 @@
 package com.app.controller;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -43,9 +44,10 @@ public class CalendarController {
                 userId = (Long) sessionVal;
             } else if (sessionVal instanceof Number) {
                 userId = ((Number) sessionVal).longValue();
-            } else {
-                userId = 1L;
             }
+        }
+        if (userId == null || userId <= 0L) {
+            return ResponseEntity.ok(Collections.emptyList());
         }
         List<ScheduleDTO> list = scheduleService.getDailySchedules(userId, date);
         return ResponseEntity.ok(list);
@@ -100,9 +102,10 @@ public class CalendarController {
                 userId = (Long) sessionVal;
             } else if (sessionVal instanceof Number) {
                 userId = ((Number) sessionVal).longValue();
-            } else {
-                userId = 1L;
             }
+        }
+        if (userId == null || userId <= 0L) {
+            return ResponseEntity.ok(Collections.emptyList());
         }
         List<Map<String, Object>> summary = scheduleService.getMonthlySummary(userId, yearMonth);
         return ResponseEntity.ok(summary);

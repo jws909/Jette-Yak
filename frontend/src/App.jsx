@@ -102,7 +102,8 @@ function App() {
         resolvedUserId = null;
       }
     }
-    const currentUserId = resolvedUserId || 1;
+    const currentUserId = resolvedUserId;
+    if (!currentUserId) return;
 
     let timeoutId;
     let intervalId;

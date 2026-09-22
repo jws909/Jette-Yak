@@ -29,7 +29,7 @@ function saveTypeOverride(key, type) {
 const CalendarPage = (props) => {
   const user = props.user;
   const today = new Date();
-  const currentUserId = (user && user.userId) ? user.userId : 1;
+  const currentUserId = (user && user.userId) ? user.userId : null;
   
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
@@ -63,8 +63,12 @@ const CalendarPage = (props) => {
   const month = currentDate.getMonth();
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // 1. 월별 요약 조회
+  // 1. 월별 요약 조회 (비로그인 시 빈 객체 처리)
   const fetchMonthSummary = useCallback(async () => {
+    if (!currentUserId) {
+      setMonthSummary({});
+      return;
+    }
     try {
       const res = await fetch(`/api/calendar/summary?userId=${currentUserId}&yearMonth=${currentYearMonth}`);
       if (res.ok) {
@@ -100,8 +104,13 @@ const CalendarPage = (props) => {
     }
   }, [currentYearMonth, currentUserId]);
 
-  // 2. 일별 일정 목록 조회
+  // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
   const fetchDailySchedules = useCallback(async (targetDateStr) => {
+    if (!currentUserId) {
+      setSchedules([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const response = await fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`);
@@ -186,6 +195,10 @@ const CalendarPage = (props) => {
 
   // 복용 체크박스 토글
   const toggleTaken = async (item) => {
+    if (!currentUserId) {
+      alert('로그인 후 복약 체크 기능을 이용할 수 있습니다.');
+      return;
+    }
     const isTaken = !item.takenAt;
     try {
       const response = await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
@@ -211,6 +224,10 @@ const CalendarPage = (props) => {
   // 삭제 모달 열기
   const openDeleteModal = (item, e) => {
     e.stopPropagation();
+    if (!currentUserId) {
+      alert('로그인 후 일정을 삭제할 수 있습니다.');
+      return;
+    }
     setItemToDelete(item);
     setIsDeleteModalOpen(true);
   };
@@ -274,6 +291,10 @@ const CalendarPage = (props) => {
   // 알람 시간 설정 모달 열기
   const openAlarmModal = (item, e) => {
     if (e) e.stopPropagation();
+    if (!currentUserId) {
+      alert('로그인 후 알람 시간을 수정할 수 있습니다.');
+      return;
+    }
     setActiveItem(item);
     const timeParts = (item.time || '08:00').split(':');
     const h = parseInt(timeParts[0], 10) || 8;
@@ -324,6 +345,10 @@ const CalendarPage = (props) => {
   // 신규 등록 제출
   const handleAddMedication = async (e) => {
     e.preventDefault();
+    if (!currentUserId) {
+      alert('로그인 후 복약 일정을 등록할 수 있습니다.');
+      return;
+    }
 
     if (newMedType === 'regular') {
       // 상시약: medications에 존재하는 약을 검색하여 선택 필수!
@@ -568,7 +593,16 @@ const CalendarPage = (props) => {
             </div>
           </div>
 
-          <button className="btn-add-dose" onClick={() => setIsAddModalOpen(true)}>
+          <button
+            className="btn-add-dose"
+            onClick={() => {
+              if (!currentUserId) {
+                alert('로그인 후 복약 일정을 추가할 수 있습니다.');
+                return;
+              }
+              setIsAddModalOpen(true);
+            }}
+          >
             + 이 날짜에 복약 추가
           </button>
         </div>
