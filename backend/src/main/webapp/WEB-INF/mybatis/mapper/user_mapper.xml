@@ -22,7 +22,7 @@
 
     <select id="findByLoginId" resultType="com.app.domain.User">
         SELECT user_id AS userId, login_id AS loginId, password_hash AS passwordHash,
-               email, nickname, profile_image_url AS profileImageUrl,
+               email, nickname, profile_image_url AS profileImageUrl, NVL(role,'USER') AS role,
                NVL(breakfast_time, '07:30') AS breakfastTime,
                NVL(lunch_time, '12:00') AS lunchTime,
                NVL(dinner_time, '18:30') AS dinnerTime,
@@ -33,7 +33,7 @@
 
     <select id="findById" resultType="com.app.domain.User">
         SELECT user_id AS userId, login_id AS loginId, password_hash AS passwordHash,
-               email, nickname, profile_image_url AS profileImageUrl,
+               email, nickname, profile_image_url AS profileImageUrl, NVL(role,'USER') AS role,
                NVL(breakfast_time, '07:30') AS breakfastTime,
                NVL(lunch_time, '12:00') AS lunchTime,
                NVL(dinner_time, '18:30') AS dinnerTime,
@@ -43,7 +43,7 @@
     </select>
 
     <select id="findByEmail" resultType="com.app.domain.User">
-        SELECT user_id AS userId, login_id AS loginId, email, nickname
+        SELECT user_id AS userId, login_id AS loginId, email, nickname, NVL(role,'USER') AS role
         FROM users
         WHERE LOWER(email) = LOWER(#{email})
     </select>

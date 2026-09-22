@@ -90,12 +90,14 @@ public class UserController {
             javax.servlet.http.HttpSession session = httpRequest.getSession(true);
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getLoginId());
+            session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
         }
         Map<String, Object> response = new HashMap<>();
         response.put("userId", user.getUserId());
         response.put("username", user.getLoginId());
         response.put("nickname", user.getNickname());
         response.put("profileImageUrl", profileImagePath(user));
+        response.put("role", user.getRole() == null ? "USER" : user.getRole());
         response.put("breakfastTime", user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
         response.put("lunchTime", user.getLunchTime() != null ? user.getLunchTime() : "12:00");
         response.put("dinnerTime", user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");

@@ -61,6 +61,7 @@ public class AuthController {
             javax.servlet.http.HttpSession session = httpRequest.getSession(true);
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getLoginId());
+            session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
         }
 
         LoginResponse successResponse = new LoginResponse(
@@ -69,6 +70,7 @@ public class AuthController {
                 user.getLoginId(),
                 user.getNickname(),
                 user.getEmail(),
+                user.getRole() == null ? "USER" : user.getRole(),
                 "로그인 성공"
         );
         return ResponseEntity.ok(successResponse);

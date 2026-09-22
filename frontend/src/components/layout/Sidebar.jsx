@@ -5,7 +5,8 @@ export default function Sidebar({
   isOpen,
   onClose,
   isLoggedIn,
-  onLogout
+  onLogout,
+  user
 }) {
   const navigate = useNavigate();
 
@@ -128,6 +129,20 @@ export default function Sidebar({
                 </svg>
               </span>
               <span className="nav-item-text">복약 상담 AI 챗봇</span>
+            </NavLink>
+
+            <NavLink
+              to="/community"
+              className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
+              onClick={handleLinkClick}
+            >
+              <span className="nav-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8h2a2 2 0 012 2v7a2 2 0 01-2 2h-4l-3 3v-3H7a2 2 0 01-2-2v-2m12-7V5a2 2 0 00-2-2H5a2 2 0 00-2 2v7a2 2 0 002 2h4l3 3v-3h3a2 2 0 002-2V8z" />
+                </svg>
+              </span>
+              <span className="nav-item-text">약 이야기 커뮤니티</span>
+              {user?.role === 'ADMIN' && <span className="nav-item-badge">관리</span>}
             </NavLink>
           </nav>
 
