@@ -4,6 +4,7 @@
     <resultMap id="guide" type="com.app.guide.dto.MedicationGuideDto" autoMapping="false">
         <id column="medication_id" property="medicationId" />
         <result column="item_name" property="itemName" />
+        <result column="item_image_url" property="itemImageUrl" />
         <result column="entp_name" property="entpName" />
         <result column="material_name" property="materialName" javaType="java.lang.String" />
         <result column="etc_otc_code" property="etcOtcCode" />
@@ -11,7 +12,7 @@
         <result column="usage_dosage" property="usageDosage" javaType="java.lang.String" />
     </resultMap>
     <select id="find" parameterType="map" resultMap="guide" timeout="10">
-        SELECT medication_id, item_name, entp_name, material_name, etc_otc_code, efficacy, usage_dosage
+        SELECT medication_id, item_name, item_image_url, entp_name, material_name, etc_otc_code, efficacy, usage_dosage
         FROM medications WHERE medication_id = #{id}
     </select>
     <resultMap id="dur" type="com.app.guide.dto.DurInfoDto" autoMapping="false">
@@ -71,4 +72,53 @@
         ) ORDER BY CASE source WHEN 'PRESCRIPTION' THEN 1 WHEN 'CABINET' THEN 2 ELSE 3 END,
             item_name, registration_id
     </select>
+
+    <resultMap id="managed" type="com.app.guide.dto.RegisteredMedicationDto" extends="registered">
+        <result column="use_status" property="useStatus" />
+        <result column="period_state" property="periodState" />
+        <result column="days_remaining" property="daysRemaining" />
+        <result column="material_name" property="materialName" javaType="java.lang.String" />
+        <result column="item_image_url" property="itemImageUrl" />
+    </resultMap>
+    <sql id="ownedRegistrations">
+        SELECT 'P:' || TO_CHAR(i.item_id) registration_id, 'PRESCRIPTION' source,
+            m.medication_id, m.item_name, m.entp_name, m.material_name, m.item_image_url,
+            TO_CHAR(p.dispensed_date, 'YYYY-MM-DD') start_date,
+            TO_CHAR(TRUNC(p.dispensed_date)+i.total_days-1,'YYYY-MM-DD') end_date,
+            i.usage_timing notes, CAST(NULL AS VARCHAR2(5)) take_time,
+            TRUNC(p.dispensed_date)+i.total_days-TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) days_remaining,
+            CASE WHEN p.dispensed_date IS NULL OR i.total_days IS NULL OR i.total_days &lt;= 0 THEN 'UNKNOWN'
+                 WHEN TRUNC(p.dispensed_date) &gt; TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) THEN 'UPCOMING'
+                 WHEN TRUNC(p.dispensed_date)+i.total_days &lt;= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) THEN 'ENDED'
+                 ELSE 'CURRENT' END period_state,
+            'ACTIVE' default_status
+        FROM prescriptions p JOIN prescription_items i ON i.prescription_id=p.prescription_id
+        JOIN medications m ON m.medication_id=i.medication_id WHERE p.user_id=#{userId}
+        UNION ALL
+        SELECT 'C:' || TO_CHAR(c.cabinet_id),'CABINET',m.medication_id,m.item_name,m.entp_name,m.material_name,m.item_image_url,
+            NULL,NULL,NULL,NULL,NULL,'CURRENT','ACTIVE'
+        FROM cabinet_medications c JOIN medications m ON m.medication_id=c.medication_id WHERE c.user_id=#{userId}
+        UNION ALL
+        SELECT 'R:' || TO_CHAR(r.routine_id),'ROUTINE',NULL,r.supplement_name,NULL,NULL,NULL,NULL,NULL,r.notes,r.take_time,NULL,
+            CASE WHEN r.status='ENDED' THEN 'ENDED' ELSE 'CURRENT' END,
+            CASE WHEN r.status='PAUSED' THEN 'PAUSED' WHEN r.status='ENDED' THEN 'ENDED' ELSE 'ACTIVE' END
+        FROM routine_medications r WHERE r.user_id=#{userId}
+    </sql>
+    <select id="collection" resultMap="managed" timeout="15">
+        SELECT r.*, CASE WHEN r.period_state IN ('ENDED','UPCOMING') THEN r.period_state
+                        ELSE NVL(s.use_status,r.default_status) END use_status
+        FROM (<include refid="ownedRegistrations"/>) r
+        LEFT JOIN medication_use_states s ON s.user_id=#{userId} AND s.registration_id=r.registration_id
+        ORDER BY r.start_date DESC NULLS LAST,r.item_name,r.registration_id
+    </select>
+    <update id="updateStatus" timeout="15">
+        MERGE INTO medication_use_states s
+        USING (SELECT #{userId} user_id,r.registration_id FROM (<include refid="ownedRegistrations"/>) r
+               WHERE r.registration_id=#{registrationId} AND r.period_state NOT IN ('ENDED','UPCOMING')
+               AND (#{status} != 'STORED' OR r.source='CABINET')) v
+        ON (s.user_id=v.user_id AND s.registration_id=v.registration_id)
+        WHEN MATCHED THEN UPDATE SET s.use_status=#{status},s.updated_at=SYSDATE
+        WHEN NOT MATCHED THEN INSERT (user_id,registration_id,use_status,updated_at)
+            VALUES (v.user_id,v.registration_id,#{status},SYSDATE)
+    </update>
 </mapper>

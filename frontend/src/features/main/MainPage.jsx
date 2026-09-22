@@ -776,7 +776,7 @@ export default function MainPage({ user }) {
   };
 
   // 처방전 업로드 모달 상태
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(() => new URLSearchParams(window.location.search).get('register') === 'prescription');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);

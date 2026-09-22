@@ -59,4 +59,6 @@ public class ScheduleServiceImpl implements ScheduleService {
     public boolean removeSchedule(Long scheduleId) {
         return scheduleDAO.deleteSchedule(scheduleId) > 0;
     }
+    
+    
 }

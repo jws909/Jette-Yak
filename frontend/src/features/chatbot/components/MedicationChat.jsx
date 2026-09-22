@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import useRemote from '../../guide/useRemote'
+import InteractionSummary from '../../guide/InteractionSummary'
+import RegisteredMedications from '../../guide/RegisteredMedications'
+import { groupMedications } from '../../guide/medicationGroups'
 import MedicationSearch from './MedicationSearch'
 import CatalogSearch from './CatalogSearch'
 import CatalogResults, { DurReports } from './CatalogResults'
@@ -27,12 +32,29 @@ async function postQuestion(payload, signal) {
   return { ...data, seconds: ((performance.now() - started) / 1000).toFixed(2) }
 }
 export default function MedicationChat() {
-  const [selected, setSelected] = useState(null)
+  const location = useLocation()
+  return <MedicationConversation key={location.search} />
+}
+function MedicationConversation() {
+  const params = new URLSearchParams(useLocation().search)
+  const id = params.get('medicationId')
+  const compareId = params.get('compareId')
+  const linked = useRemote(id ? '/api/guides/medications/'+encodeURIComponent(id) : null)
+  const linkedCompare = useRemote(compareId ? '/api/guides/medications/'+encodeURIComponent(compareId) : null)
+  const mine = useRemote('/api/guides/collection')
+  const [selection, setSelected] = useState(undefined)
+  const selected = selection === undefined ? (linked.data?.medication ? {...linked.data.medication,itemSeq:linked.data.medication.medicationId} : null) : selection
+  const [otherSelection, setOther] = useState(undefined)
+  const other = otherSelection === undefined ? (linkedCompare.data?.medication ? {...linkedCompare.data.medication,itemSeq:linkedCompare.data.medication.medicationId} : null) : otherSelection
+  const ownProducts = groupMedications(mine.data?.items || []).filter(item=>item.medicationId)
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [paging, setPaging] = useState(null)
+  // 화면 안의 메시지 구분용 ID. HTTP LAN에서도 동작하며 인증에는 사용하지 않는다.
+  const messageSequence = useRef(0)
+  function nextMessageId() { return 'chat-' + (++messageSequence.current) }
   const requestRef = useRef(null)
   const logRef = useRef(null)
   const inputRef = useRef(null)
@@ -64,7 +86,7 @@ export default function MedicationChat() {
     const controller = new AbortController()
     requestRef.current = controller
     const timer = setTimeout(() => controller.abort(), 200000)
-    const id = crypto.randomUUID()
+    const id = nextMessageId()
     setLoading(true)
     setError('')
     setMessages(previous => [...previous, {
@@ -77,7 +99,7 @@ export default function MedicationChat() {
       if (requestRef.current !== controller) return
       const seconds = data.seconds
       setMessages(previous => previous.map(message => message.id === id ? {
-        ...message, answer: data.answer,
+        ...message, answer: data.answer, comparison: data.comparison, registeredMedications: data.registeredMedications, loginRequired: data.loginRequired,
         sources: Array.isArray(data.sources) ? data.sources : [],
         choices: Array.isArray(data.choices) ? data.choices : [],
         choiceKeyword: data.choiceKeyword, choiceTotal: data.choiceTotal || 0,
@@ -95,6 +117,19 @@ export default function MedicationChat() {
     }
   }
 
+  async function compareProducts() {
+    if (!selected || !other || selected.itemSeq===other.itemSeq || requestRef.current || paging) return
+    const id = nextMessageId()
+    const controller = new AbortController();requestRef.current=controller;setLoading(true);setError('')
+    const timer=setTimeout(()=>controller.abort(),60000)
+    try {
+      const data=await readResponse(await fetch('/api/guides/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({medicationIds:[selected.itemSeq,other.itemSeq]}),signal:controller.signal}))
+      if(requestRef.current!==controller)return
+      setMessages(previous=>[...previous,{id,question:selected.itemName+' + '+other.itemName+' 병용 주의정보',answer:'선택한 두 제품의 성분을 대조한 DB 조회 결과입니다.',sources:[],choices:[],comparison:data}])
+    } catch(error) {if(requestRef.current===controller)setError(error.name==='AbortError'?'비교 시간이 초과됐습니다. 다시 시도해주세요.':error.message)}
+    finally {clearTimeout(timer);if(requestRef.current===controller){requestRef.current=null;setLoading(false)}}
+  }
+
   async function moreChoices(message) {
     if (paging) return
     setPaging(message.id)
@@ -110,6 +145,7 @@ export default function MedicationChat() {
 
   async function searchCatalog(query, existing = null) {
     if (requestRef.current || paging) return
+    const id = nextMessageId()
     const controller = new AbortController()
     requestRef.current = controller
     const timer = setTimeout(() => controller.abort(), 60000)
@@ -120,7 +156,7 @@ export default function MedicationChat() {
       const data = await readResponse(await fetch('/api/chat/catalog', {method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({query,page:existing ? existing.catalog.page+1 : 1}),signal:controller.signal}))
       if (existing) setMessages(previous => previous.map(entry => entry.id===existing.id ? {...entry,catalog:{...data,items:[...entry.catalog.items,...data.items]}} : entry))
-      else setMessages(previous => [...previous,{id:crypto.randomUUID(),question:'조건 검색: ' + (query.filters.map(f=>f.value).join(' · ') || '전체') + (query.tabooType ? ' · ' + ({1:'임부금기',2:'노인금기',3:'특정연령대금기',4:'병용금기'})[query.tabooType] : ''),
+      else setMessages(previous => [...previous,{id,question:'조건 검색: ' + (query.filters.map(f=>f.value).join(' · ') || '전체') + (query.tabooType ? ' · ' + ({1:'임부금기',2:'노인금기',3:'특정연령대금기',4:'병용금기'})[query.tabooType] : ''),
         answer:'DB 조건 검색 결과입니다.',sources:[],choices:[],catalog:data,seconds:((performance.now()-started)/1000).toFixed(2)}])
     } catch(err) { setError(err.name==='AbortError'?'검색 시간이 초과됐습니다. 조건을 좁혀 다시 조회해주세요.':err.message) }
     finally { clearTimeout(timer); requestRef.current=null;setPaging(null) }
@@ -137,6 +173,8 @@ export default function MedicationChat() {
         <span className="eyebrow">FIND YOUR MEDICINE</span>
         <h2>어떤 약이<br />궁금하세요?</h2>
         <MedicationSearch onSelect={selectDrug} disabled={loading || Boolean(paging)} />
+        {linked.loading && <p role="status">선택한 약을 불러오는 중…</p>}
+        {linked.error && <p role="alert">{linked.error}</p>}
         <CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} />
         <div className="product-note active-medication">
           <span>현재 대화 중인 약</span>
@@ -144,10 +182,27 @@ export default function MedicationChat() {
             <button type="button" className="clear-selection" disabled={loading} onClick={() => setSelected(null)}>선택 해제</button></>
             : <p>선택한 약이 없어요.<br />검색하거나 질문에 약 이름을 적어주세요.</p>}
         </div>
+        <details className="chat-personal-panel"><summary>내 약에서 선택</summary>
+          {mine.loading && <p role="status">등록 약을 불러오는 중…</p>}
+          {mine.error && (mine.status===401 ? <Link to="/login?next=/chat">로그인하고 내 약 불러오기 →</Link> : <p role="alert">{mine.error}<button onClick={mine.retry}>다시 시도</button></p>)}
+          {mine.data && <><button type="button" className="load-more" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion('내가 먹는 약끼리 같이 먹어도 돼?')}>복용 중인 내 약 DUR 확인</button>
+            {ownProducts.map(item=><button type="button" className="drug-option" key={item.key} disabled={loading || Boolean(paging)} onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>{item.itemName}</button>)}
+            {!ownProducts.length && <p>연결된 제품이 없습니다. <Link to="/guide">내 약 관리 →</Link></p>}</>}
+        </details>
+        {selected && <details className="chat-personal-panel" open={Boolean(compareId)}><summary>다른 약과 함께 먹어도 될까? · 비교 약 선택</summary>
+          <select aria-label="내 등록 약 중 비교할 약" disabled={loading || Boolean(paging)} value={other?.itemSeq || ''} onChange={event=>{const item=ownProducts.find(item=>item.medicationId===event.target.value);setOther(item?{...item,itemSeq:item.medicationId}:null)}}>
+            <option value="">내 등록 약에서 선택</option>{other && !ownProducts.some(item=>item.medicationId===other.itemSeq) && <option value={other.itemSeq}>{other.itemName}</option>}
+            {ownProducts.filter(item=>item.medicationId!==selected.itemSeq).map(item=><option key={item.key} value={item.medicationId}>{item.itemName}</option>)}
+          </select>
+          <MedicationSearch onSelect={setOther} disabled={loading || Boolean(paging)} />
+          {other && <p>비교 대상: {other.itemName}</p>}{linkedCompare.error && <p role="alert">{linkedCompare.error}</p>}
+          <button type="button" className="load-more" disabled={!other || selected.itemSeq===other.itemSeq || loading || Boolean(paging)} onClick={compareProducts}>두 약의 DUR 비교</button>
+        </details>}
         <p className="scope-note">다른 약 이름을 질문하면 새로 찾아드려요.<br />“효능은?”처럼 이름을 생략하면 현재 선택한 약을 기준으로 안내해요.</p>
       </aside>
       <div className="conversation">
         <header className="conversation-heading"><h2>약 정보 AI 도우미</h2><span>DB 자료 기반 안내</span></header>
+        {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{['효능은?','복용법은?','등록된 DUR 주의사항은?'].map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
         <div className="chat-log" ref={logRef} role="log" aria-label="질문과 답변" aria-live="polite" aria-relevant="additions text">
           {messages.length === 0 && <div className="welcome"><span className="welcome-mark" aria-hidden="true">✦</span><h3>궁금한 조건으로 물어보세요.</h3>
             <p>약 이름이 없어도 성분·효능·금기 조건으로 조회할 수 있어요.<br />특정 제품의 질문은 제품을 선택하면 이어갈 수 있어요.</p>
@@ -155,7 +210,7 @@ export default function MedicationChat() {
           </div>}
           {messages.map(message => <article className="exchange" key={message.id}>
             <div className="question-bubble"><span className="bubble-label">내 질문</span><p>{message.question}</p>{message.choiceLabel && <small>선택한 제품: {message.choiceLabel}</small>}</div>
-            {message.answer !== null && <div className="answer-bubble"><span className="bubble-label">✦ AI 도우미</span><p>{message.answer}</p>
+            {message.answer !== null && <div className="answer-bubble"><span className="bubble-label">✦ 답변 요약</span><p>{message.answer}</p>
               {message.sources.length > 0 && <p className="answer-subject">{message.sources.map(source => source.itemName).join(' · ')}</p>}
               {message.choices.length > 0 && <div className="choice-list">
                 {message.choices.map(drug => <button type="button" className="drug-option" key={drug.itemSeq} disabled={loading}
@@ -164,9 +219,14 @@ export default function MedicationChat() {
                 </button>)}
                 {message.choices.length < message.choiceTotal && <button type="button" className="load-more" disabled={Boolean(paging) || loading} onClick={() => moreChoices(message)}>다른 제품 더 보기 ({message.choices.length}/{message.choiceTotal})</button>}
               </div>}
+              {message.loginRequired && <Link to="/login?next=/chat">로그인하기 →</Link>}
+              {message.registeredMedications && <div>{groupMedications(message.registeredMedications).map(item=><div key={item.key}><strong>{item.itemName}</strong><RegisteredMedications items={item.registrations}/>{item.medicationId && <button type="button" className="drug-option" onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>이 약 질문하기</button>}</div>)}</div>}
+              <InteractionSummary data={message.comparison}/>
+              {message.sources.length > 0 && <h4>확인한 약 · DB 근거</h4>}
               <CatalogResults data={message.catalog} onMore={() => searchCatalog(message.catalog.query,message)} onSelect={selectDrug} busy={loading || Boolean(paging)} />
               <DurReports reports={message.durReports} notice={message.durNotice} />
-              <small className="response-time">응답 시간 {message.seconds}초</small>
+              {message.seconds && <small className="response-time">응답 시간 {message.seconds}초</small>}
+              {message.sources.length > 0 && <p className="scope-note"><strong>확인 범위</strong> · DB에 등록된 해당 제품의 자료를 참고했습니다. 음식·음주나 개인별 복용 가능 여부는 근거가 없으면 판단할 수 없습니다.</p>}
               {message.sources.length > 0 && <details className="sources"><summary>참고한 DB 원문 보기 ({message.sources.length})</summary>
                 {message.sources.map((source, index) => <dl key={String(source.itemSeq) + index}>{fields.map(([field, label]) =>
                   <div key={field}><dt>{label}</dt><dd>{source[field] == null || String(source[field]).trim() === '' ? '등록된 정보 없음' : String(source[field])}</dd></div>)}</dl>)}

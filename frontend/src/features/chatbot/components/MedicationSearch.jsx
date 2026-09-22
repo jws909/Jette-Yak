@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 
 export default function MedicationSearch({ onSelect, disabled }) {
+  const searchId = useId()
   const immediate = useRef(false)
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -45,8 +46,8 @@ export default function MedicationSearch({ onSelect, disabled }) {
     setState({ items: [], total: 0, hasMore: false, loading: Boolean(event.target.value.trim()), error: '' })
   }
   return <div className="medication-search">
-    <label htmlFor="medication-name">약 이름 검색</label>
-    <input id="medication-name" type="search" value={query} onChange={changeQuery} onKeyDown={searchOnEnter}
+    <label htmlFor={searchId}>약 이름 검색</label>
+    <input id={searchId} type="search" value={query} onChange={changeQuery} onKeyDown={searchOnEnter}
       placeholder="ex)텐텐" maxLength={100} />
     <p className="field-help">이름에 검색어가 들어간 약을 모두 찾아요.</p>
     {state.error && <div><p className="error-message" role="alert">{state.error}</p><button type="button" className="load-more" disabled={state.loading} onClick={() => setRetry(value => value + 1)}>검색 다시 시도</button></div>}

@@ -46,7 +46,13 @@ public class ChatController {
     }
 
     @PostMapping(value = "/api/chat", consumes = "application/json", produces = "application/json")
-    public ResponseEntity<Map<String, Object>> chat(@RequestBody MedicationChatRequest request) {
+    public ResponseEntity<Map<String, Object>> chat(@RequestBody MedicationChatRequest request, javax.servlet.http.HttpServletRequest http) {
+        var session=http.getSession(false);var value=session==null?null:session.getAttribute("userId");
+        var response=chatForUser(request,value instanceof Long && (Long)value>0?(Long)value:null);
+        return ResponseEntity.status(response.getStatusCode()).header("Cache-Control","no-store").body(response.getBody());
+    }
+    public ResponseEntity<Map<String,Object>> chat(MedicationChatRequest request) { return chatForUser(request,null); }
+    private ResponseEntity<Map<String,Object>> chatForUser(MedicationChatRequest request, Long userId) {
         if (request.getQuestion() == null || request.getQuestion().isBlank()
                 || request.getQuestion().length() > 1000)
             return ResponseEntity.badRequest().body(Map.of("error", "질문을 1~1000자로 입력해주세요."));
@@ -58,7 +64,7 @@ public class ChatController {
                     e.getKey() == null || e.getKey().length() > 100 ||
                     e.getValue() == null || e.getValue().length() > 30))
             return ResponseEntity.badRequest().body(Map.of("error", "약 선택 정보를 확인해주세요."));
-        try { return ResponseEntity.ok(service.chat(request)); }
+        try { return ResponseEntity.ok(service.chat(request,userId)); }
         catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (DataAccessException e) {

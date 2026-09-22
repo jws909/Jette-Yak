@@ -4,6 +4,7 @@ import lombok.Data;
 public class MedicationGuideDto {
     private String medicationId;
     private String itemName;
+    private String itemImageUrl;
     private String entpName;
     private String materialName;
     private String etcOtcCode;
