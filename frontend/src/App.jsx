@@ -33,7 +33,7 @@ function App() {
     }
   });
 
-  // ★ 전역 복약 알림 모달 상태 (어느 페이지에서든 팝업)
+  // 전역 복약 알림 모달 상태 (어느 페이지에서든 팝업)
   const [globalAlertItem, setGlobalAlertItem] = useState(null);
 
   // 이미 로그인되어 있으나 과거 세션 데이터로 인해 userId가 누락된 경우 서버 프로필에서 자동 복구
@@ -54,16 +54,25 @@ function App() {
     }
   }, [user?.username, user?.userId]);
 
-  // ★ 1. 브라우저 시스템 알림 권한 획득 (최초 1회)
+  // 1. 브라우저 시스템 알림 권한 획득 (최초 1회)
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
-  // ★ 2. 전역 00초 칼동기화 타이머 (로그인 상태일 때 어느 라우트에 있든 상시 동작)
+  // ★ 2. 전역 00초 칼동기화 타이머 (수정 완료: userId 안전 추적 + 조건식 관대화 + 시간 규격 호환)
   useEffect(() => {
-    const currentUserId = user?.userId || 1;
+    // 1순위: user state의 userId, 2순위: localStorage의 user.userId, 3순위: 기본값 1
+    let resolvedUserId = user?.userId;
+    if (!resolvedUserId) {
+      try {
+        const stored = JSON.parse(localStorage.getItem('user'));
+        resolvedUserId = stored?.userId;
+      } catch (e) {}
+    }
+    const currentUserId = resolvedUserId || 1;
+
     let timeoutId;
     let intervalId;
     const alertedTags = new Set();
@@ -72,7 +81,7 @@ function App() {
       const now = new Date();
       const currentH = String(now.getHours()).padStart(2, '0');
       const currentM = String(now.getMinutes()).padStart(2, '0');
-      const currentTimeStr = `${currentH}:${currentM}`;
+      const currentTimeStr = `${currentH}:${currentM}`; // "HH:mm"
       const todayDateStr = getFormattedDate(now);
 
       try {
@@ -80,25 +89,47 @@ function App() {
         if (!res.ok) return;
         const todayList = await res.json();
 
+        if (!Array.isArray(todayList)) return;
+
         todayList.forEach((item) => {
-          const isEnabled = item.alarmEnabled === true || Number(item.alarmEnabled) === 1 || item.alarmEnabled === undefined;
-          const tag = `dose-${item.scheduleId}-${item.time}-${currentTimeStr}`;
+          // DB의 시간 포맷이 "08:30:00" 형태일 경우 앞 5자리("08:30")만 추출
+          const targetTime = String(item.time || '').substring(0, 5);
+
+          // 알람 플래그: true, 1, '1', undefined 모두 허용 (명시적으로 false/0 일 때만 비활성화)
+          const isAlarmOff = item.alarmEnabled === false || item.alarmEnabled === 0 || item.alarmEnabled === '0';
+          const isEnabled = !isAlarmOff;
+
+          // 복약 여부
+          const isTaken = Boolean(item.takenAt);
+
+          const tag = `dose-${item.scheduleId}-${targetTime}-${currentTimeStr}`;
 
           // 조건: 알람 켜짐 + 미복용 + 시간 일치 + 중복 방지
-          if (isEnabled && !item.takenAt && item.time === currentTimeStr && !alertedTags.has(tag)) {
+          if (isEnabled && !isTaken && targetTime === currentTimeStr && !alertedTags.has(tag)) {
             alertedTags.add(tag);
 
-            // 1) 화면 중앙 모달 팝업
-            setGlobalAlertItem(item);
+            // 1) 화면 중앙 모달 즉시 팝업
+            setGlobalAlertItem({
+              ...item,
+              time: targetTime
+            });
 
             // 2) 브라우저 시스템 푸시 알림 발송
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification(`💊 [복약 알림] ${item.name}`, {
-                body: `현재 복용 시간(${item.time})입니다. 잊지 말고 복용하세요!`,
+                body: `현재 복용 시간(${targetTime})입니다. 잊지 말고 복용하세요!`,
                 icon: '/favicon.ico',
                 tag: tag,
               });
             }
+
+            // 3) Navbar에 실시간 신호 전달 (종 아이콘 뱃지 점등)
+            window.dispatchEvent(new CustomEvent('NEW_MEDICATION_ALARM', { 
+              detail: {
+                ...item,
+                time: targetTime
+              }
+            }));
           }
         });
       } catch (e) {
@@ -106,19 +137,17 @@ function App() {
       }
     };
 
-    // 진입 시 현재 분 일치 항목 즉시 1회 검사
+    // 진입 즉시 1회 검사
     triggerCheck();
 
-    // 다음 분 00초 정각까지 대기 시간 계산 (밀리초 단위 정밀 제어)
+    // 다음 분 00초 정각까지 대기 밀리초 계산
     const now = new Date();
     const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
 
     timeoutId = setTimeout(() => {
-      // 00초 정각 도달 시 실행
       triggerCheck();
-      // 이후 1분(60초)마다 00초 정각에 반복
       intervalId = setInterval(triggerCheck, 60000);
-    }, msUntilNextMinute);
+    }, Math.max(0, msUntilNextMinute));
 
     return () => {
       clearTimeout(timeoutId);
@@ -126,7 +155,7 @@ function App() {
     };
   }, [user?.userId]);
 
-  // ★ 3. 전역 모달에서 [지금 복약 완료] 클릭 시 실행
+  // 3. 전역 모달에서 [지금 복약 완료] 클릭 시 실행
   const handleConfirmTakeFromGlobalAlert = async () => {
     if (!globalAlertItem) return;
     try {
@@ -287,7 +316,7 @@ function App() {
         />
       </Routes>
 
-      {/* ★ 전역 복약 알림 모달 (어느 페이지에서든 최상위 레이어로 팝업) */}
+      {/* 전역 복약 알림 모달 (어느 페이지에서든 최상위 레이어로 팝업) */}
       {globalAlertItem && (
         <div style={{
           position: 'fixed',

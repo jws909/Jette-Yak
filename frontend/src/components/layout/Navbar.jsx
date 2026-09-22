@@ -103,8 +103,36 @@ export default function Navbar({
 
     loadNotifications();
 
+    // ★ 실시간 복약 알림 이벤트 수신 (App.jsx에서 설정한 시간에 0초 오차 없이 발송되는 이벤트)
+    const handleNewDoseAlarm = (e) => {
+      const item = e.detail;
+      if (!item) return;
+
+      const newNotifId = `realtime-dose-${item.scheduleId}-${item.time}`;
+
+      setNotifications((prev) => {
+        // 동일한 시간 알림 중복 등록 방지
+        if (prev.some((n) => n.id === newNotifId)) return prev;
+
+        return [
+          {
+            id: newNotifId,
+            type: 'routine',
+            title: '💊 지금 복약할 시간입니다!',
+            text: `[${item.time}] '${item.name}' 복용 시간입니다. 잊지 말고 복용하세요!`,
+            time: item.time,
+            read: false, // 뱃지 카운트 증가
+          },
+          ...prev,
+        ];
+      });
+    };
+
+    window.addEventListener('NEW_MEDICATION_ALARM', handleNewDoseAlarm);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('NEW_MEDICATION_ALARM', handleNewDoseAlarm);
     };
   }, [isLoggedIn, user?.userId]);
 
@@ -155,7 +183,7 @@ export default function Navbar({
           </Link>
         </div>
 
-        {/* 중앙: 브랜드 글씨 (아까대로 한가운데 배치, mediary 캡슐 뱃지 제거) */}
+        {/* 중앙: 브랜드 글씨 */}
         <div className="navbar-center">
           <Link to="/" className="navbar-brand-text" title="제때약 홈으로 이동">
             <span className="logo-text">제때약</span>
