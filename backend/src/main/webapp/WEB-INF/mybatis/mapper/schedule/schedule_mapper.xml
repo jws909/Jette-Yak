@@ -5,22 +5,23 @@
 
 <mapper namespace="schedule">
 
-    <!-- 1. 일별 복약 일정 조회: cabinets 테이블 조인으로 영양제/상시약/처방약 완벽 판별 -->
+    <!-- 1. 일별 복약 일정 조회: 처방약/영양제/상비약 구분 및 복용 여부 조회 -->
     <select id="selectDailySchedules" parameterType="map" resultType="com.app.dto.ScheduleDTO">
         SELECT 
             s.schedule_id   AS scheduleId,
-            m.item_name     AS name,
+            s.medication_id AS medicationId,
+            NVL(m.item_name, '약품') AS name,
             TO_CHAR(s.scheduled_at, 'HH24:MI') AS time,
             CASE 
-                WHEN s.cabinet_id IS NULL THEN 'prescription'
-                WHEN c.category = 'supplement' THEN 'supplement'
-                ELSE 'regular'
+                WHEN s.prescription_id IS NOT NULL THEN 'prescription'
+                WHEN s.routine_id IS NOT NULL THEN 'supplement'
+                WHEN s.cabinet_id IS NOT NULL THEN 'regular'
+                ELSE 'prescription'
             END AS type,
-            s.taken_at      AS takenAt,
+            TO_CHAR(s.taken_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS takenAt,
             1               AS alarmEnabled
         FROM schedules s
-        JOIN medications m ON s.medication_id = m.medication_id
-        LEFT JOIN cabinets c ON s.cabinet_id = c.cabinet_id
+        LEFT JOIN medications m ON s.medication_id = m.medication_id
         WHERE s.user_id = #{userId}
           AND TRUNC(s.scheduled_at) = TO_DATE(#{date}, 'YYYY-MM-DD')
         ORDER BY s.scheduled_at ASC
@@ -40,11 +41,10 @@
     <select id="selectMonthlyScheduleSummary" parameterType="map" resultType="map">
         SELECT 
             TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS "scheduleDate",
-            MAX(CASE WHEN s.cabinet_id IS NULL THEN 1 ELSE 0 END) AS "hasPrescription",
-            MAX(CASE WHEN s.cabinet_id IS NOT NULL AND (c.category = 'regular' OR c.category IS NULL) THEN 1 ELSE 0 END) AS "hasRegular",
-            MAX(CASE WHEN s.cabinet_id IS NOT NULL AND c.category = 'supplement' THEN 1 ELSE 0 END) AS "hasSupplement"
+            MAX(CASE WHEN s.prescription_id IS NOT NULL OR (s.cabinet_id IS NULL AND s.routine_id IS NULL) THEN 1 ELSE 0 END) AS "hasPrescription",
+            MAX(CASE WHEN s.cabinet_id IS NOT NULL THEN 1 ELSE 0 END) AS "hasRegular",
+            MAX(CASE WHEN s.routine_id IS NOT NULL THEN 1 ELSE 0 END) AS "hasSupplement"
         FROM schedules s
-        LEFT JOIN cabinets c ON s.cabinet_id = c.cabinet_id
         WHERE s.user_id = #{userId}
           AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
         GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
@@ -64,7 +64,7 @@
          WHERE schedule_id = #{scheduleId}
     </update>
 
-    <!-- 6. 일정 등록: 가짜 숫자가 아니라 사용자의 실제 cabinet_id를 찾아 안전하게 연결 -->
+    <!-- 6. 일정 등록 -->
     <insert id="insertSchedule" parameterType="com.app.dto.ScheduleAddDTO">
         INSERT INTO schedules (
             user_id,
@@ -79,9 +79,8 @@
             NULL,
             (
                 SELECT MIN(cabinet_id) 
-                FROM cabinets 
-                WHERE user_id = #{userId} 
-                  AND category = #{type}
+                FROM cabinet_medications 
+                WHERE user_id = #{userId}
             )
         )
     </insert>

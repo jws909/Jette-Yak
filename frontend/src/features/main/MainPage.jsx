@@ -53,6 +53,46 @@ function formatDateShort(date) {
   return `${m}.${d}`;
 }
 
+// 복약 체크 상태 영구 보존용 로컬 스토리지 키 생성 (사용자별 + 날짜별)
+function getRoutineStorageKey(userId, dateStr) {
+  return `jette_routine_intake_${userId || 1}_${dateStr}`;
+}
+
+// 특정 날짜의 복약 체크 맵 불러오기
+function loadRoutineIntakeMap(userId, dateStr) {
+  if (!dateStr) return {};
+  try {
+    const raw = localStorage.getItem(getRoutineStorageKey(userId, dateStr));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    }
+  } catch (err) {
+    console.warn('복약 체크 내역 로드 실패:', err);
+  }
+  return {};
+}
+
+// 특정 날짜의 복약 체크 맵 영구 저장
+function saveRoutineIntakeMap(userId, dateStr, map) {
+  if (!dateStr || !map) return;
+  try {
+    localStorage.setItem(getRoutineStorageKey(userId, dateStr), JSON.stringify(map));
+  } catch (err) {
+    console.warn('복약 체크 내역 저장 실패:', err);
+  }
+}
+
+// 복용 시각 포맷팅 (HH:mm)
+function formatTimeOnly(isoOrDateStr) {
+  if (!isoOrDateStr) return '';
+  const d = new Date(isoOrDateStr);
+  if (isNaN(d.getTime())) return '';
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
+
 function getTargetDateDiffText(targetDate) {
   const today = new Date();
   const target = parseDateOnly(targetDate);
@@ -533,6 +573,9 @@ function buildRoutineItems(prescribedMeds, mealTimes = DEFAULT_MEAL_TIMES) {
         taken: false,
         type: med.badge || '처방',
         orderIndex: medIdx,
+        medicationId: med.medicationId || (med.id ? String(med.id).replace(/^rx-/, '') : ''),
+        prescriptionId: med.prescriptionId,
+        originHospital: med.originHospital,
       });
     });
   });
@@ -1017,14 +1060,73 @@ export default function MainPage({ user }) {
     reloadPrescriptionAndRoutine();
   }, [reloadPrescriptionAndRoutine]);
 
-  // 식사 시간이나 기준 일자별 유효 복약 약품 변경 시 복약 루틴 알림 시간 재계산
+  // 식사 시간이나 기준 일자별 유효 복약 약품 변경 시 복약 루틴 알림 시간 재계산 및 날짜별 복약 체크 상태 동기화
   useEffect(() => {
     if (activeMedsForTargetDate && activeMedsForTargetDate.length > 0) {
-      setRoutineItems(buildRoutineItems(activeMedsForTargetDate, mealTimes));
+      const baseList = buildRoutineItems(activeMedsForTargetDate, mealTimes);
+      const userId = user?.userId || 1;
+      const dateStr = formatDateToHyphen(targetDate);
+      const savedMap = loadRoutineIntakeMap(userId, dateStr);
+
+      const mergedList = baseList.map((item) => {
+        const saved = savedMap[item.id];
+        if (saved) {
+          return {
+            ...item,
+            taken: Boolean(saved.taken),
+            takenAt: saved.takenAt || null,
+          };
+        }
+        return item;
+      });
+
+      setRoutineItems(mergedList);
+
+      // 서버의 당일 스케줄 데이터와 scheduleId 및 takenAt 추가 동기화 시도
+      let isSubscribed = true;
+      fetch(`/api/calendar?userId=${userId}&date=${dateStr}`)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((schedules) => {
+          if (!isSubscribed || !Array.isArray(schedules) || schedules.length === 0) return;
+
+          setRoutineItems((currentItems) => {
+            let hasChange = false;
+            const updated = currentItems.map((item) => {
+              const matchedSchedule = schedules.find((s) => {
+                const sameMed =
+                  (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
+                  (s.name && item.name && (s.name.includes(item.name) || item.name.includes(s.name)));
+                return sameMed;
+              });
+
+              if (matchedSchedule) {
+                const scheduleTaken = Boolean(matchedSchedule.takenAt);
+                if (item.scheduleId !== matchedSchedule.scheduleId || (!item.taken && scheduleTaken)) {
+                  hasChange = true;
+                  return {
+                    ...item,
+                    scheduleId: matchedSchedule.scheduleId,
+                    taken: item.taken || scheduleTaken,
+                    takenAt: item.takenAt || matchedSchedule.takenAt || null,
+                  };
+                }
+              }
+              return item;
+            });
+            return hasChange ? updated : currentItems;
+          });
+        })
+        .catch(() => {
+          // 서버 통신 오류 시 로컬 복원 데이터 유지
+        });
+
+      return () => {
+        isSubscribed = false;
+      };
     } else {
       setRoutineItems([]);
     }
-  }, [mealTimes, activeMedsForTargetDate, targetDate]);
+  }, [mealTimes, activeMedsForTargetDate, targetDate, user?.userId]);
 
   // 식사 시간 저장 핸들러
   const handleSaveMealTimes = async (e) => {
@@ -1064,13 +1166,54 @@ export default function MainPage({ user }) {
     }
   };
 
-  // 오늘의 복용 체크박스 토글
+  // 오늘의 복용 체크박스 토글 (날짜별 로컬 영구 저장 및 서버 스케줄 동기화)
   const toggleRoutine = (id) => {
-    setRoutineItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, taken: !item.taken } : item
-      )
-    );
+    const userId = user?.userId || 1;
+    const dateStr = formatDateToHyphen(targetDate);
+    const nowIso = new Date().toISOString();
+
+    let toggledItem = null;
+
+    setRoutineItems((prev) => {
+      const nextList = prev.map((item) => {
+        if (item.id === id) {
+          const nextTaken = !item.taken;
+          toggledItem = {
+            ...item,
+            taken: nextTaken,
+            takenAt: nextTaken ? nowIso : null,
+          };
+          return toggledItem;
+        }
+        return item;
+      });
+
+      // 날짜별 로컬 스토리지에 즉시 영구 저장 (새로고침 / 날짜 이동 후에도 100% 보존)
+      if (toggledItem) {
+        const savedMap = loadRoutineIntakeMap(userId, dateStr);
+        savedMap[id] = {
+          taken: toggledItem.taken,
+          takenAt: toggledItem.takenAt,
+          name: toggledItem.name,
+          slot: toggledItem.slot,
+          time: toggledItem.time,
+        };
+        saveRoutineIntakeMap(userId, dateStr, savedMap);
+      }
+
+      return nextList;
+    });
+
+    // 서버 스케줄 DB가 연계된 경우 서버에도 비동기 반영
+    if (toggledItem?.scheduleId) {
+      fetch(`/api/calendar/${toggledItem.scheduleId}/toggle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taken: toggledItem.taken }),
+      }).catch((err) => {
+        console.warn('스케줄 서버 동기화 실패 (로컬 저장은 완료됨):', err);
+      });
+    }
   };
 
   // DB에 등록된 활성 복약 루틴 리스트
@@ -2010,6 +2153,11 @@ export default function MainPage({ user }) {
                             )}
                           </div>
                           <div className="routine-item-right">
+                            {item.taken && item.takenAt && (
+                              <span className="routine-taken-time">
+                                {formatTimeOnly(item.takenAt)} 복용
+                              </span>
+                            )}
                             <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
                           </div>
                         </div>
@@ -2052,6 +2200,11 @@ export default function MainPage({ user }) {
                     )}
                   </div>
                   <div className="routine-item-right">
+                    {item.taken && item.takenAt && (
+                      <span className="routine-taken-time">
+                        {formatTimeOnly(item.takenAt)} 복용
+                      </span>
+                    )}
                     <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
                   </div>
                 </div>
