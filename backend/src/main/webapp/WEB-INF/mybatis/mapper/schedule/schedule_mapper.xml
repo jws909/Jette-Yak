@@ -9,18 +9,18 @@
     <select id="selectDailySchedules" parameterType="map" resultType="com.app.dto.ScheduleDTO">
         /* 1) 수동 등록 및 실체화된 일정 */
         SELECT 
-            s.schedule_id   AS scheduleId,
-            s.medication_id AS medicationId,
-            NVL(m.item_name, '약품') AS name,
-            TO_CHAR(s.scheduled_at, 'HH24:MI') AS time,
+            s.schedule_id                                 AS scheduleId,
+            s.medication_id                               AS medicationId,
+            NVL(m.item_name, '약품')                      AS name,
+            TO_CHAR(s.scheduled_at, 'HH24:MI')            AS time,
             CASE 
                 WHEN s.prescription_id IS NOT NULL THEN 'prescription'
                 WHEN s.routine_id IS NOT NULL THEN 'supplement'
                 WHEN s.cabinet_id IS NOT NULL THEN 'regular'
                 ELSE 'prescription'
-            END AS type,
+            END                                           AS type,
             TO_CHAR(s.taken_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS takenAt,
-            NVL(s.alarm_enabled, 1) AS alarmEnabled
+            NVL(s.alarm_enabled, 1)                       AS alarmEnabled
         FROM schedules s
         LEFT JOIN medications m ON s.medication_id = m.medication_id
         WHERE s.user_id = #{userId}
@@ -30,12 +30,13 @@
 
         /* 2) 처방전 실시간 연동: 아직 SCHEDULES로 실체화되지 않은 처방약만 노출 */
         SELECT 
-            (p.prescription_id * 1000 + pi.item_id) AS scheduleId,
-            m.item_name                             AS name,
-            '08:30'                                 AS time,
-            'prescription'                          AS type,
-            NULL                                    AS takenAt,
-            1                                       AS alarmEnabled
+            (p.prescription_id * 1000 + pi.item_id)       AS scheduleId,
+            pi.medication_id                              AS medicationId,
+            m.item_name                                   AS name,
+            '08:30'                                       AS time,
+            'prescription'                                AS type,
+            CAST(NULL AS VARCHAR2(30))                    AS takenAt,
+            1                                             AS alarmEnabled
         FROM prescriptions p
         JOIN prescription_items pi ON p.prescription_id = pi.prescription_id
         JOIN medications m ON pi.medication_id = m.medication_id
@@ -73,12 +74,13 @@
             /* 수동 등록 일정 */
             SELECT 
                 TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS scheduleDate,
-                CASE WHEN s.prescription_id IS NOT NULL THEN 1 ELSE 0 END AS hasPrescription,
-                CASE WHEN s.prescription_id IS NULL AND s.routine_id IS NULL THEN 1 ELSE 0 END AS hasRegular,
-                CASE WHEN s.routine_id IS NOT NULL THEN 1 ELSE 0 END AS hasSupplement
+                MAX(CASE WHEN s.prescription_id IS NOT NULL THEN 1 ELSE 0 END) AS hasPrescription,
+                MAX(CASE WHEN s.prescription_id IS NULL AND s.routine_id IS NULL THEN 1 ELSE 0 END) AS hasRegular,
+                MAX(CASE WHEN s.routine_id IS NOT NULL THEN 1 ELSE 0 END) AS hasSupplement
             FROM schedules s
             WHERE s.user_id = #{userId}
               AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
+            GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
 
             UNION ALL
 
@@ -98,14 +100,13 @@
             ]]>
         )
         SELECT 
-            TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS "scheduleDate",
-            MAX(CASE WHEN s.prescription_id IS NOT NULL OR (s.cabinet_id IS NULL AND s.routine_id IS NULL) THEN 1 ELSE 0 END) AS "hasPrescription",
-            MAX(CASE WHEN s.cabinet_id IS NOT NULL THEN 1 ELSE 0 END) AS "hasRegular",
-            MAX(CASE WHEN s.routine_id IS NOT NULL THEN 1 ELSE 0 END) AS "hasSupplement"
-        FROM schedules s
-        WHERE s.user_id = #{userId}
-          AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
-        GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
+            scheduleDate AS "scheduleDate",
+            MAX(hasPrescription) AS "hasPrescription",
+            MAX(hasRegular) AS "hasRegular",
+            MAX(hasSupplement) AS "hasSupplement"
+        FROM ALL_CALENDAR
+        GROUP BY scheduleDate
+        ORDER BY scheduleDate ASC
     </select>
 
     <!-- 4. 복용 체크박스 토글 -->
@@ -151,12 +152,7 @@
                 <otherwise>NULL</otherwise>
             </choose>,
             NVL(#{alarmEnabled}, 1),
-            NULL,
-            (
-                SELECT MIN(cabinet_id) 
-                FROM cabinet_medications 
-                WHERE user_id = #{userId}
-            )
+            NULL
         )
     </insert>
 
