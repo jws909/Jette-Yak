@@ -16,7 +16,7 @@ http://www.springframework.org/schema/context/spring-context.xsd">
 	<context:component-scan base-package="com.app.service" />
 	<context:component-scan base-package="com.app.dao" />
 	<context:component-scan base-package="com.app.util" />
-	<context:component-scan base-package="com.app.main,com.app.medication,com.app.easydrug,com.app.chatbot,com.app.guide,com.app.prescription" />
+	<context:component-scan base-package="com.app.main,com.app.medication,com.app.easydrug,com.app.chatbot,com.app.guide,com.app.prescription,com.app.community" />
 	<!-- <context:component-scan base-package="com.app.config"/> -->
 
 	<!-- 파일 업로드 MultipartResolver 설정 (최대 10MB) -->

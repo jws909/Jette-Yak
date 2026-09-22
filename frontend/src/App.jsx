@@ -7,6 +7,7 @@ import GuidePage from './features/guide/GuidePage';
 import MyPage from './features/mypage/MyPage';
 import SurveyPage from './features/survey/SurveyPage';
 import MedicationChat from './features/chatbot/components/MedicationChat';
+import CommunityPage from './features/community/CommunityPage';
 import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import './App.css';
@@ -38,13 +39,13 @@ function App() {
 
   // 이미 로그인되어 있으나 과거 세션 데이터로 인해 userId가 누락된 경우 서버 프로필에서 자동 복구
   useEffect(() => {
-    if (user?.username && !user?.userId && user.username !== 'demo') {
+    if (user?.username && (!user?.userId || !user?.role) && user.username !== 'demo') {
       fetch(`/api/users/profile?username=${encodeURIComponent(user.username)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data && data.userId) {
             setUser((curr) => {
-              const updated = { ...curr, userId: data.userId };
+              const updated = { ...curr, userId: data.userId, role: data.role || curr?.role || 'USER' };
               localStorage.setItem('user', JSON.stringify(updated));
               return updated;
             });
@@ -52,7 +53,7 @@ function App() {
         })
         .catch(() => {});
     }
-  }, [user?.username, user?.userId]);
+  }, [user?.username, user?.userId, user?.role]);
 
   // 1. 브라우저 시스템 알림 권한 획득 (최초 1회)
   useEffect(() => {
@@ -69,7 +70,9 @@ function App() {
       try {
         const stored = JSON.parse(localStorage.getItem('user'));
         resolvedUserId = stored?.userId;
-      } catch (e) {}
+      } catch {
+        resolvedUserId = null;
+      }
     }
     const currentUserId = resolvedUserId || 1;
 
@@ -177,13 +180,14 @@ function App() {
       username: loginData.username,
       name: loginData.nickname || loginData.username,
       email: loginData.email || '',
+      role: loginData.role || 'USER',
     };
     setIsLoggedIn(true);
     setUser(loggedInUser);
     localStorage.setItem('token', loginData.token);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     const next = new URLSearchParams(window.location.search).get('next');
-    navigate(['/guide','/chat'].includes(next) ? next : '/');
+    navigate(['/guide','/chat','/community'].includes(next) ? next : '/');
   };
 
   const handleLogout = async () => {
@@ -311,6 +315,20 @@ function App() {
               onLoginDemoToggle={handleLoginDemoToggle}
             >
               <MedicationChat key={user?.userId || "guest"} />
+            </MainLayout>
+          }
+        />
+
+        <Route
+          path="/community"
+          element={
+            <MainLayout
+              isLoggedIn={isLoggedIn}
+              user={user}
+              onLogout={handleLogout}
+              onLoginDemoToggle={handleLoginDemoToggle}
+            >
+              <CommunityPage user={user} />
             </MainLayout>
           }
         />

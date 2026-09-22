@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.community.CommunityMapper">
+  <sql id="postWhere">
+    WHERE p.status='VISIBLE'
+    <if test="category != null and category != ''">AND p.category=#{category}</if>
+    <if test="medicationId != null and medicationId != ''">AND p.medication_id=#{medicationId}</if>
+    <if test="keyword != null and keyword != ''">
+      AND (INSTR(LOWER(p.title),LOWER(#{keyword}))&gt;0 OR INSTR(LOWER(p.medication_name),LOWER(#{keyword}))&gt;0 OR DBMS_LOB.INSTR(LOWER(p.content),LOWER(#{keyword}))&gt;0)
+    </if>
+  </sql>
+  <select id="countPosts" parameterType="map" resultType="int">SELECT COUNT(*) FROM community_posts p <include refid="postWhere"/></select>
+  <select id="posts" parameterType="map" resultType="map">
+    SELECT p.post_id AS "postId",p.category AS "category",p.title AS "title",DBMS_LOB.SUBSTR(p.content,260,1) AS "summary",
+      p.medication_id AS "medicationId",p.medication_name AS "medicationName",p.review_status AS "reviewStatus",
+      u.nickname AS "authorName",p.user_id AS "authorId",TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",
+      (SELECT COUNT(*) FROM community_post_helpful h WHERE h.post_id=p.post_id) AS "helpfulCount",
+      (SELECT COUNT(*) FROM community_comments c WHERE c.post_id=p.post_id AND c.status='VISIBLE') AS "commentCount",
+      CASE WHEN EXISTS(SELECT 1 FROM community_post_helpful h WHERE h.post_id=p.post_id AND h.user_id=#{viewerId}) THEN 1 ELSE 0 END AS "helpfulByMe"
+    FROM community_posts p JOIN users u ON u.user_id=p.user_id <include refid="postWhere"/>
+    ORDER BY
+      <choose><when test="sort == 'HELPFUL'">"helpfulCount" DESC,</when><when test="sort == 'COMMENTS'">"commentCount" DESC,</when></choose>
+      p.created_at DESC OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+  </select>
+  <select id="post" parameterType="map" resultType="map">
+    SELECT p.post_id AS "postId",p.category AS "category",p.title AS "title",DBMS_LOB.SUBSTR(p.content,4000,1) AS "content",p.medication_id AS "medicationId",p.medication_name AS "medicationName",
+      p.experience_duration AS "experienceDuration",p.age_group AS "ageGroup",p.purpose AS "purpose",p.occurrence_timing AS "occurrenceTiming",p.currently_taking AS "currentlyTaking",
+      p.review_status AS "reviewStatus",p.status AS "status",p.user_id AS "authorId",u.nickname AS "authorName",TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",TO_CHAR(p.updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt",
+      (SELECT COUNT(*) FROM community_post_helpful h WHERE h.post_id=p.post_id) AS "helpfulCount",
+      CASE WHEN EXISTS(SELECT 1 FROM community_post_helpful h WHERE h.post_id=p.post_id AND h.user_id=#{viewerId}) THEN 1 ELSE 0 END AS "helpfulByMe"
+    FROM community_posts p JOIN users u ON u.user_id=p.user_id WHERE p.post_id=#{postId} AND p.status&lt;&gt;'DELETED'
+  </select>
+  <insert id="insertPost" parameterType="map"><selectKey keyProperty="postId" resultType="long" order="BEFORE">SELECT community_posts_seq.NEXTVAL FROM dual</selectKey>
+    INSERT INTO community_posts(post_id,user_id,medication_id,medication_name,category,title,content,experience_duration,age_group,purpose,occurrence_timing,currently_taking,review_status,status,created_at,updated_at)
+    VALUES(#{postId},#{userId},#{medicationId,jdbcType=VARCHAR},#{medicationName,jdbcType=VARCHAR},#{category},#{title},#{content},#{experienceDuration,jdbcType=VARCHAR},#{ageGroup,jdbcType=VARCHAR},#{purpose,jdbcType=VARCHAR},#{occurrenceTiming,jdbcType=VARCHAR},#{currentlyTaking},CASE WHEN #{category}='INFO_REPORT' THEN 'PENDING' ELSE 'NOT_REQUIRED' END,'VISIBLE',SYSDATE,SYSDATE)
+  </insert>
+  <update id="updatePost" parameterType="map">UPDATE community_posts SET medication_id=#{medicationId,jdbcType=VARCHAR},medication_name=#{medicationName,jdbcType=VARCHAR},category=#{category},title=#{title},content=#{content},experience_duration=#{experienceDuration,jdbcType=VARCHAR},age_group=#{ageGroup,jdbcType=VARCHAR},purpose=#{purpose,jdbcType=VARCHAR},occurrence_timing=#{occurrenceTiming,jdbcType=VARCHAR},currently_taking=#{currentlyTaking},review_status=CASE WHEN #{category}='INFO_REPORT' THEN 'PENDING' ELSE 'NOT_REQUIRED' END,updated_at=SYSDATE WHERE post_id=#{postId} AND user_id=#{userId} AND status='VISIBLE'</update>
+  <update id="deletePost" parameterType="map">UPDATE community_posts SET status='DELETED',updated_at=SYSDATE WHERE post_id=#{postId} AND user_id=#{userId} AND status&lt;&gt;'DELETED'</update>
+  <select id="comments" parameterType="long" resultType="map">SELECT c.comment_id AS "commentId",c.user_id AS "authorId",u.nickname AS "authorName",DBMS_LOB.SUBSTR(c.content,1000,1) AS "content",TO_CHAR(c.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt" FROM community_comments c JOIN users u ON u.user_id=c.user_id WHERE c.post_id=#{value} AND c.status='VISIBLE' ORDER BY c.created_at</select>
+  <insert id="insertComment" parameterType="map"><selectKey keyProperty="commentId" resultType="long" order="BEFORE">SELECT community_comments_seq.NEXTVAL FROM dual</selectKey>INSERT INTO community_comments(comment_id,post_id,user_id,content,status,created_at,updated_at) SELECT #{commentId},#{postId},#{userId},#{content},'VISIBLE',SYSDATE,SYSDATE FROM dual WHERE EXISTS(SELECT 1 FROM community_posts WHERE post_id=#{postId} AND status='VISIBLE')</insert>
+  <update id="deleteComment" parameterType="map">UPDATE community_comments SET status='DELETED',updated_at=SYSDATE WHERE comment_id=#{commentId} AND user_id=#{userId}</update>
+  <select id="helpfulCount" parameterType="map" resultType="int">SELECT COUNT(*) FROM community_post_helpful WHERE post_id=#{postId} AND user_id=#{userId}</select>
+  <insert id="addHelpful" parameterType="map">INSERT INTO community_post_helpful(post_id,user_id,created_at) VALUES(#{postId},#{userId},SYSDATE)</insert>
+  <delete id="removeHelpful" parameterType="map">DELETE FROM community_post_helpful WHERE post_id=#{postId} AND user_id=#{userId}</delete>
+  <select id="helpfulTotal" parameterType="long" resultType="int">SELECT COUNT(*) FROM community_post_helpful WHERE post_id=#{value}</select>
+  <insert id="insertReport" parameterType="map"><selectKey keyProperty="reportId" resultType="long" order="BEFORE">SELECT community_reports_seq.NEXTVAL FROM dual</selectKey>INSERT INTO community_reports(report_id,reporter_id,target_type,target_id,reason,detail,status,created_at) VALUES(#{reportId},#{userId},#{targetType},#{targetId},#{reason},#{detail,jdbcType=VARCHAR},'PENDING',SYSDATE)</insert>
+  <select id="reports" resultType="map">SELECT r.report_id AS "reportId",r.target_type AS "targetType",r.target_id AS "targetId",r.reason AS "reason",r.detail AS "detail",r.status AS "status",u.nickname AS "reporterName",TO_CHAR(r.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",CASE WHEN r.target_type='POST' THEN (SELECT title FROM community_posts WHERE post_id=r.target_id) ELSE (SELECT DBMS_LOB.SUBSTR(content,120,1) FROM community_comments WHERE comment_id=r.target_id) END AS "targetSummary" FROM community_reports r JOIN users u ON u.user_id=r.reporter_id ORDER BY CASE r.status WHEN 'PENDING' THEN 0 ELSE 1 END,r.created_at DESC</select>
+  <select id="pendingInfoReports" resultType="map">SELECT p.post_id AS "postId",p.title AS "title",DBMS_LOB.SUBSTR(p.content,500,1) AS "content",p.medication_name AS "medicationName",u.nickname AS "authorName",TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt" FROM community_posts p JOIN users u ON u.user_id=p.user_id WHERE p.category='INFO_REPORT' AND p.review_status='PENDING' AND p.status='VISIBLE' ORDER BY p.created_at</select>
+  <update id="moderatePost" parameterType="map">UPDATE community_posts SET status=#{status},moderated_by=#{adminId},moderated_at=SYSDATE,updated_at=SYSDATE WHERE post_id=#{postId}</update>
+  <update id="reviewInfoPost" parameterType="map">UPDATE community_posts SET review_status=#{status},moderated_by=#{adminId},moderated_at=SYSDATE,updated_at=SYSDATE WHERE post_id=#{postId} AND category='INFO_REPORT' AND review_status='PENDING'</update>
+  <update id="resolveReport" parameterType="map">UPDATE community_reports SET status=#{status},resolution_note=#{note},resolved_by=#{adminId},resolved_at=SYSDATE WHERE report_id=#{reportId}</update>
+  <select id="medications" parameterType="string" resultType="map">SELECT medication_id AS "medicationId",item_name AS "itemName",entp_name AS "entpName" FROM medications WHERE INSTR(LOWER(item_name),LOWER(#{value}))&gt;0 AND ROWNUM&lt;=10 ORDER BY item_name</select>
+</mapper>
