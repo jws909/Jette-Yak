@@ -1095,8 +1095,8 @@ export default function MainPage({ user }) {
         </>
       )}
 
-      {/* 4. 하단 영역: 오늘의 복약 루틴 (TODAY'S ROUTINE - 다크 테마 섹션) */}
-      <section className="today-routine-dark-card">
+      {/* 4. 하단 영역: 오늘의 복약 루틴 (TODAY'S ROUTINE) */}
+      <section className="today-routine-card today-routine-dark-card">
         <div className="routine-header-row">
           <span className="routine-label">TODAY'S ROUTINE</span>
           <div className="routine-header-actions">
