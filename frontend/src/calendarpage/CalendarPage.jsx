@@ -1,16 +1,35 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './CalendarPage.css';
 
-const getFormattedDate = (targetDate) => {
+function getFormattedDate(targetDate) {
   const y = targetDate.getFullYear();
   const m = String(targetDate.getMonth() + 1).padStart(2, '0');
   const d = String(targetDate.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
-};
+}
 
-export default function CalendarPage({ user }) {
+function getTypeStorageMap() {
+  try {
+    return JSON.parse(localStorage.getItem('cal_type_overrides') || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveTypeOverride(key, type) {
+  try {
+    const map = getTypeStorageMap();
+    map[key] = type;
+    localStorage.setItem('cal_type_overrides', JSON.stringify(map));
+  } catch (e) {
+    console.warn('Type override save error', e);
+  }
+}
+
+const CalendarPage = (props) => {
+  const user = props.user;
   const today = new Date();
-  const currentUserId = user?.userId || 1;
+  const currentUserId = (user && user.userId) ? user.userId : 1;
   
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
@@ -18,15 +37,14 @@ export default function CalendarPage({ user }) {
   const [monthSummary, setMonthSummary] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // 알람 시간 설정 모달 상태 (사용자 시간 편집용)
+  // 알람 설정 모달 (시간 변경 전용)
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [ampm, setAmpm] = useState('오전');
   const [hour, setHour] = useState('08');
   const [minute, setMinute] = useState('00');
-  const [isAlarmEnabled, setIsAlarmEnabled] = useState(true);
 
-  // 복약 추가 모달 상태
+  // 일정 추가 모달
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newMedName, setNewMedName] = useState('');
   const [selectedMed, setSelectedMed] = useState(null);
@@ -37,7 +55,7 @@ export default function CalendarPage({ user }) {
   const [newMinute, setNewMinute] = useState('00');
   const [addedSuccessMsg, setAddedSuccessMsg] = useState('');
 
-  // 삭제 확인 커스텀 모달 상태
+  // 삭제 확인 모달
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
 
@@ -45,13 +63,15 @@ export default function CalendarPage({ user }) {
   const month = currentDate.getMonth();
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
 
-  // 1. 월별 요약 조회 (달력 점/바 인디케이터)
+  // 1. 월별 요약 조회
   const fetchMonthSummary = useCallback(async () => {
     try {
       const res = await fetch(`/api/calendar/summary?userId=${currentUserId}&yearMonth=${currentYearMonth}`);
       if (res.ok) {
         const list = await res.json();
         const map = {};
+        const overrides = getTypeStorageMap();
+
         list.forEach((item) => {
           map[item.scheduleDate] = {
             hasPrescription: Number(item.hasPrescription) === 1,
@@ -59,6 +79,20 @@ export default function CalendarPage({ user }) {
             hasSupplement: Number(item.hasSupplement) === 1,
           };
         });
+
+        Object.keys(overrides).forEach((key) => {
+          const parts = key.split('_');
+          const d = parts[0];
+          const t = parts[3];
+          if (t === 'supplement' && d.startsWith(currentYearMonth)) {
+            if (!map[d]) {
+              map[d] = { hasPrescription: false, hasRegular: false, hasSupplement: true };
+            } else {
+              map[d].hasSupplement = true;
+            }
+          }
+        });
+
         setMonthSummary(map);
       }
     } catch (err) {
@@ -73,7 +107,22 @@ export default function CalendarPage({ user }) {
       const response = await fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`);
       if (response.ok) {
         const data = await response.json();
-        setSchedules(data);
+        const overrides = getTypeStorageMap();
+
+        const normalized = data.map((item) => {
+          const formattedT = String(item.time || '').substring(0, 5);
+          const overrideKey = `${targetDateStr}_${item.name}_${formattedT}_supplement`;
+          const idKey = `id_${item.scheduleId}`;
+
+          const isSup = overrides[overrideKey] === 'supplement' || overrides[idKey] === 'supplement' || item.type === 'supplement';
+          return {
+            ...item,
+            time: formattedT,
+            type: isSup ? 'supplement' : (item.type || 'regular'),
+          };
+        });
+
+        setSchedules(normalized);
       } else {
         setSchedules([]);
       }
@@ -93,7 +142,7 @@ export default function CalendarPage({ user }) {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
 
-  // 약품 검색 자동완성
+  // 약품 자동완성 검색
   useEffect(() => {
     if (!newMedName.trim()) {
       setSearchResults([]);
@@ -116,10 +165,7 @@ export default function CalendarPage({ user }) {
   }, [newMedName]);
 
   const handleSelectMed = (med) => {
-    setSelectedMed({
-      id: med.medicationId,
-      name: med.itemName
-    });
+    setSelectedMed({ id: med.medicationId, name: med.itemName });
     setNewMedName('');
     setSearchResults([]);
   };
@@ -138,7 +184,7 @@ export default function CalendarPage({ user }) {
     setSelectedDate(getFormattedDate(now));
   };
 
-  // 체크박스 토글
+  // 복용 체크박스 토글
   const toggleTaken = async (item) => {
     const isTaken = !item.takenAt;
     try {
@@ -147,9 +193,14 @@ export default function CalendarPage({ user }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taken: isTaken }),
       });
+
       if (response.ok) {
         setSchedules((prev) =>
-          prev.map((s) => (s.scheduleId === item.scheduleId ? { ...s, takenAt: isTaken ? new Date().toISOString() : null } : s))
+          prev.map((s) =>
+            s.scheduleId === item.scheduleId
+              ? { ...s, takenAt: isTaken ? new Date().toISOString() : null }
+              : s
+          )
         );
       }
     } catch (err) {
@@ -164,15 +215,21 @@ export default function CalendarPage({ user }) {
     setIsDeleteModalOpen(true);
   };
 
-  // 모달 내 [삭제] 버튼 클릭 시 실행
+  // 삭제 확정
   const confirmDeleteSchedule = async () => {
     if (!itemToDelete) return;
-
     try {
       const response = await fetch(`/api/calendar/${itemToDelete.scheduleId}/delete`, {
         method: 'POST',
       });
       if (response.ok) {
+        try {
+          const map = getTypeStorageMap();
+          delete map[`id_${itemToDelete.scheduleId}`];
+          delete map[`${selectedDate}_${itemToDelete.name}_${itemToDelete.time}_supplement`];
+          localStorage.setItem('cal_type_overrides', JSON.stringify(map));
+        } catch (e) {}
+
         setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
         fetchMonthSummary();
       } else {
@@ -214,20 +271,21 @@ export default function CalendarPage({ user }) {
     }
   };
 
-  // 알람 설정 모달 열기
+  // 알람 시간 설정 모달 열기
   const openAlarmModal = (item, e) => {
     if (e) e.stopPropagation();
     setActiveItem(item);
-    const [h, m] = (item.time || '08:00').split(':').map(Number);
+    const timeParts = (item.time || '08:00').split(':');
+    const h = parseInt(timeParts[0], 10) || 8;
+    const m = parseInt(timeParts[1], 10) || 0;
     setAmpm(h >= 12 ? '오후' : '오전');
     const displayH = h % 12 === 0 ? 12 : h % 12;
     setHour(String(displayH).padStart(2, '0'));
     setMinute(String(m).padStart(2, '0'));
-    setIsAlarmEnabled(item.alarmEnabled ?? true);
     setIsAlarmModalOpen(true);
   };
 
-  // 알람 설정 저장
+  // 알람 시간 저장 (빈 응답 대응: await response.json() 배제)
   const saveAlarmSetting = async () => {
     if (!activeItem) return;
     let numericHour = parseInt(hour, 10) || 12;
@@ -238,21 +296,32 @@ export default function CalendarPage({ user }) {
 
     try {
       const response = await fetch(
-        `/api/calendar/${activeItem.scheduleId}/alarm?newTime=${newTime}&alarmEnabled=${isAlarmEnabled}`,
-        { method: 'POST' }
+        `/api/calendar/${activeItem.scheduleId}/alarm?newTime=${encodeURIComponent(newTime)}&alarmEnabled=true`,
+        {
+          method: 'POST',
+        }
       );
+
       if (response.ok) {
         setSchedules((prev) =>
-          prev.map((s) => (s.scheduleId === activeItem.scheduleId ? { ...s, time: newTime, alarmEnabled: isAlarmEnabled } : s))
+          prev.map((s) =>
+            s.scheduleId === activeItem.scheduleId
+              ? { ...s, time: newTime }
+              : s
+          )
         );
+      } else {
+        alert('알람 시간을 저장하지 못했습니다.');
       }
     } catch (err) {
-      console.error("알람 수정 실패:", err);
+      console.error("알람 시간 수정 실패:", err);
+      alert('서버 통신 중 오류가 발생했습니다.');
+    } finally {
+      setIsAlarmModalOpen(false);
     }
-    setIsAlarmModalOpen(false);
   };
 
-  // 복약 추가 제출 핸들러
+  // 신규 등록 제출 (빈 응답 대응: fetch 완료 후 데이터 재조회)
   const handleAddMedication = async (e) => {
     e.preventDefault();
     if (!selectedMed) {
@@ -276,38 +345,20 @@ export default function CalendarPage({ user }) {
         body: JSON.stringify({
           userId: currentUserId,
           medicationId: selectedMed.id,
-          name: savedMedName,
           type: chosenType,
           scheduledDate: selectedDate,
           scheduledTime: formattedTime,
+          alarmEnabled: 1,
         }),
       });
 
       if (response.ok) {
-        const tempId = Date.now();
-        setSchedules((prev) => [
-          ...prev,
-          {
-            scheduleId: tempId,
-            name: savedMedName,
-            time: formattedTime,
-            type: chosenType,
-            takenAt: null,
-            alarmEnabled: true,
-          }
-        ]);
+        if (chosenType === 'supplement') {
+          saveTypeOverride(`${selectedDate}_${savedMedName}_${formattedTime}_supplement`, 'supplement');
+        }
 
-        setMonthSummary((prev) => {
-          const prevStatus = prev[selectedDate] || {};
-          return {
-            ...prev,
-            [selectedDate]: {
-              ...prevStatus,
-              hasSupplement: chosenType === 'supplement' ? true : prevStatus.hasSupplement,
-              hasRegular: chosenType === 'regular' ? true : prevStatus.hasRegular,
-            }
-          };
-        });
+        await fetchDailySchedules(selectedDate);
+        await fetchMonthSummary();
 
         setAddedSuccessMsg(`'${savedMedName}' 등록 완료!`);
         setTimeout(() => setAddedSuccessMsg(''), 2000);
@@ -317,12 +368,10 @@ export default function CalendarPage({ user }) {
         setSearchResults([]);
         setIsAddModalOpen(false);
       } else {
-        const errorText = await response.text();
-        console.error("서버 등록 실패:", errorText);
-        alert(`일정 등록 실패: ${errorText}`);
+        alert('일정 등록에 실패했습니다.');
       }
     } catch (err) {
-      console.error("일정 등록 통신 실패:", err);
+      console.error("일정 등록 실패:", err);
       alert("서버 통신 중 오류가 발생했습니다.");
     }
   };
@@ -362,9 +411,8 @@ export default function CalendarPage({ user }) {
         <h1>복약캘린더</h1>
       </header>
 
-      {/* 메인 캘린더 카드 */}
       <div className="calendar-main-card">
-        {/* 좌측 달력 영역 */}
+        {/* 달력 영역 */}
         <div className="calendar-left">
           <div className="cal-nav">
             <div className="month-controls">
@@ -383,9 +431,7 @@ export default function CalendarPage({ user }) {
 
           <div className="cal-grid">
             {days.map((day, idx) => {
-              if (day === null) {
-                return <div key={`empty-${idx}`} className="cal-cell empty" />;
-              }
+              if (day === null) return <div key={`empty-${idx}`} className="cal-cell empty" />;
 
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               const isSelected = selectedDate === dateStr;
@@ -399,7 +445,6 @@ export default function CalendarPage({ user }) {
                   onClick={() => setSelectedDate(dateStr)}
                 >
                   <span className="day-number">{day}</span>
-                  
                   {dayStatus && (
                     <div className="cell-indicators">
                       {dayStatus.hasPrescription && <div className="indicator-bar prescription" />}
@@ -421,7 +466,7 @@ export default function CalendarPage({ user }) {
           </div>
         </div>
 
-        {/* 우측 목록 패널 */}
+        {/* 일정 목록 패널 */}
         <div className="calendar-right">
           <div>
             <div className="panel-header">
@@ -440,10 +485,7 @@ export default function CalendarPage({ user }) {
                   const currentCat = categoryMap[item.type] || { label: '상시약', className: 'cat-regular' };
 
                   return (
-                    <div
-                      key={item.scheduleId}
-                      className={`dose-item ${isTaken ? 'done' : ''}`}
-                    >
+                    <div key={item.scheduleId} className={`dose-item ${isTaken ? 'done' : ''}`}>
                       <input
                         type="checkbox"
                         className="check-box"
@@ -456,7 +498,6 @@ export default function CalendarPage({ user }) {
                           <span className={`type-dot ${item.type || 'regular'}`} />
                           <span className="time">{item.time}</span>
                         </div>
-                        
                         <div className="name-row">
                           <strong
                             className="name"
@@ -465,25 +506,23 @@ export default function CalendarPage({ user }) {
                           >
                             {item.name}
                           </strong>
-
                           <span className={`category-tag ${currentCat.className}`}>
                             {currentCat.label}
                           </span>
                         </div>
                       </div>
 
-                      {/* 알람 종 & 삭제 버튼 그룹 */}
                       <div className="dose-item-actions">
                         <button
                           type="button"
-                          className={`btn-alarm ${item.alarmEnabled ? 'active' : ''}`}
+                          className="btn-alarm"
                           onClick={(e) => openAlarmModal(item, e)}
                           title="알람 시간 설정"
                         >
                           <svg
                             className="bell-icon"
                             viewBox="0 0 24 24"
-                            fill={item.alarmEnabled ? "currentColor" : "none"}
+                            fill="none"
                             stroke="currentColor"
                             strokeWidth="1.8"
                             strokeLinecap="round"
@@ -585,18 +624,6 @@ export default function CalendarPage({ user }) {
               </div>
             </div>
 
-            <div className="alarm-toggle-row">
-              <span>이 시간에 알람 받기</span>
-              <label className="switch">
-                <input
-                  type="checkbox"
-                  checked={isAlarmEnabled}
-                  onChange={(e) => setIsAlarmEnabled(e.target.checked)}
-                />
-                <span className="slider"></span>
-              </label>
-            </div>
-
             <div className="modal-actions">
               <button type="button" className="btn-confirm" onClick={saveAlarmSetting}>확인</button>
             </div>
@@ -604,7 +631,7 @@ export default function CalendarPage({ user }) {
         </div>
       )}
 
-      {/* 모달 2: 이 날짜에 복약 추가 */}
+      {/* 모달 2: 일정 추가 */}
       {isAddModalOpen && (
         <div className="modal-overlay" onClick={handleCloseAddModal}>
           <div className="add-med-modal" onClick={(e) => e.stopPropagation()}>
@@ -657,7 +684,6 @@ export default function CalendarPage({ user }) {
                 )}
               </div>
 
-              {/* 분류: 상시약 & 영양제 */}
               <div className="form-group">
                 <label>분류</label>
                 <div className="category-select-group">
@@ -732,25 +758,19 @@ export default function CalendarPage({ user }) {
               </div>
 
               {addedSuccessMsg && (
-                <div className="toast-success-banner">
-                  ✓ {addedSuccessMsg}
-                </div>
+                <div className="toast-success-banner">✓ {addedSuccessMsg}</div>
               )}
 
               <div className="modal-actions-dual">
-                <button type="button" className="btn-cancel" onClick={handleCloseAddModal}>
-                  닫기
-                </button>
-                <button type="submit" className="btn-save-med">
-                  추가하기
-                </button>
+                <button type="button" className="btn-cancel" onClick={handleCloseAddModal}>닫기</button>
+                <button type="submit" className="btn-save-med">추가하기</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* 모달 3: 커스텀 삭제 모달 */}
+      {/* 모달 3: 삭제 확인 */}
       {isDeleteModalOpen && (
         <div className="modal-overlay" onClick={() => setIsDeleteModalOpen(false)}>
           <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()}>
@@ -763,34 +783,20 @@ export default function CalendarPage({ user }) {
             </div>
             
             <h4 className="delete-modal-title">복약 일정을 삭제하시겠습니까?</h4>
-            
             {itemToDelete && (
-              <p className="delete-modal-target">
-                [{itemToDelete.time}] <strong>{itemToDelete.name}</strong>
-              </p>
+              <p className="delete-modal-target">[{itemToDelete.time}] <strong>{itemToDelete.name}</strong></p>
             )}
-            
             <p className="delete-modal-desc">삭제된 복약 기록은 되돌릴 수 없습니다.</p>
 
             <div className="delete-modal-actions">
-              <button 
-                type="button" 
-                className="btn-modal-cancel" 
-                onClick={() => setIsDeleteModalOpen(false)}
-              >
-                취소
-              </button>
-              <button 
-                type="button" 
-                className="btn-modal-delete" 
-                onClick={confirmDeleteSchedule}
-              >
-                삭제
-              </button>
+              <button type="button" className="btn-modal-cancel" onClick={() => setIsDeleteModalOpen(false)}>취소</button>
+              <button type="button" className="btn-modal-delete" onClick={confirmDeleteSchedule}>삭제</button>
             </div>
           </div>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default CalendarPage;
