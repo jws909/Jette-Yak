@@ -26,7 +26,7 @@ export default function CalendarPage({ user }) {
   const [minute, setMinute] = useState('00');
   const [isAlarmEnabled, setIsAlarmEnabled] = useState(true);
 
-  // ★ 실시간 복약 알림 팝업 모달 상태 (시간 도달 시 표시)
+  // 실시간 복약 알림 팝업 모달 상태 (시간 도달 시 표시)
   const [activeAlertItem, setActiveAlertItem] = useState(null);
 
   // 복약 추가 모달 상태
@@ -96,47 +96,80 @@ export default function CalendarPage({ user }) {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
 
-  // ★ 3. 브라우저 푸시 알림 권한 획득 (최초 1회)
+  // 3. 브라우저 푸시 알림 권한 획득 (최초 1회)
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
   }, []);
 
-  // ★ 4. 1분 주기 타이머: 사용자가 맞춘 시간에 정확히 알림 발송 & 화면 모달 띄우기
+  // ★ 4. 정각(00초) 칼동기화 타이머: 초침이 00초를 가리키는 순간 오차 없이 즉시 발송
   useEffect(() => {
-    const checkAlarm = () => {
+    let timeoutId;
+    let intervalId;
+    const alertedTags = new Set();
+
+    const triggerCheck = async () => {
       const now = new Date();
       const currentH = String(now.getHours()).padStart(2, '0');
       const currentM = String(now.getMinutes()).padStart(2, '0');
       const currentTimeStr = `${currentH}:${currentM}`;
       const todayDateStr = getFormattedDate(now);
 
-      // 오늘 날짜의 스케줄만 검사
-      if (selectedDate !== todayDateStr) return;
+      let todayList = [];
+      if (selectedDate === todayDateStr) {
+        todayList = schedules;
+      } else {
+        try {
+          const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${todayDateStr}`);
+          if (res.ok) todayList = await res.json();
+        } catch (e) {
+          return;
+        }
+      }
 
-      schedules.forEach((item) => {
-        // 조건: 알람 켜짐 + 미복용 + 설정 시간 일치
-        if (item.alarmEnabled && !item.takenAt && item.time === currentTimeStr) {
-          // 화면 중앙 모달 열기
+      todayList.forEach((item) => {
+        const isEnabled = item.alarmEnabled === true || Number(item.alarmEnabled) === 1 || item.alarmEnabled === undefined;
+        const tag = `dose-${item.scheduleId}-${item.time}-${currentTimeStr}`;
+
+        if (isEnabled && !item.takenAt && item.time === currentTimeStr && !alertedTags.has(tag)) {
+          alertedTags.add(tag);
+
+          // 1) 화면 모달 즉시 팝업
           setActiveAlertItem(item);
 
-          // 브라우저 시스템 푸시 알림 발송
+          // 2) 브라우저 시스템 알림 즉시 발송
           if ('Notification' in window && Notification.permission === 'granted') {
             new Notification(`💊 [복약 알림] ${item.name}`, {
               body: `현재 복용 시간(${item.time})입니다. 잊지 말고 복용하세요!`,
               icon: '/favicon.ico',
-              tag: `dose-${item.scheduleId}-${item.time}`, // 1분 내 중복 방지
+              tag: tag,
             });
           }
         }
       });
     };
 
-    // 1분(60초)마다 검사
-    const timer = setInterval(checkAlarm, 60000);
-    return () => clearInterval(timer);
-  }, [schedules, selectedDate]);
+    // 1단계: 진입 시 현재 시간과 겹치는 게 있는지 1회 즉각 확인
+    triggerCheck();
+
+    // 2단계: 다음 '00초 정각'까지 남은 밀리초를 계산하여 대기
+    const now = new Date();
+    const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+
+    timeoutId = setTimeout(() => {
+      // 정확히 00초 정각이 되는 순간 즉시 실행
+      triggerCheck();
+
+      // 그 다음부터는 정확히 60초(1분) 주기로 00초에만 맞춰서 반복
+      intervalId = setInterval(triggerCheck, 60000);
+    }, msUntilNextMinute);
+
+    return () => {
+      clearTimeout(timeoutId);
+      clearInterval(intervalId);
+    };
+  }, [schedules, selectedDate, currentUserId]);
 
   // 약품 검색 자동완성
   useEffect(() => {
@@ -202,7 +235,7 @@ export default function CalendarPage({ user }) {
     }
   };
 
-  // ★ 알림 팝업 모달에서 [지금 복약 완료] 클릭 시 실행
+  // 알림 팝업 모달에서 [지금 복약 완료] 클릭 시 실행
   const handleConfirmTakeFromAlert = async () => {
     if (!activeAlertItem) return;
     await toggleTaken(activeAlertItem);
@@ -844,7 +877,7 @@ export default function CalendarPage({ user }) {
         </div>
       )}
 
-      {/* ★ 모달 4: 설정 시간에 도달했을 때 뜨는 실시간 복약 알림 모달 */}
+      {/* 모달 4: 설정 시간에 도달했을 때 뜨는 실시간 복약 알림 모달 */}
       {activeAlertItem && (
         <div className="modal-overlay">
           <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
