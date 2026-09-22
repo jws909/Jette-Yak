@@ -54,10 +54,18 @@ function App() {
     setUser(loggedInUser);
     localStorage.setItem('token', loginData.token);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
-    navigate('/');
+    const next = new URLSearchParams(window.location.search).get('next');
+    navigate(['/guide','/chat'].includes(next) ? next : '/');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST' });
+      if (!response.ok) throw new Error();
+    } catch {
+      window.alert('로그아웃하지 못했습니다. 다시 시도해주세요.');
+      return;
+    }
     setIsLoggedIn(false);
     setUser(null);
     localStorage.removeItem('token');
@@ -131,7 +139,7 @@ function App() {
             onLogout={handleLogout}
             onLoginDemoToggle={handleLoginDemoToggle}
           >
-            <GuidePage />
+            <GuidePage key={user?.userId || "guest"} />
           </MainLayout>
         }
       />
@@ -173,7 +181,7 @@ function App() {
             onLogout={handleLogout}
             onLoginDemoToggle={handleLoginDemoToggle}
           >
-            <MedicationChat />
+            <MedicationChat key={user?.userId || "guest"} />
           </MainLayout>
         }
       />

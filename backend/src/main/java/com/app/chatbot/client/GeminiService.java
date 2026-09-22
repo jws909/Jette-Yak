@@ -105,7 +105,7 @@ public class GeminiService {
             "status",Map.of("type","string","enum",List.of("ANY","ACTIVE","DISCONTINUED"))),
             "required",List.of("kind","filters","tabooType","grade","ageBase","status"),"additionalProperties",false);
         Map<String, Object> schema = Map.of("type", "object", "properties", Map.of(
-            "intent", Map.of("type", "string", "enum", List.of("MEDICATION_INFO", "FOOD_INTERACTION", "DRUG_INTERACTION", "LIFESTYLE", "DB_SEARCH", "DUR_INFO", "OTHER")),
+            "intent", Map.of("type", "string", "enum", List.of("MEDICATION_INFO", "FOOD_INTERACTION", "DRUG_INTERACTION", "LIFESTYLE", "MY_MEDICATIONS", "MY_DUR", "DB_SEARCH", "DUR_INFO", "OTHER")),
             "medications", strings, "foods", strings, "topics", strings, "query", querySchema, "clarificationQuestion", Map.of("type","string"),
             "useSelectedMedication", Map.of("type", "boolean"), "needsClarification", Map.of("type", "boolean")),
             "required", List.of("intent", "medications", "foods", "topics", "useSelectedMedication", "needsClarification", "query", "clarificationQuestion"),
@@ -160,8 +160,11 @@ public class GeminiService {
             특정 제품의 임부/노인/연령 금기 또는 DUR 질문은 DUR_INFO로 분류하고 해당 tabooType을 지정한다.
             특정 제품 두 개의 병용은 DRUG_INTERACTION, 특정 약과 병용금기인 성분을 묻는 경우도 DRUG_INTERACTION.
             '임산부', '노인', '소아', 'DUR', 성분명은 약 이름이나 topics에 넣지 않는다. DUR_INFO에는 제품명만 medications에 넣는다.
-            다른 사용자 정보, 로그인/비밀번호, 가족/처방 개인정보 조회나 DB 변경은 OTHER. 안전한 약 추천/개인 진단은 needsClarification=true.
-            일반 목록 검색(DB_SEARCH)을 제외하고, 약 이름이 생략되었거나 '이 약'을 함께 언급했다면 useSelectedMedication=true로 설정한다.
+            자신의 등록 약 목록은 MY_MEDICATIONS, 자신이 복용 중으로 확인한 약 전체 사이의 병용 주의 조회는 MY_DUR.
+            예: '내가 등록한 약 보여줘' => MY_MEDICATIONS. '내가 먹는 약끼리 같이 먹어도 돼?' => MY_DUR.
+            두 개인 조회 intent는 medications/foods/topics=[], useSelectedMedication=false, query 기본값이다. 본인 목록 요청만으로 needsClarification을 true로 하지 않는다.
+            다른 사용자 정보, 로그인/비밀번호, 가족 개인정보 조회나 DB 변경은 OTHER. 안전한 약 추천/개인 진단은 needsClarification=true.
+            목록 검색(DB_SEARCH, MY_MEDICATIONS, MY_DUR)을 제외하고, 약 이름이 생략되었거나 '이 약'을 함께 언급했다면 useSelectedMedication=true로 설정한다.
             현재 약 이름을 medications에 임의로 추가하지 않는다.
             새 약만 명시했다면 useSelectedMedication=false. 특정 약에 대한 이름 없는 후속 질문만 true. 일반 조건 목록의 후속 질문은 false.
             예: 텐텐 선택 중 '맥주랑 같이 먹어도 돼?' => FOOD_INTERACTION, medications=[], foods=["맥주"], useSelectedMedication=true.

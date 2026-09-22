@@ -12,6 +12,12 @@ public class MedicationGuideDao {
     public List<com.app.guide.dto.RegisteredMedicationDto> findRegistered(long userId) {
         return session.selectList("com.app.guide.dao.MedicationGuideDao.findRegistered", Map.of("userId", userId));
     }
+    public List<com.app.guide.dto.RegisteredMedicationDto> collection(long userId) {
+        return session.selectList("com.app.guide.dao.MedicationGuideDao.collection", Map.of("userId", userId));
+    }
+    public int updateStatus(long userId, String registrationId, String status) {
+        return session.update("com.app.guide.dao.MedicationGuideDao.updateStatus", Map.of("userId",userId,"registrationId",registrationId,"status",status));
+    }
     public MedicationGuideDto find(String id) {
         return session.selectOne("com.app.guide.dao.MedicationGuideDao.find", Map.of("id", id));
     }

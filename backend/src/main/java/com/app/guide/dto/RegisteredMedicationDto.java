@@ -4,6 +4,11 @@ import lombok.Data;
 public class RegisteredMedicationDto {
     private String registrationId;
     private String source;
+    private String useStatus;
+    private String materialName;
+    private String itemImageUrl;
+    private Integer daysRemaining;
+    private String periodState;
     private String medicationId;
     private String itemName;
     private String entpName;
