@@ -35,6 +35,15 @@ public class PrescriptionItemDTO {
     /** 효능군 분류명 (예: 혈압강하제, 소화기관용약) */
     private String className;
 
+    /** 주성분명 */
+    private String materialName;
+
+    /** 효능·효과 상세 */
+    private String efficacy;
+
+    /** 용법·용량 상세 */
+    private String usageDosage;
+
     /** 판매중단 여부 */
     private Boolean isDiscontinued;
 }

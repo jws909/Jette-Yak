@@ -5,22 +5,24 @@
 
 <mapper namespace="schedule">
 
-    <!-- 1. 일별 복약 일정 조회: 안전한 컬럼명 및 ROWNUM ID 부여 -->
+    <!-- 1. 일별 복약 일정 조회: 처방약/영양제/상비약 구분 및 복용 여부 조회 -->
     <select id="selectDailySchedules" parameterType="map" resultType="com.app.dto.ScheduleDTO">
         /* 1) 수동 등록 일정 */
         SELECT 
             s.schedule_id   AS scheduleId,
-            m.item_name     AS name,
+            s.medication_id AS medicationId,
+            NVL(m.item_name, '약품') AS name,
             TO_CHAR(s.scheduled_at, 'HH24:MI') AS time,
             CASE 
+                WHEN s.prescription_id IS NOT NULL THEN 'prescription'
                 WHEN s.routine_id IS NOT NULL THEN 'supplement'
                 WHEN s.cabinet_id IS NOT NULL THEN 'regular'
-                ELSE 'regular'
+                ELSE 'prescription'
             END AS type,
-            s.taken_at      AS takenAt,
+            TO_CHAR(s.taken_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS takenAt,
             1               AS alarmEnabled
         FROM schedules s
-        JOIN medications m ON s.medication_id = m.medication_id
+        LEFT JOIN medications m ON s.medication_id = m.medication_id
         WHERE s.user_id = #{userId}
           AND TRUNC(s.scheduled_at) = TO_DATE(#{date}, 'YYYY-MM-DD')
 
@@ -89,12 +91,14 @@
             ]]>
         )
         SELECT 
-            scheduleDate AS "scheduleDate",
-            MAX(hasPrescription) AS "hasPrescription",
-            MAX(hasRegular)      AS "hasRegular",
-            MAX(hasSupplement)   AS "hasSupplement"
-        FROM ALL_CALENDAR
-        GROUP BY scheduleDate
+            TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS "scheduleDate",
+            MAX(CASE WHEN s.prescription_id IS NOT NULL OR (s.cabinet_id IS NULL AND s.routine_id IS NULL) THEN 1 ELSE 0 END) AS "hasPrescription",
+            MAX(CASE WHEN s.cabinet_id IS NOT NULL THEN 1 ELSE 0 END) AS "hasRegular",
+            MAX(CASE WHEN s.routine_id IS NOT NULL THEN 1 ELSE 0 END) AS "hasSupplement"
+        FROM schedules s
+        WHERE s.user_id = #{userId}
+          AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
+        GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
     </select>
 
     <!-- 4. 복용 체크박스 토글 -->
@@ -111,7 +115,7 @@
          WHERE schedule_id = #{scheduleId}
     </update>
 
-    <!-- 6. 일정 직접 등록 -->
+    <!-- 6. 일정 등록 -->
     <insert id="insertSchedule" parameterType="com.app.dto.ScheduleAddDTO">
         INSERT INTO schedules (
             user_id,
@@ -122,7 +126,12 @@
             #{userId},
             #{medicationId},
             TO_DATE(#{scheduledDate} || ' ' || #{scheduledTime}, 'YYYY-MM-DD HH24:MI'),
-            NULL
+            NULL,
+            (
+                SELECT MIN(cabinet_id) 
+                FROM cabinet_medications 
+                WHERE user_id = #{userId}
+            )
         )
     </insert>
 
