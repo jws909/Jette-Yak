@@ -19,9 +19,13 @@ public class MedicationChatService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final int PAGE_SIZE = 20;
 
+    private final com.app.guide.service.MedicationManagementService management;
+    @org.springframework.beans.factory.annotation.Autowired
+    public MedicationChatService(ChatbotDao dao, GeminiService ai, CatalogService catalog, com.app.guide.service.DurGuideService dur, com.app.guide.service.MedicationManagementService management) {
+        this.medicationDao=dao;this.geminiService=ai;this.catalog=catalog;this.dur=dur;this.management=management;
+    }
     public MedicationChatService(ChatbotDao medicationDao, GeminiService geminiService, CatalogService catalog, com.app.guide.service.DurGuideService dur) {
-        this.medicationDao = medicationDao;
-        this.geminiService = geminiService; this.catalog = catalog; this.dur = dur;
+        this(medicationDao,geminiService,catalog,dur,null);
     }
 
     public Map<String, Object> search(String keyword, int page) {
@@ -33,7 +37,8 @@ public class MedicationChatService {
             "hasMore", (long) page * PAGE_SIZE < total);
     }
 
-    public Map<String, Object> chat(MedicationChatRequest request) {
+    public Map<String,Object> chat(MedicationChatRequest request) { return chat(request,null); }
+    public Map<String, Object> chat(MedicationChatRequest request, Long userId) {
         String question = request.getQuestion().trim();
         MedicationChatDto selected = request.getItemSeq() == null || request.getItemSeq().isBlank() ? null
             : medicationDao.findChatMedicationByItemSeq(request.getItemSeq().trim());
@@ -41,8 +46,15 @@ public class MedicationChatService {
             geminiService.analyzeQuestion(question, selected == null ? null : selected.getItemName(), request.getRecentQuestions()), question, request.getRecentQuestions());
         if (analysis.needsClarification())
             return reply(analysis.clarificationQuestion().isBlank() ? "특정 약의 주의사항이 궁금한가요, 아니면 조건에 해당하는 약 목록이 궁금한가요?" : analysis.clarificationQuestion(), List.of(), List.of());
+        if (analysis.intent() == QuestionAnalysis.Intent.MY_MEDICATIONS || analysis.intent() == QuestionAnalysis.Intent.MY_DUR) {
+            if(userId==null || userId<=0) { var response=reply("내 약 조회는 로그인이 필요합니다.",List.of(),List.of());response.put("loginRequired",true);return response; }
+            var response=reply(analysis.intent()==QuestionAnalysis.Intent.MY_DUR ? "복용 중으로 확인한 약 사이의 DUR 기록입니다." : "등록한 약 목록입니다. 제품을 선택해 질문을 이어가세요.",List.of(),List.of());
+            if(analysis.intent()==QuestionAnalysis.Intent.MY_DUR) response.put("comparison",management.myComparison(userId));
+            else response.put("registeredMedications",management.collection(userId));
+            return response;
+        }
         if (analysis.intent() == QuestionAnalysis.Intent.OTHER)
-            return reply("약 이름·성분·효능·제조사·분류·코드·허가 상태나 DUR 금기 조건을 질문해주세요. 개인 처방 내역 조회는 로그인 연동 후 제공할 수 있습니다.", List.of(), List.of());
+            return reply("약 이름·성분·효능·제조사·분류·코드·허가 상태나 DUR 금기 조건을 질문해주세요. 로그인하면 내 등록 약도 조회할 수 있습니다.", List.of(), List.of());
         if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH) {
             var data = catalog.search(analysis.query(), 1);
             var response = reply("조건에 맞는 DB 기록 " + data.get("total") + "건을 찾았습니다. 아래 목록과 원문을 확인해주세요.", List.of(), List.of());

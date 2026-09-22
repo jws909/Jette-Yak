@@ -56,6 +56,8 @@ public class AuthController {
         }
 
         if (httpRequest != null) {
+            var oldSession = httpRequest.getSession(false);
+            if (oldSession != null) oldSession.invalidate();
             javax.servlet.http.HttpSession session = httpRequest.getSession(true);
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getLoginId());
@@ -70,6 +72,13 @@ public class AuthController {
                 "로그인 성공"
         );
         return ResponseEntity.ok(successResponse);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(javax.servlet.http.HttpServletRequest request) {
+        var session=request.getSession(false);
+        if(session!=null) session.invalidate();
+        return ResponseEntity.ok().header("Cache-Control","no-store").body(Map.of("message","로그아웃되었습니다."));
     }
 
     @PostMapping("/find-id/send-code")

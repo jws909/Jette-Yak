@@ -7,7 +7,7 @@ import com.app.chatbot.client.GeminiException;
 /** AI output is untrusted. Only validated literal entities may reach a bound DB query. */
 public record QuestionAnalysis(Intent intent, List<String> medications, List<String> foods,
         List<String> topics, boolean useSelectedMedication, boolean needsClarification, CatalogQuery query, String clarificationQuestion) {
-    public enum Intent { MEDICATION_INFO, FOOD_INTERACTION, DRUG_INTERACTION, LIFESTYLE, DB_SEARCH, DUR_INFO, OTHER }
+    public enum Intent { MEDICATION_INFO, FOOD_INTERACTION, DRUG_INTERACTION, LIFESTYLE, MY_MEDICATIONS, MY_DUR, DB_SEARCH, DUR_INFO, OTHER }
     public static QuestionAnalysis parse(String json, String question) {
         return parse(json, question, List.of());
     }

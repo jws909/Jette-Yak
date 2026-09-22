@@ -84,3 +84,7 @@
 .chat-catalog-results dt { font-weight: 600; }
 .chat-dur-record p { white-space: pre-wrap; font-size: 13px; }
 .chat-dur-record small { color: #736b63; }
+
+.chat-personal-panel{border-top:1px solid #ded5c8;padding-top:18px;margin-top:18px}.chat-personal-panel h3{font-size:15px}.chat-personal-panel select{max-width:100%;padding:8px;margin:8px 0}.chat-personal-panel .drug-option{width:100%;margin-top:6px}.selected-suggestions{padding:12px 20px}.chat-personal-panel p{font-size:13px;line-height:1.6}
+
+.chat-personal-panel summary{cursor:pointer;font-size:14px;font-weight:600;line-height:1.7}.chat-personal-panel[open] summary{margin-bottom:12px}@media(min-width:821px){.chat-layout>.product-panel{max-height:780px;overflow-y:auto}.product-panel>*{flex-shrink:0}}
