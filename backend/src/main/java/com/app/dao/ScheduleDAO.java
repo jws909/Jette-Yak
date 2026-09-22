@@ -28,6 +28,39 @@ public class ScheduleDAO {
         return sqlSession.selectList("schedule.searchMedications", keyword);
     }
 
+    public boolean checkMedicationExists(String medicationId) {
+        if (medicationId == null || medicationId.trim().isEmpty()) {
+            return false;
+        }
+        Integer count = sqlSession.selectOne("schedule.checkMedicationExists", medicationId.trim());
+        return count != null && count > 0;
+    }
+
+    public Long findOrCreateCabinetId(Long userId, String medicationId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("medicationId", medicationId);
+        Long cabinetId = sqlSession.selectOne("schedule.selectCabinetId", params);
+        if (cabinetId == null) {
+            sqlSession.insert("schedule.insertCabinetMedication", params);
+            cabinetId = sqlSession.selectOne("schedule.selectCabinetId", params);
+        }
+        return cabinetId;
+    }
+
+    public Long findOrCreateRoutineId(Long userId, String supplementName, String takeTime) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("supplementName", supplementName);
+        params.put("takeTime", takeTime != null ? takeTime : "09:00");
+        Long routineId = sqlSession.selectOne("schedule.selectRoutineId", params);
+        if (routineId == null) {
+            sqlSession.insert("schedule.insertRoutineMedication", params);
+            routineId = sqlSession.selectOne("schedule.selectRoutineId", params);
+        }
+        return routineId;
+    }
+
     public List<Map<String, Object>> selectMonthlyScheduleSummary(Long userId, String yearMonth) {
         Map<String, Object> params = new HashMap<>();
         params.put("userId", userId);
