@@ -16,7 +16,7 @@ export default function Navbar({
 
   const notifBoxRef = useRef(null);
 
-  // 로그인 시 사용자의 실제 복약 일정 및 처방전 주의사항을 알림으로 로드
+  // 로그인 시 사용자의 실제 복약 일정(원샷 브리핑) 및 처방전 주의사항 로드
   useEffect(() => {
     if (!isLoggedIn) {
       setNotifications([]);
@@ -74,21 +74,38 @@ export default function Navbar({
       }
 
       try {
-        // 2. 오늘의 실제 복약 일정 알림 (캘린더 연동)
+        // ★ 2. 오늘의 복약 일정 원샷(1장) 데일리 브리핑
         const calRes = await fetch(`/api/calendar?userId=${userId}&date=${todayStr}`);
         if (calRes.ok) {
           const calList = await calRes.json();
-          if (Array.isArray(calList)) {
-            calList.forEach((sched) => {
-              const medName = sched.name ? sched.name.trim() : '약품';
-              items.push({
-                id: `sched-${sched.scheduleId}`,
-                type: 'routine',
-                title: '복약 예정 안내',
-                text: `${sched.time || ''} ${medName} 복용 예정입니다.`.trim(),
-                time: sched.time || '오늘',
-                read: false,
-              });
+          if (Array.isArray(calList) && calList.length > 0) {
+            // 시간순 정렬
+            const sorted = [...calList].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+            
+            // 시간대별 그룹화 (예: 08:30 -> ["아모잘탄정", "비타민C"])
+            const grouped = {};
+            sorted.forEach((sched) => {
+              const t = (sched.time || '').substring(0, 5);
+              if (!grouped[t]) grouped[t] = [];
+              grouped[t].push(sched.name ? sched.name.trim() : '약품');
+            });
+
+            // "08:30 아모잘탄정 외 1건 · 13:00 소화제 · 19:00 비타민" 포맷 생성
+            const summaryParts = Object.entries(grouped).map(([time, names]) => {
+              const firstMed = names[0];
+              const extraCount = names.length - 1;
+              const medDesc = extraCount > 0 ? `${firstMed} 외 ${extraCount}건` : firstMed;
+              return `${time} ${medDesc}`;
+            });
+
+            // 전체 일정을 단 1장의 카드로 깔끔하게 등록
+            items.push({
+              id: 'today-daily-briefing',
+              type: 'routine',
+              title: `오늘의 복약 브리핑 (총 ${calList.length}건)`,
+              text: summaryParts.join(' · '),
+              time: '오늘 일정',
+              read: false,
             });
           }
         }
@@ -103,25 +120,28 @@ export default function Navbar({
 
     loadNotifications();
 
-    // ★ 실시간 복약 알림 이벤트 수신 (App.jsx에서 설정한 시간에 0초 오차 없이 발송되는 이벤트)
+    // ★ 3. 실시간 알림 이벤트 수신 (30분 전 예비 알림 + 정시 본 알람)
     const handleNewDoseAlarm = (e) => {
       const item = e.detail;
       if (!item) return;
 
-      const newNotifId = `realtime-dose-${item.scheduleId}-${item.time}`;
+      const isPre = Boolean(item.isPreAlarm);
+      const newNotifId = `realtime-dose-${isPre ? 'pre' : 'main'}-${item.time}`;
 
       setNotifications((prev) => {
-        // 동일한 시간 알림 중복 등록 방지
+        // 중복 추가 방지
         if (prev.some((n) => n.id === newNotifId)) return prev;
 
         return [
           {
             id: newNotifId,
             type: 'routine',
-            title: '💊 지금 복약할 시간입니다!',
-            text: `[${item.time}] '${item.name}' 복용 시간입니다. 잊지 말고 복용하세요!`,
+            title: isPre ? '⏰ 복약 30분 전 안내' : '💊 지금 복약할 시간입니다!',
+            text: isPre 
+              ? `[${item.time}] '${item.name}' 복약 30분 전입니다. 미리 준비하세요.`
+              : `[${item.time}] '${item.name}' 복용 시간입니다. 잊지 말고 복용하세요!`,
             time: item.time,
-            read: false, // 뱃지 카운트 증가
+            read: false, // 미읽음 표시로 뱃지 카운트 증가
           },
           ...prev,
         ];
@@ -160,7 +180,7 @@ export default function Navbar({
   return (
     <header className="site-navbar">
       <div className="navbar-container">
-        {/* 좌측: 모바일 메뉴 토글 버튼 & 2번 로고 심볼 (logo.png) */}
+        {/* 좌측: 모바일 메뉴 토글 버튼 & 로고 심볼 */}
         <div className="navbar-left">
           <button
             type="button"
@@ -169,7 +189,6 @@ export default function Navbar({
             aria-label="메뉴 토글"
             title="메뉴 열기/닫기"
           >
-            {/* 와이어프레임의 점+선 형태 메뉴 아이콘 */}
             <div className="menu-icon-bars">
               <span className="bar-row"><i className="dot" /><span className="line" /></span>
               <span className="bar-row"><i className="dot" /><span className="line" /></span>
@@ -177,13 +196,12 @@ export default function Navbar({
             </div>
           </button>
 
-          {/* 2번 로고 심볼: 클릭 시 메인 홈 이동 (모바일에서는 햄버거 메뉴를 가리지 않도록 숨김) */}
           <Link to="/" className="navbar-logo-symbol" title="제때약 홈으로 이동">
             <img src={logoImg} alt="제때약 로고 심볼" className="logo-symbol-img" />
           </Link>
         </div>
 
-        {/* 중앙: 브랜드 글씨 */}
+        {/* 중앙: 브랜드 명 */}
         <div className="navbar-center">
           <Link to="/" className="navbar-brand-text" title="제때약 홈으로 이동">
             <span className="logo-text">제때약</span>
@@ -266,13 +284,9 @@ export default function Navbar({
             </div>
           ) : (
             <div className="guest-actions">
-              <Link to="/login" className="nav-link-login">
-                로그인
-              </Link>
+              <Link to="/login" className="nav-link-login">로그인</Link>
               <span className="nav-divider">/</span>
-              <Link to="/signup" className="nav-link-signup">
-                회원가입
-              </Link>
+              <Link to="/signup" className="nav-link-signup">회원가입</Link>
               <button
                 type="button"
                 className="demo-login-btn"

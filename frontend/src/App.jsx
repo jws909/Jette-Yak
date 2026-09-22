@@ -11,7 +11,6 @@ import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import './App.css';
 
-// 날짜 포맷팅 헬퍼 (YYYY-MM-DD)
 const getFormattedDate = (targetDate) => {
   const y = targetDate.getFullYear();
   const m = String(targetDate.getMonth() + 1).padStart(2, '0');
@@ -33,10 +32,13 @@ function App() {
     }
   });
 
-  // 전역 복약 알림 모달 상태 (어느 페이지에서든 팝업)
+  // 정시 복약 알람 모달 상태
   const [globalAlertItem, setGlobalAlertItem] = useState(null);
 
-  // 이미 로그인되어 있으나 과거 세션 데이터로 인해 userId가 누락된 경우 서버 프로필에서 자동 복구
+  // ★ 1. 로그인 후 알림 권한 유도 모달 상태 (사용자 클릭 유도)
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
+
+  // 세션 userId 자동 복구
   useEffect(() => {
     if (user?.username && !user?.userId && user.username !== 'demo') {
       fetch(`/api/users/profile?username=${encodeURIComponent(user.username)}`)
@@ -54,16 +56,42 @@ function App() {
     }
   }, [user?.username, user?.userId]);
 
-  // 1. 브라우저 시스템 알림 권한 획득 (최초 1회)
+  // ★ 2. 로그인 시 브라우저 권한 상태를 확인하고, 미결정('default')이면 안내 모달 띄우기
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+    if (isLoggedIn && 'Notification' in window) {
+      const isAlreadyDismissed = sessionStorage.getItem('notif_modal_dismissed') === 'true';
+      if (Notification.permission === 'default' && !isAlreadyDismissed) {
+        setShowPermissionModal(true);
+      }
     }
-  }, []);
+  }, [isLoggedIn]);
 
-  // ★ 2. 전역 00초 칼동기화 타이머 (수정 완료: userId 안전 추적 + 조건식 관대화 + 시간 규격 호환)
+  // 사용자가 모달에서 [알림 받기 (예)]를 클릭했을 때 실행되는 핸들러 (User Gesture 만족)
+  const handleRequestPermission = async () => {
+    setShowPermissionModal(false);
+    if ('Notification' in window) {
+      try {
+        const result = await Notification.requestPermission();
+        if (result === 'granted') {
+          new Notification('💊 제때약 복약 알림이 활성화되었습니다', {
+            body: '정해진 복약 시간 30분 전과 정시에 알림을 보내드립니다.',
+            icon: '/favicon.ico',
+          });
+        }
+      } catch (err) {
+        console.warn('알림 권한 요청 오류:', err);
+      }
+    }
+  };
+
+  // 사용자가 모달에서 [나중에 하기 (아니오)]를 클릭했을 때
+  const handleDismissPermission = () => {
+    setShowPermissionModal(false);
+    sessionStorage.setItem('notif_modal_dismissed', 'true');
+  };
+
+  // 3. 전역 00초 칼동기화 타이머: [30분 전 예비 알림] + [정시 본 알람]
   useEffect(() => {
-    // 1순위: user state의 userId, 2순위: localStorage의 user.userId, 3순위: 기본값 1
     let resolvedUserId = user?.userId;
     if (!resolvedUserId) {
       try {
@@ -81,66 +109,99 @@ function App() {
       const now = new Date();
       const currentH = String(now.getHours()).padStart(2, '0');
       const currentM = String(now.getMinutes()).padStart(2, '0');
-      const currentTimeStr = `${currentH}:${currentM}`; // "HH:mm"
+      const currentTimeStr = `${currentH}:${currentM}`;
       const todayDateStr = getFormattedDate(now);
+
+      const futureDate = new Date(now.getTime() + 30 * 60 * 1000);
+      const preH = String(futureDate.getHours()).padStart(2, '0');
+      const preM = String(futureDate.getMinutes()).padStart(2, '0');
+      const preTimeStr = `${preH}:${preM}`;
 
       try {
         const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${todayDateStr}`);
         if (!res.ok) return;
         const todayList = await res.json();
-
         if (!Array.isArray(todayList)) return;
 
+        const timeGroups = {};
         todayList.forEach((item) => {
-          // DB의 시간 포맷이 "08:30:00" 형태일 경우 앞 5자리("08:30")만 추출
           const targetTime = String(item.time || '').substring(0, 5);
-
-          // 알람 플래그: true, 1, '1', undefined 모두 허용 (명시적으로 false/0 일 때만 비활성화)
           const isAlarmOff = item.alarmEnabled === false || item.alarmEnabled === 0 || item.alarmEnabled === '0';
           const isEnabled = !isAlarmOff;
-
-          // 복약 여부
           const isTaken = Boolean(item.takenAt);
 
-          const tag = `dose-${item.scheduleId}-${targetTime}-${currentTimeStr}`;
+          if (isEnabled && !isTaken) {
+            if (!timeGroups[targetTime]) timeGroups[targetTime] = [];
+            timeGroups[targetTime].push(item);
+          }
+        });
 
-          // 조건: 알람 켜짐 + 미복용 + 시간 일치 + 중복 방지
-          if (isEnabled && !isTaken && targetTime === currentTimeStr && !alertedTags.has(tag)) {
-            alertedTags.add(tag);
+        // 30분 전 예비 알림
+        if (timeGroups[preTimeStr]) {
+          const items = timeGroups[preTimeStr];
+          const combinedNames = items.map(i => i.name).join(', ');
+          const preTag = `pre-dose-group-${preTimeStr}-${currentTimeStr}`;
 
-            // 1) 화면 중앙 모달 즉시 팝업
-            setGlobalAlertItem({
-              ...item,
-              time: targetTime
-            });
+          if (!alertedTags.has(preTag)) {
+            alertedTags.add(preTag);
 
-            // 2) 브라우저 시스템 푸시 알림 발송
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(`💊 [복약 알림] ${item.name}`, {
-                body: `현재 복용 시간(${targetTime})입니다. 잊지 말고 복용하세요!`,
+              new Notification(`⏰ [복약 30분 전 안내]`, {
+                body: `30분 뒤(${preTimeStr}) ${combinedNames} 복용 시간입니다. 미리 준비하세요!`,
                 icon: '/favicon.ico',
-                tag: tag,
+                tag: preTag,
               });
             }
 
-            // 3) Navbar에 실시간 신호 전달 (종 아이콘 뱃지 점등)
-            window.dispatchEvent(new CustomEvent('NEW_MEDICATION_ALARM', { 
+            window.dispatchEvent(new CustomEvent('NEW_MEDICATION_ALARM', {
               detail: {
-                ...item,
-                time: targetTime
+                name: combinedNames,
+                time: preTimeStr,
+                isPreAlarm: true,
               }
             }));
           }
-        });
+        }
+
+        // 정시 본 알람
+        if (timeGroups[currentTimeStr]) {
+          const items = timeGroups[currentTimeStr];
+          const combinedNames = items.map(i => i.name).join(', ');
+          const mainTag = `main-dose-group-${currentTimeStr}`;
+
+          if (!alertedTags.has(mainTag)) {
+            alertedTags.add(mainTag);
+
+            setGlobalAlertItem({
+              scheduleIds: items.map(i => i.scheduleId),
+              name: combinedNames,
+              time: currentTimeStr,
+            });
+
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification(`💊 [복약 알림] ${combinedNames}`, {
+                body: `현재 복용 시간(${currentTimeStr})입니다. 잊지 말고 복용하세요!`,
+                icon: '/favicon.ico',
+                tag: mainTag,
+              });
+            }
+
+            window.dispatchEvent(new CustomEvent('NEW_MEDICATION_ALARM', {
+              detail: {
+                name: combinedNames,
+                time: currentTimeStr,
+                isPreAlarm: false,
+              }
+            }));
+          }
+        }
       } catch (e) {
         console.error("전역 복약 알림 검사 오류:", e);
       }
     };
 
-    // 진입 즉시 1회 검사
     triggerCheck();
 
-    // 다음 분 00초 정각까지 대기 밀리초 계산
     const now = new Date();
     const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
 
@@ -155,15 +216,20 @@ function App() {
     };
   }, [user?.userId]);
 
-  // 3. 전역 모달에서 [지금 복약 완료] 클릭 시 실행
+  // 전역 모달 복약 완료 처리
   const handleConfirmTakeFromGlobalAlert = async () => {
     if (!globalAlertItem) return;
     try {
-      await fetch(`/api/calendar/${globalAlertItem.scheduleId}/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taken: true }),
-      });
+      const ids = globalAlertItem.scheduleIds || [globalAlertItem.scheduleId];
+      await Promise.all(
+        ids.map(id =>
+          fetch(`/api/calendar/${id}/toggle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taken: true }),
+          })
+        )
+      );
     } catch (err) {
       console.error("복약 완료 처리 통신 실패:", err);
     } finally {
@@ -198,6 +264,7 @@ function App() {
     setUser(null);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    sessionStorage.removeItem('notif_modal_dismissed');
   };
 
   const handleUserUpdated = (changes) => {
@@ -220,17 +287,9 @@ function App() {
   return (
     <>
       <Routes>
-        {/* 1. 독립 인증 페이지들 */}
-        <Route
-          path="/login"
-          element={<LoginPage onLoginSuccess={handleLoginSuccess} />}
-        />
-        <Route
-          path="/signup"
-          element={<SignupPage />}
-        />
+        <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
+        <Route path="/signup" element={<SignupPage />} />
 
-        {/* 2. 글로벌 레이아웃(Navbar & Sidebar)이 적용되는 메인 서비스 페이지들 */}
         <Route
           path="/"
           element={
@@ -316,7 +375,78 @@ function App() {
         />
       </Routes>
 
-      {/* 전역 복약 알림 모달 (어느 페이지에서든 최상위 레이어로 팝업) */}
+      {/* ★ 1. 로그인 후 알림 권한 요청 모달 (사용자 명시적 클릭 유도) */}
+      {showPermissionModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.45)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 99998,
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            padding: '28px 24px',
+            textAlign: 'center',
+            maxWidth: '360px',
+            width: '90%',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.2)',
+          }}>
+            <div style={{ fontSize: '38px', marginBottom: '8px' }}>🔔</div>
+            <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#2b2520', margin: '0 0 8px 0' }}>
+              복약 알림을 받아보시겠어요?
+            </h4>
+            <p style={{ fontSize: '13px', color: '#665f57', margin: '0 0 24px 0', lineHeight: '1.5' }}>
+              정해진 복약 시간 30분 전과 제때에<br />
+              바탕화면 알림으로 잊지 않게 알려드립니다.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                style={{
+                  flex: 1,
+                  padding: '11px 0',
+                  borderRadius: '8px',
+                  border: '1px solid #d9d2c9',
+                  background: '#f7f6f4',
+                  color: '#5c544d',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+                onClick={handleDismissPermission}
+              >
+                나중에
+              </button>
+              <button
+                type="button"
+                style={{
+                  flex: 1,
+                  padding: '11px 0',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: '#682335',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                }}
+                onClick={handleRequestPermission}
+              >
+                알림 받기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 정시 복약 전역 모달 */}
       {globalAlertItem && (
         <div style={{
           position: 'fixed',
@@ -335,24 +465,20 @@ function App() {
             borderRadius: '16px',
             padding: '28px 24px',
             textAlign: 'center',
-            maxWidth: '360px',
+            maxWidth: '380px',
             width: '90%',
             boxShadow: '0 12px 32px rgba(0, 0, 0, 0.25)',
           }}>
             <div style={{ fontSize: '42px', marginBottom: '8px' }}>💊</div>
-            
             <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#2b2520', margin: '0 0 8px 0' }}>
               복약할 시간입니다!
             </h4>
-            
             <p style={{ fontSize: '16px', color: '#682335', margin: '10px 0 6px 0', fontWeight: '700' }}>
               [{globalAlertItem.time}] {globalAlertItem.name}
             </p>
-            
             <p style={{ fontSize: '13px', color: '#7a7066', margin: '0 0 24px 0', lineHeight: '1.4' }}>
               정해진 시간에 복약하면 효과가 훨씬 좋습니다. 지금 복용하셨나요?
             </p>
-
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button 
                 type="button" 
