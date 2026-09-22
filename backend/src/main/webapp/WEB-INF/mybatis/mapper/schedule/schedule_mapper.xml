@@ -5,20 +5,45 @@
 
 <mapper namespace="schedule">
 
-    <!-- 1. 일별 복약 일정 조회 (schedules, medications 2개만 조인) -->
+    <!-- 1. 일별 복약 일정 조회: 안전한 컬럼명 및 ROWNUM ID 부여 -->
     <select id="selectDailySchedules" parameterType="map" resultType="com.app.dto.ScheduleDTO">
+        /* 1) 수동 등록 일정 */
         SELECT 
             s.schedule_id   AS scheduleId,
             m.item_name     AS name,
             TO_CHAR(s.scheduled_at, 'HH24:MI') AS time,
-            'regular'       AS type,
+            CASE 
+                WHEN s.routine_id IS NOT NULL THEN 'supplement'
+                WHEN s.cabinet_id IS NOT NULL THEN 'regular'
+                ELSE 'regular'
+            END AS type,
             s.taken_at      AS takenAt,
             1               AS alarmEnabled
         FROM schedules s
         JOIN medications m ON s.medication_id = m.medication_id
         WHERE s.user_id = #{userId}
           AND TRUNC(s.scheduled_at) = TO_DATE(#{date}, 'YYYY-MM-DD')
-        ORDER BY s.scheduled_at ASC
+
+        UNION ALL
+
+        /* 2) 처방전 실시간 연동: medications 조인으로 진짜 약품명 추출 */
+        SELECT 
+            (p.prescription_id * 1000 + pi.item_id) AS scheduleId,
+            m.item_name                             AS name,
+            '08:30'                                 AS time,
+            'prescription'                          AS type,
+            NULL                                    AS takenAt,
+            1                                       AS alarmEnabled
+        FROM prescriptions p
+        JOIN prescription_items pi ON p.prescription_id = pi.prescription_id
+        JOIN medications m ON pi.medication_id = m.medication_id
+        WHERE p.user_id = #{userId}
+        <![CDATA[
+          AND TO_DATE(#{date}, 'YYYY-MM-DD') >= TRUNC(p.dispensed_date)
+          AND TO_DATE(#{date}, 'YYYY-MM-DD') < TRUNC(p.dispensed_date) + p.total_days
+        ]]>
+
+        ORDER BY time ASC
     </select>
 
     <!-- 2. 약품 검색 자동완성 -->
@@ -28,20 +53,48 @@
             item_name     AS "itemName"
         FROM medications
         WHERE item_name LIKE '%' || #{keyword} || '%'
-          AND ROWNUM &lt;= 15
+        <![CDATA[
+          AND ROWNUM <= 15
+        ]]>
     </select>
 
-    <!-- 3. 월별 요약 조회 -->
+    <!-- 3. 월별 요약 조회: 달력 점/바 인디케이터 통합 -->
     <select id="selectMonthlyScheduleSummary" parameterType="map" resultType="map">
+        WITH ALL_CALENDAR AS (
+            /* 수동 등록 일정 */
+            SELECT 
+                TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS scheduleDate,
+                0 AS hasPrescription,
+                CASE WHEN s.routine_id IS NULL THEN 1 ELSE 0 END AS hasRegular,
+                CASE WHEN s.routine_id IS NOT NULL THEN 1 ELSE 0 END AS hasSupplement
+            FROM schedules s
+            WHERE s.user_id = #{userId}
+              AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
+
+            UNION ALL
+
+            /* 처방전 유효 기간 내 날짜 */
+            SELECT 
+                TO_CHAR(TRUNC(p.dispensed_date) + LEVEL - 1, 'YYYY-MM-DD') AS scheduleDate,
+                1 AS hasPrescription,
+                0 AS hasRegular,
+                0 AS hasSupplement
+            FROM prescriptions p
+            WHERE p.user_id = #{userId}
+              AND TO_CHAR(TRUNC(p.dispensed_date) + LEVEL - 1, 'YYYY-MM') = #{yearMonth}
+            <![CDATA[
+            CONNECT BY LEVEL <= p.total_days
+                   AND PRIOR p.prescription_id = p.prescription_id
+                   AND PRIOR SYS_GUID() IS NOT NULL
+            ]]>
+        )
         SELECT 
-            TO_CHAR(s.scheduled_at, 'YYYY-MM-DD') AS "scheduleDate",
-            0 AS "hasPrescription",
-            1 AS "hasRegular",
-            0 AS "hasSupplement"
-        FROM schedules s
-        WHERE s.user_id = #{userId}
-          AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
-        GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
+            scheduleDate AS "scheduleDate",
+            MAX(hasPrescription) AS "hasPrescription",
+            MAX(hasRegular)      AS "hasRegular",
+            MAX(hasSupplement)   AS "hasSupplement"
+        FROM ALL_CALENDAR
+        GROUP BY scheduleDate
     </select>
 
     <!-- 4. 복용 체크박스 토글 -->
@@ -58,7 +111,7 @@
          WHERE schedule_id = #{scheduleId}
     </update>
 
-    <!-- 6. 일정 등록 -->
+    <!-- 6. 일정 직접 등록 -->
     <insert id="insertSchedule" parameterType="com.app.dto.ScheduleAddDTO">
         INSERT INTO schedules (
             user_id,

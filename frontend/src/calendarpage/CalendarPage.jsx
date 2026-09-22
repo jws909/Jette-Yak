@@ -18,13 +18,16 @@ export default function CalendarPage({ user }) {
   const [monthSummary, setMonthSummary] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // 알람 모달 상태
+  // 알람 시간 설정 모달 상태
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [ampm, setAmpm] = useState('오전');
   const [hour, setHour] = useState('08');
   const [minute, setMinute] = useState('00');
   const [isAlarmEnabled, setIsAlarmEnabled] = useState(true);
+
+  // ★ 실시간 복약 알림 팝업 모달 상태 (시간 도달 시 표시)
+  const [activeAlertItem, setActiveAlertItem] = useState(null);
 
   // 복약 추가 모달 상태
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -93,6 +96,48 @@ export default function CalendarPage({ user }) {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
 
+  // ★ 3. 브라우저 푸시 알림 권한 획득 (최초 1회)
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  // ★ 4. 1분 주기 타이머: 사용자가 맞춘 시간에 정확히 알림 발송 & 화면 모달 띄우기
+  useEffect(() => {
+    const checkAlarm = () => {
+      const now = new Date();
+      const currentH = String(now.getHours()).padStart(2, '0');
+      const currentM = String(now.getMinutes()).padStart(2, '0');
+      const currentTimeStr = `${currentH}:${currentM}`;
+      const todayDateStr = getFormattedDate(now);
+
+      // 오늘 날짜의 스케줄만 검사
+      if (selectedDate !== todayDateStr) return;
+
+      schedules.forEach((item) => {
+        // 조건: 알람 켜짐 + 미복용 + 설정 시간 일치
+        if (item.alarmEnabled && !item.takenAt && item.time === currentTimeStr) {
+          // 화면 중앙 모달 열기
+          setActiveAlertItem(item);
+
+          // 브라우저 시스템 푸시 알림 발송
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification(`💊 [복약 알림] ${item.name}`, {
+              body: `현재 복용 시간(${item.time})입니다. 잊지 말고 복용하세요!`,
+              icon: '/favicon.ico',
+              tag: `dose-${item.scheduleId}-${item.time}`, // 1분 내 중복 방지
+            });
+          }
+        }
+      });
+    };
+
+    // 1분(60초)마다 검사
+    const timer = setInterval(checkAlarm, 60000);
+    return () => clearInterval(timer);
+  }, [schedules, selectedDate]);
+
   // 약품 검색 자동완성
   useEffect(() => {
     if (!newMedName.trim()) {
@@ -142,7 +187,7 @@ export default function CalendarPage({ user }) {
   const toggleTaken = async (item) => {
     const isTaken = !item.takenAt;
     try {
-      const response = await fetch(`http://localhost:8080/api/calendar/${item.scheduleId}/toggle`, {
+      const response = await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taken: isTaken }),
@@ -157,6 +202,13 @@ export default function CalendarPage({ user }) {
     }
   };
 
+  // ★ 알림 팝업 모달에서 [지금 복약 완료] 클릭 시 실행
+  const handleConfirmTakeFromAlert = async () => {
+    if (!activeAlertItem) return;
+    await toggleTaken(activeAlertItem);
+    setActiveAlertItem(null);
+  };
+
   // 삭제 모달 열기
   const openDeleteModal = (item, e) => {
     e.stopPropagation();
@@ -169,7 +221,7 @@ export default function CalendarPage({ user }) {
     if (!itemToDelete) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/calendar/${itemToDelete.scheduleId}/delete`, {
+      const response = await fetch(`/api/calendar/${itemToDelete.scheduleId}/delete`, {
         method: 'POST',
       });
       if (response.ok) {
@@ -214,17 +266,20 @@ export default function CalendarPage({ user }) {
     }
   };
 
-  const openAlarmModal = (item) => {
+  // 알람 설정 모달 열기
+  const openAlarmModal = (item, e) => {
+    if (e) e.stopPropagation();
     setActiveItem(item);
     const [h, m] = (item.time || '08:00').split(':').map(Number);
     setAmpm(h >= 12 ? '오후' : '오전');
     const displayH = h % 12 === 0 ? 12 : h % 12;
     setHour(String(displayH).padStart(2, '0'));
     setMinute(String(m).padStart(2, '0'));
-    setAlarmOn(item.alarmEnabled ?? true);
+    setIsAlarmEnabled(item.alarmEnabled ?? true);
     setIsAlarmModalOpen(true);
   };
 
+  // 알람 설정 저장
   const saveAlarmSetting = async () => {
     if (!activeItem) return;
     let numericHour = parseInt(hour, 10) || 12;
@@ -235,12 +290,12 @@ export default function CalendarPage({ user }) {
 
     try {
       const response = await fetch(
-        `http://localhost:8080/api/calendar/${activeItem.scheduleId}/alarm?newTime=${newTime}&alarmEnabled=${alarmOn}`,
+        `/api/calendar/${activeItem.scheduleId}/alarm?newTime=${newTime}&alarmEnabled=${isAlarmEnabled}`,
         { method: 'POST' }
       );
       if (response.ok) {
         setSchedules((prev) =>
-          prev.map((s) => (s.scheduleId === activeItem.scheduleId ? { ...s, time: newTime, alarmEnabled: alarmOn } : s))
+          prev.map((s) => (s.scheduleId === activeItem.scheduleId ? { ...s, time: newTime, alarmEnabled: isAlarmEnabled } : s))
         );
       }
     } catch (err) {
@@ -249,7 +304,7 @@ export default function CalendarPage({ user }) {
     setIsAlarmModalOpen(false);
   };
 
-  // 복약 추가 제출 핸들러 (사용자가 선택한 '영양제/상시약' 상태를 화면에 즉시 보장)
+  // 복약 추가 제출 핸들러
   const handleAddMedication = async (e) => {
     e.preventDefault();
     if (!selectedMed) {
@@ -264,7 +319,7 @@ export default function CalendarPage({ user }) {
     const formattedTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
 
     const savedMedName = selectedMed.name;
-    const chosenType = newMedType; // 'supplement' 또는 'regular'
+    const chosenType = newMedType;
 
     try {
       const response = await fetch(`/api/calendar`, {
@@ -281,7 +336,6 @@ export default function CalendarPage({ user }) {
       });
 
       if (response.ok) {
-        // 백엔드 반환값과 무관하게 사용자가 등록한 타입을 즉시 화면 상태에 주입
         const tempId = Date.now();
         setSchedules((prev) => [
           ...prev,
@@ -295,7 +349,6 @@ export default function CalendarPage({ user }) {
           }
         ]);
 
-        // 달력 인디케이터 점 즉시 갱신
         setMonthSummary((prev) => {
           const prevStatus = prev[selectedDate] || {};
           return {
@@ -335,7 +388,6 @@ export default function CalendarPage({ user }) {
     setIsAddModalOpen(false);
   };
 
-  // 달력 날짜 계산
   const firstDayIndex = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month + 1, 0).getDate();
 
@@ -475,8 +527,9 @@ export default function CalendarPage({ user }) {
                       {/* 알람 종 & 삭제 버튼 그룹 */}
                       <div className="dose-item-actions">
                         <button
+                          type="button"
                           className={`btn-alarm ${item.alarmEnabled ? 'active' : ''}`}
-                          onClick={() => openAlarmModal(item)}
+                          onClick={(e) => openAlarmModal(item, e)}
                           title="알람 시간 설정"
                         >
                           <svg
@@ -536,17 +589,17 @@ export default function CalendarPage({ user }) {
 
             <div className="wheel-picker-box">
               <div className="picker-column" onWheel={(e) => handleWheel(e, 'ampm')}>
-                <button onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▲</button>
+                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▲</button>
                 <div className="picker-value clickable" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>
                   {ampm}
                 </div>
-                <button onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▼</button>
+                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▼</button>
               </div>
 
               <div className="picker-divider" />
 
               <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour')}>
-                <button onClick={() => setHour((prev) => stepHour(prev, 1))}>▲</button>
+                <button type="button" onClick={() => setHour((prev) => stepHour(prev, 1))}>▲</button>
                 <input
                   type="text"
                   className="picker-input"
@@ -560,13 +613,13 @@ export default function CalendarPage({ user }) {
                     setHour(String(n).padStart(2, '0'));
                   }}
                 />
-                <button onClick={() => setHour((prev) => stepHour(prev, -1))}>▼</button>
+                <button type="button" onClick={() => setHour((prev) => stepHour(prev, -1))}>▼</button>
               </div>
 
               <div className="picker-divider" />
 
               <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute')}>
-                <button onClick={() => setMinute((prev) => stepMinute(prev, 1))}>▲</button>
+                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, 1))}>▲</button>
                 <input
                   type="text"
                   className="picker-input"
@@ -580,7 +633,7 @@ export default function CalendarPage({ user }) {
                     setMinute(String(n).padStart(2, '0'));
                   }}
                 />
-                <button onClick={() => setMinute((prev) => stepMinute(prev, -1))}>▼</button>
+                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, -1))}>▼</button>
               </div>
             </div>
 
@@ -589,15 +642,15 @@ export default function CalendarPage({ user }) {
               <label className="switch">
                 <input
                   type="checkbox"
-                  checked={alarmOn}
-                  onChange={(e) => setAlarmOn(e.target.checked)}
+                  checked={isAlarmEnabled}
+                  onChange={(e) => setIsAlarmEnabled(e.target.checked)}
                 />
                 <span className="slider"></span>
               </label>
             </div>
 
             <div className="modal-actions">
-              <button className="btn-confirm" onClick={saveAlarmSetting}>확인</button>
+              <button type="button" className="btn-confirm" onClick={saveAlarmSetting}>확인</button>
             </div>
           </div>
         </div>
@@ -722,7 +775,7 @@ export default function CalendarPage({ user }) {
                         let n = parseInt(newMinute, 10);
                         if (isNaN(n) || n < 0) n = 0;
                         if (n > 59) n = 59;
-                        setNewMinute(String(n).padStart(2, '0'));
+                        setMinute(String(n).padStart(2, '0'));
                       }}
                     />
                     <button type="button" onClick={() => setNewMinute((prev) => stepMinute(prev, -1))}>▼</button>
@@ -749,7 +802,7 @@ export default function CalendarPage({ user }) {
         </div>
       )}
 
-      {/* 모달 3: 화면 정중앙 커스텀 삭제 모달 */}
+      {/* 모달 3: 커스텀 삭제 모달 */}
       {isDeleteModalOpen && (
         <div className="modal-overlay" onClick={() => setIsDeleteModalOpen(false)}>
           <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()}>
@@ -785,6 +838,45 @@ export default function CalendarPage({ user }) {
                 onClick={confirmDeleteSchedule}
               >
                 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ★ 모달 4: 설정 시간에 도달했을 때 뜨는 실시간 복약 알림 모달 */}
+      {activeAlertItem && (
+        <div className="modal-overlay">
+          <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '40px', marginBottom: '10px' }}>💊</div>
+            
+            <h4 className="delete-modal-title" style={{ color: '#2b2520', fontSize: '18px', marginBottom: '6px' }}>
+              복약할 시간입니다!
+            </h4>
+            
+            <p className="delete-modal-target" style={{ fontSize: '16px', color: '#682335', margin: '12px 0 6px 0' }}>
+              [{activeAlertItem.time}] <strong>{activeAlertItem.name}</strong>
+            </p>
+            
+            <p className="delete-modal-desc" style={{ marginBottom: '22px' }}>
+              정해진 시간에 복용하면 효과가 훨씬 좋습니다. 지금 복용하셨나요?
+            </p>
+
+            <div className="delete-modal-actions">
+              <button 
+                type="button" 
+                className="btn-modal-cancel" 
+                onClick={() => setActiveAlertItem(null)}
+              >
+                닫기
+              </button>
+              <button 
+                type="button" 
+                className="btn-modal-delete" 
+                style={{ backgroundColor: '#682335' }}
+                onClick={handleConfirmTakeFromAlert}
+              >
+                지금 복약 완료
               </button>
             </div>
           </div>
