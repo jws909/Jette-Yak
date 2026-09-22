@@ -384,17 +384,19 @@
 }
 
 .summary-col-left {
-  flex: 1.2;
+  flex: 1.3;
+  min-width: 0;
 }
 
 .summary-meta-label {
-  display: block;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.2px;
+  letter-spacing: 0.8px;
   color: #8c8278;
   text-transform: uppercase;
-  margin-bottom: 4px;
+  white-space: nowrap;
+  margin: 0;
+  line-height: 1;
 }
 
 .summary-date-title {
@@ -600,6 +602,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: 1;
+  min-width: 0;
 }
 
 .med-color-dot {
@@ -612,31 +616,71 @@
 .med-text-group {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.med-title-hospital-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .med-item-name {
   font-size: 14.5px;
   font-weight: 700;
   color: #2b2523;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+
+.med-hospital-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  border-radius: 4px;
+  padding: 1.5px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  word-break: keep-all;
+  line-height: 1.2;
 }
 
 .med-item-desc {
-  margin: 2px 0 0;
+  margin: 3px 0 0;
   font-size: 12px;
   color: #82786f;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-height: 1.4;
 }
 
 .med-item-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
 }
 
 .med-type-pill {
   font-size: 11px;
-  font-weight: 600;
-  padding: 3px 8px;
+  font-weight: 700;
+  padding: 3px 9px;
   border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 38px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  word-break: keep-all;
 }
 
 .med-type-pill.rx {
@@ -665,6 +709,50 @@
 
 .med-more-btn:hover {
   color: #8b3e4b;
+}
+
+/* 처방 약품 빈 상태 (복용 완료/대기 등) */
+.meds-empty-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 36px 16px;
+  background: #fdfaf7;
+  border: 1.5px dashed #e4d8cd;
+  border-radius: 8px;
+  margin: 12px 0 6px;
+  gap: 8px;
+}
+
+.meds-empty-icon {
+  width: 40px;
+  height: 40px;
+  color: #8b3e4b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meds-empty-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.meds-empty-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #2e2624;
+}
+
+.meds-empty-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: #7a6e66;
+  line-height: 1.5;
+  max-width: 360px;
 }
 
 /* 우측: 복용 전, 잠깐만요. 카드 */
@@ -699,6 +787,18 @@
   border: 1px solid #ef9a9a;
 }
 
+.note-status-badge.completed {
+  background: #f1ece9;
+  color: #7a6e69;
+  border: 1px solid #dfd7d3;
+}
+
+.note-status-badge.upcoming {
+  background: #e8f4fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
 .note-points-list {
   display: flex;
   flex-direction: column;
@@ -728,11 +828,26 @@
   border-color: #f5c2c7;
 }
 
-.note-point-icon {
-  font-size: 17px;
-  line-height: 1.2;
-  flex-shrink: 0;
+.note-point-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 50%;
+  background: #ede3d6;
+  color: #6b5e51;
+  font-size: 11px;
+  font-weight: 800;
   margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.note-point-item.highlight .note-point-num,
+.note-point-num.highlight {
+  background: #c62828;
+  color: #ffffff;
 }
 
 .note-point-content {
@@ -1285,6 +1400,14 @@
   max-width: 460px;
   line-height: 1.55;
   margin: 0;
+}
+
+.routine-empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #2b2123;
+  letter-spacing: -0.2px;
 }
 
 .routine-empty-cta-btn {
@@ -1882,46 +2005,245 @@
 }
 
 /* 주의사항 모달 */
+.modal-content-box.caution-modal-content {
+  max-width: 580px;
+}
+
+.modal-head-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modal-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8c8278;
+}
+
 .caution-modal-body {
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overflow-y: auto;
+  max-height: calc(90vh - 140px);
 }
 
 .caution-summary-card {
   background: #fff7f7;
   border: 1px solid #f2d2d2;
   border-radius: 8px;
-  padding: 16px;
+  padding: 14px 16px;
 }
 
 .caution-summary-card strong {
   display: block;
-  font-size: 15px;
+  font-size: 14px;
   color: #b53838;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .caution-summary-card p {
   margin: 0;
-  font-size: 13.5px;
+  font-size: 13px;
   color: #4a3b3b;
   line-height: 1.5;
 }
 
-.caution-guidance h4 {
-  margin: 0 0 10px;
-  font-size: 14px;
+.caution-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.caution-section-header h4 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
   color: #2b2523;
 }
 
-.caution-guidance ul {
+.caution-status-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #fbf0ee;
+  color: #8b3e4b;
+  border: 1px solid #ebd3d0;
+}
+
+.caution-items-list {
+  list-style: none;
   margin: 0;
-  padding-left: 20px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.caution-item-card {
+  background: #faf7f2;
+  border: 1.5px solid #ede3d6;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.caution-item-card:hover {
+  border-color: #8b3e4b;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(139, 62, 75, 0.06);
+}
+
+.caution-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caution-item-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2e2624;
+}
+
+.caution-discontinued-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c62828;
+  background: #ffebee;
+  border: 1px solid #ef9a9a;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.caution-item-text {
+  margin: 0;
   font-size: 13px;
-  color: #635a52;
-  line-height: 1.6;
+  color: #4a3b3b;
+  line-height: 1.5;
+}
+
+.caution-item-dosage-info {
+  font-size: 12px;
+  color: #82786f;
+  margin-top: 2px;
+}
+
+/* 빈 상태 / 복용 완료 */
+.caution-empty-notice-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.caution-modal-empty-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 16px;
+  background: #fdfaf7;
+  border: 1.5px dashed #e4d8cd;
+  border-radius: 8px;
+  gap: 8px;
+}
+
+.caution-empty-icon {
+  width: 40px;
+  height: 40px;
+  color: #8b3e4b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.caution-empty-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.caution-empty-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #2e2624;
+}
+
+.caution-empty-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: #7a6e66;
+  line-height: 1.5;
+  max-width: 420px;
+}
+
+/* 지난 처방 토글 */
+.past-meds-toggle-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.btn-past-meds-toggle {
+  background: #ffffff;
+  border: 1.5px solid #dcd4c9;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #7a6e66;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-past-meds-toggle:hover {
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+  background: #fdfaf8;
+}
+
+.past-meds-dropdown-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px dashed #e4dcd3;
+  padding-top: 14px;
+}
+
+.past-meds-header-note {
+  font-size: 12px;
+  color: #8a7e75;
+  text-align: left;
+  font-weight: 600;
+}
+
+.caution-item-card.past {
+  background: #f9f7f5;
+  border: 1px solid #e7dfd5;
+  opacity: 0.88;
+}
+
+.caution-item-name.past {
+  color: #5c534c;
+}
+
+.past-status-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #82786f;
+  background: #ece5dc;
+  border-radius: 4px;
+  padding: 1px 6px;
 }
 
 /* --------------------------------------------------------------------------
@@ -1933,8 +2255,12 @@
   }
   .prescription-summary-card {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 18px;
+    padding: 20px 22px;
+  }
+  .summary-col-left {
+    width: 100%;
   }
   .summary-stats-group {
     width: 100%;
@@ -1947,6 +2273,31 @@
 }
 
 @media (max-width: 600px) {
+  .prescription-summary-card {
+    padding: 16px 14px;
+    gap: 14px;
+  }
+  .summary-meta-top-row {
+    gap: 6px;
+  }
+  .summary-meta-label {
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+  .summary-status-pill {
+    font-size: 10.5px;
+    padding: 2px 7.5px;
+  }
+  .summary-date-title {
+    font-size: 17px;
+  }
+  .summary-stats-group {
+    justify-content: space-around;
+    width: 100%;
+    padding: 10px 0;
+    border-top: 1px solid #f2ece4;
+    border-bottom: 1px solid #f2ece4;
+  }
   .greeting-title {
     font-size: 26px;
   }
@@ -2798,5 +3149,583 @@
     justify-content: flex-end;
   }
 }
+
+/* ==========================================================================
+   메인 대시보드 날짜 네비게이터 & 다중 처방전 탭 & 조제일 기준 상태 스타일
+   ========================================================================== */
+
+/* 1. 상단 인사말 & 날짜 네비게이터 정렬 */
+.greeting-flex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.greeting-text-block {
+  flex: 1;
+  min-width: 260px;
+}
+
+/* 날짜 이동 네비게이터 바 */
+.main-date-navigator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1.5px solid #dfd4cf;
+  border-radius: 30px;
+  padding: 4px 10px;
+  box-shadow: 0 2px 10px rgba(139, 62, 75, 0.05);
+}
+
+.date-nav-arrow-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #ebdcd9;
+  background: #faf5f4;
+  color: #8b3e4b;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.date-nav-arrow-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+.date-nav-display-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 18px;
+  border: 1.5px solid #dfd4cb;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  position: relative;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.date-nav-display-box:hover {
+  background: #fbf5f4;
+  border-color: #8b3e4b;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.1);
+}
+
+.date-nav-calendar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8b3e4b;
+}
+
+.date-nav-calendar-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.date-nav-date-text {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #2d2624;
+}
+
+.date-nav-today-tag {
+  font-size: 11px;
+  font-weight: 800;
+  background: #eaf6ed;
+  color: #1e7e34;
+  border: 1px solid #c3e6cb;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.date-nav-diff-tag {
+  font-size: 11px;
+  font-weight: 800;
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.date-nav-hidden-picker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.date-nav-return-today-btn {
+  font-size: 11.5px;
+  font-weight: 800;
+  background: #ffffff;
+  color: #8b3e4b;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 14px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 2px;
+}
+
+.date-nav-return-today-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+}
+
+/* 2. 처방전 선택 탭 바 (rx-tabs-section) */
+.rx-tabs-section {
+  margin-bottom: 16px;
+}
+
+/* 2. 처방전 선택 드롭다운 셀렉터 (rx-selector-section) */
+.rx-selector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 15;
+}
+
+.rx-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rx-selector-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rx-tabs-title-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+.rx-tabs-count-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #524741;
+}
+
+.rx-manage-shortcut-btn {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #ffffff;
+  border: 1.5px solid #ebd9d6;
+  border-radius: 14px;
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rx-manage-shortcut-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+.rx-dropdown-container {
+  position: relative;
+  width: 100%;
+}
+
+.rx-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1.5px solid #dfd3ca;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  text-align: left;
+}
+
+.rx-dropdown-trigger:hover {
+  border-color: #8b3e4b;
+  background: #fdfaf8;
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.08);
+}
+
+.rx-dropdown-trigger.open {
+  border-color: #8b3e4b;
+  background: #fdfaf8;
+  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.12);
+}
+
+.rx-dropdown-trigger-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rx-dropdown-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #faeff0;
+  color: #8b3e4b;
+  flex-shrink: 0;
+}
+
+.rx-dropdown-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rx-dropdown-trigger-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rx-dropdown-trigger-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #2b2321;
+}
+
+.rx-dropdown-trigger-sub {
+  font-size: 12px;
+  color: #85756e;
+}
+
+.rx-dropdown-trigger-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rx-dropdown-arrow-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #85756e;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rx-dropdown-arrow-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rx-dropdown-arrow-icon.rotated {
+  transform: rotate(180deg);
+  color: #8b3e4b;
+}
+
+/* 드롭다운 메뉴 팝업 */
+.rx-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1.5px solid #dfd3ca;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+  z-index: 50;
+  padding: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  animation: rxDropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rxDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rx-dropdown-divider {
+  height: 1px;
+  background: #f2ebe4;
+  margin: 4px 6px;
+}
+
+.rx-dropdown-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.rx-dropdown-option:hover {
+  background: #fbf5f2;
+}
+
+.rx-dropdown-option.active {
+  background: #faeff0;
+  border-color: #ebd0d5;
+}
+
+.rx-dropdown-option-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rx-dropdown-option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.rx-dropdown-option-icon.all {
+  background: #f2e6e3;
+  color: #8b3e4b;
+}
+
+.rx-dropdown-option-icon.rx {
+  background: #eef2f5;
+  color: #4a69bd;
+}
+
+.rx-dropdown-option-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rx-dropdown-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rx-dropdown-option-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rx-dropdown-option-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #2b2321;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.rx-dropdown-option-doctor {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8c7f76;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.rx-dropdown-option-sub {
+  font-size: 11.5px;
+  color: #7d6f67;
+}
+
+.rx-tab-badge-chip {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.rx-tab-badge-chip.all {
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+}
+
+.rx-tab-badge-chip.taking {
+  background: #eaf6ed;
+  color: #1e7e34;
+  border: 1px solid #c3e6cb;
+}
+
+.rx-tab-badge-chip.completed {
+  background: #f1ece9;
+  color: #7a6e69;
+  border: 1px solid #dfd7d3;
+}
+
+.rx-tab-badge-chip.upcoming {
+  background: #e8f4fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+/* 3. 처방전 요약 바 (prescription-summary-card) 확장 */
+.summary-meta-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.summary-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2.5px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.summary-status-pill.taking {
+  background: #eaf6ed;
+  color: #1e7e34;
+  border: 1px solid #c3e6cb;
+}
+
+.summary-status-pill.completed {
+  background: #f1ece9;
+  color: #7a6e69;
+  border: 1px solid #dfd7d3;
+}
+
+.summary-status-pill.upcoming {
+  background: #e8f4fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+.summary-status-pill.all {
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+}
+
+.summary-hospital-info-group {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.summary-hospital-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a4039;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.summary-info-divider {
+  color: #c4b8ab;
+  font-size: 12px;
+  user-select: none;
+}
+
+.summary-doctor-name {
+  font-size: 13px;
+  color: #7d7268;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.summary-period-chip {
+  font-size: 12px;
+  color: #70625a;
+  background: #f5ebe8;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 5. 오늘의 복약 루틴 과거 날짜 및 통합 병원 칩 */
+.routine-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.routine-past-pill {
+  font-size: 11px;
+  font-weight: 800;
+  background: #8b3e4b;
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.routine-today-return-btn {
+  font-size: 11px;
+  font-weight: 800;
+  background: #ffffff;
+  color: #8b3e4b;
+  border: 1px solid #8b3e4b;
+  border-radius: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.routine-today-return-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+}
+
+.routine-origin-hospital-chip {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+}
+
 
 

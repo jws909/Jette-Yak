@@ -65,7 +65,7 @@
                   FROM prescription_items pi 
                   WHERE pi.prescription_id = p.prescription_id
               )
-            ORDER BY p.prescription_id DESC
+            ORDER BY p.dispensed_date DESC NULLS LAST, p.prescription_id DESC
         )
         WHERE ROWNUM = 1
     </select>
@@ -157,6 +157,11 @@
             p.created_at AS createdAt
         FROM prescriptions p
         WHERE p.user_id = #{userId}
+          AND EXISTS (
+              SELECT 1 
+              FROM prescription_items pi 
+              WHERE pi.prescription_id = p.prescription_id
+          )
         ORDER BY p.dispensed_date DESC NULLS LAST, p.prescription_id DESC
     </select>
 

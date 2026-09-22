@@ -1,6 +1,146 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './MainPage.css';
+
+// YYYY-MM-DD 또는 YYYY.MM.DD 문자열을 Date 객체로 변환 (타임존 오차 방지)
+function parseDateOnly(dateInput) {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) {
+    return new Date(dateInput.getFullYear(), dateInput.getMonth(), dateInput.getDate());
+  }
+  const str = String(dateInput).slice(0, 10).replace(/\./g, '-');
+  const parts = str.split('-');
+  if (parts.length === 3) {
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+      return new Date(y, m, d);
+    }
+  }
+  return null;
+}
+
+function formatDateToHyphen(date) {
+  if (!date || isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatDateToDot(date) {
+  if (!date || isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}.${m}.${d}`;
+}
+
+function formatDateWithDay(date) {
+  if (!date || isNaN(date.getTime())) return '';
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const days = ['일', '월', '화', '수', '목', '금', '토'];
+  return `${y}.${m}.${d} (${days[date.getDay()]})`;
+}
+
+function formatDateShort(date) {
+  if (!date || isNaN(date.getTime())) return '';
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${m}.${d}`;
+}
+
+function getTargetDateDiffText(targetDate) {
+  const today = new Date();
+  const target = parseDateOnly(targetDate);
+  const now = parseDateOnly(today);
+  if (!target || !now) return '';
+  const diffDays = Math.floor((target.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays === 0) return '오늘';
+  if (diffDays === -1) return '어제';
+  if (diffDays === 1) return '내일';
+  if (diffDays < 0) return `${Math.abs(diffDays)}일 전`;
+  return `${diffDays}일 후`;
+}
+
+// 조제일 기준 특정 타겟 날짜의 복약 진행 상태 판별
+function getPrescriptionStatus(dispensedDateStr, totalDays, targetDate) {
+  const start = parseDateOnly(dispensedDateStr);
+  const target = parseDateOnly(targetDate || new Date());
+  const days = Number(totalDays) || 1;
+
+  if (!start || !target) {
+    return {
+      status: 'active',
+      badgeText: `총 ${days}일분`,
+      badgeDetail: `총 ${days}일 처방`,
+      dayNum: 1,
+      totalDays: days,
+      isTaking: true,
+      startDateStr: dispensedDateStr || '',
+      endDateStr: '',
+      progressPercent: 100,
+      diffFromStart: 0
+    };
+  }
+
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  end.setDate(end.getDate() + (days - 1));
+
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const diffFromStart = Math.floor((target.getTime() - start.getTime()) / oneDayMs);
+
+  const startDateStr = formatDateToDot(start);
+  const endDateStr = formatDateToDot(end);
+
+  if (diffFromStart < 0) {
+    const dMinus = Math.abs(diffFromStart);
+    return {
+      status: 'upcoming',
+      badgeText: `복용 예정 (D-${dMinus})`,
+      badgeDetail: `복용 시작 D-${dMinus} (총 ${days}일분)`,
+      dayNum: 0,
+      totalDays: days,
+      isTaking: false,
+      startDateStr,
+      endDateStr,
+      progressPercent: 0,
+      diffFromStart,
+      dMinus
+    };
+  } else if (diffFromStart < days) {
+    const dayNum = diffFromStart + 1;
+    const progress = Math.min(100, Math.round((dayNum / days) * 100));
+    return {
+      status: 'taking',
+      badgeText: `복용 ${dayNum}일차`,
+      badgeDetail: `복용 ${dayNum}일차 / 총 ${days}일`,
+      dayNum: dayNum,
+      totalDays: days,
+      isTaking: true,
+      startDateStr,
+      endDateStr,
+      progressPercent: progress,
+      diffFromStart
+    };
+  } else {
+    return {
+      status: 'completed',
+      badgeText: `복용 완료`,
+      badgeDetail: `총 ${days}일 복용 완료 (완료일: ${endDateStr})`,
+      dayNum: days,
+      totalDays: days,
+      isTaking: false,
+      startDateStr,
+      endDateStr,
+      progressPercent: 100,
+      diffFromStart
+    };
+  }
+}
 
 const FALLBACK_SEARCH_LIST = [
   { itemName: '타이레놀정 500mg', entpName: '한국존슨앤드존슨', efficacy: '해열 및 감기로 인한 통증 완화', desc: '해열 진통제' },
@@ -127,7 +267,7 @@ function getMedicineCaution(item) {
 }
 
 // '복용 전, 잠깐만요 (MEDICATION NOTE)' 맞춤형 체크포인트 생성 엔진 (API 비용 0원, 0ms 실시간 분석)
-function generateMedicationNotes(prescriptionData) {
+function generateMedicationNotes(prescriptionData, rxStatus, activeMeds) {
   if (!prescriptionData || !prescriptionData.items || prescriptionData.items.length === 0) {
     return {
       hasDiscontinued: false,
@@ -135,7 +275,6 @@ function generateMedicationNotes(prescriptionData) {
       badgeType: 'safe',
       points: [
         {
-          icon: '💡',
           category: '복약 수칙 안내',
           text: '등록된 처방 의약품이 없습니다. 처방전을 등록하시면 약품별 맞춤 복용 주의사항이 자동으로 계산되어 안내됩니다.'
         }
@@ -143,7 +282,49 @@ function generateMedicationNotes(prescriptionData) {
     };
   }
 
-  const items = prescriptionData.items;
+  // 복용 완료 상태인 경우 (처방 기간 경과)
+  if (rxStatus?.status === 'completed') {
+    return {
+      hasDiscontinued: false,
+      badgeText: '복용 완료',
+      badgeType: 'completed',
+      points: [
+        {
+          category: '처방 기간 완료',
+          text: '선택하신 날짜 기준으로 정해진 처방 일수가 모두 종료되었습니다. 현재 복용 중인 약품이 없습니다.'
+        },
+        {
+          category: '잔여 의약품 안전 관리',
+          text: '처방 후 남은 의약품은 임의로 다시 복용하지 마시고, 가까운 약국이나 보건소의 폐의약품 수거함을 통해 안전하게 폐기하세요.'
+        },
+        {
+          category: '과거 복약 기록 확인',
+          text: '당시 처방 약품 및 상세 주의사항은 상단 날짜를 조제일 기간으로 변경하여 언제든 다시 확인하실 수 있습니다.'
+        }
+      ]
+    };
+  }
+
+  // 복용 시작 전인 경우
+  if (rxStatus?.status === 'upcoming') {
+    return {
+      hasDiscontinued: false,
+      badgeText: '복용 대기',
+      badgeType: 'upcoming',
+      points: [
+        {
+          category: '복용 시작 대기',
+          text: `선택하신 날짜는 복용 시작 전입니다. 조제일(${prescriptionData.dispensedDate || ''})부터 지정된 용법에 맞춰 복용을 시작하세요.`
+        },
+        {
+          category: '복약 전 보관 수칙',
+          text: '의약품은 직사광선과 습기를 피해 서늘한 실온에 보관하시고, 복용 시작 전 용법 및 주의사항을 미리 숙지하세요.'
+        }
+      ]
+    };
+  }
+
+  const items = (activeMeds && activeMeds.length > 0) ? activeMeds : prescriptionData.items;
   const hasDiscontinued = prescriptionData.hasDiscontinuedDrug === 1 || items.some((i) => i.isDiscontinued);
   const discontinuedItem = items.find((i) => i.isDiscontinued);
 
@@ -152,7 +333,6 @@ function generateMedicationNotes(prescriptionData) {
   // 1. 판매중단 또는 주의 약품이 포함된 경우 (최우선 배치)
   if (hasDiscontinued) {
     points.push({
-      icon: '🚨',
       category: '의약품 안전 주의',
       highlight: true,
       text: `[주의] ${discontinuedItem?.name || '처방 약품'} 등 판매중단 또는 허가 재검토 대상 의약품이 포함되어 있습니다. 복용 전 의료진과 다시 확인하세요.`
@@ -163,19 +343,16 @@ function generateMedicationNotes(prescriptionData) {
   const timingTexts = items.map((i) => i.usageTiming || '').join(' ');
   if (timingTexts.includes('식전')) {
     points.push({
-      icon: '🍽️',
       category: '식사 및 복용 시점',
       text: '식전 복용 약품 포함: 흡수율을 높이고 약효를 발휘하기 위해 식사 30분 전 공복에 복용하세요.'
     });
   } else if (timingTexts.includes('취침')) {
     points.push({
-      icon: '🌙',
       category: '식사 및 복용 시점',
       text: '취침 전 복용 약품 포함: 잠들기 직전에 미온수와 함께 편안한 상태에서 복용하세요.'
     });
   } else {
     points.push({
-      icon: '🍚',
       category: '식사 및 복용 시점',
       text: '식후 30분 복용: 위장 자극을 줄이고 흡수를 돕기 위해 식사 후 미온수와 함께 복용하세요.'
     });
@@ -186,49 +363,41 @@ function generateMedicationNotes(prescriptionData) {
 
   if (classNames.includes('혈압') || classNames.includes('암로디핀') || classNames.includes('아모잘탄') || classNames.includes('발사르탄')) {
     points.push({
-      icon: '🩺',
       category: '혈압약 복용 주의',
       text: '혈압강하제 포함: 갑자기 일어설 때 어지러움이 생길 수 있으니 천천히 일어나시고, 매일 일정한 시간에 꾸준히 복용하세요.'
     });
   } else if (classNames.includes('진통') || classNames.includes('소염') || classNames.includes('해열') || classNames.includes('아세트아미노펜') || classNames.includes('NSAID')) {
     points.push({
-      icon: '🚫',
       category: '음주 및 위장 주의',
       text: '해열·소염진통제 포함: 간 및 위장 점막 손상을 막기 위해 복용 기간 중 음주는 절대 삼가시고, 공복 복용을 피하세요.'
     });
   } else if (classNames.includes('항생') || classNames.includes('항균') || classNames.includes('세파') || classNames.includes('아목시')) {
     points.push({
-      icon: '💊',
       category: '항생제 내성 예방',
       text: '항생제 포함: 증상이 호전되더라도 균의 내성 발생을 방지하기 위해 처방된 일수 동안 끝까지 복용하세요.'
     });
   } else if (classNames.includes('알레르기') || classNames.includes('항히스타민') || classNames.includes('비염') || classNames.includes('감기')) {
     points.push({
-      icon: '🚗',
       category: '졸음 유발 주의',
       text: '항히스타민 성분 포함: 졸음이나 나른함이 발생할 수 있으므로 운전이나 위험한 기계 조작 시 각별히 주의하세요.'
     });
   } else if (classNames.includes('소화') || classNames.includes('위장') || classNames.includes('궤양') || classNames.includes('제산')) {
     points.push({
-      icon: '☕',
       category: '위장 보호 수칙',
       text: '위장약 포함: 위 점막 보호와 빠른 회복을 위해 카페인, 탄산음료, 자극적인 매운 음식 섭취를 줄이세요.'
     });
   } else if (classNames.includes('탈모') || classNames.includes('피나') || classNames.includes('두타')) {
     points.push({
-      icon: '⚠️',
       category: '탈모치료제 주의',
       text: '피나스테리드 계열 포함: 가임기 여성의 정제 파편 접촉을 금하며, 매일 일정한 시간에 지속적으로 복용하세요.'
     });
   } else if (classNames.includes('당뇨') || classNames.includes('메트포르민') || classNames.includes('혈당')) {
     points.push({
-      icon: '🍬',
       category: '저혈당 대비 안내',
       text: '당뇨병용제 포함: 식사를 거르지 마시고, 식은땀이나 떨림 등 저혈당 증상에 대비해 사탕이나 당분을 휴대하세요.'
     });
   } else {
     points.push({
-      icon: '⚠️',
       category: '복약 준수 수칙',
       text: '정해진 1회 투약량과 복용 횟수를 준수하시고, 다른 약물이나 건강기능식품과 병용 시 전문가와 상담하세요.'
     });
@@ -237,7 +406,6 @@ function generateMedicationNotes(prescriptionData) {
   // 4. 총 투약일수 안내
   const totalDays = prescriptionData.totalDays || 14;
   points.push({
-    icon: '⏱️',
     category: '처방 기간 준수',
     text: `총 ${totalDays}일 처방: 증상이 일시적으로 완화되더라도 임의로 복용을 중단하지 마시고 처방 기간을 완료하세요.`
   });
@@ -386,7 +554,183 @@ export default function MainPage({ user }) {
 
   // 처방전 데이터 및 등록 여부 상태 (DB 조회 결과에 따라 실시간 반영)
   const [hasPrescription, setHasPrescription] = useState(false);
-  const [prescriptionData, setPrescriptionData] = useState(null);
+  const [allPrescriptions, setAllPrescriptions] = useState([]);
+  const [selectedRxId, setSelectedRxId] = useState('all'); // 'all' 또는 개별 prescriptionId
+  const [isRxDropdownOpen, setIsRxDropdownOpen] = useState(false);
+  const rxDropdownRef = useRef(null);
+  const [targetDate, setTargetDate] = useState(() => new Date());
+  const dateInputRef = useRef(null);
+
+  // 처방전 선택 드롭다운 바깥 클릭 감지하여 닫기
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (rxDropdownRef.current && !rxDropdownRef.current.contains(event.target)) {
+        setIsRxDropdownOpen(false);
+      }
+    }
+    if (isRxDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isRxDropdownOpen]);
+
+  // 타겟 날짜가 오늘인지 여부
+  const isTargetToday = useMemo(() => {
+    const today = new Date();
+    return (
+      targetDate.getFullYear() === today.getFullYear() &&
+      targetDate.getMonth() === today.getMonth() &&
+      targetDate.getDate() === today.getDate()
+    );
+  }, [targetDate]);
+
+  // 현재 선택된 처방전 또는 전체 통합 뷰 계산
+  const currentPrescriptionView = useMemo(() => {
+    if (!allPrescriptions || allPrescriptions.length === 0) return null;
+
+    if (selectedRxId === 'all') {
+      const combinedItems = [];
+      let hasDiscontinued = 0;
+      const hospitalSet = new Set();
+      let maxTotalDays = 0;
+
+      allPrescriptions.forEach((rx) => {
+        if (rx.hasDiscontinuedDrug === 1) hasDiscontinued = 1;
+        if (rx.hospitalName && rx.hospitalName !== '의료기관') hospitalSet.add(rx.hospitalName);
+        if ((rx.totalDays || 0) > maxTotalDays) maxTotalDays = rx.totalDays;
+
+        (rx.items || []).forEach((item) => {
+          combinedItems.push({
+            ...item,
+            originHospital: rx.hospitalName || '의료기관',
+            originDispensedDate: rx.dispensedDate || '',
+            prescriptionId: rx.prescriptionId,
+          });
+        });
+      });
+
+      const hospitalNames = Array.from(hospitalSet);
+      const hospitalDisplay = hospitalNames.length > 0
+        ? hospitalNames.join(', ')
+        : `${allPrescriptions.length}개 의료기관`;
+
+      return {
+        isAll: true,
+        prescriptionId: 'all',
+        dispensedDate: allPrescriptions[0]?.dispensedDate || '',
+        hospitalName: hospitalDisplay,
+        doctorName: `처방전 ${allPrescriptions.length}건 통합`,
+        totalDays: maxTotalDays || 14,
+        hasDiscontinuedDrug: hasDiscontinued,
+        items: combinedItems,
+        allCount: allPrescriptions.length,
+      };
+    } else {
+      const found = allPrescriptions.find((rx) => String(rx.prescriptionId) === String(selectedRxId));
+      return found || allPrescriptions[0];
+    }
+  }, [allPrescriptions, selectedRxId]);
+
+  const prescriptionData = currentPrescriptionView;
+
+  // 현재 처방전의 기준일자(targetDate) 대비 복약 진행 상태
+  const currentRxStatus = useMemo(() => {
+    if (!prescriptionData) return null;
+    if (prescriptionData.isAll) {
+      const takingList = allPrescriptions.filter((rx) => {
+        const st = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
+        return st.status === 'taking';
+      });
+      const completedList = allPrescriptions.filter((rx) => {
+        const st = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
+        return st.status === 'completed';
+      });
+
+      let status = 'taking';
+      let badgeText = `복용 중 (${takingList.length}건)`;
+      if (allPrescriptions.length > 0 && completedList.length === allPrescriptions.length) {
+        status = 'completed';
+        badgeText = '전체 복용 완료';
+      } else if (takingList.length === 0) {
+        status = 'upcoming';
+        badgeText = '복용 예정';
+      }
+
+      return {
+        status,
+        badgeText,
+        badgeDetail: `등록 처방전 ${allPrescriptions.length}건 중 ${takingList.length}건 복용 중`,
+        isTaking: takingList.length > 0,
+        takingCount: takingList.length,
+        startDateStr: '',
+        endDateStr: '',
+        dayNum: 1,
+        totalDays: prescriptionData.totalDays || 14,
+      };
+    }
+    return getPrescriptionStatus(prescriptionData.dispensedDate, prescriptionData.totalDays, targetDate);
+  }, [prescriptionData, targetDate, allPrescriptions]);
+
+  // 기준 일자(targetDate)에 실제로 복약해야 하는 처방 약품 목록 (복용 완료/예정 상태 처방전은 제외)
+  const activeMedsForTargetDate = useMemo(() => {
+    if (!allPrescriptions || allPrescriptions.length === 0) return [];
+
+    if (selectedRxId === 'all') {
+      const meds = [];
+      allPrescriptions.forEach((rx) => {
+        const st = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
+        if (st.status === 'taking') {
+          (rx.items || []).forEach((item) => {
+            meds.push({
+              ...item,
+              originHospital: rx.hospitalName || '의료기관',
+              originDispensedDate: rx.dispensedDate || '',
+              prescriptionId: rx.prescriptionId,
+            });
+          });
+        }
+      });
+      return meds;
+    } else {
+      const rx = allPrescriptions.find((r) => String(r.prescriptionId) === String(selectedRxId));
+      if (!rx) return [];
+      const st = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
+      if (st.status === 'taking') {
+        return (rx.items || []).map((item) => ({
+          ...item,
+          originHospital: rx.hospitalName || '의료기관',
+          originDispensedDate: rx.dispensedDate || '',
+          prescriptionId: rx.prescriptionId,
+        }));
+      }
+      return [];
+    }
+  }, [allPrescriptions, selectedRxId, targetDate]);
+
+  // 기준 일자(targetDate)에 유효한 활성 처방 약품 목록 (복약 기간 경과 시 빈 배열)
+  const activeMedList = activeMedsForTargetDate;
+
+  // 날짜 네비게이터 핸들러
+  const handlePrevDay = () => {
+    setTargetDate((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1));
+  };
+
+  const handleNextDay = () => {
+    setTargetDate((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
+  };
+
+  const handleResetToday = () => {
+    setTargetDate(new Date());
+  };
+
+  const handleJumpToDate = (dateStr) => {
+    const parsed = parseDateOnly(dateStr);
+    if (parsed) {
+      setTargetDate(parsed);
+    }
+  };
 
   // 처방전 업로드 모달 상태
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -400,6 +744,7 @@ export default function MainPage({ user }) {
   // 약품 상세 모달 상태
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
   const [isCautionModalOpen, setIsCautionModalOpen] = useState(false);
+  const [showPastMedsInModal, setShowPastMedsInModal] = useState(false);
 
   // 메인 인라인 검색 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -424,9 +769,6 @@ export default function MainPage({ user }) {
   const [tempMealTimes, setTempMealTimes] = useState(DEFAULT_MEAL_TIMES);
   const [isSavingMealTimes, setIsSavingMealTimes] = useState(false);
 
-  // 활성화된 처방약 목록 (DB 등록된 데이터만 표시)
-  const activeMedList = prescriptionData?.items || [];
-
   // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
   useEffect(() => {
     const userId = user?.userId || 1;
@@ -450,42 +792,39 @@ export default function MainPage({ user }) {
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
   }, [user?.userId]);
 
-  // 최신 처방전 및 복약 루틴 새로고침 함수
+  // 사용자의 등록 처방전 전체 목록 및 복약 루틴 새로고침
   const reloadPrescriptionAndRoutine = useCallback(async () => {
-    const userId = user?.userId;
-    if (!userId) {
-      setPrescriptionData(null);
-      setRoutineItems([]);
-      setHasPrescription(false);
-      return;
-    }
-
+    const userId = user?.userId || 1;
     try {
-      const res = await fetch(`/api/prescriptions/latest?userId=${userId}`);
+      const res = await fetch(`/api/prescriptions/list?userId=${userId}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.success && data.found && data.prescription) {
-          const mapped = mapPrescriptionToState(data.prescription);
-          setPrescriptionData(mapped);
-          setRoutineItems(buildRoutineItems(mapped.items, mealTimes));
+        const rawList = data.prescriptions || [];
+        if (rawList.length > 0) {
+          const mappedList = rawList.map(mapPrescriptionToState);
+          setAllPrescriptions(mappedList);
+          setPrescriptionList(rawList);
           setHasPrescription(true);
         } else {
-          setPrescriptionData(null);
-          setRoutineItems([]);
+          setAllPrescriptions([]);
+          setPrescriptionList([]);
           setHasPrescription(false);
+          setRoutineItems([]);
         }
       } else {
-        setPrescriptionData(null);
-        setRoutineItems([]);
+        setAllPrescriptions([]);
+        setPrescriptionList([]);
         setHasPrescription(false);
+        setRoutineItems([]);
       }
     } catch (err) {
-      console.warn('최근 처방전 로드 실패:', err);
-      setPrescriptionData(null);
-      setRoutineItems([]);
+      console.warn('처방전 목록 로드 실패:', err);
+      setAllPrescriptions([]);
+      setPrescriptionList([]);
       setHasPrescription(false);
+      setRoutineItems([]);
     }
-  }, [user?.userId, mealTimes]);
+  }, [user?.userId]);
 
   // 처방전 목록/수정/삭제 관리 모달 상태
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
@@ -678,14 +1017,14 @@ export default function MainPage({ user }) {
     reloadPrescriptionAndRoutine();
   }, [reloadPrescriptionAndRoutine]);
 
-  // 식사 시간이나 처방 데이터 변경 시 복약 루틴 알림 시간 재계산
+  // 식사 시간이나 기준 일자별 유효 복약 약품 변경 시 복약 루틴 알림 시간 재계산
   useEffect(() => {
-    if (prescriptionData?.items && prescriptionData.items.length > 0) {
-      setRoutineItems(buildRoutineItems(prescriptionData.items, mealTimes));
+    if (activeMedsForTargetDate && activeMedsForTargetDate.length > 0) {
+      setRoutineItems(buildRoutineItems(activeMedsForTargetDate, mealTimes));
     } else {
       setRoutineItems([]);
     }
-  }, [mealTimes, prescriptionData]);
+  }, [mealTimes, activeMedsForTargetDate, targetDate]);
 
   // 식사 시간 저장 핸들러
   const handleSaveMealTimes = async (e) => {
@@ -970,10 +1309,7 @@ export default function MainPage({ user }) {
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.prescription) {
-          const mapped = mapPrescriptionToState(data.prescription);
-          setPrescriptionData(mapped);
-          setRoutineItems(buildRoutineItems(mapped.items, mealTimes));
-          setHasPrescription(true);
+          await reloadPrescriptionAndRoutine();
           closeUploadModal();
           alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
           return;
@@ -988,21 +1324,81 @@ export default function MainPage({ user }) {
     }
   };
 
-  const today = new Date();
   const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
-  const greetingDateStr = `${dayNames[today.getDay()]}, ${today.getDate()} ${monthNames[today.getMonth()]}`;
-  const routineDateBadge = `${String(today.getMonth() + 1).padStart(2, '0')}.${String(today.getDate()).padStart(2, '0')}`;
+  const greetingDateStr = `${dayNames[targetDate.getDay()]}, ${targetDate.getDate()} ${monthNames[targetDate.getMonth()]}`;
+  const routineDateBadge = `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
 
   return (
     <div className="main-page-wrapper">
-      {/* 1. 상단 인사말 영역 */}
+      {/* 1. 상단 인사말 및 복약 날짜 네비게이터 영역 */}
       <header className="main-greeting-header">
-        <span className="greeting-date">{greetingDateStr}</span>
-        <h1 className="greeting-title">
-          안녕하세요, <span className="user-highlight">{user?.name || user?.username || '사용자'}</span>님.
-        </h1>
-        <p className="greeting-subtitle">오늘도 몸의 이야기에 귀 기울여 볼까요?</p>
+        <div className="greeting-flex-row">
+          <div className="greeting-text-block">
+            <span className="greeting-date">{greetingDateStr}</span>
+            <h1 className="greeting-title">
+              안녕하세요, <span className="user-highlight">{user?.name || user?.username || '사용자'}</span>님.
+            </h1>
+            <p className="greeting-subtitle">오늘도 몸의 이야기에 귀 기울여 볼까요?</p>
+          </div>
+
+          {/* 날짜 이동 네비게이터 */}
+          <div className="main-date-navigator" title="복약 기준 날짜 변경">
+            <button
+              type="button"
+              className="date-nav-arrow-btn"
+              onClick={handlePrevDay}
+              title="하루 전으로 이동"
+            >
+              ‹
+            </button>
+            <div
+              className="date-nav-display-box"
+              onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
+              title="클릭하여 달력에서 날짜 직접 선택"
+            >
+              <span className="date-nav-calendar-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                </svg>
+              </span>
+              <span className="date-nav-date-text">{formatDateWithDay(targetDate)}</span>
+              {isTargetToday ? (
+                <span className="date-nav-today-tag">오늘</span>
+              ) : (
+                <span className="date-nav-diff-tag">{getTargetDateDiffText(targetDate)}</span>
+              )}
+              <input
+                ref={dateInputRef}
+                type="date"
+                className="date-nav-hidden-picker"
+                value={formatDateToHyphen(targetDate)}
+                onChange={(e) => {
+                  const parsed = parseDateOnly(e.target.value);
+                  if (parsed) setTargetDate(parsed);
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              className="date-nav-arrow-btn"
+              onClick={handleNextDay}
+              title="다음 날로 이동"
+            >
+              ›
+            </button>
+            {!isTargetToday && (
+              <button
+                type="button"
+                className="date-nav-return-today-btn"
+                onClick={handleResetToday}
+                title="오늘 날짜로 복귀"
+              >
+                오늘로 복귀
+              </button>
+            )}
+          </div>
+        </div>
       </header>
 
       {/* 2. 약 검색창 (메인.png 검색 바) */}
@@ -1113,22 +1509,182 @@ export default function MainPage({ user }) {
            [처방전 등록 후 화면] (메인.png 디자인)
            ------------------------------------------------------------- */
         <>
+          {/* 0. 처방전 선택 탭 바 (전체 통합 및 개별 처방전 전환) */}
+          {/* 0. 처방전 선택 드롭다운 셀렉터 (가로 스크롤 제거 및 직관적 선택) */}
+          <section className="rx-selector-section">
+            <div className="rx-selector-header">
+              <div className="rx-selector-header-left">
+                <span className="rx-tabs-title-badge">등록 처방전</span>
+                <span className="rx-tabs-count-title">처방전 선택 ({allPrescriptions.length}건)</span>
+              </div>
+              <button
+                type="button"
+                className="rx-manage-shortcut-btn"
+                onClick={openManageModal}
+                title="내 처방전 목록/수정/삭제 관리"
+              >
+                처방전 관리 &gt;
+              </button>
+            </div>
+
+            <div className="rx-dropdown-container" ref={rxDropdownRef}>
+              <button
+                type="button"
+                className={`rx-dropdown-trigger ${isRxDropdownOpen ? 'open' : ''}`}
+                onClick={() => setIsRxDropdownOpen((prev) => !prev)}
+                aria-expanded={isRxDropdownOpen}
+                aria-haspopup="listbox"
+              >
+                <div className="rx-dropdown-trigger-left">
+                  <span className="rx-dropdown-icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V7zm3 4a1 1 0 000 2h6a1 1 0 100-2H7z" />
+                    </svg>
+                  </span>
+                  <div className="rx-dropdown-trigger-info">
+                    <strong className="rx-dropdown-trigger-title">
+                      {selectedRxId === 'all'
+                        ? `전체 처방전 통합 (${allPrescriptions.length}건)`
+                        : (currentPrescriptionView?.hospitalName || '의료기관')}
+                    </strong>
+                    <span className="rx-dropdown-trigger-sub">
+                      {selectedRxId === 'all'
+                        ? '모든 등록 처방전 약품 종합 루틴'
+                        : `조제일 ${currentPrescriptionView?.dispensedDate || '미상'} · ${currentPrescriptionView?.totalDays || 0}일분 · 약품 ${currentPrescriptionView?.items?.length || 0}종`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="rx-dropdown-trigger-right">
+                  {currentRxStatus && (
+                    <span className={`rx-tab-badge-chip ${currentRxStatus.status}`}>
+                      {currentRxStatus.badgeText}
+                    </span>
+                  )}
+                  <span className={`rx-dropdown-arrow-icon ${isRxDropdownOpen ? 'rotated' : ''}`}>
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                </div>
+              </button>
+
+              {isRxDropdownOpen && (
+                <div className="rx-dropdown-menu" role="listbox">
+                  {/* 전체 처방전 통합 옵션 */}
+                  <div
+                    role="option"
+                    aria-selected={selectedRxId === 'all'}
+                    className={`rx-dropdown-option ${selectedRxId === 'all' ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedRxId('all');
+                      setIsRxDropdownOpen(false);
+                    }}
+                  >
+                    <div className="rx-dropdown-option-left">
+                      <span className="rx-dropdown-option-icon all">
+                        <svg viewBox="0 0 20 20" fill="currentColor">
+                          <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V7zm3 4a1 1 0 000 2h6a1 1 0 100-2H7z" />
+                        </svg>
+                      </span>
+                      <div className="rx-dropdown-option-info">
+                        <strong className="rx-dropdown-option-title">전체 처방전 ({allPrescriptions.length}건) 통합 조회</strong>
+                        <span className="rx-dropdown-option-sub">등록된 모든 처방전의 약품을 합산하여 루틴을 확인합니다.</span>
+                      </div>
+                    </div>
+                    <span className="rx-tab-badge-chip all">통합</span>
+                  </div>
+
+                  <div className="rx-dropdown-divider" />
+
+                  {/* 개별 처방전 옵션 목록 */}
+                  {allPrescriptions.map((rx) => {
+                    const rxStatus = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
+                    const isSelected = String(selectedRxId) === String(rx.prescriptionId);
+                    return (
+                      <div
+                        key={rx.prescriptionId}
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`rx-dropdown-option ${isSelected ? 'active' : ''}`}
+                        onClick={() => {
+                          setSelectedRxId(rx.prescriptionId);
+                          setIsRxDropdownOpen(false);
+                        }}
+                      >
+                        <div className="rx-dropdown-option-left">
+                          <span className="rx-dropdown-option-icon rx">
+                            <svg viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M10 2a1 1 0 011 1v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H3a1 1 0 110-2h6V3a1 1 0 011-1z" clipRule="evenodd" />
+                            </svg>
+                          </span>
+                          <div className="rx-dropdown-option-info">
+                            <div className="rx-dropdown-option-title-row">
+                              <strong className="rx-dropdown-option-title">{rx.hospitalName || '의료기관'}</strong>
+                              {rx.doctorName && <span className="rx-dropdown-option-doctor">{rx.doctorName}</span>}
+                            </div>
+                            <span className="rx-dropdown-option-sub">
+                              조제일 {rx.dispensedDate || '미상'} · {rx.totalDays}일 처방 · 약품 {rx.items?.length || 0}종
+                            </span>
+                          </div>
+                        </div>
+                        <span className={`rx-tab-badge-chip ${rxStatus.status}`}>
+                          {rxStatus.badgeText}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* 처방전 요약 바 (PRESCRIPTION SUMMARY) */}
           <section className="prescription-summary-card">
             <div className="summary-col-left">
-              <span className="summary-meta-label">PRESCRIPTION SUMMARY</span>
+              <div className="summary-meta-top-row">
+                <span className="summary-meta-label">
+                  {selectedRxId === 'all' ? 'ALL PRESCRIPTIONS SUMMARY' : 'PRESCRIPTION SUMMARY'}
+                </span>
+                {currentRxStatus && (
+                  <span className={`summary-status-pill ${currentRxStatus.status}`}>
+                    {currentRxStatus.badgeText}
+                  </span>
+                )}
+              </div>
               <h2 className="summary-date-title">
-                {prescriptionData?.dispensedDate ? `${prescriptionData.dispensedDate} 발급 처방전` : '최신 발급 처방전'}
+                {selectedRxId === 'all'
+                  ? `전체 처방전 (${allPrescriptions.length}건) 통합 조회`
+                  : (prescriptionData?.dispensedDate ? `${prescriptionData.dispensedDate} 조제 처방전` : '처방전 상세')}
               </h2>
-              <span className="summary-hospital-info">
-                {prescriptionData?.hospitalName || '의료기관'} · {prescriptionData?.doctorName || '처방의'}
-              </span>
+              <div className="summary-hospital-info-group">
+                <span className="summary-hospital-name">
+                  {prescriptionData?.hospitalName || '의료기관'}
+                </span>
+                {selectedRxId !== 'all' && prescriptionData?.doctorName && (
+                  <>
+                    <span className="summary-info-divider">·</span>
+                    <span className="summary-doctor-name">
+                      {prescriptionData.doctorName}
+                    </span>
+                  </>
+                )}
+                {selectedRxId !== 'all' && currentRxStatus?.startDateStr && (
+                  <span className="summary-period-chip">
+                    기간: {currentRxStatus.startDateStr} ~ {currentRxStatus.endDateStr}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="summary-stats-group">
               <div className="stat-unit">
-                <span className="stat-number">{prescriptionData?.totalDays || 0}</span>
-                <span className="stat-label">총 복용 일수</span>
+                <span className="stat-number">
+                  {selectedRxId === 'all' ? allPrescriptions.length : (prescriptionData?.totalDays || 0)}
+                </span>
+                <span className="stat-label">
+                  {selectedRxId === 'all' ? '등록 처방전' : (currentRxStatus?.status === 'taking' ? `${currentRxStatus.dayNum}일차 / 총일수` : '총 복용 일수')}
+                </span>
               </div>
               <div className="stat-divider" />
               <div className="stat-unit">
@@ -1179,44 +1735,73 @@ export default function MainPage({ user }) {
               <div className="meds-list-divider" />
 
               <div className="meds-vertical-list">
-                {activeMedList.map((med) => (
-                  <div
-                    key={med.id}
-                    className="med-item-row"
-                    onClick={() => setSelectedMedDetail(med)}
-                    title="상세 정보 보기"
-                  >
-                    <div className="med-item-left">
-                      <span className="med-color-dot" style={{ backgroundColor: med.dotColor }} />
-                      <div className="med-text-group">
-                        <strong className="med-item-name">{med.name}</strong>
-                        <p className="med-item-desc">{med.desc}</p>
+                {activeMedList.length === 0 ? (
+                  <div className="meds-empty-notice">
+                    <div className="meds-empty-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <strong className="meds-empty-title">
+                      {currentRxStatus?.status === 'completed'
+                        ? '복용이 완료된 처방전입니다.'
+                        : currentRxStatus?.status === 'upcoming'
+                        ? '복용 시작 전입니다.'
+                        : '해당 일자에 복용할 처방 약품이 없습니다.'}
+                    </strong>
+                    <p className="meds-empty-desc">
+                      {currentRxStatus?.status === 'completed'
+                        ? '선택하신 날짜에는 복용 중인 처방 약품이 없습니다. 당시 처방 내역은 상단 날짜를 조제일 기간으로 변경하여 확인하세요.'
+                        : currentRxStatus?.status === 'upcoming'
+                        ? `조제일(${prescriptionData?.dispensedDate || ''})부터 처방 약품 목록이 표시됩니다.`
+                        : '처방전을 등록하시거나 유효한 복약 날짜를 선택해 주세요.'}
+                    </p>
+                  </div>
+                ) : (
+                  activeMedList.map((med) => (
+                    <div
+                      key={med.id}
+                      className="med-item-row"
+                      onClick={() => setSelectedMedDetail(med)}
+                      title="상세 정보 보기"
+                    >
+                      <div className="med-item-left">
+                        <span className="med-color-dot" style={{ backgroundColor: med.dotColor }} />
+                        <div className="med-text-group">
+                          <div className="med-title-hospital-row">
+                            <strong className="med-item-name">{med.name}</strong>
+                            {selectedRxId === 'all' && med.originHospital && (
+                              <span className="med-hospital-tag">{med.originHospital}</span>
+                            )}
+                          </div>
+                          <p className="med-item-desc">{med.desc}</p>
+                        </div>
+                      </div>
+
+                      <div className="med-item-right">
+                        <span className={`med-type-pill ${med.badge === '처방' ? 'rx' : med.badge === '영양제' ? 'supp' : 'reg'}`}>
+                          {med.badge}
+                        </span>
+                        <button
+                          type="button"
+                          className="med-more-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMedDetail(med);
+                          }}
+                        >
+                          ···
+                        </button>
                       </div>
                     </div>
-
-                    <div className="med-item-right">
-                      <span className={`med-type-pill ${med.badge === '처방' ? 'rx' : med.badge === '영양제' ? 'supp' : 'reg'}`}>
-                        {med.badge}
-                      </span>
-                      <button
-                        type="button"
-                        className="med-more-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedMedDetail(med);
-                        }}
-                      >
-                        ···
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
 
             {/* 우측: 복용 전, 잠깐만요. (MEDICATION NOTE) */}
             {(() => {
-              const medNotes = generateMedicationNotes(prescriptionData);
+              const medNotes = generateMedicationNotes(prescriptionData, currentRxStatus, activeMedsForTargetDate);
               return (
                 <div className="medication-note-card">
                   <div className="card-top-row">
@@ -1234,7 +1819,9 @@ export default function MainPage({ user }) {
                   <div className="note-points-list">
                     {medNotes.points.map((pt, idx) => (
                       <div key={idx} className={`note-point-item ${pt.highlight ? 'highlight' : ''}`}>
-                        <span className="note-point-icon">{pt.icon}</span>
+                        <span className={`note-point-num ${pt.highlight ? 'highlight' : ''}`}>
+                          {pt.highlight ? '!' : idx + 1}
+                        </span>
                         <div className="note-point-content">
                           <strong className="note-point-category">{pt.category}</strong>
                           <p className="note-point-text">{pt.text}</p>
@@ -1262,9 +1849,24 @@ export default function MainPage({ user }) {
       {/* 4. 하단 영역: 오늘의 복약 루틴 (TODAY'S ROUTINE) */}
       <section className="today-routine-card today-routine-dark-card">
         <div className="routine-header-row">
-          <span className="routine-label">TODAY'S ROUTINE</span>
+          <div className="routine-header-left">
+            <span className="routine-label">TODAY'S ROUTINE</span>
+            {!isTargetToday && (
+              <span className="routine-past-pill">{getTargetDateDiffText(targetDate)} 기록</span>
+            )}
+          </div>
           <div className="routine-header-actions">
             <span className="routine-date-badge">{routineDateBadge}</span>
+            {!isTargetToday && (
+              <button
+                type="button"
+                className="routine-today-return-btn"
+                onClick={handleResetToday}
+                title="오늘 날짜로 이동"
+              >
+                오늘로 복귀
+              </button>
+            )}
             <button
               type="button"
               className="meal-setting-btn"
@@ -1284,11 +1886,18 @@ export default function MainPage({ user }) {
 
         <div className="routine-title-row">
           <h3 className="routine-title">
-            오늘의 복용 <span className="taken-highlight">{takenCount}</span>/{totalCount}
+            {isTargetToday ? '오늘의 복용' : `${formatDateShort(targetDate)} 복약 루틴`}{' '}
+            <span className="taken-highlight">{takenCount}</span>/{totalCount}
           </h3>
           <span className="routine-rate-tip">
             {totalCount === 0
-              ? '처방전을 등록하시면 복약 루틴이 생성됩니다'
+              ? currentRxStatus?.status === 'completed'
+                ? '해당 일자에는 복용이 완료되어 일정이 없습니다.'
+                : currentRxStatus?.status === 'upcoming'
+                ? '해당 일자는 아직 복용 시작 전입니다.'
+                : '등록된 복용 일정이 없습니다.'
+              : !isTargetToday
+              ? `${formatDateWithDay(targetDate)} 기준 복약 루틴을 확인하고 있습니다`
               : takenCount === totalCount
               ? '오늘 모든 복약을 완료했습니다!'
               : '시간대별 탭을 선택하여 간편하게 복용을 체크하세요'}
@@ -1310,7 +1919,7 @@ export default function MainPage({ user }) {
                 <span className="slot-tab-label">{tab.label}</span>
                 {tab.timeHint && <span className="slot-tab-time">{tab.timeHint}</span>}
                 <span className="slot-tab-badge">
-                  {tab.isAllDone ? '✓' : `${tab.taken}/${tab.total}`}
+                  {tab.isAllDone ? '완료' : `${tab.taken}/${tab.total}`}
                 </span>
               </button>
             ))}
@@ -1326,19 +1935,39 @@ export default function MainPage({ user }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
-              <p className="routine-empty-text">
-                {hasPrescription
-                  ? '등록된 복약 일정이 없습니다.'
-                  : '처방전을 등록하시면 1일 복용 횟수와 식사 시간에 맞춰 오늘의 복약 루틴이 자동으로 계산되어 등록됩니다.'}
-              </p>
-              {!hasPrescription && (
-                <button
-                  type="button"
-                  className="routine-empty-cta-btn"
-                  onClick={openUploadModal}
-                >
-                  처방전 등록하고 시작하기 →
-                </button>
+
+              {hasPrescription ? (
+                <>
+                  <h4 className="routine-empty-title">
+                    {currentRxStatus?.status === 'completed'
+                      ? '복용이 완료된 처방전입니다.'
+                      : currentRxStatus?.status === 'upcoming'
+                      ? '복용 시작 전입니다.'
+                      : '복용 일정이 없습니다.'}
+                  </h4>
+                  <p className="routine-empty-text">
+                    {currentRxStatus?.status === 'completed'
+                      ? '선택하신 날짜에는 복용할 약이 없습니다. 과거 복약 내역은 상단 날짜 선택을 통해 확인하실 수 있습니다.'
+                      : currentRxStatus?.status === 'upcoming'
+                      ? `복용 시작일(${prescriptionData?.dispensedDate || ''})부터 복약 루틴이 표시됩니다.`
+                      : '선택하신 날짜에는 등록된 복약 일정이 없습니다.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="routine-empty-text">
+                    처방전을 등록하시면 1일 복용 횟수와 식사 시간에 맞춰 오늘의 복약 루틴이 자동으로 계산되어 등록됩니다.
+                  </p>
+                  {!hasPrescription && (
+                    <button
+                      type="button"
+                      className="routine-empty-cta-btn"
+                      onClick={openUploadModal}
+                    >
+                      처방전 등록하고 시작하기 →
+                    </button>
+                  )}
+                </>
               )}
             </div>
           ) : activeSlotKey === 'all' ? (
@@ -1355,7 +1984,7 @@ export default function MainPage({ user }) {
                         <span className="slot-section-time">{group.time} 복용 예정</span>
                       </div>
                       <span className={`slot-section-counter ${groupAllDone ? 'done' : ''}`}>
-                        {groupAllDone ? '✓ 복용 완료' : `${groupTaken} / ${group.items.length} 완료`}
+                        {groupAllDone ? '복용 완료' : `${groupTaken} / ${group.items.length} 완료`}
                       </span>
                     </div>
 
@@ -1376,6 +2005,9 @@ export default function MainPage({ user }) {
                             </div>
                             <span className="routine-time">{item.time}</span>
                             <span className="routine-name">{item.name}</span>
+                            {selectedRxId === 'all' && item.originHospital && (
+                              <span className="routine-origin-hospital-chip">{item.originHospital}</span>
+                            )}
                           </div>
                           <div className="routine-item-right">
                             <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
@@ -1415,6 +2047,9 @@ export default function MainPage({ user }) {
                     </div>
                     <span className="routine-time">{item.time}</span>
                     <span className="routine-name">{item.name}</span>
+                    {selectedRxId === 'all' && item.originHospital && (
+                      <span className="routine-origin-hospital-chip">{item.originHospital}</span>
+                    )}
                   </div>
                   <div className="routine-item-right">
                     <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
@@ -1563,7 +2198,7 @@ export default function MainPage({ user }) {
                   </div>
 
                   <p className="preview-hint">
-                    ✓ 글자가 가로 방향으로 똑바로 보이도록 조정한 후 아래 [분석 및 등록 완료]를 눌러주세요.
+                    글자가 가로 방향으로 똑바로 보이도록 조정한 후 아래 [분석 및 등록 완료]를 눌러주세요.
                   </p>
                 </div>
               )}
@@ -1647,35 +2282,136 @@ export default function MainPage({ user }) {
          모달 3: 복용 주의점 자세히 보기 모달
          ------------------------------------------------------------- */}
       {isCautionModalOpen && (
-        <div className="modal-backdrop" onClick={() => setIsCautionModalOpen(false)}>
-          <div className="modal-content-box" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-backdrop"
+          onClick={() => {
+            setIsCautionModalOpen(false);
+            setShowPastMedsInModal(false);
+          }}
+        >
+          <div className="modal-content-box caution-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h3 className="modal-title">복용 전 성분 상호작용 주의사항</h3>
-              <button type="button" className="modal-close" onClick={() => setIsCautionModalOpen(false)}>✕</button>
+              <div className="modal-head-info">
+                <h3 className="modal-title">복용 주의사항 &amp; 성분 안내</h3>
+                <span className="modal-subtitle">
+                  {formatDateShort(targetDate)} 기준 · {selectedRxId === 'all' ? '전체 처방전 통합' : (prescriptionData?.hospitalName || '처방전')}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => {
+                  setIsCautionModalOpen(false);
+                  setShowPastMedsInModal(false);
+                }}
+              >
+                ✕
+              </button>
             </div>
 
             <div className="caution-modal-body">
-              {prescriptionData?.hasDiscontinuedDrug === 1 && (
+              {/* 복용 중인 약품 중 판매중단 또는 주의 대상 의약품 경고 (현재 복용 약품에 한해 표출) */}
+              {activeMedList.some((item) => item.isDiscontinued) && (
                 <div className="caution-summary-card" style={{ borderColor: '#e5a7ad', background: '#fff8f8' }}>
                   <strong style={{ color: '#c04b4b' }}>[주의] 판매중단 또는 주의 대상 의약품 포함</strong>
-                  <p>처방전에 판매중단 또는 재검토 대상 의약품이 포함되어 있습니다. 복용 전 반드시 처방의료진과 재확인하세요.</p>
+                  <p>현재 복용 중인 처방 약품 중 주의 또는 재검토 대상 의약품이 포함되어 있습니다. 복용 전 반드시 처방의료진과 재확인하세요.</p>
                 </div>
               )}
 
-              <div className="caution-guidance">
-                <h4>처방 약품별 주의사항 및 복용 안내:</h4>
-                <ul>
-                  {prescriptionData?.items && prescriptionData.items.length > 0 ? (
-                    prescriptionData.items.map((item, idx) => (
-                      <li key={idx}>
-                        <strong>{item.name}:</strong> {item.caution || '정해진 용법과 용량을 준수하여 복용하세요.'} ({item.dosage})
+              {activeMedList.length > 0 ? (
+                <div className="caution-guidance">
+                  <div className="caution-section-header">
+                    <h4>현재 복용 처방 약품 ({activeMedList.length}종):</h4>
+                    <span className="caution-status-chip">복용 중</span>
+                  </div>
+                  <ul className="caution-items-list">
+                    {activeMedList.map((item, idx) => (
+                      <li key={item.id || idx} className="caution-item-card">
+                        <div className="caution-item-top">
+                          <span className="med-color-dot" style={{ backgroundColor: item.dotColor || '#8b3e4b' }} />
+                          <strong className="caution-item-name">{item.name}</strong>
+                          {selectedRxId === 'all' && item.originHospital && (
+                            <span className="med-hospital-tag">{item.originHospital}</span>
+                          )}
+                          {item.isDiscontinued && (
+                            <span className="caution-discontinued-tag">주의</span>
+                          )}
+                        </div>
+                        <p className="caution-item-text">
+                          {item.caution || '정해진 용법과 용량을 준수하여 복용하세요.'}
+                        </p>
+                        <div className="caution-item-dosage-info">
+                          용법: {item.dosage}
+                        </div>
                       </li>
-                    ))
-                  ) : (
-                    <li>등록된 처방 의약품의 개별 복용 주의사항을 확인하세요.</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                /* 복용 완료 또는 대기 상태: 옛날 약들을 기본 노출하지 않고 안내 메시지 표시 */
+                <div className="caution-empty-notice-wrap">
+                  <div className="caution-modal-empty-notice">
+                    <div className="caution-empty-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <strong className="caution-empty-title">
+                      {currentRxStatus?.status === 'completed'
+                        ? '선택하신 날짜에 복용 중인 처방 약품이 없습니다.'
+                        : currentRxStatus?.status === 'upcoming'
+                        ? '복용 시작 전 처방전입니다.'
+                        : '해당 일자에 복용할 처방 약품이 없습니다.'}
+                    </strong>
+                    <p className="caution-empty-desc">
+                      {currentRxStatus?.status === 'completed'
+                        ? '처방전의 복약 기간이 이미 완료되었습니다. 과거 처방 약품의 복용 주의사항을 확인하시려면 상단 날짜를 해당 처방전의 조제일 기간으로 변경해 주세요.'
+                        : currentRxStatus?.status === 'upcoming'
+                        ? `조제일(${prescriptionData?.dispensedDate || ''})부터 처방 약품 주의사항이 표시됩니다.`
+                        : '유효한 복약 일자를 선택해 주세요.'}
+                    </p>
+                  </div>
+
+                  {/* 지난 처방전 기록을 확인하고 싶을 때 접기/펼치기로 볼 수 있는 기능 */}
+                  {prescriptionData?.items && prescriptionData.items.length > 0 && (
+                    <div className="past-meds-toggle-area">
+                      <button
+                        type="button"
+                        className="btn-past-meds-toggle"
+                        onClick={() => setShowPastMedsInModal(!showPastMedsInModal)}
+                      >
+                        {showPastMedsInModal
+                          ? '지난 처방 약품 목록 닫기 ▲'
+                          : `지난 처방 약품 목록 확인하기 (${prescriptionData.items.length}종) ▼`}
+                      </button>
+
+                      {showPastMedsInModal && (
+                        <div className="past-meds-dropdown-list">
+                          <div className="past-meds-header-note">
+                            ※ 아래는 복용이 완료된 지난 처방 기록입니다. (참고용)
+                          </div>
+                          <ul className="caution-items-list past">
+                            {prescriptionData.items.map((item, idx) => (
+                              <li key={idx} className="caution-item-card past">
+                                <div className="caution-item-top">
+                                  <strong className="caution-item-name past">{item.name}</strong>
+                                  <span className="past-status-tag">복용 완료</span>
+                                </div>
+                                <p className="caution-item-text">
+                                  {item.caution || '정해진 용법과 용량을 준수하여 복용하세요.'}
+                                </p>
+                                <div className="caution-item-dosage-info">
+                                  용법: {item.dosage}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   )}
-                </ul>
-              </div>
+                </div>
+              )}
             </div>
 
             <div className="modal-foot">
@@ -1684,6 +2420,7 @@ export default function MainPage({ user }) {
                 className="btn-confirm modal-confirm-btn"
                 onClick={() => {
                   setIsCautionModalOpen(false);
+                  setShowPastMedsInModal(false);
                   navigate('/guide');
                 }}
               >
@@ -1877,7 +2614,7 @@ export default function MainPage({ user }) {
 
             {manageAlert && (
               <div className={`manage-alert-banner ${manageAlert.type}`}>
-                {manageAlert.type === 'success' ? '✓ ' : '[주의] '}
+                {manageAlert.type === 'success' ? '[완료] ' : '[주의] '}
                 {manageAlert.message}
               </div>
             )}
