@@ -321,12 +321,23 @@ const CalendarPage = (props) => {
     }
   };
 
-  // 신규 등록 제출 (빈 응답 대응: fetch 완료 후 데이터 재조회)
+  // 신규 등록 제출
   const handleAddMedication = async (e) => {
     e.preventDefault();
-    if (!selectedMed) {
-      alert('추가할 약을 검색하여 선택해 주세요.');
-      return;
+
+    if (newMedType === 'regular') {
+      // 상시약: medications에 존재하는 약을 검색하여 선택 필수!
+      if (!selectedMed || !selectedMed.id) {
+        alert('상시약은 의약품 검색 목록에서 약을 선택해야 등록할 수 있습니다.\n목록에 없는 약품은 상시약으로 등록할 수 없습니다.');
+        return;
+      }
+    } else if (newMedType === 'supplement') {
+      // 영양제: 검색 선택 또는 직접 입력
+      const supName = selectedMed ? selectedMed.name : newMedName.trim();
+      if (!supName) {
+        alert('영양제 이름을 입력하거나 검색하여 선택해 주세요.');
+        return;
+      }
     }
 
     let numericHour = parseInt(newHour, 10) || 12;
@@ -335,7 +346,7 @@ const CalendarPage = (props) => {
     const formattedMinute = String(Math.min(59, Math.max(0, parseInt(newMinute, 10) || 0))).padStart(2, '0');
     const formattedTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
 
-    const savedMedName = selectedMed.name;
+    const savedMedName = selectedMed ? selectedMed.name : newMedName.trim();
     const chosenType = newMedType;
 
     try {
@@ -344,7 +355,8 @@ const CalendarPage = (props) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUserId,
-          medicationId: selectedMed.id,
+          name: savedMedName,
+          medicationId: selectedMed ? selectedMed.id : null,
           type: chosenType,
           scheduledDate: selectedDate,
           scheduledTime: formattedTime,
@@ -353,10 +365,6 @@ const CalendarPage = (props) => {
       });
 
       if (response.ok) {
-        if (chosenType === 'supplement') {
-          saveTypeOverride(`${selectedDate}_${savedMedName}_${formattedTime}_supplement`, 'supplement');
-        }
-
         await fetchDailySchedules(selectedDate);
         await fetchMonthSummary();
 
@@ -368,7 +376,8 @@ const CalendarPage = (props) => {
         setSearchResults([]);
         setIsAddModalOpen(false);
       } else {
-        alert('일정 등록에 실패했습니다.');
+        const errorText = await response.text().catch(() => '');
+        alert('일정 등록에 실패했습니다.' + (errorText ? ` (${errorText})` : ''));
       }
     } catch (err) {
       console.error("일정 등록 실패:", err);
@@ -642,17 +651,54 @@ const CalendarPage = (props) => {
 
             <form onSubmit={handleAddMedication}>
               <div className="form-group">
-                <label>약 이름 검색</label>
+                <label>분류</label>
+                <div className="category-select-group">
+                  <button
+                    type="button"
+                    className={`cat-btn ${newMedType === 'regular' ? 'active reg' : ''}`}
+                    onClick={() => {
+                      setNewMedType('regular');
+                      setSelectedMed(null);
+                      setNewMedName('');
+                    }}
+                  >
+                    상시약
+                  </button>
+                  <button
+                    type="button"
+                    className={`cat-btn ${newMedType === 'supplement' ? 'active sup' : ''}`}
+                    onClick={() => {
+                      setNewMedType('supplement');
+                    }}
+                  >
+                    영양제
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  {newMedType === 'regular' ? '의약품 검색 (필수 선택)' : '영양제 이름 (검색 또는 직접 입력)'}
+                </label>
                 <div className="search-input-wrapper">
                   <input
                     type="text"
-                    placeholder={selectedMed ? "다른 약으로 변경하려면 검색하세요" : "약 이름을 입력하세요 (예: 비타민, 아모잘탄)"}
-                    value={newMedName}
-                    onChange={(e) => setNewMedName(e.target.value)}
+                    placeholder={
+                      selectedMed
+                        ? "선택 취소 후 다시 검색할 수 있습니다"
+                        : newMedType === 'regular'
+                        ? "의약품 이름을 검색하여 선택하세요 (예: 타이레놀, 아모잘탄)"
+                        : "영양제 이름을 입력하거나 검색하세요 (예: 루테인, 비타민C)"
+                    }
+                    value={selectedMed ? selectedMed.name : newMedName}
+                    onChange={(e) => {
+                      if (selectedMed) setSelectedMed(null);
+                      setNewMedName(e.target.value);
+                    }}
                     autoComplete="off"
                     autoFocus
                   />
-                  {searchResults.length > 0 && (
+                  {searchResults.length > 0 && !selectedMed && (
                     <ul className="search-results-dropdown">
                       {searchResults.map((item) => (
                         <li
@@ -667,10 +713,10 @@ const CalendarPage = (props) => {
                   )}
                 </div>
 
-                {selectedMed && (
+                {selectedMed ? (
                   <div className="selected-med-chip">
                     <span className="chip-name" title={selectedMed.name}>
-                      {selectedMed.name}
+                      선택됨: {selectedMed.name}
                     </span>
                     <button
                       type="button"
@@ -681,27 +727,15 @@ const CalendarPage = (props) => {
                       ✕
                     </button>
                   </div>
+                ) : newMedType === 'regular' ? (
+                  <p className="field-hint-warning">
+                    상시약은 의약품(medications) 목록에서 검색하여 선택해야 등록 가능합니다.
+                  </p>
+                ) : (
+                  <p className="field-hint-info">
+                    영양제는 검색 목록에서 선택하거나 직접 이름을 입력하여 등록할 수 있습니다.
+                  </p>
                 )}
-              </div>
-
-              <div className="form-group">
-                <label>분류</label>
-                <div className="category-select-group">
-                  <button
-                    type="button"
-                    className={`cat-btn ${newMedType === 'regular' ? 'active reg' : ''}`}
-                    onClick={() => setNewMedType('regular')}
-                  >
-                    상시약
-                  </button>
-                  <button
-                    type="button"
-                    className={`cat-btn ${newMedType === 'supplement' ? 'active sup' : ''}`}
-                    onClick={() => setNewMedType('supplement')}
-                  >
-                    영양제
-                  </button>
-                </div>
               </div>
 
               <div className="form-group">
