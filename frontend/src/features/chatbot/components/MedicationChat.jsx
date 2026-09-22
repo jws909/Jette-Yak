@@ -52,6 +52,9 @@ function MedicationConversation() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [paging, setPaging] = useState(null)
+  // 화면 안의 메시지 구분용 ID. HTTP LAN에서도 동작하며 인증에는 사용하지 않는다.
+  const messageSequence = useRef(0)
+  function nextMessageId() { return 'chat-' + (++messageSequence.current) }
   const requestRef = useRef(null)
   const logRef = useRef(null)
   const inputRef = useRef(null)
@@ -83,7 +86,7 @@ function MedicationConversation() {
     const controller = new AbortController()
     requestRef.current = controller
     const timer = setTimeout(() => controller.abort(), 200000)
-    const id = crypto.randomUUID()
+    const id = nextMessageId()
     setLoading(true)
     setError('')
     setMessages(previous => [...previous, {
@@ -116,12 +119,13 @@ function MedicationConversation() {
 
   async function compareProducts() {
     if (!selected || !other || selected.itemSeq===other.itemSeq || requestRef.current || paging) return
+    const id = nextMessageId()
     const controller = new AbortController();requestRef.current=controller;setLoading(true);setError('')
     const timer=setTimeout(()=>controller.abort(),60000)
     try {
       const data=await readResponse(await fetch('/api/guides/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({medicationIds:[selected.itemSeq,other.itemSeq]}),signal:controller.signal}))
       if(requestRef.current!==controller)return
-      setMessages(previous=>[...previous,{id:crypto.randomUUID(),question:selected.itemName+' + '+other.itemName+' 병용 주의정보',answer:'선택한 두 제품의 성분을 대조한 DB 조회 결과입니다.',sources:[],choices:[],comparison:data}])
+      setMessages(previous=>[...previous,{id,question:selected.itemName+' + '+other.itemName+' 병용 주의정보',answer:'선택한 두 제품의 성분을 대조한 DB 조회 결과입니다.',sources:[],choices:[],comparison:data}])
     } catch(error) {if(requestRef.current===controller)setError(error.name==='AbortError'?'비교 시간이 초과됐습니다. 다시 시도해주세요.':error.message)}
     finally {clearTimeout(timer);if(requestRef.current===controller){requestRef.current=null;setLoading(false)}}
   }
@@ -141,6 +145,7 @@ function MedicationConversation() {
 
   async function searchCatalog(query, existing = null) {
     if (requestRef.current || paging) return
+    const id = nextMessageId()
     const controller = new AbortController()
     requestRef.current = controller
     const timer = setTimeout(() => controller.abort(), 60000)
@@ -151,7 +156,7 @@ function MedicationConversation() {
       const data = await readResponse(await fetch('/api/chat/catalog', {method:'POST', headers:{'Content-Type':'application/json'},
         body:JSON.stringify({query,page:existing ? existing.catalog.page+1 : 1}),signal:controller.signal}))
       if (existing) setMessages(previous => previous.map(entry => entry.id===existing.id ? {...entry,catalog:{...data,items:[...entry.catalog.items,...data.items]}} : entry))
-      else setMessages(previous => [...previous,{id:crypto.randomUUID(),question:'조건 검색: ' + (query.filters.map(f=>f.value).join(' · ') || '전체') + (query.tabooType ? ' · ' + ({1:'임부금기',2:'노인금기',3:'특정연령대금기',4:'병용금기'})[query.tabooType] : ''),
+      else setMessages(previous => [...previous,{id,question:'조건 검색: ' + (query.filters.map(f=>f.value).join(' · ') || '전체') + (query.tabooType ? ' · ' + ({1:'임부금기',2:'노인금기',3:'특정연령대금기',4:'병용금기'})[query.tabooType] : ''),
         answer:'DB 조건 검색 결과입니다.',sources:[],choices:[],catalog:data,seconds:((performance.now()-started)/1000).toFixed(2)}])
     } catch(err) { setError(err.name==='AbortError'?'검색 시간이 초과됐습니다. 조건을 좁혀 다시 조회해주세요.':err.message) }
     finally { clearTimeout(timer); requestRef.current=null;setPaging(null) }

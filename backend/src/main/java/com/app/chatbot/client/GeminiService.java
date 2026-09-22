@@ -105,7 +105,7 @@ public class GeminiService {
             "status",Map.of("type","string","enum",List.of("ANY","ACTIVE","DISCONTINUED"))),
             "required",List.of("kind","filters","tabooType","grade","ageBase","status"),"additionalProperties",false);
         Map<String, Object> schema = Map.of("type", "object", "properties", Map.of(
-            "intent", Map.of("type", "string", "enum", List.of("MEDICATION_INFO", "FOOD_INTERACTION", "DRUG_INTERACTION", "LIFESTYLE", "MY_MEDICATIONS", "MY_DUR", "DB_SEARCH", "DUR_INFO", "OTHER")),
+            "intent", Map.of("type", "string", "enum", List.of("MEDICATION_INFO", "FOOD_INTERACTION", "DRUG_INTERACTION", "LIFESTYLE", "MY_MEDICATIONS", "MY_DUR", "DB_SEARCH", "DUR_INFO", "DOSAGE_RISK", "MEDICATION_MISUSE", "OTHER")),
             "medications", strings, "foods", strings, "topics", strings, "query", querySchema, "clarificationQuestion", Map.of("type","string"),
             "useSelectedMedication", Map.of("type", "boolean"), "needsClarification", Map.of("type", "boolean")),
             "required", List.of("intent", "medications", "foods", "topics", "useSelectedMedication", "needsClarification", "query", "clarificationQuestion"),
@@ -141,6 +141,10 @@ public class GeminiService {
             맥주, 술, 커피, 우유, 음식은 foods에, 운전, 운동 등 행동은 topics에 넣는다. 원문 표현을 그대로 쓴다.
             약과 음식/음료의 관계는 FOOD_INTERACTION, 약끼리의 병용은 DRUG_INTERACTION,
             활동 관련 질문은 LIFESTYLE, 효능/성분/용법 등은 MEDICATION_INFO, 무관한 질문은 OTHER.
+            한꺼번에 많은 양을 먹거나 과다 복용했거나 하려는 질문은 DOSAGE_RISK다. 안전한 복용량을 추정하거나 확인 질문으로 돌리지 않는다.
+            의약품을 발효·가공해 술로 만들거나 흡입·주사 등 허가되지 않은 방식으로 바꾸려는 질문은 MEDICATION_MISUSE다.
+            DOSAGE_RISK와 MEDICATION_MISUSE는 medications/foods/topics=[], useSelectedMedication은 현재 선택 약을 가리키는 경우에만 true,
+            needsClarification=false, query는 기본값으로 반환한다. 구체적인 실행 방법이나 의학적 답변은 생성하지 않는다.
             DB_SEARCH는 여러 약/성분을 조건으로 검색하거나 목록/개수를 묻는 질문이다. 목록 검색에는 현재 선택한 약을 사용하지 않는다.
             query 기본값은 kind=MEDICATIONS, filters=[], tabooType=0, grade="", ageBase="", status=ANY.
             filters.field: NAME 제품명, INGREDIENT 성분, EFFICACY 효능, USAGE 복용법, COMPANY 제조사,
@@ -160,7 +164,7 @@ public class GeminiService {
             특정 제품의 임부/노인/연령 금기 또는 DUR 질문은 DUR_INFO로 분류하고 해당 tabooType을 지정한다.
             특정 제품 두 개의 병용은 DRUG_INTERACTION, 특정 약과 병용금기인 성분을 묻는 경우도 DRUG_INTERACTION.
             '임산부', '노인', '소아', 'DUR', 성분명은 약 이름이나 topics에 넣지 않는다. DUR_INFO에는 제품명만 medications에 넣는다.
-            자신의 등록 약 목록은 MY_MEDICATIONS, 자신이 복용 중으로 확인한 약 전체 사이의 병용 주의 조회는 MY_DUR.
+            자신의 등록 약 목록은 MY_MEDICATIONS, 자신이 복용 중 상태인 약 전체 사이의 병용 주의 조회는 MY_DUR.
             예: '내가 등록한 약 보여줘' => MY_MEDICATIONS. '내가 먹는 약끼리 같이 먹어도 돼?' => MY_DUR.
             두 개인 조회 intent는 medications/foods/topics=[], useSelectedMedication=false, query 기본값이다. 본인 목록 요청만으로 needsClarification을 true로 하지 않는다.
             다른 사용자 정보, 로그인/비밀번호, 가족 개인정보 조회나 DB 변경은 OTHER. 안전한 약 추천/개인 진단은 needsClarification=true.
