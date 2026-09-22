@@ -56,8 +56,8 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("업로드할 처방전 사진 파일이 없습니다.");
         }
-        if (userId == null) {
-            userId = 1L; // 기본 사용자 ID fallback
+        if (userId == null || userId <= 0L) {
+            throw new IllegalArgumentException("처방전을 등록할 사용자 정보가 올바르지 않습니다.");
         }
 
         // 1. 파일 바이트를 먼저 안전하게 메모리에 확보 (이후 CommonsMultipartFile 스트림 소멸/이동 방지)
@@ -387,7 +387,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
     @Override
     public PrescriptionDTO getLatestPrescription(Long userId) {
-        if (userId == null) userId = 1L;
+        if (userId == null || userId <= 0L) return null;
         PrescriptionDTO prescription = prescriptionDAO.getLatestPrescriptionByUserId(userId);
         if (prescription != null && prescription.getPrescriptionId() != null) {
             List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(prescription.getPrescriptionId());
@@ -399,7 +399,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
     @Override
     public List<PrescriptionDTO> getPrescriptionList(Long userId) {
-        if (userId == null) userId = 1L;
+        if (userId == null || userId <= 0L) return Collections.emptyList();
         List<PrescriptionDTO> list = prescriptionDAO.getPrescriptionListByUserId(userId);
         if (list != null) {
             for (PrescriptionDTO p : list) {

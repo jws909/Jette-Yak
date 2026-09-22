@@ -114,13 +114,10 @@ public class UserController {
             @RequestParam(value = "userId", required = false) Long userId,
             @RequestParam(value = "username", required = false) String username) {
         User user = null;
-        if (userId != null) {
+        if (userId != null && userId > 0L) {
             user = userMapper.findById(userId);
         } else if (username != null && !username.isBlank()) {
             user = userMapper.findByLoginId(username);
-        }
-        if (user == null) {
-            user = userMapper.findById(1L);
         }
 
         String bTime = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
@@ -130,7 +127,7 @@ public class UserController {
 
         Map<String, Object> res = new HashMap<>();
         res.put("success", true);
-        res.put("userId", user != null ? user.getUserId() : (userId != null ? userId : 1L));
+        res.put("userId", user != null ? user.getUserId() : null);
         res.put("username", user != null ? user.getLoginId() : null);
         res.put("breakfastTime", bTime);
         res.put("lunchTime", lTime);
@@ -152,8 +149,8 @@ public class UserController {
         String dTime = body.get("dinnerTime") != null ? body.get("dinnerTime").toString().trim() : "18:30";
         String bedTime = body.get("bedtime") != null ? body.get("bedtime").toString().trim() : "22:00";
 
-        if (userId == null && (username == null || username.isBlank())) {
-            userId = 1L;
+        if ((userId == null || userId <= 0L) && (username == null || username.isBlank())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
         }
 
         String timeRegex = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$";

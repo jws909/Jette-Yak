@@ -18,12 +18,12 @@ export default function Navbar({
 
   // 로그인 시 사용자의 실제 복약 일정(원샷 브리핑) 및 처방전 주의사항 로드
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (!isLoggedIn || !user?.userId) {
       setNotifications([]);
       return;
     }
 
-    const userId = user?.userId || 1;
+    const userId = user.userId;
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');

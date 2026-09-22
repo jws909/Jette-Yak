@@ -53,9 +53,14 @@ public class PrescriptionController {
                 userId = (Long) sessionVal;
             } else if (sessionVal instanceof Number) {
                 userId = ((Number) sessionVal).longValue();
-            } else {
-                userId = 1L;
             }
+        }
+
+        if (userId == null || userId <= 0L) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "로그인이 필요한 기능입니다.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse);
         }
 
         log.info("처방전 업로드 요청 수신: fileName={}, size={}, userId={}", 
@@ -102,9 +107,15 @@ public class PrescriptionController {
                 userId = (Long) sessionVal;
             } else if (sessionVal instanceof Number) {
                 userId = ((Number) sessionVal).longValue();
-            } else {
-                userId = 1L;
             }
+        }
+
+        if (userId == null || userId <= 0L) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("found", false);
+            response.put("message", "로그인이 필요합니다.");
+            return ResponseEntity.ok(response);
         }
 
         try {
@@ -145,17 +156,23 @@ public class PrescriptionController {
                 userId = (Long) sessionVal;
             } else if (sessionVal instanceof Number) {
                 userId = ((Number) sessionVal).longValue();
-            } else {
-                userId = 1L;
             }
+        }
+
+        if (userId == null || userId <= 0L) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("prescriptions", Collections.emptyList());
+            response.put("count", 0);
+            return ResponseEntity.ok(response);
         }
 
         try {
             List<PrescriptionDTO> list = prescriptionService.getPrescriptionList(userId);
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
-            response.put("prescriptions", list);
-            response.put("count", list.size());
+            response.put("prescriptions", list != null ? list : Collections.emptyList());
+            response.put("count", list != null ? list.size() : 0);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("처방전 목록 조회 실패: userId={}", userId, e);
@@ -240,9 +257,14 @@ public class PrescriptionController {
                 userId = (Long) sessionVal;
             } else if (sessionVal instanceof Number) {
                 userId = ((Number) sessionVal).longValue();
-            } else {
-                userId = 1L;
             }
+        }
+
+        if (userId == null || userId <= 0L) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "로그인이 필요한 기능입니다.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
         }
 
         try {

@@ -55,14 +55,17 @@ function formatDateShort(date) {
 
 // 복약 체크 상태 영구 보존용 로컬 스토리지 키 생성 (사용자별 + 날짜별)
 function getRoutineStorageKey(userId, dateStr) {
-  return `jette_routine_intake_${userId || 1}_${dateStr}`;
+  if (!userId || !dateStr) return null;
+  return `jette_routine_intake_${userId}_${dateStr}`;
 }
 
 // 특정 날짜의 복약 체크 맵 불러오기
 function loadRoutineIntakeMap(userId, dateStr) {
-  if (!dateStr) return {};
+  if (!userId || !dateStr) return {};
   try {
-    const raw = localStorage.getItem(getRoutineStorageKey(userId, dateStr));
+    const key = getRoutineStorageKey(userId, dateStr);
+    if (!key) return {};
+    const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw);
       return parsed && typeof parsed === 'object' ? parsed : {};
@@ -75,9 +78,11 @@ function loadRoutineIntakeMap(userId, dateStr) {
 
 // 특정 날짜의 복약 체크 맵 영구 저장
 function saveRoutineIntakeMap(userId, dateStr, map) {
-  if (!dateStr || !map) return;
+  if (!userId || !dateStr || !map) return;
   try {
-    localStorage.setItem(getRoutineStorageKey(userId, dateStr), JSON.stringify(map));
+    const key = getRoutineStorageKey(userId, dateStr);
+    if (!key) return;
+    localStorage.setItem(key, JSON.stringify(map));
   } catch (err) {
     console.warn('복약 체크 내역 저장 실패:', err);
   }
@@ -801,8 +806,10 @@ export default function MainPage({ user }) {
   // 사용자별 식사 및 취침 기준 시간 상태 (기본값: 아침 07:30, 점심 12:00, 저녁 18:30, 취침 22:00)
   const [mealTimes, setMealTimes] = useState(() => {
     try {
-      const cached = localStorage.getItem(`jette_meal_times_${user?.userId || 1}`);
-      if (cached) return JSON.parse(cached);
+      if (user?.userId) {
+        const cached = localStorage.getItem(`jette_meal_times_${user.userId}`);
+        if (cached) return JSON.parse(cached);
+      }
     } catch {}
     return DEFAULT_MEAL_TIMES;
   });
@@ -814,7 +821,12 @@ export default function MainPage({ user }) {
 
   // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
   useEffect(() => {
-    const userId = user?.userId || 1;
+    const userId = user?.userId;
+    if (!userId) {
+      setMealTimes(DEFAULT_MEAL_TIMES);
+      setTempMealTimes(DEFAULT_MEAL_TIMES);
+      return;
+    }
     fetch(`/api/users/meal-times?userId=${userId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -835,9 +847,16 @@ export default function MainPage({ user }) {
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
   }, [user?.userId]);
 
-  // 사용자의 등록 처방전 전체 목록 및 복약 루틴 새로고침
+  // 사용자의 등록 처방전 전체 목록 및 복약 루틴 새로고침 (비로그인 시 일체 조회하지 않고 초기화)
   const reloadPrescriptionAndRoutine = useCallback(async () => {
-    const userId = user?.userId || 1;
+    const userId = user?.userId;
+    if (!userId) {
+      setAllPrescriptions([]);
+      setPrescriptionList([]);
+      setHasPrescription(false);
+      setRoutineItems([]);
+      return;
+    }
     try {
       const res = await fetch(`/api/prescriptions/list?userId=${userId}`);
       if (res.ok) {
@@ -886,7 +905,11 @@ export default function MainPage({ user }) {
   const [manageAlert, setManageAlert] = useState(null);
 
   const fetchPrescriptionList = useCallback(async () => {
-    const userId = user?.userId || 1;
+    const userId = user?.userId;
+    if (!userId) {
+      setPrescriptionList([]);
+      return;
+    }
     setIsLoadingList(true);
     try {
       const res = await fetch(`/api/prescriptions/list?userId=${userId}`);
@@ -996,12 +1019,16 @@ export default function MainPage({ user }) {
   };
 
   const handleDeletePrescription = async (rxId) => {
+    const userId = user?.userId;
+    if (!userId) {
+      alert('로그인이 필요한 기능입니다.');
+      return;
+    }
     if (!window.confirm('정말 이 처방전을 삭제하시겠습니까?\n포함된 처방 약품 및 오늘의 복약 루틴이 함께 삭제됩니다.')) {
       return;
     }
 
     try {
-      const userId = user?.userId || 1;
       const res = await fetch(`/api/prescriptions/${rxId}?userId=${userId}`, {
         method: 'DELETE',
       });
@@ -1062,9 +1089,14 @@ export default function MainPage({ user }) {
 
   // 식사 시간이나 기준 일자별 유효 복약 약품 변경 시 복약 루틴 알림 시간 재계산 및 날짜별 복약 체크 상태 동기화
   useEffect(() => {
+    const userId = user?.userId;
+    if (!userId) {
+      setRoutineItems([]);
+      return;
+    }
+
     if (activeMedsForTargetDate && activeMedsForTargetDate.length > 0) {
       const baseList = buildRoutineItems(activeMedsForTargetDate, mealTimes);
-      const userId = user?.userId || 1;
       const dateStr = formatDateToHyphen(targetDate);
       const savedMap = loadRoutineIntakeMap(userId, dateStr);
 
@@ -1131,8 +1163,13 @@ export default function MainPage({ user }) {
   // 식사 시간 저장 핸들러
   const handleSaveMealTimes = async (e) => {
     e.preventDefault();
+    const userId = user?.userId;
+    if (!userId) {
+      alert('로그인 후 식사 시간을 설정할 수 있습니다.');
+      setIsMealModalOpen(false);
+      return;
+    }
     setIsSavingMealTimes(true);
-    const userId = user?.userId || 1;
 
     try {
       setMealTimes(tempMealTimes);
@@ -1168,7 +1205,11 @@ export default function MainPage({ user }) {
 
   // 오늘의 복용 체크박스 토글 (날짜별 로컬 영구 저장 및 서버 스케줄 동기화)
   const toggleRoutine = (id) => {
-    const userId = user?.userId || 1;
+    const userId = user?.userId;
+    if (!userId) {
+      alert('로그인 후 복약 체크를 이용하실 수 있습니다.');
+      return;
+    }
     const dateStr = formatDateToHyphen(targetDate);
     const nowIso = new Date().toISOString();
 
@@ -1204,12 +1245,21 @@ export default function MainPage({ user }) {
       return nextList;
     });
 
+    // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
+    window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+      detail: { userId, date: dateStr }
+    }));
+
     // 서버 스케줄 DB가 연계된 경우 서버에도 비동기 반영
     if (toggledItem?.scheduleId) {
       fetch(`/api/calendar/${toggledItem.scheduleId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taken: toggledItem.taken }),
+      }).then(() => {
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId, date: dateStr }
+        }));
       }).catch((err) => {
         console.warn('스케줄 서버 동기화 실패 (로컬 저장은 완료됨):', err);
       });
@@ -1430,6 +1480,10 @@ export default function MainPage({ user }) {
   // 처방전 업로드 및 백엔드 OCR / DB 처리
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
+    if (!user?.userId) {
+      alert('처방전 등록은 로그인 후 이용하실 수 있습니다.');
+      return;
+    }
     if (!uploadFile) {
       alert('처방전 사진 또는 스캔본 파일을 선택해 주세요.');
       return;
@@ -1442,7 +1496,7 @@ export default function MainPage({ user }) {
 
       const formData = new FormData();
       formData.append('file', finalFile);
-      formData.append('userId', user?.userId || 1);
+      formData.append('userId', user.userId);
 
       const res = await fetch('/api/prescriptions/upload', {
         method: 'POST',

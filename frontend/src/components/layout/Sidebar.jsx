@@ -1,5 +1,26 @@
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { NavLink } from 'react-router-dom';
 import './Sidebar.css';
+
+function getTodayDateStr() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function getLocalIntakeMap(userId, dateStr) {
+  if (!userId || !dateStr) return {};
+  try {
+    const raw = localStorage.getItem(`jette_routine_intake_${userId}_${dateStr}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    }
+  } catch {}
+  return {};
+}
 
 export default function Sidebar({
   isOpen,
@@ -8,7 +29,80 @@ export default function Sidebar({
   onLogout,
   user
 }) {
-  const navigate = useNavigate();
+  const [progress, setProgress] = useState({ total: 0, taken: 0, percent: 0 });
+
+  const fetchTodayProgress = useCallback(async () => {
+    if (!isLoggedIn || !user?.userId) {
+      setProgress({ total: 0, taken: 0, percent: 0 });
+      return;
+    }
+
+    const todayStr = getTodayDateStr();
+    const localMap = getLocalIntakeMap(user.userId, todayStr);
+
+    try {
+      const res = await fetch(`/api/calendar?userId=${user.userId}&date=${todayStr}`);
+      if (res.ok) {
+        const list = await res.json();
+        if (Array.isArray(list) && list.length > 0) {
+          const total = list.length;
+          const taken = list.filter((item) => {
+            if (item.takenAt) return true;
+            if (item.scheduleId && localMap[item.scheduleId]?.taken) return true;
+            // 메인 화면 로컬 루틴 맵과의 이름 매칭 보완 (즉각 반응)
+            const localMatched = Object.values(localMap).find(
+              (v) => v && v.taken && item.name && (v.name === item.name || item.name.includes(v.name) || v.name.includes(item.name))
+            );
+            if (localMatched) return true;
+            return false;
+          }).length;
+          const percent = total > 0 ? Math.round((taken / total) * 100) : 0;
+          setProgress({ total, taken, percent });
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('사이드바 복용 진척도 조회 실패:', err);
+    }
+
+    // 서버 스케줄이 비어있을 경우 메인 루틴 로컬 스토리지 데이터 보완
+    const localValues = Object.values(localMap);
+    if (localValues.length > 0) {
+      const total = localValues.length;
+      const taken = localValues.filter((v) => v && v.taken).length;
+      const percent = total > 0 ? Math.round((taken / total) * 100) : 0;
+      setProgress({ total, taken, percent });
+      return;
+    }
+
+    setProgress({ total: 0, taken: 0, percent: 0 });
+  }, [isLoggedIn, user?.userId]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !user?.userId) {
+      setProgress({ total: 0, taken: 0, percent: 0 });
+      return;
+    }
+
+    fetchTodayProgress();
+
+    // 메인화면/캘린더에서 체크 즉시 실시간 동기화
+    const handleIntakeUpdate = () => {
+      fetchTodayProgress();
+      // 네트워크/DB 커밋 타이밍 감안하여 지연 재호출
+      setTimeout(fetchTodayProgress, 250);
+    };
+
+    window.addEventListener('jette-intake-updated', handleIntakeUpdate);
+    window.addEventListener('focus', handleIntakeUpdate);
+    const timer = setInterval(fetchTodayProgress, 30000);
+
+    return () => {
+      window.removeEventListener('jette-intake-updated', handleIntakeUpdate);
+      window.removeEventListener('focus', handleIntakeUpdate);
+      clearInterval(timer);
+    };
+  }, [fetchTodayProgress, isLoggedIn, user?.userId, isOpen]);
 
   const handleLinkClick = () => {
     // 모바일(768px 미만)인 경우에만 링크 클릭 시 사이드바 자동 닫힘
@@ -146,37 +240,25 @@ export default function Sidebar({
             </NavLink>
           </nav>
 
-          {/* 하단 보조 정보 및 로그아웃 */}
-          <div className="sidebar-footer">
-            <div className="routine-mini-card">
-              <span className="routine-mini-label">오늘의 복용 진척도</span>
-              <div className="routine-mini-bar">
-                <div className="routine-mini-progress" style={{ width: '33%' }} />
+          {/* 하단 보조 정보: 로그인 상태에서만 실제 오늘의 복용 진척도 표시 */}
+          {isLoggedIn && user?.userId && (
+            <div className="sidebar-footer">
+              <div className="routine-mini-card">
+                <span className="routine-mini-label">오늘의 복용 진척도</span>
+                <div className="routine-mini-bar">
+                  <div
+                    className="routine-mini-progress"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+                <span className="routine-mini-status">
+                  {progress.total > 0
+                    ? `${progress.taken} / ${progress.total} 복용 완료 (${progress.percent}%)`
+                    : '오늘 예정된 복약 없음'}
+                </span>
               </div>
-              <span className="routine-mini-status">1 / 3 복용 완료</span>
             </div>
-
-            {isLoggedIn ? (
-              <button
-                type="button"
-                className="sidebar-logout-link"
-                onClick={onLogout}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="footer-icon">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                로그아웃
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="sidebar-login-link"
-                onClick={() => { navigate('/login'); handleLinkClick(); }}
-              >
-                로그인 하러가기 →
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </aside>
     </>
