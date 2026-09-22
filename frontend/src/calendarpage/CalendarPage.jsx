@@ -18,16 +18,13 @@ export default function CalendarPage({ user }) {
   const [monthSummary, setMonthSummary] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // 알람 시간 설정 모달 상태
+  // 알람 시간 설정 모달 상태 (사용자 시간 편집용)
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [ampm, setAmpm] = useState('오전');
   const [hour, setHour] = useState('08');
   const [minute, setMinute] = useState('00');
   const [isAlarmEnabled, setIsAlarmEnabled] = useState(true);
-
-  // 실시간 복약 알림 팝업 모달 상태 (시간 도달 시 표시)
-  const [activeAlertItem, setActiveAlertItem] = useState(null);
 
   // 복약 추가 모달 상태
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -96,81 +93,6 @@ export default function CalendarPage({ user }) {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
 
-  // 3. 브라우저 푸시 알림 권한 획득 (최초 1회)
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
-
-  // ★ 4. 정각(00초) 칼동기화 타이머: 초침이 00초를 가리키는 순간 오차 없이 즉시 발송
-  useEffect(() => {
-    let timeoutId;
-    let intervalId;
-    const alertedTags = new Set();
-
-    const triggerCheck = async () => {
-      const now = new Date();
-      const currentH = String(now.getHours()).padStart(2, '0');
-      const currentM = String(now.getMinutes()).padStart(2, '0');
-      const currentTimeStr = `${currentH}:${currentM}`;
-      const todayDateStr = getFormattedDate(now);
-
-      let todayList = [];
-      if (selectedDate === todayDateStr) {
-        todayList = schedules;
-      } else {
-        try {
-          const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${todayDateStr}`);
-          if (res.ok) todayList = await res.json();
-        } catch (e) {
-          return;
-        }
-      }
-
-      todayList.forEach((item) => {
-        const isEnabled = item.alarmEnabled === true || Number(item.alarmEnabled) === 1 || item.alarmEnabled === undefined;
-        const tag = `dose-${item.scheduleId}-${item.time}-${currentTimeStr}`;
-
-        if (isEnabled && !item.takenAt && item.time === currentTimeStr && !alertedTags.has(tag)) {
-          alertedTags.add(tag);
-
-          // 1) 화면 모달 즉시 팝업
-          setActiveAlertItem(item);
-
-          // 2) 브라우저 시스템 알림 즉시 발송
-          if ('Notification' in window && Notification.permission === 'granted') {
-            new Notification(`💊 [복약 알림] ${item.name}`, {
-              body: `현재 복용 시간(${item.time})입니다. 잊지 말고 복용하세요!`,
-              icon: '/favicon.ico',
-              tag: tag,
-            });
-          }
-        }
-      });
-    };
-
-    // 1단계: 진입 시 현재 시간과 겹치는 게 있는지 1회 즉각 확인
-    triggerCheck();
-
-    // 2단계: 다음 '00초 정각'까지 남은 밀리초를 계산하여 대기
-    const now = new Date();
-    const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
-
-    timeoutId = setTimeout(() => {
-      // 정확히 00초 정각이 되는 순간 즉시 실행
-      triggerCheck();
-
-      // 그 다음부터는 정확히 60초(1분) 주기로 00초에만 맞춰서 반복
-      intervalId = setInterval(triggerCheck, 60000);
-    }, msUntilNextMinute);
-
-    return () => {
-      clearTimeout(timeoutId);
-      clearInterval(intervalId);
-    };
-  }, [schedules, selectedDate, currentUserId]);
-
   // 약품 검색 자동완성
   useEffect(() => {
     if (!newMedName.trim()) {
@@ -233,13 +155,6 @@ export default function CalendarPage({ user }) {
     } catch (err) {
       console.error("체크박스 토글 실패:", err);
     }
-  };
-
-  // 알림 팝업 모달에서 [지금 복약 완료] 클릭 시 실행
-  const handleConfirmTakeFromAlert = async () => {
-    if (!activeAlertItem) return;
-    await toggleTaken(activeAlertItem);
-    setActiveAlertItem(null);
   };
 
   // 삭제 모달 열기
@@ -871,45 +786,6 @@ export default function CalendarPage({ user }) {
                 onClick={confirmDeleteSchedule}
               >
                 삭제
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 모달 4: 설정 시간에 도달했을 때 뜨는 실시간 복약 알림 모달 */}
-      {activeAlertItem && (
-        <div className="modal-overlay">
-          <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()} style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '40px', marginBottom: '10px' }}>💊</div>
-            
-            <h4 className="delete-modal-title" style={{ color: '#2b2520', fontSize: '18px', marginBottom: '6px' }}>
-              복약할 시간입니다!
-            </h4>
-            
-            <p className="delete-modal-target" style={{ fontSize: '16px', color: '#682335', margin: '12px 0 6px 0' }}>
-              [{activeAlertItem.time}] <strong>{activeAlertItem.name}</strong>
-            </p>
-            
-            <p className="delete-modal-desc" style={{ marginBottom: '22px' }}>
-              정해진 시간에 복용하면 효과가 훨씬 좋습니다. 지금 복용하셨나요?
-            </p>
-
-            <div className="delete-modal-actions">
-              <button 
-                type="button" 
-                className="btn-modal-cancel" 
-                onClick={() => setActiveAlertItem(null)}
-              >
-                닫기
-              </button>
-              <button 
-                type="button" 
-                className="btn-modal-delete" 
-                style={{ backgroundColor: '#682335' }}
-                onClick={handleConfirmTakeFromAlert}
-              >
-                지금 복약 완료
               </button>
             </div>
           </div>
