@@ -1245,12 +1245,21 @@ export default function MainPage({ user }) {
       return nextList;
     });
 
+    // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
+    window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+      detail: { userId, date: dateStr }
+    }));
+
     // 서버 스케줄 DB가 연계된 경우 서버에도 비동기 반영
     if (toggledItem?.scheduleId) {
       fetch(`/api/calendar/${toggledItem.scheduleId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taken: toggledItem.taken }),
+      }).then(() => {
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId, date: dateStr }
+        }));
       }).catch((err) => {
         console.warn('스케줄 서버 동기화 실패 (로컬 저장은 완료됨):', err);
       });

@@ -215,6 +215,11 @@ const CalendarPage = (props) => {
               : s
           )
         );
+
+        // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId, date: selectedDate }
+        }));
       }
     } catch (err) {
       console.error("체크박스 토글 실패:", err);
@@ -249,6 +254,11 @@ const CalendarPage = (props) => {
 
         setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
         fetchMonthSummary();
+
+        // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId, date: selectedDate }
+        }));
       } else {
         alert("삭제에 실패했습니다.");
       }
@@ -392,6 +402,11 @@ const CalendarPage = (props) => {
       if (response.ok) {
         await fetchDailySchedules(selectedDate);
         await fetchMonthSummary();
+
+        // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId, date: selectedDate }
+        }));
 
         setAddedSuccessMsg(`'${savedMedName}' 등록 완료!`);
         setTimeout(() => setAddedSuccessMsg(''), 2000);
