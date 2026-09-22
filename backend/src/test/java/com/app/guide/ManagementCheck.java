@@ -50,20 +50,28 @@ public class ManagementCheck {
    prescriptions AS (SELECT 1 prescription_id,11 user_id,d dispensed_date FROM today UNION ALL SELECT 2,11,d-3 FROM today UNION ALL SELECT 3,11,d+1 FROM today UNION ALL SELECT 4,22,d FROM today),
    prescription_items AS (SELECT 1 item_id,1 prescription_id,'M' medication_id,1 total_days,'meal' usage_timing FROM dual UNION ALL SELECT 2,2,'M',1,'meal' FROM dual UNION ALL SELECT 3,3,'M',1,'meal' FROM dual UNION ALL SELECT 4,4,'M',1,'meal' FROM dual),
    medications AS (SELECT 'M' medication_id,'fixture' item_name,'maker' entp_name,'Alpha' material_name,CAST(NULL AS VARCHAR2(100)) item_image_url FROM dual),
-   cabinet_medications AS (SELECT 1 cabinet_id,11 user_id,'M' medication_id FROM dual UNION ALL SELECT 2,22,'M' FROM dual),
-   routine_medications AS (SELECT 1 routine_id,11 user_id,'supplement' supplement_name,'08:00' take_time,'note' notes,'ACTIVE' status FROM dual UNION ALL SELECT 2,11,'ended','08:00','note','ENDED' FROM dual),
-   medication_use_states AS (SELECT 11 user_id,'P:1' registration_id,'ACTIVE' use_status FROM dual UNION ALL SELECT 11,'P:2','ACTIVE' FROM dual UNION ALL SELECT 22,'C:1','ACTIVE' FROM dual)
+   cabinet_medications AS (SELECT 1 cabinet_id,11 user_id,'M' medication_id FROM dual UNION ALL SELECT 2,22,'M' FROM dual UNION ALL SELECT 3,11,'M' FROM dual UNION ALL SELECT 4,11,'M' FROM dual),
+   routine_medications AS (SELECT 1 routine_id,11 user_id,'supplement' supplement_name,'08:00' take_time,'note' notes,'ACTIVE' status FROM dual UNION ALL SELECT 2,11,'ended','08:00','note','ENDED' FROM dual UNION ALL SELECT 3,11,'paused','08:00','note','PAUSED' FROM dual),
+   medication_use_states AS (SELECT 11 user_id,'C:3' registration_id,'STORED' use_status FROM dual UNION ALL SELECT 11,'C:4','ENDED' FROM dual UNION ALL SELECT 11,'P:2','ACTIVE' FROM dual UNION ALL SELECT 22,'C:1','STORED' FROM dual)
    """;
   try(var connection=ds.getConnection();var st=connection.prepareStatement(fixture+sql)){
    for(int i=1;i<=4;i++)st.setLong(i,11L);
    var states=new HashMap<String,String>();int remaining=0;
    try(var rs=st.executeQuery()){while(rs.next()){states.put(rs.getString("registration_id"),rs.getString("use_status"));if(rs.getString("registration_id").equals("P:1"))remaining=rs.getInt("days_remaining");}}
-   check(states.size()==6,"history includes past and future without other users");
-   check("ACTIVE".equals(states.get("P:1"))&&remaining==1,"today included and confirmed override");
+   check(states.size()==9,"history includes past and future without other users");
+   check("ACTIVE".equals(states.get("P:1"))&&remaining==1,"new prescription defaults active and today included");
    check("ENDED".equals(states.get("P:2")),"expired prescription overrides old active marker");
    check("UPCOMING".equals(states.get("P:3")),"future prescription excluded from active");
-   check("STORED".equals(states.get("C:1")),"another user's marker cannot affect cabinet status");
-   check("UNCONFIRMED".equals(states.get("R:1"))&&"ENDED".equals(states.get("R:2")),"routine confirmation and history");
+   check("ACTIVE".equals(states.get("C:1")),"another user's marker cannot affect cabinet status");
+   check("ACTIVE".equals(states.get("R:1"))&&"ENDED".equals(states.get("R:2")),"new routine defaults active and ended stays ended");
+  }
+  // Stored/manual states must remain explicit overrides, not be bulk-reset.
+  try(var connection=ds.getConnection();var st=connection.prepareStatement(fixture+sql)) {
+   for(int i=1;i<=4;i++)st.setLong(i,11L);
+   var states=new HashMap<String,String>();try(var rs=st.executeQuery()){while(rs.next())states.put(rs.getString("registration_id"),rs.getString("use_status"));}
+   check("STORED".equals(states.get("C:3")),"user stored override preserved");
+   check("ENDED".equals(states.get("C:4")),"user ended override preserved");
+   check("PAUSED".equals(states.get("R:3")),"paused routine preserved");
   }
   System.out.println("PASS: "+checks+" management comparison, state and Oracle checks");
  }

@@ -91,17 +91,17 @@
                  WHEN TRUNC(p.dispensed_date) &gt; TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) THEN 'UPCOMING'
                  WHEN TRUNC(p.dispensed_date)+i.total_days &lt;= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) THEN 'ENDED'
                  ELSE 'CURRENT' END period_state,
-            'UNCONFIRMED' default_status
+            'ACTIVE' default_status
         FROM prescriptions p JOIN prescription_items i ON i.prescription_id=p.prescription_id
         JOIN medications m ON m.medication_id=i.medication_id WHERE p.user_id=#{userId}
         UNION ALL
         SELECT 'C:' || TO_CHAR(c.cabinet_id),'CABINET',m.medication_id,m.item_name,m.entp_name,m.material_name,m.item_image_url,
-            NULL,NULL,NULL,NULL,NULL,'CURRENT','STORED'
+            NULL,NULL,NULL,NULL,NULL,'CURRENT','ACTIVE'
         FROM cabinet_medications c JOIN medications m ON m.medication_id=c.medication_id WHERE c.user_id=#{userId}
         UNION ALL
         SELECT 'R:' || TO_CHAR(r.routine_id),'ROUTINE',NULL,r.supplement_name,NULL,NULL,NULL,NULL,NULL,r.notes,r.take_time,NULL,
             CASE WHEN r.status='ENDED' THEN 'ENDED' ELSE 'CURRENT' END,
-            CASE WHEN r.status='PAUSED' THEN 'PAUSED' WHEN r.status='ENDED' THEN 'ENDED' ELSE 'UNCONFIRMED' END
+            CASE WHEN r.status='PAUSED' THEN 'PAUSED' WHEN r.status='ENDED' THEN 'ENDED' ELSE 'ACTIVE' END
         FROM routine_medications r WHERE r.user_id=#{userId}
     </sql>
     <select id="collection" resultMap="managed" timeout="15">

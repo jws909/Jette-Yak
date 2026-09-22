@@ -65,7 +65,7 @@ export default function GuidePage() {
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState('')
   const rows = registered.data?.items || []
-  const scopes = [['CURRENT','전체 약'],['ACTIVE','복용 중'],['STORED','보관 중'],['UNCONFIRMED','확인 필요'],['PAUSED','복용 안 함'],['ENDED','종료된 기록']]
+  const scopes = [['CURRENT','전체 약'],['ACTIVE','복용 중'],['STORED','보관 중'],['PAUSED','복용 안 함'],['ENDED','종료된 기록']]
   const filtered = rows.filter(row => scope === 'CURRENT' ? row.useStatus !== 'ENDED' : row.useStatus === scope)
   async function updateStatus(id,status) {
     setSaving(true);setSaveMessage('')
@@ -99,7 +99,7 @@ export default function GuidePage() {
         <button className="my-med-action" disabled={registered.loading} onClick={()=>{registered.retry();setRevision(value=>value+1)}}>목록 새로고침</button></div>
     </header>
     {registered.data && <>
-      <p className="guide-note">실제 복용 중인 약을 확인해주세요. 이 상태는 기록 관리용이며 처방·복용법을 변경하지 않습니다.</p>
+      <p className="guide-note">등록한 약은 기본적으로 복용 중으로 표시됩니다. 보관만 하거나 복용을 마친 약은 상태를 변경해주세요.</p>
       <div className="my-med-filters" aria-label="복용 상태 필터">{scopes.map(([value,label])=><button className="my-med-action" aria-pressed={scope===value} key={value} onClick={()=>{setScope(value);setSelectedKey('all')}}>{label} ({rows.filter(row=>value==='CURRENT'?row.useStatus!=='ENDED':row.useStatus===value).length})</button>)}</div>
       {saveMessage && <p role="status">{saveMessage}</p>}
       {comparison.loading && <p role="status">복용 중인 약의 DUR을 비교하고 있어요…</p>}
