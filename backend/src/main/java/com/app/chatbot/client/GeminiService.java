@@ -311,16 +311,168 @@ public class GeminiService {
         );
     }
 
+    public String summarizePrescription(
+            String hospitalName,
+            String doctorName,
+            Integer totalDays,
+            java.util.List<com.app.prescription.dto.PrescriptionItemDTO> items) {
+
+        String instructions = """
+            너는 처방전의 의약품 구성을 분석하여 환자 맞춤형 복약 가이드를 제공하는 전문 임상 AI 약사다.
+            제공된 병원명, 의사명, 총 투약 일수 및 처방 약품 목록(약품명, 성분, 효능, 복용법 등)을 바탕으로,
+            환자가 이해하기 쉬운 명확하고 정확한 한국어로 처방전 분석 결과를 반드시 정해진 JSON 스키마에 맞춰 작성한다.
+            - purpose: 처방전의 주된 치료/진료 목적 1문장 (예: "급성 상기도 감염(인후염) 치료 및 통증 완화", "위식도 역류 질환 및 위염 증상 개선")
+            - summary: 처방된 약품들의 상호 역할과 복용 시 핵심 준수 사항에 대한 2~3문장 설명
+            - precautions: 환자가 복용 시 반드시 주의해야 할 핵심 주의사항 (1~3개) 문자열 배열 (예: 항생제 복용 완료 준수, 소염진통제 복용 시 금주, 졸음 유발 등)
+            - intakeAdvice: 최적의 복약 요령 (1~3개) 문자열 배열 (예: "위장 장애 예방을 위해 식후 30분에 복용하세요", "하루 3회 일정한 시간 간격으로 복용하세요")
+            """;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[처방전 기본 정보]\n");
+        if (hospitalName != null && !hospitalName.isBlank()) sb.append("- 의료기관: ").append(hospitalName).append("\n");
+        if (doctorName != null && !doctorName.isBlank()) sb.append("- 처방의: ").append(doctorName).append("\n");
+        sb.append("- 처방 투약 일수: ").append(totalDays != null ? totalDays : 14).append("일분\n\n");
+
+        sb.append("[처방 약품 목록]\n");
+        if (items != null) {
+            for (var it : items) {
+                sb.append("- ").append(it.getItemName());
+                if (it.getClassName() != null) sb.append(" [분류: ").append(it.getClassName()).append("]");
+                if (it.getMaterialName() != null) sb.append(" [성분: ").append(it.getMaterialName()).append("]");
+                if (it.getEfficacy() != null) sb.append(" [효능: ").append(it.getEfficacy()).append("]");
+                if (it.getUsageTiming() != null) sb.append(" [용법: ").append(it.getUsageTiming()).append("]");
+                sb.append("\n");
+            }
+        }
+
+        Map<String, Object> schema = Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "purpose", Map.of("type", "string"),
+                "summary", Map.of("type", "string"),
+                "precautions", Map.of("type", "array", "items", Map.of("type", "string")),
+                "intakeAdvice", Map.of("type", "array", "items", Map.of("type", "string"))
+            ),
+            "required", java.util.List.of("purpose", "summary", "precautions", "intakeAdvice")
+        );
+
+        if (isAvailable()) {
+            try {
+                return generate(instructions, sb.toString(), Map.of(
+                    "temperature", 0.2,
+                    "maxOutputTokens", 1024,
+                    "responseMimeType", "application/json",
+                    "responseJsonSchema", schema
+                ));
+            } catch (Exception ignored) {}
+        }
+
+        return createFallbackPrescriptionGuide(hospitalName, doctorName, totalDays, items);
+    }
+
+    public String createFallbackPrescriptionGuide(
+            String hospitalName,
+            String doctorName,
+            Integer totalDays,
+            java.util.List<com.app.prescription.dto.PrescriptionItemDTO> items) {
+
+        int count = items != null ? items.size() : 0;
+        int days = totalDays != null ? totalDays : 14;
+
+        boolean hasAntibiotic = false;
+        boolean hasPainkiller = false;
+        boolean hasStomach = false;
+
+        if (items != null) {
+            for (var it : items) {
+                String name = it.getItemName() != null ? it.getItemName() : "";
+                String cls = it.getClassName() != null ? it.getClassName() : "";
+                String comb = name + " " + cls;
+                if (comb.contains("항생") || comb.contains("항균") || comb.contains("세파") || comb.contains("아목시")) {
+                    hasAntibiotic = true;
+                }
+                if (comb.contains("소염") || comb.contains("진통") || comb.contains("해열")) {
+                    hasPainkiller = true;
+                }
+                if (comb.contains("위장") || comb.contains("소화") || comb.contains("제산") || comb.contains("궤양")) {
+                    hasStomach = true;
+                }
+            }
+        }
+
+        String purpose;
+        if (hasAntibiotic && hasPainkiller) {
+            purpose = "감염 질환 치료 및 염증/통증 완화";
+        } else if (hasPainkiller && hasStomach) {
+            purpose = "통증 및 염증 완화와 위장 보호";
+        } else if (hasAntibiotic) {
+            purpose = "세균성 감염 질환 치료";
+        } else if (hasPainkiller) {
+            purpose = "급만성 통증 및 염증 증상 개선";
+        } else {
+            purpose = (hospitalName != null && !hospitalName.isBlank() ? hospitalName : "전문의") + " 진료에 따른 질환 치료 및 증상 조절";
+        }
+
+        String summary = String.format("총 %d종의 처방 의약품으로 구성되어 있으며, 처방된 %d일 동안 정해진 용법에 따라 규칙적으로 복용해야 합니다.", count, days);
+
+        java.util.List<String> precautions = new java.util.ArrayList<>();
+        if (hasAntibiotic) {
+            precautions.add("항생제는 내성균 발생을 방지하기 위해 증상이 호전되더라도 처방 일수 동안 끝까지 복용하세요.");
+        }
+        if (hasPainkiller) {
+            precautions.add("소염진통제 복용 중 음주는 위장 출혈 및 간 손상 위험을 크게 높이므로 금주하세요.");
+        }
+        precautions.add("복용 중 알레르기 반응(두드러기, 가려움)이나 심한 어지러움 발생 시 의료진과 상담하세요.");
+
+        java.util.List<String> intakeAdvice = new java.util.ArrayList<>();
+        intakeAdvice.add("위장 장애 예방을 위해 식후 30분에 미온수와 함께 복용하세요.");
+        intakeAdvice.add("정해진 시간에 복용하여 체내 약물 농도를 일정하게 유지하세요.");
+
+        StringBuilder precJson = new StringBuilder();
+        for (int i = 0; i < precautions.size(); i++) {
+            precJson.append("\"").append(escapeJson(precautions.get(i))).append("\"");
+            if (i < precautions.size() - 1) precJson.append(",");
+        }
+
+        StringBuilder intakeJson = new StringBuilder();
+        for (int i = 0; i < intakeAdvice.size(); i++) {
+            intakeJson.append("\"").append(escapeJson(intakeAdvice.get(i))).append("\"");
+            if (i < intakeAdvice.size() - 1) intakeJson.append(",");
+        }
+
+        return String.format("""
+            {
+              "purpose": "%s",
+              "summary": "%s",
+              "precautions": [%s],
+              "intakeAdvice": [%s]
+            }
+            """,
+            escapeJson(purpose),
+            escapeJson(summary),
+            precJson.toString(),
+            intakeJson.toString()
+        );
+    }
+
     public String generateOverallGuide(
             java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.Map<String, Object> comparisonResult) {
+        return generateOverallGuide(activeMeds, java.util.Collections.emptyList(), comparisonResult);
+    }
+
+    public String generateOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.List<com.app.prescription.dto.PrescriptionDTO> activePrescriptions,
             java.util.Map<String, Object> comparisonResult) {
 
         String instructions = """
             너는 대한민국 전문 임상 약사 AI 도우미다.
-            환자가 현재 복용 중인 모든 의약품(처방약, 상비약, 영양제) 목록과 DUR 상호작용 분석 결과(병용금기, 중복성분 등)를 종합하여,
+            환자가 현재 복용 중인 모든 의약품(처방약, 상비약, 영양제) 목록과 등록된 처방전의 진료/치료 목적 및 AI 처방 요약,
+            그리고 DUR 상호작용 분석 결과(병용금기, 중복성분 등)를 종합하여,
             환자가 일상에서 안심하고 올바르게 실천할 수 있는 '개인 맞춤형 통합 복약 가이드'를 반드시 정해진 JSON 스키마에 맞춰 한국어로 작성한다.
-            - headline: 환자 복약 상태를 대표하는 핵심 1줄 요약 (예: "처방약 3종과 영양제 1종을 복용 중이며, 큰 충돌 없이 안전합니다.")
-            - overallSummary: 복용 중인 약들의 조합과 전반적인 복약 상태에 대한 2~3문장 설명
+            - headline: 환자 복약 상태를 대표하는 핵심 1줄 요약 (예: "처방약 3종(상기도 감염 치료 등)과 영양제 1종을 복용 중이며, 큰 충돌 없이 안전합니다.")
+            - overallSummary: 처방전의 진료 목적을 포함하여, 복용 중인 약들의 조합과 전반적인 복약 상태에 대한 2~3문장 설명
             - scheduleTips: 시간대별 복약 권장 요령 (예: 아침/점심/저녁, 식전/식후 구분, 2시간 간격 권장 등) 문자열 배열
             - durAlerts: DUR 상호작용 및 금기 주의사항 (병용금기나 성분 중복이 있는 경우 구체적 안내, 없으면 안전 안내 문구) 문자열 배열
             - foodAndLifestyle: 피해야 할 음식(술, 카페인, 유제품, 자몽 등) 및 생활 습관 꿀팁 문자열 배열
@@ -328,6 +480,25 @@ public class GeminiService {
             """;
 
         StringBuilder sb = new StringBuilder();
+        if (activePrescriptions != null && !activePrescriptions.isEmpty()) {
+            sb.append("[현재 복용 중인 처방전 및 진료 목적 (총 ").append(activePrescriptions.size()).append("건)]\n");
+            for (var rx : activePrescriptions) {
+                sb.append("- 조제일: ").append(rx.getDispensedDate() != null ? rx.getDispensedDate() : "최근")
+                  .append(" (").append(rx.getHospitalName() != null ? rx.getHospitalName() : "의료기관")
+                  .append(", ").append(rx.getDoctorName() != null ? rx.getDoctorName() : "처방의")
+                  .append(" / ").append(rx.getTotalDays() != null ? rx.getTotalDays() : 14).append("일분)\n");
+                if (rx.getAiGuide() != null) {
+                    if (rx.getAiGuide().has("purpose")) {
+                        sb.append("  * 처방 목적: ").append(rx.getAiGuide().get("purpose").asText()).append("\n");
+                    }
+                    if (rx.getAiGuide().has("summary")) {
+                        sb.append("  * 처방 요약: ").append(rx.getAiGuide().get("summary").asText()).append("\n");
+                    }
+                }
+            }
+            sb.append("\n");
+        }
+
         int count = activeMeds != null ? activeMeds.size() : 0;
         sb.append("[현재 복용 중인 약품 목록 (총 ").append(count).append("종)]\n");
         if (activeMeds != null) {
@@ -382,11 +553,18 @@ public class GeminiService {
             } catch (Exception ignored) {}
         }
 
-        return createFallbackOverallGuide(activeMeds, comparisonResult);
+        return createFallbackOverallGuide(activeMeds, activePrescriptions, comparisonResult);
     }
 
     public String createFallbackOverallGuide(
             java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.Map<String, Object> comparisonResult) {
+        return createFallbackOverallGuide(activeMeds, java.util.Collections.emptyList(), comparisonResult);
+    }
+
+    public String createFallbackOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.List<com.app.prescription.dto.PrescriptionDTO> activePrescriptions,
             java.util.Map<String, Object> comparisonResult) {
 
         int totalCount = activeMeds != null ? activeMeds.size() : 0;
@@ -394,7 +572,20 @@ public class GeminiService {
         long suppCount = activeMeds != null ? activeMeds.stream().filter(m -> "ROUTINE".equals(m.getSource())).count() : 0;
         long cabCount = totalCount - rxCount - suppCount;
 
-        String headline = String.format("현재 처방약 %d종, 상비약 %d종, 영양제 %d종을 복용 중입니다.", rxCount, cabCount, suppCount);
+        String rxPurpose = "";
+        if (activePrescriptions != null && !activePrescriptions.isEmpty()) {
+            for (var rx : activePrescriptions) {
+                if (rx.getAiGuide() != null && rx.getAiGuide().has("purpose")) {
+                    rxPurpose = rx.getAiGuide().get("purpose").asText();
+                    break;
+                }
+            }
+        }
+
+        String headline = (rxPurpose != null && !rxPurpose.isBlank())
+            ? String.format("처방약 %d종(%s)과 상비약 %d종, 영양제 %d종을 복용 중입니다.", rxCount, rxPurpose, cabCount, suppCount)
+            : String.format("현재 처방약 %d종, 상비약 %d종, 영양제 %d종을 복용 중입니다.", rxCount, cabCount, suppCount);
+
         String summary = String.format("총 %d종의 약품을 복용하고 계시며, 처방전 기준 용법과 시간에 맞춰 규칙적으로 복용하는 것이 중요합니다.", totalCount);
 
         boolean hasPairs = false;

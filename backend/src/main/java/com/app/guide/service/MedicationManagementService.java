@@ -9,16 +9,26 @@ public class MedicationManagementService {
     private final MedicationGuideDao dao;
     private final DurGuideService dur;
     private final com.app.chatbot.client.GeminiService gemini;
+    private final com.app.prescription.dao.PrescriptionDAO prescriptionDAO;
 
     public MedicationManagementService(MedicationGuideDao dao, DurGuideService dur) {
-        this(dao, dur, null);
+        this(dao, dur, null, null);
+    }
+
+    public MedicationManagementService(MedicationGuideDao dao, DurGuideService dur, com.app.chatbot.client.GeminiService gemini) {
+        this(dao, dur, gemini, null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
-    public MedicationManagementService(MedicationGuideDao dao, DurGuideService dur, com.app.chatbot.client.GeminiService gemini) {
+    public MedicationManagementService(
+            MedicationGuideDao dao,
+            DurGuideService dur,
+            com.app.chatbot.client.GeminiService gemini,
+            @org.springframework.context.annotation.Lazy com.app.prescription.dao.PrescriptionDAO prescriptionDAO) {
         this.dao = dao;
         this.dur = dur;
         this.gemini = gemini;
+        this.prescriptionDAO = prescriptionDAO;
     }
 
     public List<RegisteredMedicationDto> collection(long userId) { return dao.collection(userId); }
@@ -56,10 +66,29 @@ public class MedicationManagementService {
             );
         }
 
+        List<com.app.prescription.dto.PrescriptionDTO> activeRxList = new ArrayList<>();
+        if (prescriptionDAO != null) {
+            try {
+                var rxList = prescriptionDAO.getPrescriptionListByUserId(userId);
+                if (rxList != null && !rxList.isEmpty()) {
+                    Date now = new Date();
+                    for (var rx : rxList) {
+                        populatePrescriptionAiGuide(rx);
+                        if (isActivePrescription(rx, now)) {
+                            activeRxList.add(rx);
+                        }
+                    }
+                    if (activeRxList.isEmpty() && !rxList.isEmpty()) {
+                        activeRxList.add(rxList.get(0));
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
         var comparison = myComparison(userId);
         String generatedGuide = (gemini != null)
-            ? gemini.generateOverallGuide(active, comparison)
-            : (gemini != null ? gemini.createFallbackOverallGuide(active, comparison) : "{}");
+            ? gemini.generateOverallGuide(active, activeRxList, comparison)
+            : (gemini != null ? gemini.createFallbackOverallGuide(active, activeRxList, comparison) : "{}");
 
         dao.saveOverallGuide(userId, generatedGuide);
         var updated = dao.findOverallGuide(userId);
@@ -71,6 +100,41 @@ public class MedicationManagementService {
             "medUpdatedAt", (updated != null && updated.getMedUpdatedAt() != null) ? updated.getMedUpdatedAt() : "",
             "cached", false
         );
+    }
+
+    private void populatePrescriptionAiGuide(com.app.prescription.dto.PrescriptionDTO rx) {
+        if (rx == null || rx.getAiSummaryJson() == null || rx.getAiSummaryJson().isBlank()) return;
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var node = mapper.readTree(rx.getAiSummaryJson());
+            if (node.has("aiGuide") && !node.get("aiGuide").isNull()) {
+                rx.setAiGuide(node.get("aiGuide"));
+            }
+            if ((rx.getHospitalName() == null || rx.getHospitalName().isBlank()) && node.has("hospitalName")) {
+                rx.setHospitalName(node.get("hospitalName").asText());
+            }
+            if ((rx.getDoctorName() == null || rx.getDoctorName().isBlank()) && node.has("doctorName")) {
+                rx.setDoctorName(node.get("doctorName").asText());
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private boolean isActivePrescription(com.app.prescription.dto.PrescriptionDTO rx, Date now) {
+        if (rx == null || rx.getDispensedDate() == null) return false;
+        int days = (rx.getTotalDays() != null && rx.getTotalDays() > 0) ? rx.getTotalDays() : 14;
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(rx.getDispensedDate());
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date start = cal.getTime();
+        cal.add(Calendar.DAY_OF_YEAR, days);
+        cal.set(Calendar.HOUR_OF_DAY, 23);
+        cal.set(Calendar.MINUTE, 59);
+        cal.set(Calendar.SECOND, 59);
+        Date end = cal.getTime();
+        return !now.before(start) && !now.after(end);
     }
     public Map<String,Object> myComparison(long userId) {
         var all=collection(userId);

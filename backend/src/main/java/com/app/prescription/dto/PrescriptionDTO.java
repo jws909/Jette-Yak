@@ -41,4 +41,7 @@ public class PrescriptionDTO {
 
     /** 의사/약사명 (AI 분석 추출용 가상 필드) */
     private String doctorName;
+
+    /** 처방전 AI 가이드 객체 (aiSummaryJson 내 aiGuide) */
+    private com.fasterxml.jackson.databind.JsonNode aiGuide;
 }
