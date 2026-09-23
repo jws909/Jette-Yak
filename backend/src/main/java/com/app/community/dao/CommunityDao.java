@@ -32,4 +32,10 @@ public class CommunityDao {
     public int reviewInfoPost(Map<String,Object> p) { return session.update(NS+"reviewInfoPost",p); }
     public int resolveReport(Map<String,Object> p) { return session.update(NS+"resolveReport",p); }
     public List<Map<String,Object>> medications(String q) { return session.selectList(NS+"medications",q); }
+    public int ownsPost(long postId,long userId) { return session.selectOne(NS+"ownsPost",Map.of("postId",postId,"userId",userId)); }
+    public int attachmentCount(long postId,String type) { return session.selectOne(NS+"attachmentCount",Map.of("postId",postId,"type",type)); }
+    public long insertAttachment(Map<String,Object> p) { session.insert(NS+"insertAttachment",p); return ((Number)p.get("attachmentId")).longValue(); }
+    public List<Map<String,Object>> attachments(long postId) { return session.selectList(NS+"attachments",postId); }
+    public Map<String,Object> attachment(long id) { return session.selectOne(NS+"attachment",id); }
+    public int deleteAttachment(long id,long userId,boolean admin) { return session.delete(NS+"deleteAttachment",Map.of("attachmentId",id,"userId",userId,"admin",admin?1:0)); }
 }

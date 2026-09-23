@@ -2,6 +2,7 @@
 CREATE SEQUENCE community_posts_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE community_comments_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE community_reports_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE community_attachments_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 
 CREATE TABLE community_posts (
     post_id NUMBER PRIMARY KEY,
@@ -42,6 +43,18 @@ CREATE TABLE community_post_helpful (
     CONSTRAINT pk_community_helpful PRIMARY KEY (post_id,user_id)
 );
 
+CREATE TABLE community_attachments (
+    attachment_id NUMBER PRIMARY KEY,
+    post_id NUMBER NOT NULL REFERENCES community_posts(post_id),
+    uploader_id NUMBER NOT NULL REFERENCES users(user_id),
+    attachment_type VARCHAR2(10) NOT NULL CHECK (attachment_type IN ('IMAGE','FILE')),
+    original_name VARCHAR2(255) NOT NULL,
+    stored_name VARCHAR2(100) NOT NULL UNIQUE,
+    content_type VARCHAR2(100) NOT NULL,
+    file_size NUMBER NOT NULL CHECK (file_size >= 0),
+    created_at DATE DEFAULT SYSDATE NOT NULL
+);
+
 CREATE TABLE community_reports (
     report_id NUMBER PRIMARY KEY,
     reporter_id NUMBER NOT NULL REFERENCES users(user_id),
@@ -60,6 +73,7 @@ CREATE INDEX ix_community_posts_created ON community_posts(status,created_at DES
 CREATE INDEX ix_community_posts_med ON community_posts(medication_id,status);
 CREATE INDEX ix_community_comments_post ON community_comments(post_id,status,created_at);
 CREATE INDEX ix_community_reports_status ON community_reports(status,created_at);
+CREATE INDEX ix_community_attachments_post ON community_attachments(post_id,attachment_type,created_at);
 
 -- 관리자 계정을 지정할 때 사용한다.
 -- UPDATE users SET role='ADMIN' WHERE login_id='관리자아이디';
