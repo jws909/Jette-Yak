@@ -205,8 +205,12 @@
 }
 
 .bell-icon {
-  width: 19px;
-  height: 19px;
+  font-size: 16px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .notif-badge {
@@ -359,12 +363,23 @@
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logout-btn:hover {
   background: #ede6dc;
   border-color: #c9c0b1;
   color: #38302b;
+}
+
+.logout-text {
+  display: inline;
+}
+
+.logout-icon {
+  display: none;
 }
 
 /* 게스트 액션 (로그인 전) */
@@ -436,5 +451,93 @@
 
   .logo-text {
     font-size: 21px;
+  }
+
+  /* 모바일 로그인 액션: 아이콘 위주로 깔끔하게 배치 */
+  .logged-in-actions {
+    gap: 8px;
+  }
+
+  /* 모바일 알림 버튼: "알림" 텍스트 숨기고 종모양 아이콘만 정중앙 표시 */
+  .notif-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 8px;
+  }
+
+  .notif-label {
+    display: none;
+  }
+
+  .notif-badge {
+    top: 4px;
+    right: 4px;
+    left: auto;
+  }
+
+  /* 모바일 로그아웃 버튼: "로그아웃" 글씨 숨기고 Font-Awesome 아이콘만 표시 */
+  .logout-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
+  .logout-text {
+    display: none;
+  }
+
+  .logout-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    color: #6e645c;
+  }
+
+  .logout-btn:hover .logout-icon {
+    color: #38302b;
+  }
+
+  /* 모바일 게스트 액션 (방안 1: 모바일에서는 [로그인] 단독 미니 캡슐 버튼으로 심플하게 전환) */
+  .guest-actions {
+    gap: 0;
+  }
+
+  .demo-login-btn,
+  .guest-actions .nav-divider,
+  .nav-link-signup {
+    display: none !important;
+  }
+
+  .nav-link-login {
+    background-color: #8b3e4b;
+    color: #ffffff !important;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(139, 62, 75, 0.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+  }
+
+  .nav-link-login:hover {
+    background-color: #732f3c;
+    color: #ffffff !important;
+  }
+
+  .nav-link-login:active {
+    transform: scale(0.96);
+  }
+
+  /* 모바일 알림 팝오버: 화면 밖으로 넘치지 않도록 너비 및 위치 최적화 */
+  .notif-popover {
+    right: -10px;
+    width: min(320px, calc(100vw - 32px));
   }
 }

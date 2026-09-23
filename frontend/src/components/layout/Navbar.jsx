@@ -221,9 +221,7 @@ export default function Navbar({
                   aria-label="알림"
                   title="복약 및 주의 알림"
                 >
-                  <svg className="bell-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9" />
-                  </svg>
+                  <i className="fa-regular fa-bell bell-icon" aria-hidden="true" />
                   {unreadCount > 0 && <span className="notif-badge">{unreadCount}</span>}
                   <span className="notif-label">알림</span>
                 </button>
@@ -242,9 +240,7 @@ export default function Navbar({
                       {notifications.length === 0 ? (
                         <div className="notif-empty">
                           <div className="notif-empty-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="28" height="28">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 1 1-6 0v-1m6 0H9" />
-                            </svg>
+                            <i className="fa-regular fa-bell" aria-hidden="true" />
                           </div>
                           <p className="notif-empty-text">새로운 알림이 없습니다.</p>
                         </div>
@@ -278,8 +274,11 @@ export default function Navbar({
                 type="button"
                 className="logout-btn"
                 onClick={onLogout}
+                aria-label="로그아웃"
+                title="로그아웃"
               >
-                로그아웃
+                <span className="logout-text">로그아웃</span>
+                <i className="fa-solid fa-right-from-bracket logout-icon" aria-hidden="true" />
               </button>
             </div>
           ) : (
