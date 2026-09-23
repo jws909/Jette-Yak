@@ -41,13 +41,20 @@ function App() {
 
   // 세션 userId 자동 복구
   useEffect(() => {
-    if (user?.username && (!user?.userId || !user?.role) && user.username !== 'demo') {
-      fetch(`/api/users/profile?username=${encodeURIComponent(user.username)}`)
+    if (user?.username && (!user?.userId || !user?.role)) {
+      const targetUser = user.username === 'demo' ? 'test12' : user.username;
+      fetch(`/api/users/profile?username=${encodeURIComponent(targetUser)}`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
           if (data && data.userId) {
             setUser((curr) => {
-              const updated = { ...curr, userId: data.userId, role: data.role || curr?.role || 'USER' };
+              const updated = {
+                ...curr,
+                userId: data.userId,
+                username: data.username || curr?.username || targetUser,
+                name: curr?.name || data.nickname || '체험 사용자',
+                role: data.role || curr?.role || 'USER',
+              };
               localStorage.setItem('user', JSON.stringify(updated));
               return updated;
             });
@@ -280,13 +287,44 @@ function App() {
     });
   };
 
-  const handleLoginDemoToggle = () => {
-    const demoToken = 'demo-token';
-    const demoUser = { username: 'demo', name: '체험 사용자', email: '' };
+  const handleLoginDemoToggle = async () => {
+    let targetUsername = 'test12';
+    try {
+      const mealRes = await fetch('/api/users/meal-times?userId=1');
+      if (mealRes.ok) {
+        const mealData = await mealRes.json();
+        if (mealData?.username) targetUsername = mealData.username;
+      }
+    } catch {
+      // fallback to test12
+    }
+
+    let profileData = null;
+    try {
+      const profileRes = await fetch(`/api/users/profile?username=${encodeURIComponent(targetUsername)}`);
+      if (profileRes.ok) {
+        profileData = await profileRes.json();
+      }
+    } catch {
+      // fallback
+    }
+
+    const demoUser = {
+      userId: profileData?.userId || 1,
+      username: profileData?.username || targetUsername,
+      name: profileData?.nickname || '체험 사용자',
+      nickname: profileData?.nickname || '체험 사용자',
+      email: profileData?.email || '',
+      role: profileData?.role || 'USER',
+      profileImageUrl: profileData?.profileImageUrl || '',
+      isDemo: true,
+    };
+
     setIsLoggedIn(true);
     setUser(demoUser);
-    localStorage.setItem('token', demoToken);
+    localStorage.setItem('token', 'demo-token');
     localStorage.setItem('user', JSON.stringify(demoUser));
+    navigate('/');
   };
 
   return (
