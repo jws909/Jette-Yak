@@ -63,9 +63,11 @@ public class CalendarController {
     @PostMapping("/{scheduleId}/toggle")
     public ResponseEntity<Void> toggleTaken(
             @PathVariable("scheduleId") Long scheduleId,
-            @RequestBody Map<String, Boolean> body) {
-        Boolean taken = body.get("taken");
-        boolean success = scheduleService.toggleTaken(scheduleId, taken != null && taken);
+            @RequestBody Map<String, Object> body) {
+        Object takenVal = body.get("taken");
+        boolean taken = Boolean.TRUE.equals(takenVal);
+        String date = body.get("date") != null ? String.valueOf(body.get("date")) : null;
+        boolean success = scheduleService.toggleTaken(scheduleId, taken, date);
         return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
 
@@ -73,8 +75,9 @@ public class CalendarController {
     public ResponseEntity<Void> updateAlarm(
             @PathVariable("scheduleId") Long scheduleId,
             @RequestParam("newTime") String newTime,
-            @RequestParam("alarmEnabled") boolean alarmEnabled) {
-        boolean success = scheduleService.updateAlarmTime(scheduleId, newTime, alarmEnabled);
+            @RequestParam("alarmEnabled") boolean alarmEnabled,
+            @RequestParam(value = "date", required = false) String date) {
+        boolean success = scheduleService.updateAlarmTime(scheduleId, newTime, alarmEnabled, date);
         return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
     }
 
@@ -85,8 +88,24 @@ public class CalendarController {
     }
 
     @PostMapping("/{scheduleId}/delete")
-    public ResponseEntity<Void> deleteSchedulePost(@PathVariable("scheduleId") Long scheduleId) {
-        boolean isDeleted = scheduleService.removeSchedule(scheduleId);
+    public ResponseEntity<Void> deleteSchedulePost(
+            @PathVariable("scheduleId") Long scheduleId,
+            @RequestParam(value = "deleteAll", required = false, defaultValue = "false") boolean deleteAll,
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "date", required = false) String date,
+            javax.servlet.http.HttpServletRequest request) {
+
+        if (userId == null || userId <= 0L) {
+            var session = request.getSession(false);
+            Object sessionVal = session != null ? session.getAttribute("userId") : null;
+            if (sessionVal instanceof Long) {
+                userId = (Long) sessionVal;
+            } else if (sessionVal instanceof Number) {
+                userId = ((Number) sessionVal).longValue();
+            }
+        }
+
+        boolean isDeleted = scheduleService.removeSchedule(scheduleId, deleteAll, userId, date);
         return isDeleted ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
     }
     

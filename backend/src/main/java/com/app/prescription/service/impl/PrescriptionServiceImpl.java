@@ -3,6 +3,7 @@ package com.app.prescription.service.impl;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.app.dao.ScheduleDAO;
 import com.app.prescription.dao.PrescriptionDAO;
 import com.app.prescription.dto.MatchedMedicationDTO;
 import com.app.prescription.dto.OcrParseResult;
@@ -43,11 +45,13 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
     private final PrescriptionDAO prescriptionDAO;
     private final VisionOcrService visionOcrService;
+    private final ScheduleDAO scheduleDAO;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public PrescriptionServiceImpl(PrescriptionDAO prescriptionDAO, VisionOcrService visionOcrService) {
+    public PrescriptionServiceImpl(PrescriptionDAO prescriptionDAO, VisionOcrService visionOcrService, ScheduleDAO scheduleDAO) {
         this.prescriptionDAO = prescriptionDAO;
         this.visionOcrService = visionOcrService;
+        this.scheduleDAO = scheduleDAO;
     }
 
     @Override
@@ -153,12 +157,18 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                     item.setDailyDose(parsed.getDailyDose() != null ? parsed.getDailyDose() : 1.0);
                     int dFreq = parsed.getDailyFrequency() != null ? parsed.getDailyFrequency() : 1;
                     String uTiming = parsed.getUsageTiming();
-                    if (dFreq <= 1 && uTiming != null) {
-                        if (uTiming.contains("3회") || (uTiming.contains("아침") && uTiming.contains("점심") && uTiming.contains("저녁")) || uTiming.contains("매 식후") || uTiming.contains("매식후")) {
+                    if (uTiming != null) {
+                        if (uTiming.contains("1일 1회") || uTiming.contains("1일1회") || uTiming.contains("하루 1회") || uTiming.contains("하루1회")
+                                || (uTiming.contains("1회") && !uTiming.contains("2회") && !uTiming.contains("3회") && !uTiming.contains("4회"))) {
+                            dFreq = 1;
+                        } else if (uTiming.contains("3회") || (uTiming.contains("아침") && uTiming.contains("점심") && uTiming.contains("저녁")) || uTiming.contains("매 식후") || uTiming.contains("매식후")) {
                             dFreq = 3;
                         } else if (uTiming.contains("2회") || (uTiming.contains("아침") && uTiming.contains("저녁"))) {
                             dFreq = 2;
                         }
+                    }
+                    if (dFreq > 4 && uTiming != null && uTiming.contains("1회")) {
+                        dFreq = 1;
                     }
                     item.setDailyFrequency(dFreq);
                     item.setTotalDays(parsed.getTotalDays() != null ? parsed.getTotalDays() : prescription.getTotalDays());
@@ -493,6 +503,17 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
                 if (item.getDailyDose() == null) item.setDailyDose(1.0);
                 if (item.getDailyFrequency() == null) item.setDailyFrequency(1);
+                String uTiming = item.getUsageTiming();
+                if (uTiming != null) {
+                    if (uTiming.contains("1일 1회") || uTiming.contains("1일1회") || uTiming.contains("하루 1회") || uTiming.contains("하루1회")
+                            || (uTiming.contains("1회") && !uTiming.contains("2회") && !uTiming.contains("3회") && !uTiming.contains("4회"))) {
+                        item.setDailyFrequency(1);
+                    } else if (uTiming.contains("3회") || (uTiming.contains("아침") && uTiming.contains("점심") && uTiming.contains("저녁")) || uTiming.contains("매 식후") || uTiming.contains("매식후")) {
+                        item.setDailyFrequency(3);
+                    } else if (uTiming.contains("2회") || (uTiming.contains("아침") && uTiming.contains("저녁"))) {
+                        item.setDailyFrequency(2);
+                    }
+                }
                 if (item.getTotalDays() == null) item.setTotalDays(prescription.getTotalDays());
                 item.setUsageTiming(safeTruncateUsageTiming(item.getUsageTiming()));
 
@@ -523,7 +544,13 @@ public class PrescriptionServiceImpl implements PrescriptionService {
             // 필요한 경우 권한 제약 적용
         }
 
-        log.info("[PRESCRIPTION] 처방전 및 세부 항목 삭제 시작: ID={}, userId={}", prescriptionId, userId);
+        log.info("[PRESCRIPTION] 처방전 및 소속 스케줄, 세부 항목 삭제 시작: ID={}, userId={}", prescriptionId, userId);
+        try {
+            scheduleDAO.deleteSchedulesByPrescriptionId(prescriptionId);
+            log.info("[PRESCRIPTION] 처방전 연계 스케줄 삭제 완료: ID={}", prescriptionId);
+        } catch (Exception e) {
+            log.warn("[PRESCRIPTION] 처방전 연계 스케줄 삭제 중 예외: ID={}, err={}", prescriptionId, e.getMessage());
+        }
         prescriptionDAO.deletePrescriptionItemsByPrescriptionId(prescriptionId);
         prescriptionDAO.deletePrescription(prescriptionId);
         log.info("[PRESCRIPTION] 처방전 삭제 완료: ID={}", prescriptionId);

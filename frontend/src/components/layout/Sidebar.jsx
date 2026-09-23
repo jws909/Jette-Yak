@@ -10,18 +10,6 @@ function getTodayDateStr() {
   return `${y}-${m}-${d}`;
 }
 
-function getLocalIntakeMap(userId, dateStr) {
-  if (!userId || !dateStr) return {};
-  try {
-    const raw = localStorage.getItem(`jette_routine_intake_${userId}_${dateStr}`);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
-    }
-  } catch {}
-  return {};
-}
-
 export default function Sidebar({
   isOpen,
   onClose,
@@ -38,24 +26,14 @@ export default function Sidebar({
     }
 
     const todayStr = getTodayDateStr();
-    const localMap = getLocalIntakeMap(user.userId, todayStr);
 
     try {
       const res = await fetch(`/api/calendar?userId=${user.userId}&date=${todayStr}`);
       if (res.ok) {
         const list = await res.json();
-        if (Array.isArray(list) && list.length > 0) {
+        if (Array.isArray(list)) {
           const total = list.length;
-          const taken = list.filter((item) => {
-            if (item.takenAt) return true;
-            if (item.scheduleId && localMap[item.scheduleId]?.taken) return true;
-            // 메인 화면 로컬 루틴 맵과의 이름 매칭 보완 (즉각 반응)
-            const localMatched = Object.values(localMap).find(
-              (v) => v && v.taken && item.name && (v.name === item.name || item.name.includes(v.name) || v.name.includes(item.name))
-            );
-            if (localMatched) return true;
-            return false;
-          }).length;
+          const taken = list.filter((item) => Boolean(item.takenAt)).length;
           const percent = total > 0 ? Math.round((taken / total) * 100) : 0;
           setProgress({ total, taken, percent });
           return;
@@ -63,16 +41,6 @@ export default function Sidebar({
       }
     } catch (err) {
       console.warn('사이드바 복용 진척도 조회 실패:', err);
-    }
-
-    // 서버 스케줄이 비어있을 경우 메인 루틴 로컬 스토리지 데이터 보완
-    const localValues = Object.values(localMap);
-    if (localValues.length > 0) {
-      const total = localValues.length;
-      const taken = localValues.filter((v) => v && v.taken).length;
-      const percent = total > 0 ? Math.round((taken / total) * 100) : 0;
-      setProgress({ total, taken, percent });
-      return;
     }
 
     setProgress({ total: 0, taken: 0, percent: 0 });

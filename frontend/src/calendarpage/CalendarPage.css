@@ -232,6 +232,105 @@
   color: #2b2523;
 }
 
+/* --------------------------------------------------------------------------
+   시간대별 세그먼트 컨트롤 탭 (1줄 균등 분할, 스크롤 없는 모던 세그먼트 UI)
+   -------------------------------------------------------------------------- */
+.calendar-slot-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  margin: 10px 0 16px;
+  padding: 4px;
+  background: #f4ecea;
+  border-radius: 9px;
+  border: 1px solid #ebd9d7;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.calendar-slot-tab {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #6b5552;
+  padding: 6px 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.calendar-slot-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.65);
+  color: #8b3e4b;
+}
+
+.calendar-slot-tab.active {
+  background: #8b3e4b;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.2);
+}
+
+.cal-tab-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cal-tab-time {
+  display: none;
+}
+
+.cal-tab-badge {
+  font-size: 9.5px;
+  background: rgba(107, 85, 82, 0.1);
+  color: #6b5552;
+  padding: 1.5px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.calendar-slot-tab.active .cal-tab-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.calendar-slot-tab.is-all-done .cal-tab-badge {
+  background: #7d2638;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.calendar-slot-tab.is-all-done:not(.active) {
+  color: #7d2638;
+}
+
+.calendar-slot-tab.active.is-all-done .cal-tab-badge {
+  background: #ffffff;
+  color: #8b3e4b;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.cal-slot-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #7d2638;
+  background: #f7ebe9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.2px;
+}
+
 .dose-list {
   display: flex;
   flex-direction: column;
@@ -818,11 +917,11 @@ input:checked + .slider:before { transform: translateX(18px); }
    ========================================================================== */
 .custom-delete-modal {
   background: #ffffff;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 28px 24px;
-  width: 340px;
-  max-width: 90vw;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  width: 380px;
+  max-width: 92vw;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
   border: 1px solid #e5dfd4;
   text-align: center;
   display: flex;
@@ -848,10 +947,63 @@ input:checked + .slider:before { transform: translateX(18px); }
 }
 
 .delete-modal-title {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+  margin: 0 0 10px 0;
+  font-size: 17px;
   font-weight: 700;
   color: #2b2523;
+}
+
+.delete-modal-target-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 10px 0;
+  background: #fdfbf8;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #f0e9df;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.delete-modal-target-box .target-type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.delete-modal-target-box .target-type-badge.prescription {
+  background-color: #f7e6e9;
+  color: #7d2638;
+}
+
+.delete-modal-target-box .target-type-badge.supplement {
+  background-color: #fef3e2;
+  color: #b26a00;
+}
+
+.delete-modal-target-box .target-type-badge.regular {
+  background-color: #e8f3fc;
+  color: #1a69a4;
+}
+
+.delete-modal-target-box .target-time-badge {
+  font-size: 12px;
+  color: #8c827a;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.delete-modal-target-box .target-med-name {
+  font-size: 14px;
+  color: #2b2523;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .delete-modal-target {
@@ -885,48 +1037,87 @@ input:checked + .slider:before { transform: translateX(18px); }
 }
 
 .delete-modal-desc {
-  margin: 0 0 20px 0;
+  margin: 0 0 18px 0;
   font-size: 12px;
+  line-height: 1.5;
   color: #8c827a;
+  word-break: keep-all;
 }
 
-.delete-modal-actions {
+.delete-modal-choice-group {
   display: flex;
+  flex-direction: column;
   gap: 10px;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.btn-delete-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 11px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-delete-choice .choice-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.btn-delete-choice .choice-desc {
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1.3;
+}
+
+.btn-choice-single {
+  background: #fdfbf8;
+  border: 1px solid #ded6c9;
+  color: #3d352e;
+}
+
+.btn-choice-single:hover {
+  background: #f5eedf;
+  border-color: #b8aba0;
+}
+
+.btn-choice-all {
+  background: #7d2638;
+  border: 1px solid #7d2638;
+  color: #ffffff;
+}
+
+.btn-choice-all:hover {
+  background: #631c2b;
+  border-color: #631c2b;
+  box-shadow: 0 4px 12px rgba(125, 38, 56, 0.25);
+}
+
+.delete-modal-footer {
   width: 100%;
 }
 
-.btn-modal-cancel {
-  flex: 1;
+.delete-modal-footer .btn-modal-cancel {
+  width: 100%;
+  padding: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
   background: #ffffff;
   border: 1px solid #ded6c9;
-  color: #4a413a;
-  padding: 10px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
+  color: #665c54;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.btn-modal-cancel:hover {
+.delete-modal-footer .btn-modal-cancel:hover {
   background: #f8f4ed;
-  border-color: #7d2638;
-}
-
-.btn-modal-delete {
-  flex: 1;
-  background: #7d2638;
-  border: none;
-  color: #ffffff;
-  padding: 10px;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.btn-modal-delete:hover {
-  background: #631c2b;
+  border-color: #8c827a;
 }

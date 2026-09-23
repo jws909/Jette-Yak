@@ -5,12 +5,15 @@
 
 <mapper namespace="schedule">
 
-    <!-- 1. 일별 복약 일정 조회: 처방약/영양제/상시약 구분 및 약품명/영양제명 결합 조회 -->
+    <!-- 1. 일별 복약 일정 조회: 수동 등록 및 실체화된 일정 조회 (처방전 실시간 아침/점심/저녁 슬롯은 서비스 레이어에서 확장 병합) -->
     <select id="selectDailySchedules" parameterType="map" resultType="com.app.dto.ScheduleDTO">
-        /* 1) 수동 등록 및 실체화된 일정 */
         SELECT 
             s.schedule_id                                 AS scheduleId,
+            s.user_id                                     AS userId,
             s.medication_id                               AS medicationId,
+            s.prescription_id                             AS prescriptionId,
+            s.cabinet_id                                  AS cabinetId,
+            s.routine_id                                  AS routineId,
             NVL(m.item_name, NVL(rm.supplement_name, '약품')) AS name,
             TO_CHAR(s.scheduled_at, 'HH24:MI')            AS time,
             CASE 
@@ -20,41 +23,14 @@
                 ELSE 'prescription'
             END                                           AS type,
             TO_CHAR(s.taken_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS takenAt,
-            NVL(s.alarm_enabled, 1)                       AS alarmEnabled
+            NVL(s.alarm_enabled, 1)                       AS alarmEnabled,
+            CASE WHEN s.alarm_enabled = -1 THEN 1 ELSE 0 END AS isCancelled
         FROM schedules s
         LEFT JOIN medications m ON s.medication_id = m.medication_id
         LEFT JOIN routine_medications rm ON s.routine_id = rm.routine_id
         WHERE s.user_id = #{userId}
           AND TRUNC(s.scheduled_at) = TO_DATE(#{date}, 'YYYY-MM-DD')
-
-        UNION ALL
-
-        /* 2) 처방전 실시간 연동: 아직 SCHEDULES로 실체화되지 않은 처방약만 노출 */
-        SELECT 
-            (p.prescription_id * 1000 + pi.item_id)       AS scheduleId,
-            pi.medication_id                              AS medicationId,
-            m.item_name                                   AS name,
-            '08:30'                                       AS time,
-            'prescription'                                AS type,
-            CAST(NULL AS VARCHAR2(30))                    AS takenAt,
-            1                                             AS alarmEnabled
-        FROM prescriptions p
-        JOIN prescription_items pi ON p.prescription_id = pi.prescription_id
-        JOIN medications m ON pi.medication_id = m.medication_id
-        WHERE p.user_id = #{userId}
-        <![CDATA[
-          AND TO_DATE(#{date}, 'YYYY-MM-DD') >= TRUNC(p.dispensed_date)
-          AND TO_DATE(#{date}, 'YYYY-MM-DD') < TRUNC(p.dispensed_date) + p.total_days
-        ]]>
-          AND NOT EXISTS (
-              SELECT 1 FROM schedules s2
-              WHERE s2.user_id = #{userId}
-                AND s2.prescription_id = p.prescription_id
-                AND s2.medication_id = pi.medication_id
-                AND TRUNC(s2.scheduled_at) = TO_DATE(#{date}, 'YYYY-MM-DD')
-          )
-
-        ORDER BY time ASC
+        ORDER BY s.scheduled_at ASC
     </select>
 
     <!-- 2. 약품 검색 자동완성 -->
@@ -167,10 +143,10 @@
         ORDER BY scheduleDate ASC
     </select>
 
-    <!-- 9. 복용 체크박스 토글 -->
+    <!-- 9. 복용 체크박스 토글 (KST 한국 표준시 기준 저장) -->
     <update id="updateTakenStatus" parameterType="map">
         UPDATE schedules
-           SET taken_at = CASE WHEN #{isTaken} = 1 THEN SYSDATE ELSE NULL END
+           SET taken_at = CASE WHEN #{isTaken} = 1 THEN (SYSDATE + (9/24)) ELSE NULL END
          WHERE schedule_id = #{scheduleId}
     </update>
 
@@ -223,7 +199,7 @@
             TO_DATE(#{scheduledDate} || ' ' || #{newTime}, 'YYYY-MM-DD HH24:MI'),
             NVL(#{alarmEnabled}, 1),
             <choose>
-                <when test="isTaken == 1">SYSDATE</when>
+                <when test="isTaken == 1">(SYSDATE + (9/24))</when>
                 <otherwise>NULL</otherwise>
             </choose>
         )
@@ -234,5 +210,85 @@
         DELETE FROM schedules
          WHERE schedule_id = #{scheduleId}
     </delete>
+
+    <!-- 14. 단건 스케줄 상세 조회 -->
+    <select id="selectScheduleById" parameterType="long" resultType="com.app.dto.ScheduleDTO">
+        SELECT 
+            s.schedule_id                                 AS scheduleId,
+            s.user_id                                     AS userId,
+            s.medication_id                               AS medicationId,
+            s.prescription_id                             AS prescriptionId,
+            s.cabinet_id                                  AS cabinetId,
+            s.routine_id                                  AS routineId,
+            NVL(m.item_name, NVL(rm.supplement_name, '약품')) AS name,
+            TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')         AS scheduledDate,
+            TO_CHAR(s.scheduled_at, 'HH24:MI')            AS time,
+            CASE 
+                WHEN s.prescription_id IS NOT NULL THEN 'prescription'
+                WHEN s.routine_id IS NOT NULL THEN 'supplement'
+                WHEN s.cabinet_id IS NOT NULL THEN 'regular'
+                ELSE 'prescription'
+            END                                           AS type,
+            TO_CHAR(s.taken_at, 'YYYY-MM-DD"T"HH24:MI:SS') AS takenAt,
+            NVL(s.alarm_enabled, 1)                       AS alarmEnabled,
+            CASE WHEN s.alarm_enabled = -1 THEN 1 ELSE 0 END AS isCancelled
+        FROM schedules s
+        LEFT JOIN medications m ON s.medication_id = m.medication_id
+        LEFT JOIN routine_medications rm ON s.routine_id = rm.routine_id
+        WHERE s.schedule_id = #{scheduleId}
+    </select>
+
+    <!-- 15. 처방전 ID로 등록된 모든 스케줄 삭제 -->
+    <delete id="deleteSchedulesByPrescriptionId" parameterType="long">
+        DELETE FROM schedules
+         WHERE prescription_id = #{prescriptionId}
+    </delete>
+
+    <!-- 16. 상비약(cabinet_id) 관련 스케줄 전체 삭제 -->
+    <delete id="deleteSchedulesByCabinetId" parameterType="map">
+        DELETE FROM schedules
+         WHERE cabinet_id = #{cabinetId}
+           AND user_id = #{userId}
+    </delete>
+
+    <!-- 17. 상비약 보관함(cabinet_medications) 삭제 -->
+    <delete id="deleteCabinetMedication" parameterType="map">
+        DELETE FROM cabinet_medications
+         WHERE cabinet_id = #{cabinetId}
+           AND user_id = #{userId}
+    </delete>
+
+    <!-- 18. 영양제/루틴(routine_id) 관련 스케줄 전체 삭제 -->
+    <delete id="deleteSchedulesByRoutineId" parameterType="map">
+        DELETE FROM schedules
+         WHERE routine_id = #{routineId}
+           AND user_id = #{userId}
+    </delete>
+
+    <!-- 19. 영양제/루틴(routine_medications) 삭제 -->
+    <delete id="deleteRoutineMedication" parameterType="map">
+        DELETE FROM routine_medications
+         WHERE routine_id = #{routineId}
+           AND user_id = #{userId}
+    </delete>
+
+    <!-- 20. 가상 처방전 단건 취소용 실체화 (alarm_enabled = -1) -->
+    <insert id="insertCancelledPrescriptionSchedule" parameterType="map">
+        INSERT INTO schedules (
+            user_id,
+            prescription_id,
+            medication_id,
+            scheduled_at,
+            alarm_enabled,
+            taken_at
+        ) VALUES (
+            #{userId},
+            #{prescriptionId},
+            #{medicationId},
+            TO_DATE(#{scheduledDate} || ' ' || #{scheduledTime}, 'YYYY-MM-DD HH24:MI'),
+            -1,
+            NULL
+        )
+    </insert>
 
 </mapper>
