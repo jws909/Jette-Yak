@@ -2024,6 +2024,60 @@
   font-weight: 600;
 }
 
+/* AI 핵심 요약 하이라이트 박스 */
+.ai-summary-highlight-box {
+  background: #fdfaf6;
+  border: 1px solid #eadfc9;
+  border-left: 4px solid #d48b38;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-summary-highlight-box .ai-summary-label {
+  color: #b36314 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.ai-summary-highlight-box .ai-summary-main-text {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #2b2523 !important;
+  line-height: 1.55 !important;
+  word-break: keep-all;
+}
+
+.ai-summary-highlight-box .ai-sub-line {
+  font-size: 12.5px !important;
+  color: #5a5047 !important;
+  line-height: 1.4 !important;
+  margin-top: 2px !important;
+}
+
+.ai-summary-highlight-box .ai-warning-line {
+  color: #b54747 !important;
+}
+
+.ai-summary-loading-hint {
+  font-size: 13px;
+  color: #b36314;
+  background: #fdf8f0;
+  border: 1px dashed #d48b38;
+  border-radius: 6px;
+  padding: 10px 14px;
+  animation: pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
 /* 주의사항 모달 */
 .modal-content-box.caution-modal-content {
   max-width: 580px;

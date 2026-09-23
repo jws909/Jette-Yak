@@ -241,6 +241,84 @@ public class GeminiService {
         ));
     }
 
+    public String summarizeMedication(String itemName, String className, String materialName, String efficacy, String usageDosage) {
+        String instructions = """
+            너는 대한민국 전문 약사 AI 도우미다.
+            제공된 의약품 정보(약품명, 분류, 성분명, 효능효과, 용법용량)를 바탕으로,
+            환자가 이해하기 쉬운 핵심 요약 정보를 반드시 정해진 JSON 스키마에 맞춰 한국어로 작성한다.
+            - summary: 어떤 약인지 핵심 효능 1~2문장 (전문 용어는 쉽게 풀어서 설명)
+            - tips: 복약 시 꿀팁 및 복용 방법 (예: 식후 즉시, 물 많이 마시기 등)
+            - warnings: 가장 주의해야 할 부작용 및 금기 행동 (예: 음주 금지, 졸음 주의 등)
+            - foodCautions: 함께 먹을 때 피해야 할 음식이나 상호작용 주의사항
+            """;
+        String prompt = String.format("""
+            [약품명]: %s
+            [분류]: %s
+            [성분명]: %s
+            [효능·효과]: %s
+            [용법·용량]: %s
+            """,
+            itemName == null ? "" : itemName,
+            className == null ? "" : className,
+            materialName == null ? "" : materialName,
+            efficacy == null ? "" : efficacy,
+            usageDosage == null ? "" : usageDosage
+        );
+
+        Map<String, Object> schema = Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "summary", Map.of("type", "string"),
+                "tips", Map.of("type", "string"),
+                "warnings", Map.of("type", "string"),
+                "foodCautions", Map.of("type", "string")
+            ),
+            "required", List.of("summary", "tips", "warnings", "foodCautions")
+        );
+
+        return generate(instructions, prompt, Map.of(
+            "temperature", 0.2,
+            "maxOutputTokens", 1024,
+            "responseMimeType", "application/json",
+            "responseJsonSchema", schema
+        ));
+    }
+
+    public String getOrGenerateMedicationSummary(String itemName, String className, String materialName, String efficacy, String usageDosage) {
+        if (isAvailable()) {
+            try {
+                return summarizeMedication(itemName, className, materialName, efficacy, usageDosage);
+            } catch (Exception ignored) {}
+        }
+        return createFallbackSummary(itemName, className, efficacy, usageDosage);
+    }
+
+    private String createFallbackSummary(String itemName, String className, String efficacy, String usageDosage) {
+        String cleanEff = (efficacy != null && !efficacy.isBlank())
+                ? efficacy.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim()
+                : (className != null && !className.isBlank() ? className + " 관련 치료제입니다." : itemName + " 의약품입니다.");
+        if (cleanEff.length() > 100) cleanEff = cleanEff.substring(0, 97) + "...";
+
+        String cleanUsage = (usageDosage != null && !usageDosage.isBlank())
+                ? usageDosage.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim()
+                : "처방 및 설명서에 명시된 정해진 시간에 물과 함께 복용하세요.";
+        if (cleanUsage.length() > 80) cleanUsage = cleanUsage.substring(0, 77) + "...";
+
+        return String.format(
+            "{\"summary\":\"%s\",\"tips\":\"%s\",\"warnings\":\"이상 반응이 나타날 경우 즉시 복용을 중단하고 의사나 약사와 상담하세요.\",\"foodCautions\":\"복용 기간 중 음주는 피하시고 충분한 수분을 섭취해 주세요.\"}",
+            escapeJson(cleanEff),
+            escapeJson(cleanUsage)
+        );
+    }
+
+    private static String escapeJson(String raw) {
+        if (raw == null) return "";
+        return raw.replace("\\", "\\\\")
+                  .replace("\"", "\\\"")
+                  .replace("\r", " ")
+                  .replace("\n", " ");
+    }
+
     private String generate(String instructions, String prompt, Map<String, Object> generationConfig) {
         if (apiKey.isBlank())
             throw new GeminiException(503, "AI 서비스의 GEMINI_API_KEY가 설정되지 않았습니다.");

@@ -14,6 +14,15 @@ function valueOrMissing(value) { return value?.trim() || '등록된 정보가 �
 function MedicationInformation({ item, compact, onSelect, onStatus, busy }) {
   const guide = useRemote(item.medicationId ? '/api/guides/medications/' + encodeURIComponent(item.medicationId) : null)
   const medication = guide.data?.medication
+  const aiSummary = (() => {
+    if (!medication?.aiSummaryJson) return null;
+    try {
+      return typeof medication.aiSummaryJson === 'string' ? JSON.parse(medication.aiSummaryJson) : medication.aiSummaryJson;
+    } catch {
+      return { summary: medication.aiSummaryJson };
+    }
+  })();
+
   if (compact) return <article className="my-med-row">
     <div className="my-med-row-name"><button className="my-med-name" onClick={onSelect}>{item.itemName}</button>
       <MedicationImage url={item.itemImageUrl} name={item.itemName}/><p className="guide-note">{item.entpName || '제조사 미등록'}</p><RegisteredMedications items={item.registrations} onStatus={onStatus} busy={busy} /></div>
@@ -21,6 +30,7 @@ function MedicationInformation({ item, compact, onSelect, onStatus, busy }) {
       {guide.loading && <p role="status">약 정보를 불러오고 있어요…</p>}
       {guide.error && <p role="alert">{guide.error} <button className="my-med-action" onClick={guide.retry}>다시 시도</button></p>}
       {!item.medicationId && <p className="guide-note">제품이 연결되지 않아 등록한 복용 정보만 표시합니다.</p>}
+      {aiSummary?.summary && <div className="guide-ai-summary-compact">✨ <strong>AI 핵심 요약:</strong> {aiSummary.summary}</div>}
       {medication && <><h3>효능 · 효과</h3><p className="guide-db-text">{valueOrMissing(medication.efficacy)}</p>
         <h3>용법 · 용량</h3><p className="guide-db-text">{valueOrMissing(medication.usageDosage)}</p>
         <p className="guide-note">{guide.data.dur?.items?.length ? '연결된 DUR 주의정보 ' + guide.data.dur.items.length + '건 · 상세 탭에서 확인하세요.' : '연결된 DUR 기록이 없습니다. 금기가 없다는 뜻은 아닙니다.'}</p></>}
@@ -40,12 +50,28 @@ function MedicationInformation({ item, compact, onSelect, onStatus, busy }) {
           <strong>성분</strong><p className="guide-db-text">{valueOrMissing(medication.materialName)}</p>
         </aside>
         <section className="guide-col"><span className="col-num">01</span><h3 className="col-title">효능 · 복용법</h3>
+          {aiSummary?.summary && (
+            <div className="guide-ai-card">
+              <span className="ai-tag">✨ AI 핵심 요약</span>
+              <p className="ai-summary-text">{aiSummary.summary}</p>
+            </div>
+          )}
           <strong>효능·효과</strong><p className="guide-db-text">{valueOrMissing(medication.efficacy)}</p>
           <strong>용법·용량</strong><p className="guide-db-text">{valueOrMissing(medication.usageDosage)}</p>
         </section>
         <section className="guide-col"><span className="col-num">02</span><h3 className="col-title">일상 제약 · 부작용</h3>
-          <p className="guide-db-text">현재 연결된 자료에는 일상 활동 주의사항과 부작용·대처 정보가 없습니다.</p>
-          <div className="side-effect-alert-box">정보가 없다는 것이 주의사항이나 부작용이 없다는 뜻은 아닙니다.</div>
+          {aiSummary ? (
+            <div className="guide-ai-precautions">
+              {aiSummary.warnings && <><strong>⚠️ 주의사항</strong><p className="guide-db-text">{aiSummary.warnings}</p></>}
+              {aiSummary.foodCautions && <><strong>🍽️ 음식 및 생활 주의</strong><p className="guide-db-text">{aiSummary.foodCautions}</p></>}
+              {aiSummary.tips && <><strong>💡 복약 꿀팁</strong><p className="guide-db-text">{aiSummary.tips}</p></>}
+            </div>
+          ) : (
+            <>
+              <p className="guide-db-text">현재 연결된 자료에는 일상 활동 주의사항과 부작용·대처 정보가 없습니다.</p>
+              <div className="side-effect-alert-box">정보가 없다는 것이 주의사항이나 부작용이 없다는 뜻은 아닙니다.</div>
+            </>
+          )}
         </section>
         <section className="guide-col"><span className="col-num">03</span><h3 className="col-title">DUR 주의정보</h3>
           <DurInformation dur={guide.data.dur} />

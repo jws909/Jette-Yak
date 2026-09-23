@@ -257,7 +257,10 @@ function mapPrescriptionToState(prescription) {
 
         return {
           id: item.itemId ? `rx-${item.itemId}` : `rx-${idx}`,
+          itemId: item.itemId,
+          medicationId: item.medicationId,
           name: item.itemName || '처방 의약품',
+          itemName: item.itemName || '처방 의약품',
           desc: className ? `${className} · ${timing}` : (timing || '식후 30분 복용'),
           badge: '처방',
           dotColor: DOT_COLORS[idx % DOT_COLORS.length],
@@ -819,8 +822,29 @@ export default function MainPage({ user }) {
 
   // 약품 상세 모달 상태
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
+  const [medDetailExtra, setMedDetailExtra] = useState(null);
   const [isCautionModalOpen, setIsCautionModalOpen] = useState(false);
   const [showPastMedsInModal, setShowPastMedsInModal] = useState(false);
+
+  // 약품 상세 모달 열릴 때 AI 요약 및 최신 정보 On-Demand 패치
+  useEffect(() => {
+    if (!selectedMedDetail?.medicationId) {
+      setMedDetailExtra(null);
+      return;
+    }
+    let isCancelled = false;
+    fetch(`/api/guides/medications/${encodeURIComponent(selectedMedDetail.medicationId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isCancelled && data) {
+          setMedDetailExtra(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedMedDetail?.medicationId]);
 
   // 메인 인라인 검색 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -2477,17 +2501,42 @@ export default function MainPage({ user }) {
             </div>
 
             <div className="med-detail-body">
+              {selectedMedDetail?.medicationId && !medDetailExtra && (
+                <div className="ai-summary-loading-hint">
+                  ✨ AI 복약 요약 및 상세 정보를 조회하고 있습니다...
+                </div>
+              )}
+
+              {medDetailExtra?.medication?.aiSummaryJson && (() => {
+                try {
+                  const ai = typeof medDetailExtra.medication.aiSummaryJson === 'string'
+                    ? JSON.parse(medDetailExtra.medication.aiSummaryJson)
+                    : medDetailExtra.medication.aiSummaryJson;
+                  return (
+                    <div className="detail-field ai-summary-highlight-box">
+                      <label className="ai-summary-label">✨ AI 핵심 복약 요약</label>
+                      <p className="ai-summary-main-text">{ai.summary}</p>
+                      {ai.tips && <p className="ai-sub-line">💡 <strong>복용 팁:</strong> {ai.tips}</p>}
+                      {ai.warnings && <p className="ai-sub-line ai-warning-line">⚠️ <strong>주의사항:</strong> {ai.warnings}</p>}
+                      {ai.foodCautions && <p className="ai-sub-line">🍽️ <strong>음식 주의:</strong> {ai.foodCautions}</p>}
+                    </div>
+                  );
+                } catch {
+                  return null;
+                }
+              })()}
+
               <div className="detail-field">
                 <label>효능 · 효과</label>
-                <p>{selectedMedDetail.efficacy}</p>
+                <p>{selectedMedDetail.efficacy || medDetailExtra?.medication?.efficacy || selectedMedDetail.className || '전문의 처방 의약품'}</p>
               </div>
               <div className="detail-field">
                 <label>용법 · 용량</label>
-                <p>{selectedMedDetail.dosage}</p>
+                <p>{selectedMedDetail.dosage || medDetailExtra?.medication?.usageDosage || '처방전 용법·용량 준수'}</p>
               </div>
               <div className="detail-field">
                 <label>복용 시 주의사항</label>
-                <p className="caution-text">{selectedMedDetail.caution}</p>
+                <p className="caution-text">{selectedMedDetail.caution || '정해진 용법과 용량을 준수하여 충분한 물과 함께 복용하세요.'}</p>
               </div>
             </div>
 

@@ -25,4 +25,7 @@ public class MedicationGuideDao {
         if (names.isEmpty()) return List.of();
         return session.selectList("com.app.guide.dao.MedicationGuideDao.findDur", Map.of("names", names));
     }
+    public int updateAiSummary(String medicationId, String aiSummaryJson) {
+        return session.update("com.app.guide.dao.MedicationGuideDao.updateAiSummary", Map.of("medicationId", medicationId, "aiSummaryJson", aiSummaryJson));
+    }
 }

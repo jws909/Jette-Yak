@@ -8,11 +8,13 @@
         <result column="entp_name" property="entpName" />
         <result column="material_name" property="materialName" javaType="java.lang.String" />
         <result column="etc_otc_code" property="etcOtcCode" />
+        <result column="class_name" property="className" />
         <result column="efficacy" property="efficacy" javaType="java.lang.String" />
         <result column="usage_dosage" property="usageDosage" javaType="java.lang.String" />
+        <result column="ai_summary_json" property="aiSummaryJson" javaType="java.lang.String" />
     </resultMap>
     <select id="find" parameterType="map" resultMap="guide" timeout="10">
-        SELECT medication_id, item_name, item_image_url, entp_name, material_name, etc_otc_code, efficacy, usage_dosage
+        SELECT medication_id, item_name, item_image_url, entp_name, material_name, etc_otc_code, class_name, efficacy, usage_dosage, ai_summary_json
         FROM medications WHERE medication_id = #{id}
     </select>
     <resultMap id="dur" type="com.app.guide.dto.DurInfoDto" autoMapping="false">
@@ -120,5 +122,11 @@
         WHEN MATCHED THEN UPDATE SET s.use_status=#{status},s.updated_at=SYSDATE
         WHEN NOT MATCHED THEN INSERT (user_id,registration_id,use_status,updated_at)
             VALUES (v.user_id,v.registration_id,#{status},SYSDATE)
+    </update>
+    <update id="updateAiSummary" parameterType="map">
+        UPDATE medications
+        SET ai_summary_json = #{aiSummaryJson, jdbcType=CLOB},
+            updated_at = SYSDATE
+        WHERE medication_id = #{medicationId}
     </update>
 </mapper>

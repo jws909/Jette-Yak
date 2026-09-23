@@ -384,3 +384,48 @@
 @media (max-width: 760px) { .my-med-row { grid-template-columns: 1fr; gap: 16px; } .my-med-row > .my-med-action { justify-self: start; } }
 
 .my-med-filters {display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.my-med-filters button[aria-pressed="true"]{background:#7d2638;color:white}.my-med-registrations select{max-width:100%;border:1px solid #ded5c8;border-radius:6px;padding:6px;background:white;color:#443b36}.medication-thumbnail{display:block;width:120px;height:85px;object-fit:contain;margin:12px 0;border-radius:8px;background:#faf8f4}.medication-image-empty{display:block;color:#82766b;font-size:12px;margin:10px 0}.interaction-summary{background:#fffaf5;border:1px solid #dfd3c4;border-radius:12px;padding:20px;margin:20px 0;overflow-wrap:anywhere}.interaction-summary details{margin:12px 0;padding:12px;border:1px solid #e6ddd3;border-radius:8px}.interaction-summary summary{cursor:pointer;font-weight:600}.interaction-summary p{line-height:1.7}.interaction-summary .my-med-action{display:inline-block;text-decoration:none}.my-med-row-description>.my-med-action{display:inline-block;margin-bottom:14px;text-decoration:none}.guide-med-intro>.my-med-action{display:block;margin:12px 0;text-decoration:none}
+
+/* AI 요약 카드 스타일 */
+.guide-ai-card {
+  background: #fdfaf6;
+  border: 1px solid #eadfc9;
+  border-left: 4px solid #d48b38;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.guide-ai-card .ai-tag {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #b36314;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+.guide-ai-card .ai-summary-text {
+  font-size: 13.5px;
+  color: #2b2523;
+  line-height: 1.55;
+  margin: 0;
+  word-break: keep-all;
+}
+.guide-ai-summary-compact {
+  background: #fff8f0;
+  border: 1px solid #f2dec5;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 6px 0 14px 0;
+  font-size: 13px;
+  color: #4a3828;
+  line-height: 1.5;
+}
+.guide-ai-precautions strong {
+  display: block;
+  font-size: 13px;
+  color: #5c4e42;
+  margin: 10px 0 4px 0;
+}
+.guide-ai-precautions strong:first-child {
+  margin-top: 0;
+}
+
