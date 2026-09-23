@@ -47,6 +47,8 @@ function MedicationConversation() {
   const [otherSelection, setOther] = useState(undefined)
   const other = otherSelection === undefined ? (linkedCompare.data?.medication ? {...linkedCompare.data.medication,itemSeq:linkedCompare.data.medication.medicationId} : null) : otherSelection
   const ownProducts = groupMedications(mine.data?.items || []).filter(item=>item.medicationId)
+  const community = useRemote(selected?.itemSeq ? '/api/community/posts?medicationId='+encodeURIComponent(selected.itemSeq)+'&sort=LATEST&page=1' : null)
+  const communityQuery = selected ? new URLSearchParams({medicationId:String(selected.itemSeq),medicationName:selected.itemName||''}).toString() : ''
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
   const [loading, setLoading] = useState(false)
@@ -182,6 +184,7 @@ function MedicationConversation() {
             <button type="button" className="clear-selection" disabled={loading} onClick={() => setSelected(null)}>선택 해제</button></>
             : <p>선택한 약이 없어요.<br />검색하거나 질문에 약 이름을 적어주세요.</p>}
         </div>
+        {selected&&<section className="related-community"><div><span>이 약의 커뮤니티</span><Link to={'/community?'+communityQuery}>전체 보기 →</Link></div>{community.loading&&<p>관련 글을 찾고 있어요…</p>}{community.error&&<p>관련 글을 불러오지 못했습니다.</p>}{community.data?.items?.slice(0,3).map(post=><Link className="related-community-post" key={post.postId} to={'/community?'+communityQuery+'&postId='+post.postId}><strong>{post.title}</strong><small>{post.authorName} · 댓글 {post.commentCount||0}</small></Link>)}{community.data&&community.data.total===0&&<p>아직 이 약에 연결된 글이 없어요.</p>}</section>}
         <details className="chat-personal-panel"><summary>내 약에서 선택</summary>
           {mine.loading && <p role="status">등록 약을 불러오는 중…</p>}
           {mine.error && (mine.status===401 ? <Link to="/login?next=/chat">로그인하고 내 약 불러오기 →</Link> : <p role="alert">{mine.error}<button onClick={mine.retry}>다시 시도</button></p>)}

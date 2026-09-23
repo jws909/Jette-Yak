@@ -1,9 +1,13 @@
 package com.app.community.service;
 
+import java.io.IOException;
+import java.nio.file.*;
 import java.util.*;
+import javax.imageio.ImageIO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import com.app.community.dao.CommunityDao;
 import com.app.community.dto.*;
 
@@ -11,6 +15,9 @@ import com.app.community.dto.*;
 public class CommunityService {
     private static final Set<String> CATEGORIES = Set.of("EXPERIENCE","QUESTION","SIDE_EFFECT","INFO_REPORT");
     private static final Set<String> REPORT_REASONS = Set.of("MISINFORMATION","DANGEROUS_ADVICE","DRUG_SALE","ADVERTISEMENT","ABUSE","PRIVACY","OTHER");
+    private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg","image/png","image/gif","image/webp");
+    private static final Set<String> BLOCKED_FILE_EXTENSIONS = Set.of("exe","com","bat","cmd","msi","scr","js","jar","ps1","vbs","sh","dll");
+    private static final int MAX_ATTACHMENTS_PER_TYPE = 5;
     private final CommunityDao dao;
     @Autowired public CommunityService(CommunityDao dao) { this.dao=dao; }
 
@@ -23,7 +30,7 @@ public class CommunityService {
     }
     public Map<String,Object> post(long id,Long viewerId) {
         Map<String,Object> post=dao.post(id,viewerId);if(post==null) throw new NoSuchElementException("게시글을 찾을 수 없습니다.");
-        Map<String,Object> result=new LinkedHashMap<>(post);result.put("comments",dao.comments(id));return result;
+        Map<String,Object> result=new LinkedHashMap<>(post);result.put("comments",dao.comments(id));result.put("attachments",dao.attachments(id));return result;
     }
     @Transactional public Map<String,Object> create(long userId,CommunityPostRequest r) {
         Map<String,Object> p=values(r);p.put("userId",userId);long id=dao.insertPost(p);return post(id,userId);
@@ -53,6 +60,68 @@ public class CommunityService {
     @Transactional public void reviewInfoPost(long id,String status,long adminId){if(!Set.of("APPROVED","REJECTED").contains(status)||dao.reviewInfoPost(Map.of("postId",id,"status",status,"adminId",adminId))==0)throw new IllegalArgumentException("검토할 정보 제보를 확인해주세요.");}
     @Transactional public void resolveReport(long id,CommunityModerationRequest r,long adminId){if(r==null||!Set.of("RESOLVED","DISMISSED").contains(r.getStatus())||dao.resolveReport(Map.of("reportId",id,"status",r.getStatus(),"note",clean(r.getResolutionNote(),500),"adminId",adminId))==0)throw new IllegalArgumentException("신고 처리 내용을 확인해주세요.");}
     public List<Map<String,Object>> medications(String q){String keyword=clean(q,80);return keyword.length()<1?List.of():dao.medications(keyword);}
+
+    @Transactional
+    public List<Map<String,Object>> addAttachments(long postId,long userId,String type,List<MultipartFile> files) {
+        String normalized=clean(type,10).toUpperCase(Locale.ROOT);
+        if(!Set.of("IMAGE","FILE").contains(normalized)) throw new IllegalArgumentException("첨부파일 종류를 확인해주세요.");
+        if(dao.ownsPost(postId,userId)==0) throw new SecurityException("첨부파일을 등록할 수 없는 게시글입니다.");
+        List<MultipartFile> usable=files==null?List.of():files.stream().filter(f->f!=null&&!f.isEmpty()).toList();
+        if(usable.isEmpty()) throw new IllegalArgumentException("첨부할 파일을 선택해주세요.");
+        if(dao.attachmentCount(postId,normalized)+usable.size()>MAX_ATTACHMENTS_PER_TYPE) throw new IllegalArgumentException((normalized.equals("IMAGE")?"이미지":"일반 파일")+"는 게시글당 5개까지 등록할 수 있습니다.");
+        Path directory=attachmentDirectory();
+        try { Files.createDirectories(directory); } catch(IOException e) { throw new IllegalStateException("첨부파일 저장 폴더를 만들 수 없습니다.",e); }
+        for(MultipartFile file:usable) saveAttachment(postId,userId,normalized,file,directory);
+        return dao.attachments(postId);
+    }
+
+    public CommunityAttachmentFile downloadAttachment(long id) {
+        Map<String,Object> item=dao.attachment(id);
+        if(item==null) throw new NoSuchElementException("첨부파일을 찾을 수 없습니다.");
+        Path path=attachmentDirectory().resolve(String.valueOf(item.get("storedName"))).normalize();
+        if(!path.startsWith(attachmentDirectory())||!Files.isRegularFile(path)) throw new NoSuchElementException("첨부파일을 찾을 수 없습니다.");
+        try { return new CommunityAttachmentFile(Files.readAllBytes(path),String.valueOf(item.get("originalName")),String.valueOf(item.get("contentType")),"IMAGE".equals(item.get("attachmentType"))); }
+        catch(IOException e) { throw new IllegalStateException("첨부파일을 읽을 수 없습니다.",e); }
+    }
+
+    @Transactional public void deleteAttachment(long id,long userId,boolean admin) {
+        Map<String,Object> item=dao.attachment(id);
+        if(item==null) throw new NoSuchElementException("첨부파일을 찾을 수 없습니다.");
+        if(dao.deleteAttachment(id,userId,admin)==0) throw new SecurityException("삭제할 수 없는 첨부파일입니다.");
+        try { Files.deleteIfExists(attachmentDirectory().resolve(String.valueOf(item.get("storedName"))).normalize()); }
+        catch(IOException ignored) { }
+    }
+
+    private void saveAttachment(long postId,long userId,String type,MultipartFile file,Path directory) {
+        long max=type.equals("IMAGE")?5L*1024*1024:10L*1024*1024;
+        if(file.getSize()>max) throw new IllegalArgumentException(type.equals("IMAGE")?"이미지는 파일당 5MB까지 등록할 수 있습니다.":"일반 파일은 파일당 10MB까지 등록할 수 있습니다.");
+        String original=safeOriginalName(file.getOriginalFilename());
+        String contentType=file.getContentType()==null?"application/octet-stream":file.getContentType().toLowerCase(Locale.ROOT);
+        String extension=extension(original);
+        if(type.equals("IMAGE")) {
+            if(!IMAGE_TYPES.contains(contentType)||!Set.of("jpg","jpeg","png","gif","webp").contains(extension)) throw new IllegalArgumentException("JPG, PNG, GIF, WEBP 이미지만 등록할 수 있습니다.");
+            if(!extension.equals("webp")) try { if(ImageIO.read(file.getInputStream())==null) throw new IllegalArgumentException("올바른 이미지 파일이 아닙니다."); } catch(IOException e) { throw new IllegalArgumentException("이미지 파일을 확인해주세요."); }
+        } else if(BLOCKED_FILE_EXTENSIONS.contains(extension)) throw new IllegalArgumentException("실행 가능한 파일은 첨부할 수 없습니다.");
+        String stored=UUID.randomUUID()+ (extension.isEmpty()?"":"."+extension);
+        Path target=directory.resolve(stored).normalize();
+        try {
+            Files.copy(file.getInputStream(),target,StandardCopyOption.REPLACE_EXISTING);
+            Map<String,Object> p=new HashMap<>();p.put("postId",postId);p.put("userId",userId);p.put("type",type);p.put("originalName",original);p.put("storedName",stored);p.put("contentType",contentType);p.put("fileSize",file.getSize());dao.insertAttachment(p);
+        } catch(RuntimeException|IOException e) {
+            try { Files.deleteIfExists(target); } catch(IOException ignored) { }
+            if(e instanceof RuntimeException runtime) throw runtime;
+            throw new IllegalStateException("첨부파일을 저장하지 못했습니다.",e);
+        }
+    }
+
+    private static String safeOriginalName(String name) {
+        String cleaned=name==null?"첨부파일":name.replaceAll("[\\p{Cntrl}]","").trim();
+        String value=cleaned.isEmpty()?"첨부파일":Path.of(cleaned).getFileName().toString();
+        if(value.isEmpty()) value="첨부파일";
+        return value.length()>255?value.substring(value.length()-255):value;
+    }
+    private static String extension(String name){int dot=name.lastIndexOf('.');return dot<0?"":name.substring(dot+1).toLowerCase(Locale.ROOT);}
+    private static Path attachmentDirectory(){return Path.of(System.getProperty("user.home"),".jette_yak","uploads","community").toAbsolutePath().normalize();}
 
     private Map<String,Object> values(CommunityPostRequest r){if(r==null)throw new IllegalArgumentException("게시글 내용을 입력해주세요.");String category=clean(r.getCategory(),20);if(!CATEGORIES.contains(category))throw new IllegalArgumentException("게시글 유형을 선택해주세요.");Map<String,Object> p=new HashMap<>();p.put("medicationId",nullable(clean(r.getMedicationId(),30)));p.put("medicationName",nullable(clean(r.getMedicationName(),150)));p.put("category",category);p.put("title",required(r.getTitle(),150,"제목을 입력해주세요."));p.put("content",required(r.getContent(),4000,"내용을 입력해주세요."));p.put("experienceDuration",nullable(clean(r.getExperienceDuration(),50)));p.put("ageGroup",nullable(clean(r.getAgeGroup(),30)));p.put("purpose",nullable(clean(r.getPurpose(),100)));p.put("occurrenceTiming",nullable(clean(r.getOccurrenceTiming(),80)));p.put("currentlyTaking",Boolean.TRUE.equals(r.getCurrentlyTaking())?1:0);return p;}
     private static String required(String v,int max,String message){String s=clean(v,max);if(s.isEmpty())throw new IllegalArgumentException(message);return s;}

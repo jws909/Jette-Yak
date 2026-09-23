@@ -5,6 +5,8 @@ import javax.servlet.http.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import java.nio.charset.StandardCharsets;
 import com.app.community.dto.*;
 import com.app.community.service.CommunityService;
 
@@ -24,6 +26,9 @@ public class CommunityController {
     @DeleteMapping("/comments/{id}") public ResponseEntity<Void> deleteComment(@PathVariable long id,HttpServletRequest req){service.deleteComment(id,userId(req,true));return ResponseEntity.noContent().build();}
     @PostMapping("/reports") public ResponseEntity<?> report(@RequestBody CommunityReportRequest body,HttpServletRequest req){service.report(userId(req,true),body);return ResponseEntity.status(201).body(Map.of("message","신고가 접수되었습니다."));}
     @GetMapping("/medications") public List<Map<String,Object>> medications(@RequestParam("q")String q){return service.medications(q);}
+    @PostMapping(value="/posts/{id}/attachments",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) public ResponseEntity<?> attachments(@PathVariable long id,@RequestParam("type")String type,@RequestParam("files")List<MultipartFile> files,HttpServletRequest req){return ResponseEntity.status(201).body(service.addAttachments(id,userId(req,true),type,files));}
+    @GetMapping("/attachments/{id}") public ResponseEntity<byte[]> attachment(@PathVariable long id){CommunityAttachmentFile file=service.downloadAttachment(id);MediaType media;try{media=MediaType.parseMediaType(file.contentType());}catch(Exception e){media=MediaType.APPLICATION_OCTET_STREAM;}ContentDisposition disposition=(file.image()?ContentDisposition.inline():ContentDisposition.attachment()).filename(file.originalName(),StandardCharsets.UTF_8).build();return ResponseEntity.ok().contentType(media).header(HttpHeaders.CONTENT_DISPOSITION,disposition.toString()).header("X-Content-Type-Options","nosniff").body(file.bytes());}
+    @DeleteMapping("/attachments/{id}") public ResponseEntity<Void> deleteAttachment(@PathVariable long id,HttpServletRequest req){long user=userId(req,true);HttpSession s=req.getSession(false);service.deleteAttachment(id,user,"ADMIN".equals(String.valueOf(s==null?null:s.getAttribute("role"))));return ResponseEntity.noContent().build();}
 
     @GetMapping("/admin/reports") public List<Map<String,Object>> reports(HttpServletRequest req){admin(req);return service.reports();}
     @GetMapping("/admin/info-reports") public List<Map<String,Object>> infoReports(HttpServletRequest req){admin(req);return service.pendingInfoReports();}
@@ -34,6 +39,7 @@ public class CommunityController {
     @ExceptionHandler(IllegalArgumentException.class) public ResponseEntity<?> bad(IllegalArgumentException e){return ResponseEntity.badRequest().body(Map.of("message",e.getMessage()));}
     @ExceptionHandler(NoSuchElementException.class) public ResponseEntity<?> missing(NoSuchElementException e){return ResponseEntity.status(404).body(Map.of("message",e.getMessage()));}
     @ExceptionHandler(SecurityException.class) public ResponseEntity<?> forbidden(SecurityException e){return ResponseEntity.status(403).body(Map.of("message",e.getMessage()));}
+    @ExceptionHandler(IllegalStateException.class) public ResponseEntity<?> serverError(IllegalStateException e){return ResponseEntity.status(500).body(Map.of("message",e.getMessage()));}
 
     private static Long userId(HttpServletRequest req,boolean required){HttpSession s=req.getSession(false);Object v=s==null?null:s.getAttribute("userId");Long id=v instanceof Number?((Number)v).longValue():null;if(required&&id==null)throw new SecurityException("로그인이 필요한 기능입니다.");return id;}
     private static long admin(HttpServletRequest req){HttpSession s=req.getSession(false);Object role=s==null?null:s.getAttribute("role");if(!"ADMIN".equals(String.valueOf(role)))throw new SecurityException("관리자만 사용할 수 있습니다.");return userId(req,true);}
