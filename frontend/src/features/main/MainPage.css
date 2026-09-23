@@ -1098,8 +1098,14 @@
 }
 
 .routine-slot-tab.is-all-done:not(.active) .slot-tab-badge {
-  background: #d4edda;
-  color: #155724;
+  background: #7d2638;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.routine-slot-tab.active.is-all-done .slot-tab-badge {
+  background: #ffffff;
+  color: #8b3e4b;
   font-weight: 800;
 }
 
@@ -1330,9 +1336,9 @@
 }
 
 .slot-section-counter.done {
-  color: #1e7039;
+  color: #7d2638;
   font-weight: 800;
-  background: #dff0d8;
+  background: #ebd8d6;
   padding: 2px 8px;
   border-radius: 4px;
 }

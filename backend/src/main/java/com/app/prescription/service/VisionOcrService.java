@@ -535,7 +535,9 @@ public class VisionOcrService {
             int dFreq = parseInt(tm.group(2), 1);
             int tDays = parseInt(tm.group(3), 14);
             for (ParsedItem it : items) {
-                if (it.getDailyFrequency() == 1 && dFreq > 1) {
+                String itUsage = it.getUsageTiming() != null ? it.getUsageTiming() : "";
+                boolean isExplicitOnce = itUsage.contains("1일 1회") || itUsage.contains("1일1회") || itUsage.contains("하루 1회") || itUsage.contains("하루1회") || (itUsage.contains("1회") && !itUsage.contains("2회") && !itUsage.contains("3회"));
+                if (it.getDailyFrequency() == 1 && dFreq > 1 && !isExplicitOnce) {
                     it.setDailyFrequency(dFreq);
                 }
                 if (it.getTotalDays() == 14 && tDays != 14 && tDays > 0) {
@@ -612,10 +614,16 @@ public class VisionOcrService {
         }
 
         // 2. 1일 투약횟수 (dailyFrequency) 정밀 보정
+        String usage = item.getUsageTiming() != null ? item.getUsageTiming() : "";
+        if (usage.contains("1일 1회") || usage.contains("1일1회") || usage.contains("하루 1회") || usage.contains("하루1회")
+                || (usage.contains("1회") && !usage.contains("2회") && !usage.contains("3회") && !usage.contains("4회"))) {
+            item.setDailyFrequency(1);
+            return;
+        }
+
         int freq = item.getDailyFrequency() != null ? item.getDailyFrequency() : 1;
         if (freq <= 1) {
             // (a) 용법 문구에서 확인: 3회, 아침/점심/저녁, 매 식후
-            String usage = item.getUsageTiming() != null ? item.getUsageTiming() : "";
             if (usage.contains("3회") || (usage.contains("아침") && usage.contains("점심") && usage.contains("저녁")) || usage.contains("매 식후") || usage.contains("매식후")) {
                 freq = 3;
             } else if (usage.contains("2회") || (usage.contains("아침") && usage.contains("저녁"))) {
@@ -625,20 +633,8 @@ public class VisionOcrService {
             // (b) OCR 원문에서 해당 약품명이나 EDI 코드 다음 줄들의 숫자 패턴 탐색 ([1회투약량] \n [1일투여횟수] \n [총투약일수])
             if (freq <= 1) {
                 int detectedFreq = findFrequencyAfterMedicineInText(item.getMedicineName(), item.getEdiCode(), text);
-                if (detectedFreq > 1) {
+                if (detectedFreq >= 1) {
                     freq = detectedFreq;
-                }
-            }
-
-            // (c) OCR 원문 전체에서 한국 처방전의 '1일 3회' 표 패턴 검출 (예: 약품 아래 '1 \n 3 \n 2' 같은 형태)
-            if (freq <= 1) {
-                Pattern p = Pattern.compile("(?:1회|투약량|투여횟수)?[\\s\\S]*?([0-9.]+)[\\s\\r\\n]+([1-6])[\\s\\r\\n]+([0-9]{1,3})");
-                Matcher m = p.matcher(text);
-                if (m.find()) {
-                    int candFreq = parseInt(m.group(2), 1);
-                    if (candFreq > 1) {
-                        freq = candFreq;
-                    }
                 }
             }
             item.setDailyFrequency(freq);
@@ -675,6 +671,8 @@ public class VisionOcrService {
     private int findFrequencyAfterMedicineInText(String medName, String ediCode, String text) {
         if (text == null) return 0;
         String[] lines = text.split("\\r?\\n");
+        Pattern sameLinePattern = Pattern.compile("([0-9.]+)\\s+([1-6])\\s+([0-9]+)");
+
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
             boolean match = false;
@@ -684,12 +682,24 @@ public class VisionOcrService {
                 match = true;
             }
             if (match) {
-                // 이 줄 다음 행들에서 연속 숫자 2~3개 탐색
+                // (1) 약품명 라인 자체에 숫자 3개가 나란히 적힌 경우 탐색 (예: "네오페노정 ... 1.0000 1 180")
+                Matcher slm = sameLinePattern.matcher(line);
+                if (slm.find()) {
+                    int cand = parseInt(slm.group(2), 0);
+                    if (cand >= 1 && cand <= 6) return cand;
+                }
+
+                // (2) 다음 행들에서 단일 라인 패턴("1.0000 1 180") 또는 줄단위 연속 숫자 탐색
                 List<Integer> nums = new ArrayList<>();
                 for (int j = i + 1; j < Math.min(lines.length, i + 6); j++) {
                     String nl = lines[j].trim();
-                    if (nl.matches("^[0-9]+$")) {
-                        nums.add(Integer.parseInt(nl));
+                    Matcher nlm = sameLinePattern.matcher(nl);
+                    if (nlm.find()) {
+                        int cand = parseInt(nlm.group(2), 0);
+                        if (cand >= 1 && cand <= 6) return cand;
+                    }
+                    if (nl.matches("^[0-9]+$") || nl.matches("^[0-9.]+$")) {
+                        nums.add((int) parseDouble(nl, 0));
                     } else if (!nl.equals("-") && !nl.isBlank()) {
                         break;
                     }

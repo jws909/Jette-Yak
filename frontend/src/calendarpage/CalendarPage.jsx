@@ -36,6 +36,7 @@ const CalendarPage = (props) => {
   const [schedules, setSchedules] = useState([]);
   const [monthSummary, setMonthSummary] = useState({});
   const [loading, setLoading] = useState(false);
+  const [selectedSlotTab, setSelectedSlotTab] = useState('all'); // 'all' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime'
 
   // 알람 설정 모달 (시간 변경 전용)
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
@@ -124,10 +125,12 @@ const CalendarPage = (props) => {
           const idKey = `id_${item.scheduleId}`;
 
           const isSup = overrides[overrideKey] === 'supplement' || overrides[idKey] === 'supplement' || item.type === 'supplement';
+
           return {
             ...item,
             time: formattedT,
             type: isSup ? 'supplement' : (item.type || 'regular'),
+            takenAt: item.takenAt || null, // 100% DB 단일 진실 공급원 기준
           };
         });
 
@@ -150,6 +153,24 @@ const CalendarPage = (props) => {
   useEffect(() => {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
+
+  // 메인 홈 등 외부에서 복약 체크 상태 변경 시 캘린더 실시간 동기화
+  useEffect(() => {
+    const handleIntakeSync = (e) => {
+      const eventUserId = e?.detail?.userId;
+      const eventDate = e?.detail?.date;
+      if (String(eventUserId) === String(currentUserId)) {
+        if (!eventDate || eventDate === selectedDate) {
+          fetchDailySchedules(selectedDate);
+        }
+        fetchMonthSummary();
+      }
+    };
+    window.addEventListener('jette-intake-updated', handleIntakeSync);
+    return () => {
+      window.removeEventListener('jette-intake-updated', handleIntakeSync);
+    };
+  }, [currentUserId, selectedDate, fetchDailySchedules, fetchMonthSummary]);
 
   // 약품 자동완성 검색
   useEffect(() => {
@@ -200,30 +221,37 @@ const CalendarPage = (props) => {
       return;
     }
     const isTaken = !item.takenAt;
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const nowIso = isTaken ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : null;
+
+    // 1. UI 즉시 낙관적 업데이트
+    setSchedules((prev) =>
+      prev.map((s) =>
+        s.scheduleId === item.scheduleId
+          ? { ...s, takenAt: nowIso }
+          : s
+      )
+    );
+
+    // 2. 서버 DB 토글 반영
     try {
-      const response = await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
+      await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taken: isTaken }),
+        body: JSON.stringify({ taken: isTaken, date: selectedDate }),
       });
-
-      if (response.ok) {
-        setSchedules((prev) =>
-          prev.map((s) =>
-            s.scheduleId === item.scheduleId
-              ? { ...s, takenAt: isTaken ? new Date().toISOString() : null }
-              : s
-          )
-        );
-
-        // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
-        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-          detail: { userId: currentUserId, date: selectedDate }
-        }));
-      }
+      // DB 최신 실체화 scheduleId 및 월간 요약 재조회
+      fetchDailySchedules(selectedDate);
+      fetchMonthSummary();
     } catch (err) {
-      console.error("체크박스 토글 실패:", err);
+      console.error("체크박스 서버 토글 통신 실패:", err);
     }
+
+    // 3. 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
+    window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+      detail: { userId: currentUserId, date: selectedDate }
+    }));
   };
 
   // 삭제 모달 열기
@@ -237,25 +265,35 @@ const CalendarPage = (props) => {
     setIsDeleteModalOpen(true);
   };
 
-  // 삭제 확정
-  const confirmDeleteSchedule = async () => {
+  // 삭제 확정 (deleteAll: true면 이 약의 전체 스케줄 및 원천 데이터 삭제, false면 당일 일정만 삭제)
+  const confirmDeleteSchedule = async (deleteAll = false) => {
     if (!itemToDelete) return;
     try {
-      const response = await fetch(`/api/calendar/${itemToDelete.scheduleId}/delete`, {
-        method: 'POST',
-      });
+      const response = await fetch(
+        `/api/calendar/${itemToDelete.scheduleId}/delete?deleteAll=${deleteAll}&userId=${currentUserId}&date=${encodeURIComponent(selectedDate)}`,
+        {
+          method: 'POST',
+        }
+      );
       if (response.ok) {
-        try {
-          const map = getTypeStorageMap();
-          delete map[`id_${itemToDelete.scheduleId}`];
-          delete map[`${selectedDate}_${itemToDelete.name}_${itemToDelete.time}_supplement`];
-          localStorage.setItem('cal_type_overrides', JSON.stringify(map));
-        } catch (e) {}
+        if (deleteAll) {
+          setSchedules((prev) =>
+            prev.filter((s) => {
+              if (itemToDelete.prescriptionId && s.prescriptionId === itemToDelete.prescriptionId) return false;
+              if (itemToDelete.cabinetId && s.cabinetId === itemToDelete.cabinetId) return false;
+              if (itemToDelete.routineId && s.routineId === itemToDelete.routineId) return false;
+              if (s.name === itemToDelete.name) return false;
+              return s.scheduleId !== itemToDelete.scheduleId;
+            })
+          );
+        } else {
+          setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
+        }
 
-        setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
-        fetchMonthSummary();
+        await fetchDailySchedules(selectedDate);
+        await fetchMonthSummary();
 
-        // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
+        // 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
         window.dispatchEvent(new CustomEvent('jette-intake-updated', {
           detail: { userId: currentUserId, date: selectedDate }
         }));
@@ -327,7 +365,7 @@ const CalendarPage = (props) => {
 
     try {
       const response = await fetch(
-        `/api/calendar/${activeItem.scheduleId}/alarm?newTime=${encodeURIComponent(newTime)}&alarmEnabled=true`,
+        `/api/calendar/${activeItem.scheduleId}/alarm?newTime=${encodeURIComponent(newTime)}&alarmEnabled=true&date=${encodeURIComponent(selectedDate)}`,
         {
           method: 'POST',
         }
@@ -445,7 +483,72 @@ const CalendarPage = (props) => {
     for (let i = 0; i < remainingCells; i++) days.push(null);
   }
 
-  const sortedList = [...schedules].sort((a, b) => Number(!!a.takenAt) - Number(!!b.takenAt));
+  function getSlotFromTime(t) {
+    if (!t || !t.includes(':')) return { slot: 'breakfast', slotLabel: '아침' };
+    const h = parseInt(t.split(':')[0], 10);
+    if (h < 11) return { slot: 'breakfast', slotLabel: '아침' };
+    if (h < 16) return { slot: 'lunch', slotLabel: '점심' };
+    if (h < 21) return { slot: 'dinner', slotLabel: '저녁' };
+    return { slot: 'bedtime', slotLabel: '취침전' };
+  }
+
+  const slotOrderMap = { breakfast: 1, lunch: 2, dinner: 3, bedtime: 4 };
+
+  const slotKeys = [
+    { key: 'breakfast', label: '아침' },
+    { key: 'lunch', label: '점심' },
+    { key: 'dinner', label: '저녁' },
+    { key: 'bedtime', label: '취침전' },
+  ];
+
+  const totalCount = schedules.length;
+  const takenCount = schedules.filter((s) => Boolean(s.takenAt)).length;
+
+  const slotTabs = [
+    {
+      key: 'all',
+      label: '전체',
+      timeHint: '',
+      taken: takenCount,
+      total: totalCount,
+      isAllDone: totalCount > 0 && takenCount === totalCount,
+    },
+    ...slotKeys
+      .map((sk) => {
+        const items = schedules.filter((s) => (s.slot || getSlotFromTime(s.time).slot) === sk.key);
+        const tCount = items.filter((s) => Boolean(s.takenAt)).length;
+        const firstTime = items[0]?.time || '';
+        return {
+          key: sk.key,
+          label: sk.label,
+          timeHint: firstTime,
+          taken: tCount,
+          total: items.length,
+          isAllDone: items.length > 0 && tCount === items.length,
+        };
+      })
+      .filter((tab) => tab.total > 0),
+  ];
+
+  const activeSlotKey =
+    selectedSlotTab === 'all' || slotTabs.some((t) => t.key === selectedSlotTab)
+      ? selectedSlotTab
+      : 'all';
+
+  const filteredList =
+    activeSlotKey === 'all'
+      ? schedules
+      : schedules.filter((s) => (s.slot || getSlotFromTime(s.time).slot) === activeSlotKey);
+
+  const sortedList = [...filteredList].sort((a, b) => {
+    const doneA = Number(Boolean(a.takenAt));
+    const doneB = Number(Boolean(b.takenAt));
+    if (doneA !== doneB) return doneA - doneB;
+    const sa = slotOrderMap[a.slot || getSlotFromTime(a.time).slot] || 99;
+    const sb = slotOrderMap[b.slot || getSlotFromTime(b.time).slot] || 99;
+    if (sa !== sb) return sa - sb;
+    return (a.time || '').localeCompare(b.time || '');
+  });
 
   const categoryMap = {
     prescription: { label: '처방약', className: 'cat-prescription' },
@@ -523,6 +626,31 @@ const CalendarPage = (props) => {
               <h3>{selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일</h3>
             </div>
 
+            {/* 메인 페이지와 동일한 아침 / 점심 / 저녁 시간대별 탭 (1줄 균등 세그먼트 UI) */}
+            {schedules.length > 0 && (
+              <div className="calendar-slot-tabs" role="tablist">
+                {slotTabs.map((tab) => {
+                  const tooltipText = tab.timeHint ? `${tab.label} (${tab.timeHint})` : tab.label;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeSlotKey === tab.key}
+                      title={tooltipText}
+                      className={`calendar-slot-tab ${activeSlotKey === tab.key ? 'active' : ''} ${tab.isAllDone ? 'is-all-done' : ''}`}
+                      onClick={() => setSelectedSlotTab(tab.key)}
+                    >
+                      <span className="cal-tab-label">{tab.label}</span>
+                      <span className="cal-tab-badge">
+                        {tab.isAllDone ? '✓' : `${tab.taken}/${tab.total}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="dose-list">
               {loading ? (
                 <div style={{ color: '#7a7066', padding: '20px 0' }}>일정을 불러오는 중입니다...</div>
@@ -532,6 +660,7 @@ const CalendarPage = (props) => {
                 sortedList.map((item) => {
                   const isTaken = !!item.takenAt;
                   const currentCat = categoryMap[item.type] || { label: '상시약', className: 'cat-regular' };
+                  const currentSlotLabel = item.slotLabel || getSlotFromTime(item.time).slotLabel;
 
                   return (
                     <div key={item.scheduleId} className={`dose-item ${isTaken ? 'done' : ''}`}>
@@ -545,6 +674,7 @@ const CalendarPage = (props) => {
                       <div className="dose-info">
                         <div className="time-row">
                           <span className={`type-dot ${item.type || 'regular'}`} />
+                          <span className="cal-slot-badge">{currentSlotLabel}</span>
                           <span className="time">{item.time}</span>
                         </div>
                         <div className="name-row">
@@ -853,7 +983,7 @@ const CalendarPage = (props) => {
         </div>
       )}
 
-      {/* 모달 3: 삭제 확인 */}
+      {/* 모달 3: 삭제 확인 (단건 vs 전체 스케줄 연계 삭제) */}
       {isDeleteModalOpen && (
         <div className="modal-overlay" onClick={() => setIsDeleteModalOpen(false)}>
           <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()}>
@@ -865,15 +995,43 @@ const CalendarPage = (props) => {
               </svg>
             </div>
             
-            <h4 className="delete-modal-title">복약 일정을 삭제하시겠습니까?</h4>
+            <h4 className="delete-modal-title">복약 일정 삭제</h4>
             {itemToDelete && (
-              <p className="delete-modal-target">[{itemToDelete.time}] <strong>{itemToDelete.name}</strong></p>
+              <div className="delete-modal-target-box">
+                <span className={`target-type-badge ${itemToDelete.type || 'regular'}`}>
+                  {itemToDelete.type === 'prescription' ? '처방약' : itemToDelete.type === 'supplement' ? '영양제' : '상비약'}
+                </span>
+                <span className="target-time-badge">{itemToDelete.time || '시간미정'}</span>
+                <strong className="target-med-name">{itemToDelete.name}</strong>
+              </div>
             )}
-            <p className="delete-modal-desc">삭제된 복약 기록은 되돌릴 수 없습니다.</p>
+            <p className="delete-modal-desc">
+              선택한 날짜의 일정만 삭제할 수도 있고,<br />이 약에 대한 전체 스케줄을 함께 삭제할 수 있습니다.
+            </p>
 
-            <div className="delete-modal-actions">
-              <button type="button" className="btn-modal-cancel" onClick={() => setIsDeleteModalOpen(false)}>취소</button>
-              <button type="button" className="btn-modal-delete" onClick={confirmDeleteSchedule}>삭제</button>
+            <div className="delete-modal-choice-group">
+              <button
+                type="button"
+                className="btn-delete-choice btn-choice-single"
+                onClick={() => confirmDeleteSchedule(false)}
+              >
+                <span className="choice-title">이 일정만 삭제</span>
+                <span className="choice-desc">{selectedDate} 일정만 삭제합니다</span>
+              </button>
+              <button
+                type="button"
+                className="btn-delete-choice btn-choice-all"
+                onClick={() => confirmDeleteSchedule(true)}
+              >
+                <span className="choice-title">이 약의 전체 스케줄 삭제</span>
+                <span className="choice-desc">모든 날짜의 스케줄과 약품 정보를 함께 삭제합니다</span>
+              </button>
+            </div>
+
+            <div className="delete-modal-footer">
+              <button type="button" className="btn-modal-cancel" onClick={() => setIsDeleteModalOpen(false)}>
+                취소
+              </button>
             </div>
           </div>
         </div>

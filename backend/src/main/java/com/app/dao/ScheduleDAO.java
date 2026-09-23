@@ -87,7 +87,51 @@ public class ScheduleDAO {
         return sqlSession.insert("schedule.insertSchedule", dto);
     }
 
+    public int insertPrescriptionSchedule(Map<String, Object> params) {
+        return sqlSession.insert("schedule.insertPrescriptionSchedule", params);
+    }
+
     public int deleteSchedule(Long scheduleId) {
         return sqlSession.delete("schedule.deleteSchedule", scheduleId);
+    }
+
+    public ScheduleDTO selectScheduleById(Long scheduleId) {
+        return sqlSession.selectOne("schedule.selectScheduleById", scheduleId);
+    }
+
+    public int deleteSchedulesByPrescriptionId(Long prescriptionId) {
+        return sqlSession.delete("schedule.deleteSchedulesByPrescriptionId", prescriptionId);
+    }
+
+    public int deleteSchedulesByCabinetId(Long userId, Long cabinetId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("cabinetId", cabinetId);
+        return sqlSession.delete("schedule.deleteSchedulesByCabinetId", params);
+    }
+
+    public int deleteCabinetMedication(Long userId, Long cabinetId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("cabinetId", cabinetId);
+        return sqlSession.delete("schedule.deleteCabinetMedication", params);
+    }
+
+    public int deleteSchedulesByRoutineId(Long userId, Long routineId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("routineId", routineId);
+        return sqlSession.delete("schedule.deleteSchedulesByRoutineId", params);
+    }
+
+    public int deleteRoutineMedication(Long userId, Long routineId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("routineId", routineId);
+        return sqlSession.delete("schedule.deleteRoutineMedication", params);
+    }
+
+    public int insertCancelledPrescriptionSchedule(Map<String, Object> params) {
+        return sqlSession.insert("schedule.insertCancelledPrescriptionSchedule", params);
     }
 }

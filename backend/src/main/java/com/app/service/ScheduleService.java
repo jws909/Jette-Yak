@@ -8,9 +8,12 @@ import java.util.Map;
 public interface ScheduleService {
     List<ScheduleDTO> getDailySchedules(Long userId, String date);
     boolean toggleTaken(Long scheduleId, boolean isTaken);
+    boolean toggleTaken(Long scheduleId, boolean isTaken, String date);
     boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled);
+    boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled, String date);
     boolean addSchedule(ScheduleAddDTO dto);
     boolean removeSchedule(Long scheduleId);
+    boolean removeSchedule(Long scheduleId, boolean deleteAll, Long userId, String date);
     
     List<Map<String, Object>> searchMedications(String keyword);
     List<Map<String, Object>> getMonthlySummary(Long userId, String yearMonth);
