@@ -311,6 +311,127 @@ public class GeminiService {
         );
     }
 
+    public String generateOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.Map<String, Object> comparisonResult) {
+
+        String instructions = """
+            너는 대한민국 전문 임상 약사 AI 도우미다.
+            환자가 현재 복용 중인 모든 의약품(처방약, 상비약, 영양제) 목록과 DUR 상호작용 분석 결과(병용금기, 중복성분 등)를 종합하여,
+            환자가 일상에서 안심하고 올바르게 실천할 수 있는 '개인 맞춤형 통합 복약 가이드'를 반드시 정해진 JSON 스키마에 맞춰 한국어로 작성한다.
+            - headline: 환자 복약 상태를 대표하는 핵심 1줄 요약 (예: "처방약 3종과 영양제 1종을 복용 중이며, 큰 충돌 없이 안전합니다.")
+            - overallSummary: 복용 중인 약들의 조합과 전반적인 복약 상태에 대한 2~3문장 설명
+            - scheduleTips: 시간대별 복약 권장 요령 (예: 아침/점심/저녁, 식전/식후 구분, 2시간 간격 권장 등) 문자열 배열
+            - durAlerts: DUR 상호작용 및 금기 주의사항 (병용금기나 성분 중복이 있는 경우 구체적 안내, 없으면 안전 안내 문구) 문자열 배열
+            - foodAndLifestyle: 피해야 할 음식(술, 카페인, 유제품, 자몽 등) 및 생활 습관 꿀팁 문자열 배열
+            - consultationAdvice: 이상 반응 발생 시 대처법 및 의료진/약사 상담 권장 안내 문구
+            """;
+
+        StringBuilder sb = new StringBuilder();
+        int count = activeMeds != null ? activeMeds.size() : 0;
+        sb.append("[현재 복용 중인 약품 목록 (총 ").append(count).append("종)]\n");
+        if (activeMeds != null) {
+            for (var med : activeMeds) {
+                String typeName = "PRESCRIPTION".equals(med.getSource()) ? "처방약"
+                                : "CABINET".equals(med.getSource()) ? "상비약" : "영양제/보조제";
+                sb.append("- ").append(med.getItemName())
+                  .append(" (").append(typeName).append(")")
+                  .append(med.getMaterialName() != null ? " [성분: " + med.getMaterialName() + "]" : "")
+                  .append(med.getNotes() != null ? " [복용법: " + med.getNotes() + "]" : "")
+                  .append(med.getTakeTime() != null ? " [복용시간: " + med.getTakeTime() + "]" : "")
+                  .append("\n");
+            }
+        }
+
+        sb.append("\n[DUR 성분 및 상호작용 분석 결과]\n");
+        if (comparisonResult != null) {
+            Object pairsObj = comparisonResult.get("pairs");
+            if (pairsObj instanceof java.util.List<?> pairs && !pairs.isEmpty()) {
+                sb.append("⚠️ 발견된 병용금기 조합: ").append(pairs.size()).append("건\n");
+            } else {
+                sb.append("✓ 등록된 의약품 간 심각한 DUR 병용금기는 발견되지 않았습니다.\n");
+            }
+
+            Object dupObj = comparisonResult.get("duplicates");
+            if (dupObj instanceof java.util.List<?> dups && !dups.isEmpty()) {
+                sb.append("ℹ️ 중복 성분 의심 조합: ").append(dups.size()).append("건\n");
+            }
+        }
+
+        java.util.Map<String, Object> schema = java.util.Map.of(
+            "type", "object",
+            "properties", java.util.Map.of(
+                "headline", java.util.Map.of("type", "string"),
+                "overallSummary", java.util.Map.of("type", "string"),
+                "scheduleTips", java.util.Map.of("type", "array", "items", java.util.Map.of("type", "string")),
+                "durAlerts", java.util.Map.of("type", "array", "items", java.util.Map.of("type", "string")),
+                "foodAndLifestyle", java.util.Map.of("type", "array", "items", java.util.Map.of("type", "string")),
+                "consultationAdvice", java.util.Map.of("type", "string")
+            ),
+            "required", java.util.List.of("headline", "overallSummary", "scheduleTips", "durAlerts", "foodAndLifestyle", "consultationAdvice")
+        );
+
+        if (isAvailable()) {
+            try {
+                return generate(instructions, sb.toString(), java.util.Map.of(
+                    "temperature", 0.2,
+                    "maxOutputTokens", 2048,
+                    "responseMimeType", "application/json",
+                    "responseJsonSchema", schema
+                ));
+            } catch (Exception ignored) {}
+        }
+
+        return createFallbackOverallGuide(activeMeds, comparisonResult);
+    }
+
+    public String createFallbackOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.Map<String, Object> comparisonResult) {
+
+        int totalCount = activeMeds != null ? activeMeds.size() : 0;
+        long rxCount = activeMeds != null ? activeMeds.stream().filter(m -> "PRESCRIPTION".equals(m.getSource())).count() : 0;
+        long suppCount = activeMeds != null ? activeMeds.stream().filter(m -> "ROUTINE".equals(m.getSource())).count() : 0;
+        long cabCount = totalCount - rxCount - suppCount;
+
+        String headline = String.format("현재 처방약 %d종, 상비약 %d종, 영양제 %d종을 복용 중입니다.", rxCount, cabCount, suppCount);
+        String summary = String.format("총 %d종의 약품을 복용하고 계시며, 처방전 기준 용법과 시간에 맞춰 규칙적으로 복용하는 것이 중요합니다.", totalCount);
+
+        boolean hasPairs = false;
+        if (comparisonResult != null && comparisonResult.get("pairs") instanceof java.util.List<?> list && !list.isEmpty()) {
+            hasPairs = true;
+        }
+
+        String durMsg = hasPairs
+            ? "⚠️ 복용 중인 약품 사이에 병용 시 주의가 필요한 조합이 확인되었습니다. 상세 DUR 정보를 확인하세요."
+            : "✓ 현재 등록된 복용 약품 간에는 심각한 병용금기 조합이 발견되지 않았습니다.";
+
+        return String.format("""
+            {
+              "headline": "%s",
+              "overallSummary": "%s",
+              "scheduleTips": [
+                "처방약은 의사의 지시에 따라 식후 30분 또는 지정된 시간에 복용하세요.",
+                "영양제는 위장 부담을 줄이기 위해 식사 직후 또는 점심 시간대에 충분한 물과 함께 섭취하세요.",
+                "서로 다른 약을 동시 복용 시 최소 1~2시간의 간격을 두는 것이 흡수율에 좋습니다."
+              ],
+              "durAlerts": [
+                "%s"
+              ],
+              "foodAndLifestyle": [
+                "복약 기간 중에는 알코올(술) 섭취를 반드시 피해주세요.",
+                "약 복용 전후 2시간 동안은 카페인(커피, 녹차) 음료를 자제하고 미온수를 충분히 드세요.",
+                "기름진 음식은 특정 약물의 흡수를 방해할 수 있으므로 담백한 식단을 권장합니다."
+              ],
+              "consultationAdvice": "복용 중 발진, 가려움, 어지러움, 소화불량 등 이상 증상이 지속되면 즉시 복용을 중단하고 의사 또는 약사와 상담하세요."
+            }
+            """,
+            escapeJson(headline),
+            escapeJson(summary),
+            escapeJson(durMsg)
+        );
+    }
+
     private static String escapeJson(String raw) {
         if (raw == null) return "";
         return raw.replace("\\", "\\\\")

@@ -5,6 +5,7 @@ import DurInformation from './DurInformation'
 import RegisteredMedications from './RegisteredMedications'
 import useRemote from './useRemote'
 import InteractionSummary from './InteractionSummary'
+import OverallAiGuideCard from './OverallAiGuideCard'
 import MedicationImage from './MedicationImage'
 import { groupMedications } from './medicationGroups'
 
@@ -130,6 +131,7 @@ export default function GuidePage() {
       {saveMessage && <p role="status">{saveMessage}</p>}
       {comparison.loading && <p role="status">복용 중인 약의 DUR을 비교하고 있어요…</p>}
       {comparison.error && <p role="alert">{comparison.error} <button className="my-med-action" onClick={comparison.retry}>비교 다시 시도</button></p>}
+      <OverallAiGuideCard revision={revision} />
       <InteractionSummary data={comparison.data}/>
     </>}
     <div className="my-med-tabs" role="tablist" aria-label="내 약 선택">{tabs.map((item, index) =>

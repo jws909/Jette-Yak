@@ -1,0 +1,238 @@
+/* ==========================================================================
+   OverallAiGuideCard Styles (AI 종합 복약 가이드)
+   ========================================================================== */
+
+.overall-ai-guide-card {
+  background: #ffffff;
+  border: 1.5px solid #e8dbd0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 18px rgba(139, 62, 75, 0.05);
+  margin-bottom: 20px;
+}
+
+.overall-guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.overall-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.overall-badge {
+  display: inline-flex;
+  align-items: center;
+  background: linear-gradient(135deg, #fef4e8 0%, #fae8d2 100%);
+  color: #b36314;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid #ebd3b6;
+  letter-spacing: -0.2px;
+}
+
+.overall-sub-meta {
+  font-size: 12.5px;
+  color: #7b6f64;
+  font-weight: 500;
+}
+
+.btn-refresh-guide {
+  background: #faf6f2;
+  border: 1px solid #dfd3c5;
+  color: #5c4e43;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-refresh-guide:hover:not(:disabled) {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+}
+
+.btn-refresh-guide:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 헤드라인 배너 */
+.overall-headline-banner {
+  background: linear-gradient(135deg, #fdf8f4 0%, #fbf3ed 100%);
+  border-left: 4px solid #8b3e4b;
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.headline-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2b2523;
+  line-height: 1.45;
+}
+
+.summary-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #5f544c;
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
+/* 3분할 어드바이스 그리드 */
+.overall-advice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .overall-advice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.advice-column {
+  background: #faf7f4;
+  border: 1px solid #eee4db;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.advice-col-title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #2b2523;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px dashed #ded4ca;
+}
+
+.advice-col-icon {
+  font-size: 14px;
+}
+
+.advice-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.advice-item {
+  font-size: 12.5px;
+  color: #4b4139;
+  line-height: 1.5;
+  word-break: keep-all;
+}
+
+.advice-item.alert-item {
+  color: #b54747;
+  font-weight: 600;
+}
+
+/* 하단 상담 권고 푸터 */
+.overall-consultation-footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fbf9f6;
+  border: 1px dashed #e3d8cc;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.consultation-icon {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.consultation-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: #6b6056;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+
+/* 로딩 및 에러 상태 */
+.overall-guide-loading-box {
+  background: #fefaf6;
+  border: 1px dashed #dfcbb7;
+  border-radius: 10px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.pulse-sparkle {
+  font-size: 20px;
+  animation: sparklePulse 1.4s infinite ease-in-out;
+}
+
+@keyframes sparklePulse {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.25); opacity: 1; }
+}
+
+.overall-guide-loading-box p {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #b36314;
+}
+
+.overall-guide-error-box {
+  background: #fff8f8;
+  border: 1px solid #f0d0d4;
+  border-radius: 8px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.overall-guide-error-box p {
+  margin: 0;
+  font-size: 13px;
+  color: #b54747;
+}
+
+.btn-retry-guide {
+  background: #ffffff;
+  border: 1px solid #d99fa7;
+  color: #b54747;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}

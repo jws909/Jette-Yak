@@ -129,4 +129,22 @@
             updated_at = SYSDATE
         WHERE medication_id = #{medicationId}
     </update>
+    <select id="findOverallGuide" parameterType="long" resultType="com.app.guide.dto.OverallGuideDto" timeout="10">
+        SELECT user_id AS userId,
+               ai_guide AS aiGuide,
+               TO_CHAR(med_updated_at, 'YYYY-MM-DD HH24:MI:SS') AS medUpdatedAt
+        FROM medication_overall_guide
+        WHERE user_id = #{userId}
+    </select>
+    <update id="saveOverallGuide" parameterType="map">
+        MERGE INTO medication_overall_guide g
+        USING (SELECT #{userId} AS user_id FROM dual) d
+        ON (g.user_id = d.user_id)
+        WHEN MATCHED THEN
+            UPDATE SET g.ai_guide = #{aiGuide, jdbcType=CLOB},
+                       g.med_updated_at = SYSDATE
+        WHEN NOT MATCHED THEN
+            INSERT (user_id, ai_guide, med_updated_at)
+            VALUES (#{userId}, #{aiGuide, jdbcType=CLOB}, SYSDATE)
+    </update>
 </mapper>

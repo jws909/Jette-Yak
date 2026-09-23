@@ -28,4 +28,10 @@ public class MedicationGuideDao {
     public int updateAiSummary(String medicationId, String aiSummaryJson) {
         return session.update("com.app.guide.dao.MedicationGuideDao.updateAiSummary", Map.of("medicationId", medicationId, "aiSummaryJson", aiSummaryJson));
     }
+    public com.app.guide.dto.OverallGuideDto findOverallGuide(long userId) {
+        return session.selectOne("com.app.guide.dao.MedicationGuideDao.findOverallGuide", userId);
+    }
+    public int saveOverallGuide(long userId, String aiGuide) {
+        return session.update("com.app.guide.dao.MedicationGuideDao.saveOverallGuide", Map.of("userId", userId, "aiGuide", aiGuide));
+    }
 }
