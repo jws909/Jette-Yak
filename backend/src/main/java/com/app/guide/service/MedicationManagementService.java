@@ -75,11 +75,16 @@ public class MedicationManagementService {
                     for (var rx : rxList) {
                         populatePrescriptionAiGuide(rx);
                         if (isActivePrescription(rx, now)) {
-                            activeRxList.add(rx);
+                            // 현재 복용 중인 active 약품 목록에 포함된 처방전만 연동
+                            boolean hasActiveMedInRx = active.stream().anyMatch(
+                                a -> "PRESCRIPTION".equals(a.getSource()) &&
+                                     rx.getItems() != null &&
+                                     rx.getItems().stream().anyMatch(it -> Objects.equals(it.getMedicationId(), a.getMedicationId()))
+                            );
+                            if (hasActiveMedInRx) {
+                                activeRxList.add(rx);
+                            }
                         }
-                    }
-                    if (activeRxList.isEmpty() && !rxList.isEmpty()) {
-                        activeRxList.add(rxList.get(0));
                     }
                 }
             } catch (Exception ignored) {}
@@ -155,13 +160,28 @@ public class MedicationManagementService {
         var keys=new ArrayList<Set<String>>();
         var records=new LinkedHashMap<String,DurInfoDto>();
         var unresolved=new ArrayList<Map<String,Object>>();
+        var singleDurAlerts = new ArrayList<Map<String, Object>>();
         for(var med:medicines) {
             var result=dur.find(med.getMaterialName());
             keys.add(new LinkedHashSet<>(result.queriedIngredients().stream().map(DurGuideService::normalize).toList()));
             if(!result.unmatchedIngredients().isEmpty()||result.queriedIngredients().isEmpty())
                 unresolved.add(Map.of("medicationId",med.getMedicationId(),"itemName",med.getItemName(),"ingredients",result.unmatchedIngredients(),"status",result.status()));
-            for(var row:result.items()) if(row.getTabooType()==4)
-                records.put(row.getIngrAName()+"|"+row.getIngrBName()+"|"+row.getTabooEffect(),row);
+            for(var row:result.items()) {
+                if(row.getTabooType()==4) {
+                    records.put(row.getIngrAName()+"|"+row.getIngrBName()+"|"+row.getTabooEffect(),row);
+                } else if(row.getTabooType() >= 1 && row.getTabooType() <= 3) {
+                    Map<String, Object> alert = new LinkedHashMap<>();
+                    alert.put("medicationId", med.getMedicationId());
+                    alert.put("itemName", med.getItemName());
+                    alert.put("ingrName", row.getIngrAName());
+                    alert.put("tabooType", row.getTabooType());
+                    alert.put("typeName", row.getTabooType() == 1 ? "임부금기" : (row.getTabooType() == 2 ? "노인주의" : "특정연령대금기"));
+                    alert.put("grade", row.getGrade() != null ? row.getGrade() : "");
+                    alert.put("ageBase", row.getAgeBase() != null ? row.getAgeBase() : "");
+                    alert.put("tabooEffect", row.getTabooEffect() != null ? row.getTabooEffect() : "");
+                    singleDurAlerts.add(alert);
+                }
+            }
         }
         var pairs=new ArrayList<Map<String,Object>>();var duplicateIngredients=new ArrayList<Map<String,Object>>();
         for(int i=0;i<medicines.size();i++)for(int j=i+1;j<medicines.size();j++) {
@@ -174,6 +194,7 @@ public class MedicationManagementService {
         }
         var result=new LinkedHashMap<String,Object>();
         result.put("medications",medicines);result.put("pairs",pairs);result.put("duplicates",duplicateIngredients);
+        result.put("singleDurAlerts",singleDurAlerts);
         result.put("unresolved",unresolved);result.put("unlinked",List.of());
         result.put("notice","DB의 성분명과 일치하는 기록만 비교했습니다. 조회된 기록이 없어도 안전하다는 뜻은 아닙니다. 같은 성분 표시는 중복 사실이며 용량 적정성 판정이 아닙니다.");
         return result;

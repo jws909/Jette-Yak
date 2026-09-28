@@ -471,12 +471,20 @@ public class GeminiService {
             환자가 현재 복용 중인 모든 의약품(처방약, 상비약, 영양제) 목록과 등록된 처방전의 진료/치료 목적 및 AI 처방 요약,
             그리고 DUR 상호작용 분석 결과(병용금기, 중복성분 등)를 종합하여,
             환자가 일상에서 안심하고 올바르게 실천할 수 있는 '개인 맞춤형 통합 복약 가이드'를 반드시 정해진 JSON 스키마에 맞춰 한국어로 작성한다.
-            - headline: 환자 복약 상태를 대표하는 핵심 1줄 요약 (예: "처방약 3종(상기도 감염 치료 등)과 영양제 1종을 복용 중이며, 큰 충돌 없이 안전합니다.")
-            - overallSummary: 처방전의 진료 목적을 포함하여, 복용 중인 약들의 조합과 전반적인 복약 상태에 대한 2~3문장 설명
-            - scheduleTips: 시간대별 복약 권장 요령 (예: 아침/점심/저녁, 식전/식후 구분, 2시간 간격 권장 등) 문자열 배열
-            - durAlerts: DUR 상호작용 및 금기 주의사항 (병용금기나 성분 중복이 있는 경우 구체적 안내, 없으면 안전 안내 문구) 문자열 배열
-            - foodAndLifestyle: 피해야 할 음식(술, 카페인, 유제품, 자몽 등) 및 생활 습관 꿀팁 문자열 배열
-            - consultationAdvice: 이상 반응 발생 시 대처법 및 의료진/약사 상담 권장 안내 문구
+
+            [작성 핵심 원칙 - 엄격 준수]
+            1. 절대 근거 없는 억측이나 의례적이고 일반론적인 주의사항(예: '영양제는 무조건 처방약과 1~2시간 간격을 두고 드세요' 등)을 지어내지 마라.
+            2. 등록된 약품(처방약, 상비약, 영양제 등) 간에 의학적으로 확인된 상호작용(예: 퀴놀론계/테트라사이클린 항생제와 마그네슘/철분/칼슘 결합 등)이나 실제 DUR 병용금기가 존재하지 않는다면, 불필요하게 '시간 간격을 두고 복용하라'는 식의 경고를 일절 추가하지 마라.
+            3. 검색되거나 확인된 주의사항이 없는 항목은 억지로 채우지 말고 반드시 빈 배열([])로 반환하라.
+            4. 일반 간식이나 식품성 영양제(예: 젤리류, 마이구미, 일반 비타민 등)가 등록되어 있더라도, 특정 의약품과 상호작용이 규명되지 않았다면 아무런 제약이나 경고를 두지 마라.
+
+            [필드별 작성 요령]
+            - headline: 환자 복약 상태를 대표하는 핵심 1줄 요약 (예: "처방약 2종을 복용 중이며, 큰 상호작용 없이 안전합니다.")
+            - overallSummary: 처방전의 진료 목적을 포함하여, 복용 중인 약들의 조합과 전반적인 복약 상태에 대한 1~2문장 설명
+            - scheduleTips: 공식적인 복약 지도에 명시된 시간대별 권장 요령 (예: "식후 30분에 복용"). 근거 없는 시간 간격 두기는 절대 작성 금지. 특별한 주의점이 없으면 빈 배열([]) 반환.
+            - durAlerts: 아래 [DUR 성분 및 금기·상호작용 분석 결과]에 제공된 medication_interactions DB 조회 결과(병용금기 성분 및 금기 사유/부작용(taboo_effect), 성분 중복, 임부/노인/연령 금기 등)를 충실히 반영하여 구체적이고 전문적인 경고를 작성하라. 확인된 금기나 상호작용 문제가 전혀 없으면 빈 배열([]) 반환.
+            - foodAndLifestyle: 실제로 처방된 약물에 명백히 금기시되는 특정 음식(예: 고지혈증약과 자몽, 소염진통제 복용 중 금주 등)만 작성. 해당 약물과 무관한 일반 상식 나열 금지. 해당 사항이 없으면 빈 배열([]) 반환.
+            - consultationAdvice: 이상 반응 발생 시 대처법 및 의료진/약사 상담 권장 안내 1문장.
             """;
 
         StringBuilder sb = new StringBuilder();
@@ -514,18 +522,65 @@ public class GeminiService {
             }
         }
 
-        sb.append("\n[DUR 성분 및 상호작용 분석 결과]\n");
+        sb.append("\n[DUR 성분 및 금기·상호작용 분석 결과 (medication_interactions DB 조회 결과)]\n");
         if (comparisonResult != null) {
             Object pairsObj = comparisonResult.get("pairs");
             if (pairsObj instanceof java.util.List<?> pairs && !pairs.isEmpty()) {
-                sb.append("⚠️ 발견된 병용금기 조합: ").append(pairs.size()).append("건\n");
+                sb.append("⚠️ 발견된 병용금기(약물 상호작용) 조합 (총 ").append(pairs.size()).append("건):\n");
+                for (Object p : pairs) {
+                    if (p instanceof java.util.Map<?, ?> pair) {
+                        Object left = pair.get("left");
+                        Object right = pair.get("right");
+                        String leftName = (left instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(left);
+                        String rightName = (right instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(right);
+                        sb.append("  * [병용금기] ").append(leftName).append(" + ").append(rightName).append("\n");
+                        Object itemsObj = pair.get("items");
+                        if (itemsObj instanceof java.util.List<?> items) {
+                            for (Object it : items) {
+                                if (it instanceof com.app.guide.dto.DurInfoDto dur) {
+                                    sb.append("    - 금기 성분: ").append(dur.getIngrAName()).append(" + ").append(dur.getIngrBName()).append("\n");
+                                    if (dur.getTabooEffect() != null && !dur.getTabooEffect().isBlank()) {
+                                        sb.append("    - 금기 사유 및 부작용(taboo_effect): ").append(dur.getTabooEffect().trim()).append("\n");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             } else {
-                sb.append("✓ 등록된 의약품 간 심각한 DUR 병용금기는 발견되지 않았습니다.\n");
+                sb.append("✓ 복용 중인 의약품 간 심각한 DUR 병용금기 상호작용은 발견되지 않았습니다.\n");
             }
 
             Object dupObj = comparisonResult.get("duplicates");
             if (dupObj instanceof java.util.List<?> dups && !dups.isEmpty()) {
-                sb.append("ℹ️ 중복 성분 의심 조합: ").append(dups.size()).append("건\n");
+                sb.append("ℹ️ 동일 성분 중복 복용 주의 조합 (총 ").append(dups.size()).append("건):\n");
+                for (Object d : dups) {
+                    if (d instanceof java.util.Map<?, ?> dup) {
+                        sb.append("  * ").append(dup.get("left")).append(" + ").append(dup.get("right"))
+                          .append(" (중복 성분: ").append(dup.get("ingredients")).append(")\n");
+                    }
+                }
+            }
+
+            Object singleDurObj = comparisonResult.get("singleDurAlerts");
+            if (singleDurObj instanceof java.util.List<?> singles && !singles.isEmpty()) {
+                sb.append("⚠️ 약품별 특정 대상 금기 주의사항 (임부/노인/연령 금기):\n");
+                for (Object s : singles) {
+                    if (s instanceof java.util.Map<?, ?> m) {
+                        sb.append("  * [").append(m.get("typeName")).append("] ")
+                          .append(m.get("itemName")).append(" (성분: ").append(m.get("ingrName")).append(")");
+                        if (m.get("grade") != null && !String.valueOf(m.get("grade")).isBlank()) {
+                            sb.append(" - 등급: ").append(m.get("grade"));
+                        }
+                        if (m.get("ageBase") != null && !String.valueOf(m.get("ageBase")).isBlank()) {
+                            sb.append(" - 기준: ").append(m.get("ageBase"));
+                        }
+                        if (m.get("tabooEffect") != null && !String.valueOf(m.get("tabooEffect")).isBlank()) {
+                            sb.append(" - 사유: ").append(m.get("tabooEffect"));
+                        }
+                        sb.append("\n");
+                    }
+                }
             }
         }
 
@@ -588,38 +643,85 @@ public class GeminiService {
 
         String summary = String.format("총 %d종의 약품을 복용하고 계시며, 처방전 기준 용법과 시간에 맞춰 규칙적으로 복용하는 것이 중요합니다.", totalCount);
 
-        boolean hasPairs = false;
-        if (comparisonResult != null && comparisonResult.get("pairs") instanceof java.util.List<?> list && !list.isEmpty()) {
-            hasPairs = true;
+        java.util.List<String> schedList = new java.util.ArrayList<>();
+        if (rxCount > 0) {
+            schedList.add("처방약은 의사의 지시 및 정해진 용법(식후 30분 등)에 맞춰 규칙적으로 복용하세요.");
         }
 
-        String durMsg = hasPairs
-            ? "⚠️ 복용 중인 약품 사이에 병용 시 주의가 필요한 조합이 확인되었습니다. 상세 DUR 정보를 확인하세요."
-            : "✓ 현재 등록된 복용 약품 간에는 심각한 병용금기 조합이 발견되지 않았습니다.";
+        java.util.List<String> durList = new java.util.ArrayList<>();
+        if (comparisonResult != null && comparisonResult.get("pairs") instanceof java.util.List<?> list) {
+            for (Object p : list) {
+                if (p instanceof java.util.Map<?, ?> pair) {
+                    Object left = pair.get("left");
+                    Object right = pair.get("right");
+                    String leftName = (left instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(left);
+                    String rightName = (right instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(right);
+                    String effect = "";
+                    Object itemsObj = pair.get("items");
+                    if (itemsObj instanceof java.util.List<?> items && !items.isEmpty() && items.get(0) instanceof com.app.guide.dto.DurInfoDto dur) {
+                        if (dur.getTabooEffect() != null && !dur.getTabooEffect().isBlank()) {
+                            effect = " (" + dur.getTabooEffect().trim() + ")";
+                        }
+                    }
+                    durList.add("⚠️ [병용금기] " + leftName + " + " + rightName + effect);
+                }
+            }
+        }
+        if (comparisonResult != null && comparisonResult.get("duplicates") instanceof java.util.List<?> dups) {
+            for (Object d : dups) {
+                if (d instanceof java.util.Map<?, ?> dup) {
+                    durList.add("ℹ️ [성분중복] " + dup.get("left") + " + " + dup.get("right") + " (중복 성분: " + dup.get("ingredients") + ")");
+                }
+            }
+        }
+        if (comparisonResult != null && comparisonResult.get("singleDurAlerts") instanceof java.util.List<?> singles) {
+            for (Object s : singles) {
+                if (s instanceof java.util.Map<?, ?> m) {
+                    String reason = (m.get("tabooEffect") != null && !String.valueOf(m.get("tabooEffect")).isBlank())
+                        ? " - " + m.get("tabooEffect") : "";
+                    durList.add("⚠️ [" + m.get("typeName") + "] " + m.get("itemName") + reason);
+                }
+            }
+        }
+
+        java.util.List<String> foodList = new java.util.ArrayList<>();
+        if (rxCount > 0) {
+            foodList.add("약 복용 기간 중에는 간 및 위장에 부담을 줄 수 있는 음주(술)를 자제해 주세요.");
+        }
+
+        StringBuilder schedJson = new StringBuilder();
+        for (int i = 0; i < schedList.size(); i++) {
+            schedJson.append("\"").append(escapeJson(schedList.get(i))).append("\"");
+            if (i < schedList.size() - 1) schedJson.append(",");
+        }
+
+        StringBuilder durJson = new StringBuilder();
+        for (int i = 0; i < durList.size(); i++) {
+            durJson.append("\"").append(escapeJson(durList.get(i))).append("\"");
+            if (i < durList.size() - 1) durJson.append(",");
+        }
+
+        StringBuilder foodJson = new StringBuilder();
+        for (int i = 0; i < foodList.size(); i++) {
+            foodJson.append("\"").append(escapeJson(foodList.get(i))).append("\"");
+            if (i < foodList.size() - 1) foodJson.append(",");
+        }
 
         return String.format("""
             {
               "headline": "%s",
               "overallSummary": "%s",
-              "scheduleTips": [
-                "처방약은 의사의 지시에 따라 식후 30분 또는 지정된 시간에 복용하세요.",
-                "영양제는 위장 부담을 줄이기 위해 식사 직후 또는 점심 시간대에 충분한 물과 함께 섭취하세요.",
-                "서로 다른 약을 동시 복용 시 최소 1~2시간의 간격을 두는 것이 흡수율에 좋습니다."
-              ],
-              "durAlerts": [
-                "%s"
-              ],
-              "foodAndLifestyle": [
-                "복약 기간 중에는 알코올(술) 섭취를 반드시 피해주세요.",
-                "약 복용 전후 2시간 동안은 카페인(커피, 녹차) 음료를 자제하고 미온수를 충분히 드세요.",
-                "기름진 음식은 특정 약물의 흡수를 방해할 수 있으므로 담백한 식단을 권장합니다."
-              ],
-              "consultationAdvice": "복용 중 발진, 가려움, 어지러움, 소화불량 등 이상 증상이 지속되면 즉시 복용을 중단하고 의사 또는 약사와 상담하세요."
+              "scheduleTips": [%s],
+              "durAlerts": [%s],
+              "foodAndLifestyle": [%s],
+              "consultationAdvice": "복용 중 이상 증상이 발생할 경우 즉시 의사 또는 약사와 상담하세요."
             }
             """,
             escapeJson(headline),
             escapeJson(summary),
-            escapeJson(durMsg)
+            schedJson.toString(),
+            durJson.toString(),
+            foodJson.toString()
         );
     }
 
