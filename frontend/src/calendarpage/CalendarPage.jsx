@@ -56,6 +56,11 @@ const CalendarPage = (props) => {
   const [newMinute, setNewMinute] = useState('00');
   const [addedSuccessMsg, setAddedSuccessMsg] = useState('');
 
+  // 평소 복용 관리 (마이페이지 상비약/영양제 보관함 연동)
+  const [everydayMeds, setEverydayMeds] = useState([]);
+  const [selectedShelfMedId, setSelectedShelfMedId] = useState(null);
+  const [isAutoTimeApplied, setIsAutoTimeApplied] = useState(false);
+
   // 삭제 확인 모달
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
@@ -172,9 +177,80 @@ const CalendarPage = (props) => {
     };
   }, [currentUserId, selectedDate, fetchDailySchedules, fetchMonthSummary]);
 
+  // 평소 복용 관리 (마이페이지 상비약/영양제) 목록 조회
+  const fetchEverydayMeds = useCallback(async () => {
+    if (!currentUserId) {
+      setEverydayMeds([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/users/everyday-meds?userId=${currentUserId}`);
+      if (res.ok) {
+        const list = await res.json();
+        setEverydayMeds(Array.isArray(list) ? list : []);
+      }
+    } catch (err) {
+      console.error("보관함 약품 조회 실패:", err);
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    fetchEverydayMeds();
+  }, [fetchEverydayMeds]);
+
+  useEffect(() => {
+    if (isAddModalOpen) {
+      fetchEverydayMeds();
+    }
+  }, [isAddModalOpen, fetchEverydayMeds]);
+
+  // 보관함 약품 선택/해제 핸들러
+  const handleSelectShelfMed = (item) => {
+    if (selectedShelfMedId === item.id) {
+      // 이미 선택된 상태에서 다시 클릭 시 해제
+      setSelectedShelfMedId(null);
+      setSelectedMed(null);
+      setNewMedName('');
+      setIsAutoTimeApplied(false);
+      return;
+    }
+
+    setSelectedShelfMedId(item.id);
+    if (item.source === 'CABINET') {
+      setSelectedMed({ id: item.medicationId, name: item.name });
+      setNewMedName('');
+    } else {
+      setSelectedMed({ id: null, name: item.name });
+      setNewMedName(item.name);
+    }
+    setSearchResults([]);
+
+    // 권장 복용 시간 자동 세팅
+    if (item.takeTime && item.takeTime.includes(':')) {
+      const parts = item.takeTime.split(':');
+      let h = parseInt(parts[0], 10);
+      let m = parseInt(parts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        let ampmVal = '오전';
+        if (h >= 12) {
+          ampmVal = '오후';
+          if (h > 12) h -= 12;
+        } else if (h === 0) {
+          h = 12;
+        }
+        setNewAmpm(ampmVal);
+        setNewHour(String(h).padStart(2, '0'));
+        setNewMinute(String(m).padStart(2, '0'));
+        setIsAutoTimeApplied(true);
+        return;
+      }
+    }
+    setIsAutoTimeApplied(false);
+  };
+
   // 약품 자동완성 검색
   useEffect(() => {
-    if (!newMedName.trim()) {
+    if (!newMedName.trim() || selectedShelfMedId) {
       setSearchResults([]);
       return;
     }
@@ -192,16 +268,21 @@ const CalendarPage = (props) => {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [newMedName]);
+  }, [newMedName, selectedShelfMedId]);
 
   const handleSelectMed = (med) => {
+    setSelectedShelfMedId(null);
+    setIsAutoTimeApplied(false);
     setSelectedMed({ id: med.medicationId, name: med.itemName });
     setNewMedName('');
     setSearchResults([]);
   };
 
   const handleRemoveSelectedMed = () => {
+    setSelectedShelfMedId(null);
+    setIsAutoTimeApplied(false);
     setSelectedMed(null);
+    setNewMedName('');
   };
 
   const changeMonth = (offset) => {
@@ -450,9 +531,12 @@ const CalendarPage = (props) => {
         setTimeout(() => setAddedSuccessMsg(''), 2000);
 
         setSelectedMed(null);
+        setSelectedShelfMedId(null);
+        setIsAutoTimeApplied(false);
         setNewMedName('');
         setSearchResults([]);
         setIsAddModalOpen(false);
+        fetchEverydayMeds();
       } else {
         const errorText = await response.text().catch(() => '');
         alert('일정 등록에 실패했습니다.' + (errorText ? ` (${errorText})` : ''));
@@ -465,6 +549,8 @@ const CalendarPage = (props) => {
 
   const handleCloseAddModal = () => {
     setSelectedMed(null);
+    setSelectedShelfMedId(null);
+    setIsAutoTimeApplied(false);
     setNewMedName('');
     setSearchResults([]);
     setAddedSuccessMsg('');
@@ -837,17 +923,25 @@ const CalendarPage = (props) => {
                     className={`cat-btn ${newMedType === 'regular' ? 'active reg' : ''}`}
                     onClick={() => {
                       setNewMedType('regular');
+                      setSelectedShelfMedId(null);
                       setSelectedMed(null);
                       setNewMedName('');
+                      setSearchResults([]);
+                      setIsAutoTimeApplied(false);
                     }}
                   >
-                    상시약
+                    상시약 (상비약)
                   </button>
                   <button
                     type="button"
                     className={`cat-btn ${newMedType === 'supplement' ? 'active sup' : ''}`}
                     onClick={() => {
                       setNewMedType('supplement');
+                      setSelectedShelfMedId(null);
+                      setSelectedMed(null);
+                      setNewMedName('');
+                      setSearchResults([]);
+                      setIsAutoTimeApplied(false);
                     }}
                   >
                     영양제
@@ -855,9 +949,61 @@ const CalendarPage = (props) => {
                 </div>
               </div>
 
+              {/* 내 보관함 약품 빠른 선택 */}
+              <div className="form-group shelf-select-section">
+                <div className="shelf-section-header">
+                  <label className="shelf-label">
+                    내 보관함에서 빠른 선택
+                    <span className="shelf-count">
+                      ({everydayMeds.filter((m) => newMedType === 'regular' ? m.source === 'CABINET' : m.source === 'ROUTINE').length})
+                    </span>
+                  </label>
+                  <a href="/mypage" className="shelf-manage-link" target="_blank" rel="noreferrer">
+                    보관함 관리 ↗
+                  </a>
+                </div>
+
+                {everydayMeds.filter((m) => newMedType === 'regular' ? m.source === 'CABINET' : m.source === 'ROUTINE').length > 0 ? (
+                  <div className="shelf-chips-container">
+                    {everydayMeds
+                      .filter((m) => newMedType === 'regular' ? m.source === 'CABINET' : m.source === 'ROUTINE')
+                      .map((med) => {
+                        const isSelected = selectedShelfMedId === med.id;
+                        return (
+                          <button
+                            key={med.id}
+                            type="button"
+                            className={`shelf-med-chip ${isSelected ? 'active' : ''} ${newMedType === 'regular' ? 'chip-reg' : 'chip-sup'}`}
+                            onClick={() => handleSelectShelfMed(med)}
+                            title={med.name + (med.entpName ? ` (${med.entpName})` : '')}
+                          >
+                            <span
+                              className="chip-dot"
+                              style={{ backgroundColor: med.dotColor || (newMedType === 'regular' ? '#2b7044' : '#b87b2b') }}
+                            />
+                            <span className="chip-text">{med.name}</span>
+                            {med.takeTime && (
+                              <span className="chip-time-tag">⏰ {med.takeTime}</span>
+                            )}
+                            {isSelected && <span className="chip-check-icon">✓</span>}
+                          </button>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="shelf-empty-hint">
+                    등록된 {newMedType === 'regular' ? '상시약' : '영양제'}이(가) 없습니다. 아래에서 직접 검색하거나 입력해 보세요.
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group-divider">
+                <span>또는 새 약품 직접 {newMedType === 'regular' ? '검색' : '입력 / 검색'}</span>
+              </div>
+
               <div className="form-group">
                 <label>
-                  {newMedType === 'regular' ? '의약품 검색 (필수 선택)' : '영양제 이름 (검색 또는 직접 입력)'}
+                  {newMedType === 'regular' ? '의약품 직접 검색 (필수 선택)' : '영양제 직접 검색 또는 입력'}
                 </label>
                 <div className="search-input-wrapper">
                   <input
@@ -871,11 +1017,12 @@ const CalendarPage = (props) => {
                     }
                     value={selectedMed ? selectedMed.name : newMedName}
                     onChange={(e) => {
+                      if (selectedShelfMedId) setSelectedShelfMedId(null);
                       if (selectedMed) setSelectedMed(null);
                       setNewMedName(e.target.value);
+                      setIsAutoTimeApplied(false);
                     }}
                     autoComplete="off"
-                    autoFocus
                   />
                   {searchResults.length > 0 && !selectedMed && (
                     <ul className="search-results-dropdown">
@@ -893,7 +1040,8 @@ const CalendarPage = (props) => {
                 </div>
 
                 {selectedMed ? (
-                  <div className="selected-med-chip">
+                  <div className={`selected-med-chip ${selectedShelfMedId ? 'shelf-source' : ''}`}>
+                    {selectedShelfMedId && <span className="shelf-badge-tag">보관함</span>}
                     <span className="chip-name" title={selectedMed.name}>
                       선택됨: {selectedMed.name}
                     </span>
@@ -908,11 +1056,11 @@ const CalendarPage = (props) => {
                   </div>
                 ) : newMedType === 'regular' ? (
                   <p className="field-hint-warning">
-                    상시약은 의약품(medications) 목록에서 검색하여 선택해야 등록 가능합니다.
+                    상시약은 의약품(medications) 목록에서 검색하거나 보관함에서 선택해야 등록 가능합니다.
                   </p>
                 ) : (
                   <p className="field-hint-info">
-                    영양제는 검색 목록에서 선택하거나 직접 이름을 입력하여 등록할 수 있습니다.
+                    영양제는 보관함에서 선택하거나, 직접 이름을 입력하여 등록할 수 있습니다.
                   </p>
                 )}
               </div>
@@ -920,24 +1068,27 @@ const CalendarPage = (props) => {
               <div className="form-group">
                 <label>복용 시간</label>
                 <div className="wheel-picker-box add-picker">
-                  <div className="picker-column" onWheel={(e) => handleWheel(e, 'ampm', true)}>
-                    <button type="button" onClick={() => setNewAmpm(newAmpm === '오전' ? '오후' : '오전')}>▲</button>
-                    <div className="picker-value clickable" onClick={() => setNewAmpm(newAmpm === '오전' ? '오후' : '오전')}>
+                  <div className="picker-column" onWheel={(e) => { setIsAutoTimeApplied(false); handleWheel(e, 'ampm', true); }}>
+                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewAmpm(newAmpm === '오전' ? '오후' : '오전'); }}>▲</button>
+                    <div className="picker-value clickable" onClick={() => { setIsAutoTimeApplied(false); setNewAmpm(newAmpm === '오전' ? '오후' : '오전'); }}>
                       {newAmpm}
                     </div>
-                    <button type="button" onClick={() => setNewAmpm(newAmpm === '오전' ? '오후' : '오전')}>▼</button>
+                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewAmpm(newAmpm === '오전' ? '오후' : '오전'); }}>▼</button>
                   </div>
 
                   <div className="picker-divider" />
 
-                  <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour', true)}>
-                    <button type="button" onClick={() => setNewHour((prev) => stepHour(prev, 1))}>▲</button>
+                  <div className="picker-column" onWheel={(e) => { setIsAutoTimeApplied(false); handleWheel(e, 'hour', true); }}>
+                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewHour((prev) => stepHour(prev, 1)); }}>▲</button>
                     <input
                       type="text"
                       className="picker-input"
                       maxLength={2}
                       value={newHour}
-                      onChange={(e) => setNewHour(e.target.value.replace(/[^0-9]/g, ''))}
+                      onChange={(e) => {
+                        setIsAutoTimeApplied(false);
+                        setNewHour(e.target.value.replace(/[^0-9]/g, ''));
+                      }}
                       onBlur={() => {
                         let n = parseInt(newHour, 10);
                         if (isNaN(n) || n < 1) n = 1;
@@ -945,29 +1096,38 @@ const CalendarPage = (props) => {
                         setNewHour(String(n).padStart(2, '0'));
                       }}
                     />
-                    <button type="button" onClick={() => setNewHour((prev) => stepHour(prev, -1))}>▼</button>
+                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewHour((prev) => stepHour(prev, -1)); }}>▼</button>
                   </div>
 
                   <div className="picker-divider" />
 
-                  <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute', true)}>
-                    <button type="button" onClick={() => setNewMinute((prev) => stepMinute(prev, 1))}>▲</button>
+                  <div className="picker-column" onWheel={(e) => { setIsAutoTimeApplied(false); handleWheel(e, 'minute', true); }}>
+                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewMinute((prev) => stepMinute(prev, 1)); }}>▲</button>
                     <input
                       type="text"
                       className="picker-input"
                       maxLength={2}
                       value={newMinute}
-                      onChange={(e) => setNewMinute(e.target.value.replace(/[^0-9]/g, ''))}
+                      onChange={(e) => {
+                        setIsAutoTimeApplied(false);
+                        setNewMinute(e.target.value.replace(/[^0-9]/g, ''));
+                      }}
                       onBlur={() => {
                         let n = parseInt(newMinute, 10);
                         if (isNaN(n) || n < 0) n = 0;
                         if (n > 59) n = 59;
-                        setMinute(String(n).padStart(2, '0'));
+                        setNewMinute(String(n).padStart(2, '0'));
                       }}
                     />
-                    <button type="button" onClick={() => setNewMinute((prev) => stepMinute(prev, -1))}>▼</button>
+                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewMinute((prev) => stepMinute(prev, -1)); }}>▼</button>
                   </div>
                 </div>
+
+                {isAutoTimeApplied && (
+                  <p className="field-hint-time-auto">
+                    💡 보관함 권장 시간({newAmpm} {newHour}:{newMinute})이 자동 설정되었습니다. 필요 시 조정하세요.
+                  </p>
+                )}
               </div>
 
               {addedSuccessMsg && (

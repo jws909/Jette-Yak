@@ -73,7 +73,7 @@
                 CAST(NULL AS VARCHAR2(200)), CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(10)), r.notes, r.take_time
             FROM routine_medications r
             WHERE r.user_id = #{userId}
-              AND r.status = 'ACTIVE'
+              AND (r.status IS NULL OR r.status != 'ENDED')
               AND EXISTS (SELECT 1 FROM schedules s WHERE s.routine_id = r.routine_id AND s.user_id = #{userId})
         ) ORDER BY CASE source WHEN 'PRESCRIPTION' THEN 1 WHEN 'CABINET' THEN 2 ELSE 3 END,
             item_name, registration_id
@@ -108,8 +108,7 @@
         UNION ALL
         SELECT 'R:' || TO_CHAR(r.routine_id),'ROUTINE',NULL,r.supplement_name,NULL,NULL,NULL,NULL,NULL,r.notes,r.take_time,NULL,
             CASE WHEN r.status='ENDED' THEN 'ENDED' ELSE 'CURRENT' END,
-            CASE WHEN r.status='PAUSED' THEN 'PAUSED'
-                 WHEN r.status='ENDED' THEN 'ENDED'
+            CASE WHEN r.status='ENDED' THEN 'ENDED'
                  WHEN EXISTS (SELECT 1 FROM schedules s WHERE s.routine_id = r.routine_id AND s.user_id = #{userId}) THEN 'ACTIVE'
                  ELSE 'PAUSED' END default_status
         FROM routine_medications r WHERE r.user_id=#{userId}

@@ -291,4 +291,27 @@
         )
     </insert>
 
+    <!-- 21. 루틴 상태 업데이트 (ACTIVE / PAUSED / ENDED) -->
+    <update id="updateRoutineStatus" parameterType="map">
+        UPDATE routine_medications
+           SET status = #{status}
+         WHERE routine_id = #{routineId}
+    </update>
+
+    <!-- 22. 루틴 스케줄 잔여 개수 확인 -->
+    <select id="countSchedulesByRoutineId" parameterType="map" resultType="int">
+        SELECT COUNT(*)
+          FROM schedules
+         WHERE user_id = #{userId}
+           AND routine_id = #{routineId}
+    </select>
+
+    <!-- 23. 캐비닛 스케줄 잔여 개수 확인 -->
+    <select id="countSchedulesByCabinetId" parameterType="map" resultType="int">
+        SELECT COUNT(*)
+          FROM schedules
+         WHERE user_id = #{userId}
+           AND cabinet_id = #{cabinetId}
+    </select>
+
 </mapper>

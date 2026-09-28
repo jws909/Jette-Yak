@@ -140,4 +140,27 @@ public class ScheduleDAO {
     public int insertCancelledPrescriptionSchedule(Map<String, Object> params) {
         return sqlSession.insert("schedule.insertCancelledPrescriptionSchedule", params);
     }
+
+    public int countSchedulesByRoutineId(Long userId, Long routineId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("routineId", routineId);
+        Integer cnt = sqlSession.selectOne("schedule.countSchedulesByRoutineId", params);
+        return cnt != null ? cnt : 0;
+    }
+
+    public int countSchedulesByCabinetId(Long userId, Long cabinetId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("cabinetId", cabinetId);
+        Integer cnt = sqlSession.selectOne("schedule.countSchedulesByCabinetId", params);
+        return cnt != null ? cnt : 0;
+    }
+
+    public int updateRoutineStatus(Long routineId, String status) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("routineId", routineId);
+        params.put("status", status);
+        return sqlSession.update("schedule.updateRoutineStatus", params);
+    }
 }
