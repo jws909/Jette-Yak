@@ -12,7 +12,6 @@ async function api(url,options){const res=await fetch(url,options);const data=aw
 
 function UserAvatar({name,imageUrl,size='small'}){
   const [imageFailed,setImageFailed]=useState(false)
-  useEffect(()=>setImageFailed(false),[imageUrl])
   const initial=(name||'?').trim().charAt(0)||'?'
   const avatarSrc = imageUrl && !imageFailed ? imageUrl : defaultProfileImg
   return <span className={'community-avatar '+size} aria-label={(name||'사용자')+' 프로필'}><img src={avatarSrc} alt="" onError={()=>setImageFailed(true)}/></span>
