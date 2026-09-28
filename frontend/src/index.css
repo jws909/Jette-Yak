@@ -1,6 +1,64 @@
-* { box-sizing: border-box; }
-:root { font-family: 'Segoe UI', 'Malgun Gothic', sans-serif; color: #302c29; background: #f7f5f0; color-scheme: light; }
-body { margin: 0; min-width: 320px; }
-button, input, textarea { font: inherit; }
-button { cursor: pointer; } button:disabled { opacity: .55; cursor: not-allowed; }
-button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid #8b3e4b; outline-offset: 3px; }
+/* ==========================================================================
+   Global Typography & Reset
+   제때약 로고('Eommakkaturi', 'NanumSquareRound') 폰트 전체 사이트 적용
+   (Faux Bold로 인한 글씨 뭉개짐 및 두꺼워짐 방지)
+   ========================================================================== */
+
+@font-face {
+  font-family: 'Eommakkaturi';
+  src: url('https://gcore.jsdelivr.net/gh/projectnoonnu/noonfonts_13@1.0/Katuri.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'NanumSquareRound';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/NanumSquareRound.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --app-font-family: 'Eommakkaturi', 'NanumSquareRound', -apple-system, sans-serif;
+  color: #302c29;
+  background: #f7f5f0;
+  color-scheme: light;
+}
+
+/* 
+   사이트 내 모든 요소에 제때약 폰트 적용
+   - font-weight: normal !important: 볼드 처리 시 브라우저가 인위적으로 덧칠(Faux Bold)하여
+     글씨가 뭉개지고 뿌옇게 번지는 현상을 원천 방지하고 로고처럼 매끄러운 굵기 유지
+   - font-synthesis: none !important: 가짜 볼드체 합성 차단
+   - antialiased: 글자 테두리를 또렷하고 매끄럽게 보정
+*/
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  font-family: var(--app-font-family) !important;
+  font-weight: normal !important;
+  font-synthesis: none !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid #8b3e4b;
+  outline-offset: 3px;
+}
