@@ -5,12 +5,14 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.app.medication.dao.MedicationDao;
 import com.app.medication.dto.MedicationPermitApiResponse;
 import com.app.medication.dto.MedicationPermitDto;
 import com.app.medication.service.MedicationService;
+import com.app.util.PublicDataApiKey;
 
 @Service
 public class MedicationServiceImpl implements MedicationService {
@@ -54,7 +56,7 @@ public class MedicationServiceImpl implements MedicationService {
 		 * ServiceKey도 네가 실제 성공했던 키를 사용한다.
 		 */
 		String url = "https://apis.data.go.kr/1471000/DrugPrdtPrmsnInfoService07/getDrugPrdtPrmsnInq07"
-				+ "?ServiceKey=ff08944668902fd4f34be4001187e8d8ecc60561a6e9a3684efc92f1492c15d9" + "&pageNo=" + pageNo
+				+ "?ServiceKey=" + PublicDataApiKey.get() + "&pageNo=" + pageNo
 				+ "&numOfRows=" + numOfRows + "&type=json";
 
 		/*
@@ -70,7 +72,7 @@ public class MedicationServiceImpl implements MedicationService {
 		 * JSON 응답을 Jackson이 자동으로
 		 * MedicationPermitApiResponse 객체로 변환한다.
 		 */
-		MedicationPermitApiResponse response = restTemplate.getForObject(url, MedicationPermitApiResponse.class);
+		MedicationPermitApiResponse response = requestPermitApi(restTemplate, url);
 
 		/*
 		 * 응답 자체가 없는 경우
@@ -248,11 +250,10 @@ public class MedicationServiceImpl implements MedicationService {
 		 * 첫 페이지 응답을 통해 totalCount를 알아낸다.
 		 */
 		String firstUrl = "https://apis.data.go.kr/1471000/" + "DrugPrdtPrmsnInfoService07/" + "getDrugPrdtPrmsnInq07"
-				+ "?ServiceKey=" + "ff08944668902fd4f34be4001187e8d8ecc60561a6e9a3684efc92f1492c15d9" + "&pageNo="
+				+ "?ServiceKey=" + PublicDataApiKey.get() + "&pageNo="
 				+ pageNo + "&numOfRows=" + numOfRows + "&type=json";
 
-		MedicationPermitApiResponse firstResponse = restTemplate.getForObject(firstUrl,
-				MedicationPermitApiResponse.class);
+		MedicationPermitApiResponse firstResponse = requestPermitApi(restTemplate, firstUrl);
 
 		/*
 		 * 응답 자체가 없는 경우
@@ -330,13 +331,13 @@ public class MedicationServiceImpl implements MedicationService {
 			 * 현재 페이지 URL 생성
 			 */
 			String url = "https://apis.data.go.kr/1471000/" + "DrugPrdtPrmsnInfoService07/" + "getDrugPrdtPrmsnInq07"
-					+ "?ServiceKey=" + "ff08944668902fd4f34be4001187e8d8ecc60561a6e9a3684efc92f1492c15d9" + "&pageNo="
+					+ "?ServiceKey=" + PublicDataApiKey.get() + "&pageNo="
 					+ pageNo + "&numOfRows=" + numOfRows + "&type=json";
 
 			/*
 			 * 현재 페이지 API 호출
 			 */
-			MedicationPermitApiResponse response = restTemplate.getForObject(url, MedicationPermitApiResponse.class);
+			MedicationPermitApiResponse response = requestPermitApi(restTemplate, url);
 
 			/*
 			 * 응답이 비정상인 경우
@@ -460,6 +461,15 @@ public class MedicationServiceImpl implements MedicationService {
 		 * 전체 처리 건수를 Controller에 반환
 		 */
 		return totalProcessedCount;
+	}
+
+	private MedicationPermitApiResponse requestPermitApi(RestTemplate restTemplate, String url) {
+		try {
+			return restTemplate.getForObject(url, MedicationPermitApiResponse.class);
+		} catch (RestClientException exception) {
+			// RestTemplate 예외에는 인증키가 포함된 전체 URL이 들어갈 수 있으므로 원본 메시지를 노출하지 않는다.
+			throw new RuntimeException("식약처 허가정보 API 연결에 실패했습니다.");
+		}
 	}
 
 }
