@@ -15,6 +15,7 @@ public interface PrescriptionDAO {
     MatchedMedicationDTO findMedicationByEdiCode(String ediCode);
     MatchedMedicationDTO findMedicationByName(String keyword);
     int updatePrescription(PrescriptionDTO prescription);
+    int updateAiSummaryJson(@org.apache.ibatis.annotations.Param("prescriptionId") Long prescriptionId, @org.apache.ibatis.annotations.Param("aiSummaryJson") String aiSummaryJson);
     int deletePrescription(Long prescriptionId);
     int deletePrescriptionItemsByPrescriptionId(Long prescriptionId);
 }

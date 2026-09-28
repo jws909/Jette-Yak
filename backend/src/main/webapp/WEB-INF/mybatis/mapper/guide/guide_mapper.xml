@@ -8,11 +8,13 @@
         <result column="entp_name" property="entpName" />
         <result column="material_name" property="materialName" javaType="java.lang.String" />
         <result column="etc_otc_code" property="etcOtcCode" />
+        <result column="class_name" property="className" />
         <result column="efficacy" property="efficacy" javaType="java.lang.String" />
         <result column="usage_dosage" property="usageDosage" javaType="java.lang.String" />
+        <result column="ai_summary_json" property="aiSummaryJson" javaType="java.lang.String" />
     </resultMap>
     <select id="find" parameterType="map" resultMap="guide" timeout="10">
-        SELECT medication_id, item_name, item_image_url, entp_name, material_name, etc_otc_code, efficacy, usage_dosage
+        SELECT medication_id, item_name, item_image_url, entp_name, material_name, etc_otc_code, class_name, efficacy, usage_dosage, ai_summary_json
         FROM medications WHERE medication_id = #{id}
     </select>
     <resultMap id="dur" type="com.app.guide.dto.DurInfoDto" autoMapping="false">
@@ -96,12 +98,16 @@
         JOIN medications m ON m.medication_id=i.medication_id WHERE p.user_id=#{userId}
         UNION ALL
         SELECT 'C:' || TO_CHAR(c.cabinet_id),'CABINET',m.medication_id,m.item_name,m.entp_name,m.material_name,m.item_image_url,
-            NULL,NULL,NULL,NULL,NULL,'CURRENT','ACTIVE'
+            NULL,NULL,NULL,NULL,NULL,'CURRENT',
+            CASE WHEN EXISTS (SELECT 1 FROM schedules s WHERE s.cabinet_id = c.cabinet_id AND s.user_id = #{userId}) THEN 'ACTIVE' ELSE 'STORED' END default_status
         FROM cabinet_medications c JOIN medications m ON m.medication_id=c.medication_id WHERE c.user_id=#{userId}
         UNION ALL
         SELECT 'R:' || TO_CHAR(r.routine_id),'ROUTINE',NULL,r.supplement_name,NULL,NULL,NULL,NULL,NULL,r.notes,r.take_time,NULL,
             CASE WHEN r.status='ENDED' THEN 'ENDED' ELSE 'CURRENT' END,
-            CASE WHEN r.status='PAUSED' THEN 'PAUSED' WHEN r.status='ENDED' THEN 'ENDED' ELSE 'ACTIVE' END
+            CASE WHEN r.status='PAUSED' THEN 'PAUSED'
+                 WHEN r.status='ENDED' THEN 'ENDED'
+                 WHEN EXISTS (SELECT 1 FROM schedules s WHERE s.routine_id = r.routine_id AND s.user_id = #{userId}) THEN 'ACTIVE'
+                 ELSE 'PAUSED' END default_status
         FROM routine_medications r WHERE r.user_id=#{userId}
     </sql>
     <select id="collection" resultMap="managed" timeout="15">
@@ -120,5 +126,29 @@
         WHEN MATCHED THEN UPDATE SET s.use_status=#{status},s.updated_at=SYSDATE
         WHEN NOT MATCHED THEN INSERT (user_id,registration_id,use_status,updated_at)
             VALUES (v.user_id,v.registration_id,#{status},SYSDATE)
+    </update>
+    <update id="updateAiSummary" parameterType="map">
+        UPDATE medications
+        SET ai_summary_json = #{aiSummaryJson, jdbcType=CLOB},
+            updated_at = SYSDATE
+        WHERE medication_id = #{medicationId}
+    </update>
+    <select id="findOverallGuide" parameterType="long" resultType="com.app.guide.dto.OverallGuideDto" timeout="10">
+        SELECT user_id AS userId,
+               ai_guide AS aiGuide,
+               TO_CHAR(med_updated_at, 'YYYY-MM-DD HH24:MI:SS') AS medUpdatedAt
+        FROM medication_overall_guide
+        WHERE user_id = #{userId}
+    </select>
+    <update id="saveOverallGuide" parameterType="map">
+        MERGE INTO medication_overall_guide g
+        USING (SELECT #{userId} AS user_id FROM dual) d
+        ON (g.user_id = d.user_id)
+        WHEN MATCHED THEN
+            UPDATE SET g.ai_guide = #{aiGuide, jdbcType=CLOB},
+                       g.med_updated_at = SYSDATE
+        WHEN NOT MATCHED THEN
+            INSERT (user_id, ai_guide, med_updated_at)
+            VALUES (#{userId}, #{aiGuide, jdbcType=CLOB}, SYSDATE)
     </update>
 </mapper>

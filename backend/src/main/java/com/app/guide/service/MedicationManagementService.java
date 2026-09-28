@@ -8,13 +8,138 @@ import com.app.guide.dto.*;
 public class MedicationManagementService {
     private final MedicationGuideDao dao;
     private final DurGuideService dur;
-    public MedicationManagementService(MedicationGuideDao dao, DurGuideService dur) { this.dao=dao;this.dur=dur; }
+    private final com.app.chatbot.client.GeminiService gemini;
+    private final com.app.prescription.dao.PrescriptionDAO prescriptionDAO;
+
+    public MedicationManagementService(MedicationGuideDao dao, DurGuideService dur) {
+        this(dao, dur, null, null);
+    }
+
+    public MedicationManagementService(MedicationGuideDao dao, DurGuideService dur, com.app.chatbot.client.GeminiService gemini) {
+        this(dao, dur, gemini, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MedicationManagementService(
+            MedicationGuideDao dao,
+            DurGuideService dur,
+            com.app.chatbot.client.GeminiService gemini,
+            @org.springframework.context.annotation.Lazy com.app.prescription.dao.PrescriptionDAO prescriptionDAO) {
+        this.dao = dao;
+        this.dur = dur;
+        this.gemini = gemini;
+        this.prescriptionDAO = prescriptionDAO;
+    }
+
     public List<RegisteredMedicationDto> collection(long userId) { return dao.collection(userId); }
+
     public void update(long userId,String registrationId,String status) {
         if (registrationId==null || !registrationId.matches("[PCR]:[0-9]{1,30}") || status==null
                 || !Set.of("ACTIVE","PAUSED","ENDED","STORED").contains(status)) throw new IllegalArgumentException("복용 상태를 확인해주세요.");
         if (dao.updateStatus(userId,registrationId,status)!=1)
             throw new IllegalArgumentException("변경할 등록 약이 없거나 처방 기간이 종료·시작 전입니다. 목록을 새로고침해주세요.");
+        try {
+            // 약 복용 상태 변경 시 통합 복약 가이드 자동 재분석
+            getOverallGuide(userId, true);
+        } catch (Exception ignored) {}
+    }
+
+    public Map<String, Object> getOverallGuide(long userId, boolean forceRefresh) {
+        var all = collection(userId);
+        var active = all.stream().filter(r -> "ACTIVE".equals(r.getUseStatus())).toList();
+        if (active.isEmpty()) {
+            return Map.of(
+                "hasActiveMeds", false,
+                "activeCount", 0,
+                "message", "현재 복용 중인 처방약, 상비약 또는 영양제가 없습니다."
+            );
+        }
+
+        var cached = dao.findOverallGuide(userId);
+        if (!forceRefresh && cached != null && cached.getAiGuide() != null && !cached.getAiGuide().isBlank()) {
+            return Map.of(
+                "hasActiveMeds", true,
+                "activeCount", active.size(),
+                "aiGuide", cached.getAiGuide(),
+                "medUpdatedAt", cached.getMedUpdatedAt() != null ? cached.getMedUpdatedAt() : "",
+                "cached", true
+            );
+        }
+
+        List<com.app.prescription.dto.PrescriptionDTO> activeRxList = new ArrayList<>();
+        if (prescriptionDAO != null) {
+            try {
+                var rxList = prescriptionDAO.getPrescriptionListByUserId(userId);
+                if (rxList != null && !rxList.isEmpty()) {
+                    Date now = new Date();
+                    for (var rx : rxList) {
+                        populatePrescriptionAiGuide(rx);
+                        if (isActivePrescription(rx, now)) {
+                            // 현재 복용 중인 active 약품 목록에 포함된 처방전만 연동
+                            boolean hasActiveMedInRx = active.stream().anyMatch(
+                                a -> "PRESCRIPTION".equals(a.getSource()) &&
+                                     rx.getItems() != null &&
+                                     rx.getItems().stream().anyMatch(it -> Objects.equals(it.getMedicationId(), a.getMedicationId()))
+                            );
+                            if (hasActiveMedInRx) {
+                                activeRxList.add(rx);
+                            }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        var comparison = myComparison(userId);
+        String generatedGuide = (gemini != null)
+            ? gemini.generateOverallGuide(active, activeRxList, comparison)
+            : (gemini != null ? gemini.createFallbackOverallGuide(active, activeRxList, comparison) : "{}");
+
+        dao.saveOverallGuide(userId, generatedGuide);
+        var updated = dao.findOverallGuide(userId);
+
+        return Map.of(
+            "hasActiveMeds", true,
+            "activeCount", active.size(),
+            "aiGuide", generatedGuide,
+            "medUpdatedAt", (updated != null && updated.getMedUpdatedAt() != null) ? updated.getMedUpdatedAt() : "",
+            "cached", false
+        );
+    }
+
+    private void populatePrescriptionAiGuide(com.app.prescription.dto.PrescriptionDTO rx) {
+        if (rx == null || rx.getAiSummaryJson() == null || rx.getAiSummaryJson().isBlank()) return;
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var node = mapper.readTree(rx.getAiSummaryJson());
+            if (node.has("aiGuide") && !node.get("aiGuide").isNull()) {
+                rx.setAiGuide(node.get("aiGuide"));
+            }
+            if ((rx.getHospitalName() == null || rx.getHospitalName().isBlank()) && node.has("hospitalName")) {
+                rx.setHospitalName(node.get("hospitalName").asText());
+            }
+            if ((rx.getDoctorName() == null || rx.getDoctorName().isBlank()) && node.has("doctorName")) {
+                rx.setDoctorName(node.get("doctorName").asText());
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private boolean isActivePrescription(com.app.prescription.dto.PrescriptionDTO rx, Date now) {
+        if (rx == null || rx.getDispensedDate() == null) return false;
+        int days = (rx.getTotalDays() != null && rx.getTotalDays() > 0) ? rx.getTotalDays() : 14;
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(rx.getDispensedDate());
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date start = cal.getTime();
+        cal.add(Calendar.DAY_OF_YEAR, days);
+        cal.set(Calendar.HOUR_OF_DAY, 23);
+        cal.set(Calendar.MINUTE, 59);
+        cal.set(Calendar.SECOND, 59);
+        Date end = cal.getTime();
+        return !now.before(start) && !now.after(end);
     }
     public Map<String,Object> myComparison(long userId) {
         var all=collection(userId);
@@ -35,13 +160,28 @@ public class MedicationManagementService {
         var keys=new ArrayList<Set<String>>();
         var records=new LinkedHashMap<String,DurInfoDto>();
         var unresolved=new ArrayList<Map<String,Object>>();
+        var singleDurAlerts = new ArrayList<Map<String, Object>>();
         for(var med:medicines) {
             var result=dur.find(med.getMaterialName());
             keys.add(new LinkedHashSet<>(result.queriedIngredients().stream().map(DurGuideService::normalize).toList()));
             if(!result.unmatchedIngredients().isEmpty()||result.queriedIngredients().isEmpty())
                 unresolved.add(Map.of("medicationId",med.getMedicationId(),"itemName",med.getItemName(),"ingredients",result.unmatchedIngredients(),"status",result.status()));
-            for(var row:result.items()) if(row.getTabooType()==4)
-                records.put(row.getIngrAName()+"|"+row.getIngrBName()+"|"+row.getTabooEffect(),row);
+            for(var row:result.items()) {
+                if(row.getTabooType()==4) {
+                    records.put(row.getIngrAName()+"|"+row.getIngrBName()+"|"+row.getTabooEffect(),row);
+                } else if(row.getTabooType() >= 1 && row.getTabooType() <= 3) {
+                    Map<String, Object> alert = new LinkedHashMap<>();
+                    alert.put("medicationId", med.getMedicationId());
+                    alert.put("itemName", med.getItemName());
+                    alert.put("ingrName", row.getIngrAName());
+                    alert.put("tabooType", row.getTabooType());
+                    alert.put("typeName", row.getTabooType() == 1 ? "임부금기" : (row.getTabooType() == 2 ? "노인주의" : "특정연령대금기"));
+                    alert.put("grade", row.getGrade() != null ? row.getGrade() : "");
+                    alert.put("ageBase", row.getAgeBase() != null ? row.getAgeBase() : "");
+                    alert.put("tabooEffect", row.getTabooEffect() != null ? row.getTabooEffect() : "");
+                    singleDurAlerts.add(alert);
+                }
+            }
         }
         var pairs=new ArrayList<Map<String,Object>>();var duplicateIngredients=new ArrayList<Map<String,Object>>();
         for(int i=0;i<medicines.size();i++)for(int j=i+1;j<medicines.size();j++) {
@@ -54,6 +194,7 @@ public class MedicationManagementService {
         }
         var result=new LinkedHashMap<String,Object>();
         result.put("medications",medicines);result.put("pairs",pairs);result.put("duplicates",duplicateIngredients);
+        result.put("singleDurAlerts",singleDurAlerts);
         result.put("unresolved",unresolved);result.put("unlinked",List.of());
         result.put("notice","DB의 성분명과 일치하는 기록만 비교했습니다. 조회된 기록이 없어도 안전하다는 뜻은 아닙니다. 같은 성분 표시는 중복 사실이며 용량 적정성 판정이 아닙니다.");
         return result;

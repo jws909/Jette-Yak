@@ -2024,6 +2024,60 @@
   font-weight: 600;
 }
 
+/* AI 핵심 요약 하이라이트 박스 */
+.ai-summary-highlight-box {
+  background: #fdfaf6;
+  border: 1px solid #eadfc9;
+  border-left: 4px solid #d48b38;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-summary-highlight-box .ai-summary-label {
+  color: #b36314 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.ai-summary-highlight-box .ai-summary-main-text {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #2b2523 !important;
+  line-height: 1.55 !important;
+  word-break: keep-all;
+}
+
+.ai-summary-highlight-box .ai-sub-line {
+  font-size: 12.5px !important;
+  color: #5a5047 !important;
+  line-height: 1.4 !important;
+  margin-top: 2px !important;
+}
+
+.ai-summary-highlight-box .ai-warning-line {
+  color: #b54747 !important;
+}
+
+.ai-summary-loading-hint {
+  font-size: 13px;
+  color: #b36314;
+  background: #fdf8f0;
+  border: 1px dashed #d48b38;
+  border-radius: 6px;
+  padding: 10px 14px;
+  animation: pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
 /* 주의사항 모달 */
 .modal-content-box.caution-modal-content {
   max-width: 580px;
@@ -3747,5 +3801,73 @@
   margin-left: 6px;
 }
 
+/* 6. AI 처방전 가이드 배너 및 카드 */
+.summary-ai-guide-banner {
+  margin-top: 10px;
+  background: #fdfbf9;
+  border: 1px solid #ecdcd5;
+  border-left: 3.5px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 9px 13px;
+}
 
+.ai-guide-purpose-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
 
+.ai-guide-tag {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.ai-guide-purpose-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #382c2b;
+  line-height: 1.35;
+}
+
+.ai-guide-summary-text {
+  font-size: 12.5px;
+  color: #61564f;
+  line-height: 1.5;
+  margin: 2px 0 0 0;
+}
+
+.manage-card-ai-purpose {
+  margin: 8px 0;
+  padding: 6px 10px;
+  background: #fbf8f5;
+  border-radius: 6px;
+  border-left: 3px solid #8b3e4b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-badge-sm {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1.5px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.ai-purpose-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #443735;
+  line-height: 1.3;
+}

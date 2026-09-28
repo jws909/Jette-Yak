@@ -11,7 +11,16 @@ import com.app.guide.service.MedicationManagementService;
 public class MedicationManagementController {
     private final MedicationManagementService service;
     public MedicationManagementController(MedicationManagementService service){this.service=service;}
-    private Long user(HttpServletRequest request){var session=request.getSession(false);var id=session==null?null:session.getAttribute("userId");return id instanceof Long&&(Long)id>0?(Long)id:null;}
+    private Long user(HttpServletRequest request){
+        var session=request.getSession(false);
+        var id=session==null?null:session.getAttribute("userId");
+        if (id instanceof Long && (Long)id > 0) return (Long)id;
+        String param = request.getParameter("userId");
+        if (param != null && !param.isBlank()) {
+            try { return Long.parseLong(param.trim()); } catch (Exception ignored) {}
+        }
+        return null;
+    }
     private ResponseEntity<?> call(java.util.function.Supplier<Object> action){
         try{return ResponseEntity.ok().header("Cache-Control","no-store").body(action.get());}
         catch(IllegalArgumentException e){return ResponseEntity.badRequest().body(Map.of("error",e.getMessage()));}
@@ -28,6 +37,14 @@ public class MedicationManagementController {
     }
     @GetMapping("/collection/dur")
     public ResponseEntity<?> mine(HttpServletRequest request){var id=user(request);return id==null?unauthorized():call(()->service.myComparison(id));}
+    @GetMapping("/overall")
+    public ResponseEntity<?> overall(@RequestParam(value="refresh", defaultValue="false") boolean refresh, HttpServletRequest request){
+        var id=user(request);return id==null?unauthorized():call(()->service.getOverallGuide(id, refresh));
+    }
+    @PostMapping("/overall/refresh")
+    public ResponseEntity<?> refreshOverall(HttpServletRequest request){
+        var id=user(request);return id==null?unauthorized():call(()->service.getOverallGuide(id, true));
+    }
     public record CompareRequest(List<String> medicationIds){}
     @PostMapping("/compare")
     public ResponseEntity<?> compare(@RequestBody CompareRequest body){return call(()->service.compare(body.medicationIds()));}

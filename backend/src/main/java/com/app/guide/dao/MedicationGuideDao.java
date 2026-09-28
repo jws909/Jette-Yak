@@ -25,4 +25,13 @@ public class MedicationGuideDao {
         if (names.isEmpty()) return List.of();
         return session.selectList("com.app.guide.dao.MedicationGuideDao.findDur", Map.of("names", names));
     }
+    public int updateAiSummary(String medicationId, String aiSummaryJson) {
+        return session.update("com.app.guide.dao.MedicationGuideDao.updateAiSummary", Map.of("medicationId", medicationId, "aiSummaryJson", aiSummaryJson));
+    }
+    public com.app.guide.dto.OverallGuideDto findOverallGuide(long userId) {
+        return session.selectOne("com.app.guide.dao.MedicationGuideDao.findOverallGuide", userId);
+    }
+    public int saveOverallGuide(long userId, String aiGuide) {
+        return session.update("com.app.guide.dao.MedicationGuideDao.saveOverallGuide", Map.of("userId", userId, "aiGuide", aiGuide));
+    }
 }

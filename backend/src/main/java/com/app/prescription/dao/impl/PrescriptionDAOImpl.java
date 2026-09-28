@@ -63,6 +63,14 @@ public class PrescriptionDAOImpl implements PrescriptionDAO {
     }
 
     @Override
+    public int updateAiSummaryJson(Long prescriptionId, String aiSummaryJson) {
+        java.util.Map<String, Object> params = new java.util.HashMap<>();
+        params.put("prescriptionId", prescriptionId);
+        params.put("aiSummaryJson", aiSummaryJson);
+        return sqlSession.update(NAMESPACE + "updateAiSummaryJson", params);
+    }
+
+    @Override
     public int deletePrescription(Long prescriptionId) {
         return sqlSession.delete(NAMESPACE + "deletePrescription", prescriptionId);
     }

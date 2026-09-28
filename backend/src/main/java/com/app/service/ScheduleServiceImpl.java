@@ -33,6 +33,9 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Autowired
     private PrescriptionDAO prescriptionDAO;
 
+    @Autowired(required = false)
+    private com.app.guide.dao.MedicationGuideDao medicationGuideDao;
+
     private static class SlotInfo {
         String slot;
         String slotLabel;
@@ -435,7 +438,18 @@ public class ScheduleServiceImpl implements ScheduleService {
             dto.setMedicationId(null);
         }
 
-        return scheduleDAO.insertSchedule(dto) > 0;
+        boolean success = scheduleDAO.insertSchedule(dto) > 0;
+        if (success && medicationGuideDao != null) {
+            try {
+                if (dto.getCabinetId() != null) {
+                    medicationGuideDao.updateStatus(dto.getUserId(), "C:" + dto.getCabinetId(), "ACTIVE");
+                } else if (dto.getRoutineId() != null) {
+                    medicationGuideDao.updateStatus(dto.getUserId(), "R:" + dto.getRoutineId(), "ACTIVE");
+                }
+                medicationGuideDao.saveOverallGuide(dto.getUserId(), null);
+            } catch (Exception ignored) {}
+        }
+        return success;
     }
 
     @Override
@@ -504,28 +518,37 @@ public class ScheduleServiceImpl implements ScheduleService {
 
         if (deleteAll) {
             // 이 약에 대한 전체 스케줄 및 원천 데이터 삭제
+            boolean res = false;
             if (target.getPrescriptionId() != null) {
                 Long pId = target.getPrescriptionId();
                 scheduleDAO.deleteSchedulesByPrescriptionId(pId);
                 prescriptionDAO.deletePrescriptionItemsByPrescriptionId(pId);
                 prescriptionDAO.deletePrescription(pId);
-                return true;
+                res = true;
             } else if (target.getCabinetId() != null) {
                 Long cId = target.getCabinetId();
                 scheduleDAO.deleteSchedulesByCabinetId(actualUserId, cId);
                 scheduleDAO.deleteCabinetMedication(actualUserId, cId);
-                return true;
+                res = true;
             } else if (target.getRoutineId() != null) {
                 Long rId = target.getRoutineId();
                 scheduleDAO.deleteSchedulesByRoutineId(actualUserId, rId);
                 scheduleDAO.deleteRoutineMedication(actualUserId, rId);
-                return true;
+                res = true;
             } else {
-                return scheduleDAO.deleteSchedule(scheduleId) > 0;
+                res = scheduleDAO.deleteSchedule(scheduleId) > 0;
             }
+            if (res && medicationGuideDao != null) {
+                try { medicationGuideDao.saveOverallGuide(actualUserId, null); } catch (Exception ignored) {}
+            }
+            return res;
         } else {
             // 단건 일정만 삭제
-            return scheduleDAO.deleteSchedule(scheduleId) > 0;
+            boolean res = scheduleDAO.deleteSchedule(scheduleId) > 0;
+            if (res && medicationGuideDao != null) {
+                try { medicationGuideDao.saveOverallGuide(actualUserId, null); } catch (Exception ignored) {}
+            }
+            return res;
         }
     }
 }

@@ -241,6 +241,498 @@ public class GeminiService {
         ));
     }
 
+    public String summarizeMedication(String itemName, String className, String materialName, String efficacy, String usageDosage) {
+        String instructions = """
+            너는 대한민국 전문 약사 AI 도우미다.
+            제공된 의약품 정보(약품명, 분류, 성분명, 효능효과, 용법용량)를 바탕으로,
+            환자가 이해하기 쉬운 핵심 요약 정보를 반드시 정해진 JSON 스키마에 맞춰 한국어로 작성한다.
+            - summary: 어떤 약인지 핵심 효능 1~2문장 (전문 용어는 쉽게 풀어서 설명)
+            - tips: 복약 시 꿀팁 및 복용 방법 (예: 식후 즉시, 물 많이 마시기 등)
+            - warnings: 가장 주의해야 할 부작용 및 금기 행동 (예: 음주 금지, 졸음 주의 등)
+            - foodCautions: 함께 먹을 때 피해야 할 음식이나 상호작용 주의사항
+            """;
+        String prompt = String.format("""
+            [약품명]: %s
+            [분류]: %s
+            [성분명]: %s
+            [효능·효과]: %s
+            [용법·용량]: %s
+            """,
+            itemName == null ? "" : itemName,
+            className == null ? "" : className,
+            materialName == null ? "" : materialName,
+            efficacy == null ? "" : efficacy,
+            usageDosage == null ? "" : usageDosage
+        );
+
+        Map<String, Object> schema = Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "summary", Map.of("type", "string"),
+                "tips", Map.of("type", "string"),
+                "warnings", Map.of("type", "string"),
+                "foodCautions", Map.of("type", "string")
+            ),
+            "required", List.of("summary", "tips", "warnings", "foodCautions")
+        );
+
+        return generate(instructions, prompt, Map.of(
+            "temperature", 0.2,
+            "maxOutputTokens", 1024,
+            "responseMimeType", "application/json",
+            "responseJsonSchema", schema
+        ));
+    }
+
+    public String getOrGenerateMedicationSummary(String itemName, String className, String materialName, String efficacy, String usageDosage) {
+        if (isAvailable()) {
+            try {
+                return summarizeMedication(itemName, className, materialName, efficacy, usageDosage);
+            } catch (Exception ignored) {}
+        }
+        return createFallbackSummary(itemName, className, efficacy, usageDosage);
+    }
+
+    private String createFallbackSummary(String itemName, String className, String efficacy, String usageDosage) {
+        String cleanEff = (efficacy != null && !efficacy.isBlank())
+                ? efficacy.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim()
+                : (className != null && !className.isBlank() ? className + " 관련 치료제입니다." : itemName + " 의약품입니다.");
+        if (cleanEff.length() > 100) cleanEff = cleanEff.substring(0, 97) + "...";
+
+        String cleanUsage = (usageDosage != null && !usageDosage.isBlank())
+                ? usageDosage.replaceAll("<[^>]*>", "").replaceAll("\\s+", " ").trim()
+                : "처방 및 설명서에 명시된 정해진 시간에 물과 함께 복용하세요.";
+        if (cleanUsage.length() > 80) cleanUsage = cleanUsage.substring(0, 77) + "...";
+
+        return String.format(
+            "{\"summary\":\"%s\",\"tips\":\"%s\",\"warnings\":\"이상 반응이 나타날 경우 즉시 복용을 중단하고 의사나 약사와 상담하세요.\",\"foodCautions\":\"복용 기간 중 음주는 피하시고 충분한 수분을 섭취해 주세요.\"}",
+            escapeJson(cleanEff),
+            escapeJson(cleanUsage)
+        );
+    }
+
+    public String summarizePrescription(
+            String hospitalName,
+            String doctorName,
+            Integer totalDays,
+            java.util.List<com.app.prescription.dto.PrescriptionItemDTO> items) {
+
+        String instructions = """
+            너는 처방전의 의약품 구성을 분석하여 환자 맞춤형 복약 가이드를 제공하는 전문 임상 AI 약사다.
+            제공된 병원명, 의사명, 총 투약 일수 및 처방 약품 목록(약품명, 성분, 효능, 복용법 등)을 바탕으로,
+            환자가 이해하기 쉬운 명확하고 정확한 한국어로 처방전 분석 결과를 반드시 정해진 JSON 스키마에 맞춰 작성한다.
+            - purpose: 처방전의 주된 치료/진료 목적 1문장 (예: "급성 상기도 감염(인후염) 치료 및 통증 완화", "위식도 역류 질환 및 위염 증상 개선")
+            - summary: 처방된 약품들의 상호 역할과 복용 시 핵심 준수 사항에 대한 2~3문장 설명
+            - precautions: 환자가 복용 시 반드시 주의해야 할 핵심 주의사항 (1~3개) 문자열 배열 (예: 항생제 복용 완료 준수, 소염진통제 복용 시 금주, 졸음 유발 등)
+            - intakeAdvice: 최적의 복약 요령 (1~3개) 문자열 배열 (예: "위장 장애 예방을 위해 식후 30분에 복용하세요", "하루 3회 일정한 시간 간격으로 복용하세요")
+            """;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("[처방전 기본 정보]\n");
+        if (hospitalName != null && !hospitalName.isBlank()) sb.append("- 의료기관: ").append(hospitalName).append("\n");
+        if (doctorName != null && !doctorName.isBlank()) sb.append("- 처방의: ").append(doctorName).append("\n");
+        sb.append("- 처방 투약 일수: ").append(totalDays != null ? totalDays : 14).append("일분\n\n");
+
+        sb.append("[처방 약품 목록]\n");
+        if (items != null) {
+            for (var it : items) {
+                sb.append("- ").append(it.getItemName());
+                if (it.getClassName() != null) sb.append(" [분류: ").append(it.getClassName()).append("]");
+                if (it.getMaterialName() != null) sb.append(" [성분: ").append(it.getMaterialName()).append("]");
+                if (it.getEfficacy() != null) sb.append(" [효능: ").append(it.getEfficacy()).append("]");
+                if (it.getUsageTiming() != null) sb.append(" [용법: ").append(it.getUsageTiming()).append("]");
+                sb.append("\n");
+            }
+        }
+
+        Map<String, Object> schema = Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "purpose", Map.of("type", "string"),
+                "summary", Map.of("type", "string"),
+                "precautions", Map.of("type", "array", "items", Map.of("type", "string")),
+                "intakeAdvice", Map.of("type", "array", "items", Map.of("type", "string"))
+            ),
+            "required", java.util.List.of("purpose", "summary", "precautions", "intakeAdvice")
+        );
+
+        if (isAvailable()) {
+            try {
+                return generate(instructions, sb.toString(), Map.of(
+                    "temperature", 0.2,
+                    "maxOutputTokens", 1024,
+                    "responseMimeType", "application/json",
+                    "responseJsonSchema", schema
+                ));
+            } catch (Exception ignored) {}
+        }
+
+        return createFallbackPrescriptionGuide(hospitalName, doctorName, totalDays, items);
+    }
+
+    public String createFallbackPrescriptionGuide(
+            String hospitalName,
+            String doctorName,
+            Integer totalDays,
+            java.util.List<com.app.prescription.dto.PrescriptionItemDTO> items) {
+
+        int count = items != null ? items.size() : 0;
+        int days = totalDays != null ? totalDays : 14;
+
+        boolean hasAntibiotic = false;
+        boolean hasPainkiller = false;
+        boolean hasStomach = false;
+
+        if (items != null) {
+            for (var it : items) {
+                String name = it.getItemName() != null ? it.getItemName() : "";
+                String cls = it.getClassName() != null ? it.getClassName() : "";
+                String comb = name + " " + cls;
+                if (comb.contains("항생") || comb.contains("항균") || comb.contains("세파") || comb.contains("아목시")) {
+                    hasAntibiotic = true;
+                }
+                if (comb.contains("소염") || comb.contains("진통") || comb.contains("해열")) {
+                    hasPainkiller = true;
+                }
+                if (comb.contains("위장") || comb.contains("소화") || comb.contains("제산") || comb.contains("궤양")) {
+                    hasStomach = true;
+                }
+            }
+        }
+
+        String purpose;
+        if (hasAntibiotic && hasPainkiller) {
+            purpose = "감염 질환 치료 및 염증/통증 완화";
+        } else if (hasPainkiller && hasStomach) {
+            purpose = "통증 및 염증 완화와 위장 보호";
+        } else if (hasAntibiotic) {
+            purpose = "세균성 감염 질환 치료";
+        } else if (hasPainkiller) {
+            purpose = "급만성 통증 및 염증 증상 개선";
+        } else {
+            purpose = (hospitalName != null && !hospitalName.isBlank() ? hospitalName : "전문의") + " 진료에 따른 질환 치료 및 증상 조절";
+        }
+
+        String summary = String.format("총 %d종의 처방 의약품으로 구성되어 있으며, 처방된 %d일 동안 정해진 용법에 따라 규칙적으로 복용해야 합니다.", count, days);
+
+        java.util.List<String> precautions = new java.util.ArrayList<>();
+        if (hasAntibiotic) {
+            precautions.add("항생제는 내성균 발생을 방지하기 위해 증상이 호전되더라도 처방 일수 동안 끝까지 복용하세요.");
+        }
+        if (hasPainkiller) {
+            precautions.add("소염진통제 복용 중 음주는 위장 출혈 및 간 손상 위험을 크게 높이므로 금주하세요.");
+        }
+        precautions.add("복용 중 알레르기 반응(두드러기, 가려움)이나 심한 어지러움 발생 시 의료진과 상담하세요.");
+
+        java.util.List<String> intakeAdvice = new java.util.ArrayList<>();
+        intakeAdvice.add("위장 장애 예방을 위해 식후 30분에 미온수와 함께 복용하세요.");
+        intakeAdvice.add("정해진 시간에 복용하여 체내 약물 농도를 일정하게 유지하세요.");
+
+        StringBuilder precJson = new StringBuilder();
+        for (int i = 0; i < precautions.size(); i++) {
+            precJson.append("\"").append(escapeJson(precautions.get(i))).append("\"");
+            if (i < precautions.size() - 1) precJson.append(",");
+        }
+
+        StringBuilder intakeJson = new StringBuilder();
+        for (int i = 0; i < intakeAdvice.size(); i++) {
+            intakeJson.append("\"").append(escapeJson(intakeAdvice.get(i))).append("\"");
+            if (i < intakeAdvice.size() - 1) intakeJson.append(",");
+        }
+
+        return String.format("""
+            {
+              "purpose": "%s",
+              "summary": "%s",
+              "precautions": [%s],
+              "intakeAdvice": [%s]
+            }
+            """,
+            escapeJson(purpose),
+            escapeJson(summary),
+            precJson.toString(),
+            intakeJson.toString()
+        );
+    }
+
+    public String generateOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.Map<String, Object> comparisonResult) {
+        return generateOverallGuide(activeMeds, java.util.Collections.emptyList(), comparisonResult);
+    }
+
+    public String generateOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.List<com.app.prescription.dto.PrescriptionDTO> activePrescriptions,
+            java.util.Map<String, Object> comparisonResult) {
+
+        String instructions = """
+            너는 대한민국 전문 임상 약사 AI 도우미다.
+            환자가 현재 복용 중인 모든 의약품(처방약, 상비약, 영양제) 목록과 등록된 처방전의 진료/치료 목적 및 AI 처방 요약,
+            그리고 DUR 상호작용 분석 결과(병용금기, 중복성분 등)를 종합하여,
+            환자가 일상에서 안심하고 올바르게 실천할 수 있는 '개인 맞춤형 통합 복약 가이드'를 반드시 정해진 JSON 스키마에 맞춰 한국어로 작성한다.
+
+            [작성 핵심 원칙 - 엄격 준수]
+            1. 절대 근거 없는 억측이나 의례적이고 일반론적인 주의사항(예: '영양제는 무조건 처방약과 1~2시간 간격을 두고 드세요' 등)을 지어내지 마라.
+            2. 등록된 약품(처방약, 상비약, 영양제 등) 간에 의학적으로 확인된 상호작용(예: 퀴놀론계/테트라사이클린 항생제와 마그네슘/철분/칼슘 결합 등)이나 실제 DUR 병용금기가 존재하지 않는다면, 불필요하게 '시간 간격을 두고 복용하라'는 식의 경고를 일절 추가하지 마라.
+            3. 검색되거나 확인된 주의사항이 없는 항목은 억지로 채우지 말고 반드시 빈 배열([])로 반환하라.
+            4. 일반 간식이나 식품성 영양제(예: 젤리류, 마이구미, 일반 비타민 등)가 등록되어 있더라도, 특정 의약품과 상호작용이 규명되지 않았다면 아무런 제약이나 경고를 두지 마라.
+
+            [필드별 작성 요령]
+            - headline: 환자 복약 상태를 대표하는 핵심 1줄 요약 (예: "처방약 2종을 복용 중이며, 큰 상호작용 없이 안전합니다.")
+            - overallSummary: 처방전의 진료 목적을 포함하여, 복용 중인 약들의 조합과 전반적인 복약 상태에 대한 1~2문장 설명
+            - scheduleTips: 공식적인 복약 지도에 명시된 시간대별 권장 요령 (예: "식후 30분에 복용"). 근거 없는 시간 간격 두기는 절대 작성 금지. 특별한 주의점이 없으면 빈 배열([]) 반환.
+            - durAlerts: 아래 [DUR 성분 및 금기·상호작용 분석 결과]에 제공된 medication_interactions DB 조회 결과(병용금기 성분 및 금기 사유/부작용(taboo_effect), 성분 중복, 임부/노인/연령 금기 등)를 충실히 반영하여 구체적이고 전문적인 경고를 작성하라. 확인된 금기나 상호작용 문제가 전혀 없으면 빈 배열([]) 반환.
+            - foodAndLifestyle: 실제로 처방된 약물에 명백히 금기시되는 특정 음식(예: 고지혈증약과 자몽, 소염진통제 복용 중 금주 등)만 작성. 해당 약물과 무관한 일반 상식 나열 금지. 해당 사항이 없으면 빈 배열([]) 반환.
+            - consultationAdvice: 이상 반응 발생 시 대처법 및 의료진/약사 상담 권장 안내 1문장.
+            """;
+
+        StringBuilder sb = new StringBuilder();
+        if (activePrescriptions != null && !activePrescriptions.isEmpty()) {
+            sb.append("[현재 복용 중인 처방전 및 진료 목적 (총 ").append(activePrescriptions.size()).append("건)]\n");
+            for (var rx : activePrescriptions) {
+                sb.append("- 조제일: ").append(rx.getDispensedDate() != null ? rx.getDispensedDate() : "최근")
+                  .append(" (").append(rx.getHospitalName() != null ? rx.getHospitalName() : "의료기관")
+                  .append(", ").append(rx.getDoctorName() != null ? rx.getDoctorName() : "처방의")
+                  .append(" / ").append(rx.getTotalDays() != null ? rx.getTotalDays() : 14).append("일분)\n");
+                if (rx.getAiGuide() != null) {
+                    if (rx.getAiGuide().has("purpose")) {
+                        sb.append("  * 처방 목적: ").append(rx.getAiGuide().get("purpose").asText()).append("\n");
+                    }
+                    if (rx.getAiGuide().has("summary")) {
+                        sb.append("  * 처방 요약: ").append(rx.getAiGuide().get("summary").asText()).append("\n");
+                    }
+                }
+            }
+            sb.append("\n");
+        }
+
+        int count = activeMeds != null ? activeMeds.size() : 0;
+        sb.append("[현재 복용 중인 약품 목록 (총 ").append(count).append("종)]\n");
+        if (activeMeds != null) {
+            for (var med : activeMeds) {
+                String typeName = "PRESCRIPTION".equals(med.getSource()) ? "처방약"
+                                : "CABINET".equals(med.getSource()) ? "상비약" : "영양제/보조제";
+                sb.append("- ").append(med.getItemName())
+                  .append(" (").append(typeName).append(")")
+                  .append(med.getMaterialName() != null ? " [성분: " + med.getMaterialName() + "]" : "")
+                  .append(med.getNotes() != null ? " [복용법: " + med.getNotes() + "]" : "")
+                  .append(med.getTakeTime() != null ? " [복용시간: " + med.getTakeTime() + "]" : "")
+                  .append("\n");
+            }
+        }
+
+        sb.append("\n[DUR 성분 및 금기·상호작용 분석 결과 (medication_interactions DB 조회 결과)]\n");
+        if (comparisonResult != null) {
+            Object pairsObj = comparisonResult.get("pairs");
+            if (pairsObj instanceof java.util.List<?> pairs && !pairs.isEmpty()) {
+                sb.append("⚠️ 발견된 병용금기(약물 상호작용) 조합 (총 ").append(pairs.size()).append("건):\n");
+                for (Object p : pairs) {
+                    if (p instanceof java.util.Map<?, ?> pair) {
+                        Object left = pair.get("left");
+                        Object right = pair.get("right");
+                        String leftName = (left instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(left);
+                        String rightName = (right instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(right);
+                        sb.append("  * [병용금기] ").append(leftName).append(" + ").append(rightName).append("\n");
+                        Object itemsObj = pair.get("items");
+                        if (itemsObj instanceof java.util.List<?> items) {
+                            for (Object it : items) {
+                                if (it instanceof com.app.guide.dto.DurInfoDto dur) {
+                                    sb.append("    - 금기 성분: ").append(dur.getIngrAName()).append(" + ").append(dur.getIngrBName()).append("\n");
+                                    if (dur.getTabooEffect() != null && !dur.getTabooEffect().isBlank()) {
+                                        sb.append("    - 금기 사유 및 부작용(taboo_effect): ").append(dur.getTabooEffect().trim()).append("\n");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                sb.append("✓ 복용 중인 의약품 간 심각한 DUR 병용금기 상호작용은 발견되지 않았습니다.\n");
+            }
+
+            Object dupObj = comparisonResult.get("duplicates");
+            if (dupObj instanceof java.util.List<?> dups && !dups.isEmpty()) {
+                sb.append("ℹ️ 동일 성분 중복 복용 주의 조합 (총 ").append(dups.size()).append("건):\n");
+                for (Object d : dups) {
+                    if (d instanceof java.util.Map<?, ?> dup) {
+                        sb.append("  * ").append(dup.get("left")).append(" + ").append(dup.get("right"))
+                          .append(" (중복 성분: ").append(dup.get("ingredients")).append(")\n");
+                    }
+                }
+            }
+
+            Object singleDurObj = comparisonResult.get("singleDurAlerts");
+            if (singleDurObj instanceof java.util.List<?> singles && !singles.isEmpty()) {
+                sb.append("⚠️ 약품별 특정 대상 금기 주의사항 (임부/노인/연령 금기):\n");
+                for (Object s : singles) {
+                    if (s instanceof java.util.Map<?, ?> m) {
+                        sb.append("  * [").append(m.get("typeName")).append("] ")
+                          .append(m.get("itemName")).append(" (성분: ").append(m.get("ingrName")).append(")");
+                        if (m.get("grade") != null && !String.valueOf(m.get("grade")).isBlank()) {
+                            sb.append(" - 등급: ").append(m.get("grade"));
+                        }
+                        if (m.get("ageBase") != null && !String.valueOf(m.get("ageBase")).isBlank()) {
+                            sb.append(" - 기준: ").append(m.get("ageBase"));
+                        }
+                        if (m.get("tabooEffect") != null && !String.valueOf(m.get("tabooEffect")).isBlank()) {
+                            sb.append(" - 사유: ").append(m.get("tabooEffect"));
+                        }
+                        sb.append("\n");
+                    }
+                }
+            }
+        }
+
+        java.util.Map<String, Object> schema = java.util.Map.of(
+            "type", "object",
+            "properties", java.util.Map.of(
+                "headline", java.util.Map.of("type", "string"),
+                "overallSummary", java.util.Map.of("type", "string"),
+                "scheduleTips", java.util.Map.of("type", "array", "items", java.util.Map.of("type", "string")),
+                "durAlerts", java.util.Map.of("type", "array", "items", java.util.Map.of("type", "string")),
+                "foodAndLifestyle", java.util.Map.of("type", "array", "items", java.util.Map.of("type", "string")),
+                "consultationAdvice", java.util.Map.of("type", "string")
+            ),
+            "required", java.util.List.of("headline", "overallSummary", "scheduleTips", "durAlerts", "foodAndLifestyle", "consultationAdvice")
+        );
+
+        if (isAvailable()) {
+            try {
+                return generate(instructions, sb.toString(), java.util.Map.of(
+                    "temperature", 0.2,
+                    "maxOutputTokens", 2048,
+                    "responseMimeType", "application/json",
+                    "responseJsonSchema", schema
+                ));
+            } catch (Exception ignored) {}
+        }
+
+        return createFallbackOverallGuide(activeMeds, activePrescriptions, comparisonResult);
+    }
+
+    public String createFallbackOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.Map<String, Object> comparisonResult) {
+        return createFallbackOverallGuide(activeMeds, java.util.Collections.emptyList(), comparisonResult);
+    }
+
+    public String createFallbackOverallGuide(
+            java.util.List<com.app.guide.dto.RegisteredMedicationDto> activeMeds,
+            java.util.List<com.app.prescription.dto.PrescriptionDTO> activePrescriptions,
+            java.util.Map<String, Object> comparisonResult) {
+
+        int totalCount = activeMeds != null ? activeMeds.size() : 0;
+        long rxCount = activeMeds != null ? activeMeds.stream().filter(m -> "PRESCRIPTION".equals(m.getSource())).count() : 0;
+        long suppCount = activeMeds != null ? activeMeds.stream().filter(m -> "ROUTINE".equals(m.getSource())).count() : 0;
+        long cabCount = totalCount - rxCount - suppCount;
+
+        String rxPurpose = "";
+        if (activePrescriptions != null && !activePrescriptions.isEmpty()) {
+            for (var rx : activePrescriptions) {
+                if (rx.getAiGuide() != null && rx.getAiGuide().has("purpose")) {
+                    rxPurpose = rx.getAiGuide().get("purpose").asText();
+                    break;
+                }
+            }
+        }
+
+        String headline = (rxPurpose != null && !rxPurpose.isBlank())
+            ? String.format("처방약 %d종(%s)과 상비약 %d종, 영양제 %d종을 복용 중입니다.", rxCount, rxPurpose, cabCount, suppCount)
+            : String.format("현재 처방약 %d종, 상비약 %d종, 영양제 %d종을 복용 중입니다.", rxCount, cabCount, suppCount);
+
+        String summary = String.format("총 %d종의 약품을 복용하고 계시며, 처방전 기준 용법과 시간에 맞춰 규칙적으로 복용하는 것이 중요합니다.", totalCount);
+
+        java.util.List<String> schedList = new java.util.ArrayList<>();
+        if (rxCount > 0) {
+            schedList.add("처방약은 의사의 지시 및 정해진 용법(식후 30분 등)에 맞춰 규칙적으로 복용하세요.");
+        }
+
+        java.util.List<String> durList = new java.util.ArrayList<>();
+        if (comparisonResult != null && comparisonResult.get("pairs") instanceof java.util.List<?> list) {
+            for (Object p : list) {
+                if (p instanceof java.util.Map<?, ?> pair) {
+                    Object left = pair.get("left");
+                    Object right = pair.get("right");
+                    String leftName = (left instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(left);
+                    String rightName = (right instanceof com.app.guide.dto.MedicationGuideDto m) ? m.getItemName() : String.valueOf(right);
+                    String effect = "";
+                    Object itemsObj = pair.get("items");
+                    if (itemsObj instanceof java.util.List<?> items && !items.isEmpty() && items.get(0) instanceof com.app.guide.dto.DurInfoDto dur) {
+                        if (dur.getTabooEffect() != null && !dur.getTabooEffect().isBlank()) {
+                            effect = " (" + dur.getTabooEffect().trim() + ")";
+                        }
+                    }
+                    durList.add("⚠️ [병용금기] " + leftName + " + " + rightName + effect);
+                }
+            }
+        }
+        if (comparisonResult != null && comparisonResult.get("duplicates") instanceof java.util.List<?> dups) {
+            for (Object d : dups) {
+                if (d instanceof java.util.Map<?, ?> dup) {
+                    durList.add("ℹ️ [성분중복] " + dup.get("left") + " + " + dup.get("right") + " (중복 성분: " + dup.get("ingredients") + ")");
+                }
+            }
+        }
+        if (comparisonResult != null && comparisonResult.get("singleDurAlerts") instanceof java.util.List<?> singles) {
+            for (Object s : singles) {
+                if (s instanceof java.util.Map<?, ?> m) {
+                    String reason = (m.get("tabooEffect") != null && !String.valueOf(m.get("tabooEffect")).isBlank())
+                        ? " - " + m.get("tabooEffect") : "";
+                    durList.add("⚠️ [" + m.get("typeName") + "] " + m.get("itemName") + reason);
+                }
+            }
+        }
+
+        java.util.List<String> foodList = new java.util.ArrayList<>();
+        if (rxCount > 0) {
+            foodList.add("약 복용 기간 중에는 간 및 위장에 부담을 줄 수 있는 음주(술)를 자제해 주세요.");
+        }
+
+        StringBuilder schedJson = new StringBuilder();
+        for (int i = 0; i < schedList.size(); i++) {
+            schedJson.append("\"").append(escapeJson(schedList.get(i))).append("\"");
+            if (i < schedList.size() - 1) schedJson.append(",");
+        }
+
+        StringBuilder durJson = new StringBuilder();
+        for (int i = 0; i < durList.size(); i++) {
+            durJson.append("\"").append(escapeJson(durList.get(i))).append("\"");
+            if (i < durList.size() - 1) durJson.append(",");
+        }
+
+        StringBuilder foodJson = new StringBuilder();
+        for (int i = 0; i < foodList.size(); i++) {
+            foodJson.append("\"").append(escapeJson(foodList.get(i))).append("\"");
+            if (i < foodList.size() - 1) foodJson.append(",");
+        }
+
+        return String.format("""
+            {
+              "headline": "%s",
+              "overallSummary": "%s",
+              "scheduleTips": [%s],
+              "durAlerts": [%s],
+              "foodAndLifestyle": [%s],
+              "consultationAdvice": "복용 중 이상 증상이 발생할 경우 즉시 의사 또는 약사와 상담하세요."
+            }
+            """,
+            escapeJson(headline),
+            escapeJson(summary),
+            schedJson.toString(),
+            durJson.toString(),
+            foodJson.toString()
+        );
+    }
+
+    private static String escapeJson(String raw) {
+        if (raw == null) return "";
+        return raw.replace("\\", "\\\\")
+                  .replace("\"", "\\\"")
+                  .replace("\r", " ")
+                  .replace("\n", " ");
+    }
+
     private String generate(String instructions, String prompt, Map<String, Object> generationConfig) {
         if (apiKey.isBlank())
             throw new GeminiException(503, "AI 서비스의 GEMINI_API_KEY가 설정되지 않았습니다.");

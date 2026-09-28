@@ -20,7 +20,7 @@
             #{dispensedDate},
             #{totalDays},
             #{prescriptionImageUrl},
-            #{aiSummaryJson},
+            #{aiSummaryJson, jdbcType=CLOB},
             #{hasDiscontinuedDrug},
             SYSDATE
         )
@@ -187,6 +187,13 @@
             total_days = #{totalDays, jdbcType=INTEGER},
             ai_summary_json = #{aiSummaryJson, jdbcType=CLOB},
             has_discontinued_drug = #{hasDiscontinuedDrug, jdbcType=INTEGER}
+        WHERE prescription_id = #{prescriptionId}
+    </update>
+
+    <!-- 10-1. 처방전 AI 가이드 및 요약 JSON 단독 갱신 (CLOB) -->
+    <update id="updateAiSummaryJson" parameterType="map">
+        UPDATE prescriptions
+        SET ai_summary_json = #{aiSummaryJson, jdbcType=CLOB}
         WHERE prescription_id = #{prescriptionId}
     </update>
 

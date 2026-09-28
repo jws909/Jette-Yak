@@ -28,6 +28,8 @@ import com.app.prescription.dto.PrescriptionDTO;
 import com.app.prescription.dto.PrescriptionItemDTO;
 import com.app.prescription.service.PrescriptionService;
 import com.app.prescription.service.VisionOcrService;
+import com.app.guide.service.MedicationManagementService;
+import com.app.chatbot.client.GeminiService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
@@ -46,12 +48,26 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final PrescriptionDAO prescriptionDAO;
     private final VisionOcrService visionOcrService;
     private final ScheduleDAO scheduleDAO;
+    private final MedicationManagementService medicationManagementService;
+    private final GeminiService geminiService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public PrescriptionServiceImpl(PrescriptionDAO prescriptionDAO, VisionOcrService visionOcrService, ScheduleDAO scheduleDAO) {
+        this(prescriptionDAO, visionOcrService, scheduleDAO, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public PrescriptionServiceImpl(
+            PrescriptionDAO prescriptionDAO,
+            VisionOcrService visionOcrService,
+            ScheduleDAO scheduleDAO,
+            @org.springframework.context.annotation.Lazy MedicationManagementService medicationManagementService,
+            @org.springframework.context.annotation.Lazy GeminiService geminiService) {
         this.prescriptionDAO = prescriptionDAO;
         this.visionOcrService = visionOcrService;
         this.scheduleDAO = scheduleDAO;
+        this.medicationManagementService = medicationManagementService;
+        this.geminiService = geminiService;
     }
 
     @Override
@@ -88,16 +104,6 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescription.setHospitalName(parseResult.getHospitalName());
         prescription.setDoctorName(parseResult.getDoctorName());
 
-        // AI 요약 JSON 문자열 직렬화 (VARCHAR2(4000) 이내)
-        try {
-            String jsonStr = objectMapper.writeValueAsString(parseResult);
-            if (jsonStr.length() > 3900) {
-                jsonStr = jsonStr.substring(0, 3900) + "...}";
-            }
-            prescription.setAiSummaryJson(jsonStr);
-        } catch (Exception e) {
-            prescription.setAiSummaryJson("{\"status\":\"parsed\",\"hospital\":\"" + parseResult.getHospitalName() + "\"}");
-        }
 
         boolean hasDiscontinued = false;
         List<PrescriptionItemDTO> itemsToInsert = new ArrayList<>();
@@ -193,6 +199,42 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
         prescription.setHasDiscontinuedDrug(hasDiscontinued ? 1 : 0);
 
+        // AI 요약 JSON 및 처방전 AI 가이드 생성 (CLOB)
+        try {
+            com.fasterxml.jackson.databind.node.ObjectNode root = objectMapper.valueToTree(parseResult);
+            if (geminiService != null) {
+                try {
+                    String guideJson = geminiService.summarizePrescription(
+                            prescription.getHospitalName(),
+                            prescription.getDoctorName(),
+                            prescription.getTotalDays(),
+                            itemsToInsert
+                    );
+                    if (guideJson != null && !guideJson.isBlank()) {
+                        com.fasterxml.jackson.databind.JsonNode guideNode = objectMapper.readTree(guideJson);
+                        root.set("aiGuide", guideNode);
+                        prescription.setAiGuide(guideNode);
+                    }
+                } catch (Exception e) {
+                    log.warn("[PRESCRIPTION] Gemini 처방전 가이드 생성 실패, fallback 대체: {}", e.getMessage());
+                    try {
+                        String fallbackJson = geminiService.createFallbackPrescriptionGuide(
+                                prescription.getHospitalName(),
+                                prescription.getDoctorName(),
+                                prescription.getTotalDays(),
+                                itemsToInsert
+                        );
+                        com.fasterxml.jackson.databind.JsonNode guideNode = objectMapper.readTree(fallbackJson);
+                        root.set("aiGuide", guideNode);
+                        prescription.setAiGuide(guideNode);
+                    } catch (Exception ignored) {}
+                }
+            }
+            prescription.setAiSummaryJson(root.toString());
+        } catch (Exception e) {
+            prescription.setAiSummaryJson("{\"status\":\"parsed\",\"hospital\":\"" + parseResult.getHospitalName() + "\"}");
+        }
+
         // 6. DB 저장: prescriptions 테이블 INSERT (selectKey order=AFTER로 prescriptionId 자동 취득)
         prescriptionDAO.insertPrescription(prescription);
 
@@ -213,6 +255,17 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
 
         prescription.setItems(itemsToInsert);
+
+        // 8. 처방전 등록 완료 후 통합 복약 가이드(MEDICATION_OVERALL_GUIDE) 자동 갱신
+        if (medicationManagementService != null) {
+            try {
+                medicationManagementService.getOverallGuide(userId, true);
+                log.info("[PRESCRIPTION] 처방전 등록 완료에 따른 통합 복약 가이드 자동 갱신 완료 (userId: {})", userId);
+            } catch (Exception e) {
+                log.warn("[PRESCRIPTION] 처방전 등록 후 통합 복약 가이드 자동 갱신 실패: {}", e.getMessage());
+            }
+        }
+
         return prescription;
     }
 
@@ -378,19 +431,52 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
     }
 
-    private void populateHospitalAndDoctor(PrescriptionDTO p) {
+    private void populateAiFields(PrescriptionDTO p) {
         if (p == null) return;
+        com.fasterxml.jackson.databind.node.ObjectNode root = null;
         if (p.getAiSummaryJson() != null && !p.getAiSummaryJson().isBlank()) {
             try {
-                com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(p.getAiSummaryJson());
-                if ((p.getHospitalName() == null || p.getHospitalName().isBlank()) && root.has("hospitalName") && !root.get("hospitalName").isNull()) {
-                    p.setHospitalName(root.get("hospitalName").asText());
+                com.fasterxml.jackson.databind.JsonNode parsedNode = objectMapper.readTree(p.getAiSummaryJson());
+                if (parsedNode instanceof com.fasterxml.jackson.databind.node.ObjectNode) {
+                    root = (com.fasterxml.jackson.databind.node.ObjectNode) parsedNode;
                 }
-                if ((p.getDoctorName() == null || p.getDoctorName().isBlank()) && root.has("doctorName") && !root.get("doctorName").isNull()) {
-                    p.setDoctorName(root.get("doctorName").asText());
+                if ((p.getHospitalName() == null || p.getHospitalName().isBlank()) && parsedNode.has("hospitalName") && !parsedNode.get("hospitalName").isNull()) {
+                    p.setHospitalName(parsedNode.get("hospitalName").asText());
+                }
+                if ((p.getDoctorName() == null || p.getDoctorName().isBlank()) && parsedNode.has("doctorName") && !parsedNode.get("doctorName").isNull()) {
+                    p.setDoctorName(parsedNode.get("doctorName").asText());
+                }
+                if (parsedNode.has("aiGuide") && !parsedNode.get("aiGuide").isNull()) {
+                    p.setAiGuide(parsedNode.get("aiGuide"));
                 }
             } catch (Exception e) {
                 // ignore
+            }
+        }
+
+        // 기존 등록된 처방전에 aiGuide가 아직 없는 경우 지연(Lazy) 생성 및 DB CLOB 캐싱
+        if (p.getAiGuide() == null && p.getItems() != null && !p.getItems().isEmpty() && geminiService != null) {
+            try {
+                String guideJson = geminiService.summarizePrescription(
+                        p.getHospitalName(),
+                        p.getDoctorName(),
+                        p.getTotalDays(),
+                        p.getItems()
+                );
+                if (guideJson != null && !guideJson.isBlank()) {
+                    com.fasterxml.jackson.databind.JsonNode guideNode = objectMapper.readTree(guideJson);
+                    p.setAiGuide(guideNode);
+
+                    if (root == null) {
+                        root = objectMapper.createObjectNode();
+                    }
+                    root.set("aiGuide", guideNode);
+                    p.setAiSummaryJson(root.toString());
+                    prescriptionDAO.updateAiSummaryJson(p.getPrescriptionId(), p.getAiSummaryJson());
+                    log.info("[PRESCRIPTION] 기존 처방전(ID: {}) AI 가이드 지연 생성 및 DB 캐싱 완료", p.getPrescriptionId());
+                }
+            } catch (Exception ex) {
+                log.warn("[PRESCRIPTION] 기존 처방전 AI 가이드 생성 예외: {}", ex.getMessage());
             }
         }
     }
@@ -402,7 +488,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         if (prescription != null && prescription.getPrescriptionId() != null) {
             List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(prescription.getPrescriptionId());
             prescription.setItems(items);
-            populateHospitalAndDoctor(prescription);
+            populateAiFields(prescription);
         }
         return prescription;
     }
@@ -416,7 +502,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 if (p.getPrescriptionId() != null) {
                     List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(p.getPrescriptionId());
                     p.setItems(items);
-                    populateHospitalAndDoctor(p);
+                    populateAiFields(p);
                 }
             }
         }
@@ -430,7 +516,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         if (prescription != null) {
             List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(prescriptionId);
             prescription.setItems(items);
-            populateHospitalAndDoctor(prescription);
+            populateAiFields(prescription);
         }
         return prescription;
     }
@@ -525,6 +611,41 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
 
         prescriptionDAO.updatePrescription(prescription);
+
+        // 약품 목록 변경에 따른 AI 가이드 재생성 및 DB 갱신
+        if (geminiService != null && prescription.getItems() != null && !prescription.getItems().isEmpty()) {
+            try {
+                String guideJson = geminiService.summarizePrescription(
+                        prescription.getHospitalName(),
+                        prescription.getDoctorName(),
+                        prescription.getTotalDays(),
+                        prescription.getItems()
+                );
+                if (guideJson != null && !guideJson.isBlank()) {
+                    com.fasterxml.jackson.databind.JsonNode guideNode = objectMapper.readTree(guideJson);
+                    root.set("aiGuide", guideNode);
+                    prescription.setAiGuide(guideNode);
+                    prescription.setAiSummaryJson(root.toString());
+                    prescriptionDAO.updateAiSummaryJson(prescription.getPrescriptionId(), prescription.getAiSummaryJson());
+                }
+            } catch (Exception ex) {
+                log.warn("[PRESCRIPTION] 처방전 수정 후 AI 가이드 갱신 예외: {}", ex.getMessage());
+            }
+        }
+
+        // 통합 복약 가이드(MEDICATION_OVERALL_GUIDE) 자동 갱신
+        if (medicationManagementService != null) {
+            try {
+                Long uid = prescription.getUserId() != null ? prescription.getUserId() : existing.getUserId();
+                if (uid != null) {
+                    medicationManagementService.getOverallGuide(uid, true);
+                    log.info("[PRESCRIPTION] 처방전 수정에 따른 통합 복약 가이드 자동 갱신 완료 (userId: {})", uid);
+                }
+            } catch (Exception ex) {
+                log.warn("[PRESCRIPTION] 처방전 수정 후 통합 복약 가이드 갱신 실패: {}", ex.getMessage());
+            }
+        }
+
         return getPrescriptionDetail(prescription.getPrescriptionId());
     }
 
@@ -554,6 +675,20 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         prescriptionDAO.deletePrescriptionItemsByPrescriptionId(prescriptionId);
         prescriptionDAO.deletePrescription(prescriptionId);
         log.info("[PRESCRIPTION] 처방전 삭제 완료: ID={}", prescriptionId);
+
+        // 통합 복약 가이드(MEDICATION_OVERALL_GUIDE) 자동 갱신
+        if (medicationManagementService != null) {
+            try {
+                Long targetUserId = (userId != null && userId > 0L) ? userId : existing.getUserId();
+                if (targetUserId != null) {
+                    medicationManagementService.getOverallGuide(targetUserId, true);
+                    log.info("[PRESCRIPTION] 처방전 삭제에 따른 통합 복약 가이드 자동 갱신 완료 (userId: {})", targetUserId);
+                }
+            } catch (Exception ex) {
+                log.warn("[PRESCRIPTION] 처방전 삭제 후 통합 복약 가이드 갱신 실패: {}", ex.getMessage());
+            }
+        }
+
         return true;
     }
 }
