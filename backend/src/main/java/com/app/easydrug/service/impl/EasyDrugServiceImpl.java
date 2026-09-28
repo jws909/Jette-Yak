@@ -2,12 +2,14 @@ package com.app.easydrug.service.impl;
 import java.net.URI;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import com.app.easydrug.dao.EasyDrugDao;
 import com.app.easydrug.dto.MedicationEasyApiResponse;
 import com.app.easydrug.dto.MedicationEasyDto;
 import com.app.easydrug.service.EasyDrugService;
+import com.app.util.PublicDataApiKey;
 
 @Service
 public class EasyDrugServiceImpl implements EasyDrugService {
@@ -50,7 +52,7 @@ public class EasyDrugServiceImpl implements EasyDrugService {
 				/*
 				 * 공공데이터포털 인증키
 				 */
-				.queryParam("serviceKey", "ff08944668902fd4f34be4001187e8d8ecc60561a6e9a3684efc92f1492c15d9")
+				.queryParam("serviceKey", PublicDataApiKey.get())
 
 				/*
 				 * 페이지 번호
@@ -96,7 +98,7 @@ public class EasyDrugServiceImpl implements EasyDrugService {
 		 */
 		RestTemplate restTemplate = new RestTemplate();
 
-		MedicationEasyApiResponse response = restTemplate.getForObject(targetUri, MedicationEasyApiResponse.class);
+		MedicationEasyApiResponse response = requestEasyDrugApi(restTemplate, targetUri);
 
 		/*
 		 * 응답이 없는 경우
@@ -229,7 +231,7 @@ public class EasyDrugServiceImpl implements EasyDrugService {
 		 */
 		URI firstUri = createEasyDrugUri(1, numOfRows);
 
-		MedicationEasyApiResponse firstResponse = restTemplate.getForObject(firstUri, MedicationEasyApiResponse.class);
+		MedicationEasyApiResponse firstResponse = requestEasyDrugApi(restTemplate, firstUri);
 
 		/*
 		 * 응답 검증
@@ -283,7 +285,7 @@ public class EasyDrugServiceImpl implements EasyDrugService {
 			/*
 			 * API 요청
 			 */
-			MedicationEasyApiResponse response = restTemplate.getForObject(targetUri, MedicationEasyApiResponse.class);
+			MedicationEasyApiResponse response = requestEasyDrugApi(restTemplate, targetUri);
 
 			/*
 			 * 응답 검증
@@ -364,5 +366,14 @@ public class EasyDrugServiceImpl implements EasyDrugService {
 		System.out.println("========================================");
 
 		return totalProcessedCount;
+	}
+
+	private MedicationEasyApiResponse requestEasyDrugApi(RestTemplate restTemplate, URI uri) {
+		try {
+			return restTemplate.getForObject(uri, MedicationEasyApiResponse.class);
+		} catch (RestClientException exception) {
+			// 외부 API 예외의 요청 URL에 인증키가 포함될 수 있으므로 원본 메시지를 노출하지 않는다.
+			throw new RuntimeException("e약은요 API 연결에 실패했습니다.");
+		}
 	}
 }

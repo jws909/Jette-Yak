@@ -39,7 +39,7 @@
 		* 같은 의약품으로 판단
 		*/
 		ON (
-		M.item_seq =
+		M.medication_id =
 		API.item_seq
 		)
 
@@ -134,7 +134,7 @@
 
 		INSERT (
 
-		item_seq,
+		medication_id,
 
 		edi_code,
 
