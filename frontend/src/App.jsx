@@ -5,7 +5,7 @@ import MainPage from './features/main/MainPage';
 import CalendarPage from './calendarpage/CalendarPage';
 import GuidePage from './features/guide/GuidePage';
 import MyPage from './features/mypage/MyPage';
-import SurveyPage from './features/survey/SurveyPage';
+import FamilyPage from "./features/family/FamilyPage";
 import MedicationChat from './features/chatbot/components/MedicationChat';
 import CommunityPage from './features/community/CommunityPage';
 import LoginPage from './components/LoginPage';
@@ -390,7 +390,7 @@ function App() {
         />
 
         <Route
-          path="/survey"
+          path="/family"
           element={
             <MainLayout
               isLoggedIn={isLoggedIn}
@@ -398,7 +398,7 @@ function App() {
               onLogout={handleLogout}
               onLoginDemoToggle={handleLoginDemoToggle}
             >
-              <SurveyPage />
+              <FamilyPage user={user} />
             </MainLayout>
           }
         />

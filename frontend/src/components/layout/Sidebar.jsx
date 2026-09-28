@@ -167,7 +167,7 @@ export default function Sidebar({
 
             {/* 문진표 */}
             <NavLink
-              to="/survey"
+              to="/family"
               className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
               onClick={handleLinkClick}
             >
@@ -176,7 +176,7 @@ export default function Sidebar({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
               </span>
-              <span className="nav-item-text">문진표</span>
+              <span className="nav-item-text">가족 페이지</span>
             </NavLink>
 
             {/* 복약 상담 챗봇 */}
