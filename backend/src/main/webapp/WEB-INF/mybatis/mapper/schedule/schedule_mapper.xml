@@ -314,4 +314,24 @@
            AND cabinet_id = #{cabinetId}
     </select>
 
+    <!-- 24. 중복 스케줄 존재 여부 확인 -->
+    <select id="checkScheduleExists" parameterType="map" resultType="int">
+        SELECT COUNT(*)
+          FROM schedules
+         WHERE user_id = #{userId}
+           AND TRUNC(scheduled_at) = TO_DATE(#{scheduledDate}, 'YYYY-MM-DD')
+           AND TO_CHAR(scheduled_at, 'HH24:MI') = #{scheduledTime}
+           <choose>
+               <when test="routineId != null">
+                   AND routine_id = #{routineId}
+               </when>
+               <when test="cabinetId != null">
+                   AND cabinet_id = #{cabinetId}
+               </when>
+               <when test="medicationId != null">
+                   AND medication_id = #{medicationId}
+               </when>
+           </choose>
+    </select>
+
 </mapper>

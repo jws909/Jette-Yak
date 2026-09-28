@@ -15,4 +15,5 @@ public class ScheduleAddDTO {
     private Integer alarmEnabled;
     private String scheduledDate; 
     private String scheduledTime; 
+    private Integer repeatDays; // 복용 반복 일수 (1: 당일만, 7, 14, 30, 90 등)
 }

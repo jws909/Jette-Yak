@@ -858,6 +858,51 @@ input:checked + .slider:before { transform: translateX(18px); }
   gap: 4px;
 }
 
+/* 복용 반복 일수 선택 */
+.repeat-days-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.repeat-btn {
+  flex: 1;
+  min-width: 65px;
+  padding: 8px 4px;
+  background: #fbf9f5;
+  border: 1px solid #ded6c9;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #5a5149;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.repeat-btn:hover {
+  background: #f4eee4;
+  border-color: #c7bdad;
+}
+
+.repeat-btn.active {
+  background: #7d2638;
+  border-color: #7d2638;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.field-hint-repeat {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #7d2638;
+  background: #fbf0f2;
+  border: 1px solid #f3d6da;
+  border-radius: 6px;
+  padding: 8px 12px;
+  line-height: 1.45;
+}
+
 .form-group {
   margin-bottom: 16px;
   text-align: left;

@@ -438,8 +438,43 @@ public class ScheduleServiceImpl implements ScheduleService {
             dto.setMedicationId(null);
         }
 
-        boolean success = scheduleDAO.insertSchedule(dto) > 0;
-        if (success) {
+        LocalDate startDate;
+        try {
+            startDate = LocalDate.parse(dto.getScheduledDate().trim());
+        } catch (Exception e) {
+            startDate = LocalDate.now();
+        }
+
+        int repeatDays = (dto.getRepeatDays() != null && dto.getRepeatDays() > 0) ? dto.getRepeatDays() : 1;
+        int insertedCount = 0;
+
+        for (int i = 0; i < repeatDays; i++) {
+            LocalDate targetDate = startDate.plusDays(i);
+            String dateStr = targetDate.toString();
+
+            if (!scheduleDAO.checkScheduleExists(dto.getUserId(), dateStr, dto.getScheduledTime(), dto.getRoutineId(), dto.getCabinetId(), dto.getMedicationId())) {
+                ScheduleAddDTO dayDto = new ScheduleAddDTO();
+                dayDto.setUserId(dto.getUserId());
+                dayDto.setName(dto.getName());
+                dayDto.setType(dto.getType());
+                dayDto.setMedicationId(dto.getMedicationId());
+                dayDto.setRoutineId(dto.getRoutineId());
+                dayDto.setCabinetId(dto.getCabinetId());
+                dayDto.setPrescriptionId(dto.getPrescriptionId());
+                dayDto.setAlarmEnabled(dto.getAlarmEnabled() != null ? dto.getAlarmEnabled() : 1);
+                dayDto.setScheduledDate(dateStr);
+                dayDto.setScheduledTime(dto.getScheduledTime());
+
+                if (scheduleDAO.insertSchedule(dayDto) > 0) {
+                    insertedCount++;
+                }
+            } else {
+                // 이미 동일 일자에 스케줄이 존재하면 중복 생성 방지
+                insertedCount++;
+            }
+        }
+
+        if (insertedCount > 0) {
             try {
                 if (dto.getCabinetId() != null) {
                     if (medicationGuideDao != null) {
@@ -458,7 +493,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 org.apache.logging.log4j.LogManager.getLogger(getClass()).warn("복약 가이드 상태 연동 오류: {}", ex.getMessage());
             }
         }
-        return success;
+        return insertedCount > 0;
     }
 
     @Override

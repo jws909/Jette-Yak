@@ -60,6 +60,7 @@ const CalendarPage = (props) => {
   const [everydayMeds, setEverydayMeds] = useState([]);
   const [selectedShelfMedId, setSelectedShelfMedId] = useState(null);
   const [isAutoTimeApplied, setIsAutoTimeApplied] = useState(false);
+  const [repeatDays, setRepeatDays] = useState(1); // 1, 7, 14, 30, 90일 복용 반복 설정
 
   // 삭제 확인 모달
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -515,6 +516,7 @@ const CalendarPage = (props) => {
           scheduledDate: selectedDate,
           scheduledTime: formattedTime,
           alarmEnabled: 1,
+          repeatDays: repeatDays,
         }),
       });
 
@@ -527,12 +529,17 @@ const CalendarPage = (props) => {
           detail: { userId: currentUserId, date: selectedDate }
         }));
 
-        setAddedSuccessMsg(`'${savedMedName}' 등록 완료!`);
-        setTimeout(() => setAddedSuccessMsg(''), 2000);
+        setAddedSuccessMsg(
+          repeatDays > 1
+            ? `'${savedMedName}' ${repeatDays}일간 매일 일정 등록 완료!`
+            : `'${savedMedName}' 등록 완료!`
+        );
+        setTimeout(() => setAddedSuccessMsg(''), 2500);
 
         setSelectedMed(null);
         setSelectedShelfMedId(null);
         setIsAutoTimeApplied(false);
+        setRepeatDays(1);
         setNewMedName('');
         setSearchResults([]);
         setIsAddModalOpen(false);
@@ -551,6 +558,7 @@ const CalendarPage = (props) => {
     setSelectedMed(null);
     setSelectedShelfMedId(null);
     setIsAutoTimeApplied(false);
+    setRepeatDays(1);
     setNewMedName('');
     setSearchResults([]);
     setAddedSuccessMsg('');
@@ -983,7 +991,7 @@ const CalendarPage = (props) => {
                             />
                             <span className="chip-text">{med.name}</span>
                             {med.takeTime && (
-                              <span className="chip-time-tag">⏰ {med.takeTime}</span>
+                              <span className="chip-time-tag">{med.takeTime}</span>
                             )}
                             {isSelected && <span className="chip-check-icon">✓</span>}
                           </button>
@@ -1125,7 +1133,34 @@ const CalendarPage = (props) => {
 
                 {isAutoTimeApplied && (
                   <p className="field-hint-time-auto">
-                    💡 보관함 권장 시간({newAmpm} {newHour}:{newMinute})이 자동 설정되었습니다. 필요 시 조정하세요.
+                    보관함 권장 시간({newAmpm} {newHour}:{newMinute})이 자동 설정되었습니다. 필요 시 조정하세요.
+                  </p>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>복용 기간 (반복 설정)</label>
+                <div className="repeat-days-group">
+                  {[
+                    { label: '1일 (당일)', days: 1 },
+                    { label: '7일 (1주)', days: 7 },
+                    { label: '14일 (2주)', days: 14 },
+                    { label: '30일 (1개월)', days: 30 },
+                    { label: '90일 (3개월)', days: 90 }
+                  ].map((item) => (
+                    <button
+                      key={item.days}
+                      type="button"
+                      className={`repeat-btn ${repeatDays === item.days ? 'active' : ''}`}
+                      onClick={() => setRepeatDays(item.days)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                {repeatDays > 1 && (
+                  <p className="field-hint-repeat">
+                    <strong>{selectedDate}</strong>부터 <strong>{repeatDays}일간 매일</strong> {newAmpm} {newHour}:{newMinute}에 복약 일정이 자동 등록됩니다.
                   </p>
                 )}
               </div>
