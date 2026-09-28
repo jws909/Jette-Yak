@@ -1,5 +1,5 @@
 /* ==========================================================================
-   FamilyPage Styles (Exact Match with CalendarPage)
+   FamilyPage Styles (Exact Match with Sketch & UI Screenshot)
    ========================================================================== */
 
 .family-page-wrapper {
@@ -288,154 +288,253 @@
   background: #b08d4b;
 }
 
-/* 4. Today 체크리스트 영역 */
-.checklist-header {
+/* ==========================================================================
+   4. 스크린샷 1:1 체크리스트 스타일
+   ========================================================================== */
+.checklist-card-section {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  flex-direction: column;
+  padding: 28px 32px;
 }
 
-.checklist-title {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 700;
+.chk-top-subtitle {
+  font-size: 11px;
+  font-weight: 800;
+  color: #7d2638;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.chk-top-title {
+  margin: 4px 0 16px;
+  font-size: 22px;
+  font-weight: 800;
   color: #2b2523;
 }
 
-.checklist-date {
-  font-size: 13px;
-  color: #7a7066;
+/* 상단 필터 탭 바 (베이지 배경 둥근 바) */
+.chk-filter-bar {
+  display: inline-flex;
+  background: #f7f1eb;
+  padding: 4px;
+  border-radius: 10px;
+  gap: 4px;
+  margin-bottom: 20px;
+  align-self: flex-start;
 }
 
-.checklist-items {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.checklist-empty-msg {
-  color: #7a7066;
-  padding: 24px 0;
-  text-align: center;
-  font-size: 13.5px;
-}
-
-.checklist-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 20px;
-  border: 1px solid #eee7dd;
+.chk-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 6px 16px;
   border-radius: 8px;
-  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6d635b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   transition: all 0.15s ease;
 }
 
-.checklist-row.is-done {
-  background: #faf8f5;
-  border-color: #e5ded4;
+.chk-tab-btn:hover {
+  color: #2b2523;
 }
 
-.checklist-info-group {
+.chk-tab-btn.active {
+  background: #7d2638;
+  color: #ffffff;
+}
+
+.chk-count-badge {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.chk-items-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.chk-empty-message {
+  color: #8c827a;
+  text-align: center;
+  padding: 36px 0;
+  font-size: 13.5px;
+}
+
+/* 리스트 한 줄 행 (하단 디바이더 선) */
+.chk-list-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  padding: 16px 4px;
+  border-bottom: 1px solid #f2ece4;
+  gap: 16px;
+  transition: background-color 0.12s ease;
 }
 
-.member-tag {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
+.chk-list-row:last-child {
+  border-bottom: none;
+}
+
+.chk-list-row:hover {
+  background: #fdfbf9;
+}
+
+/* 맨 앞 사각 체크박스 커스텀 */
+.chk-checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chk-native-input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
+}
+
+.chk-custom-box {
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid #c9bfb3;
   border-radius: 4px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.chk-checkbox-label:hover .chk-custom-box {
+  border-color: #7d2638;
+}
+
+.chk-native-input:checked ~ .chk-custom-box {
+  background: #7d2638;
+  border-color: #7d2638;
+}
+
+.chk-check-icon {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 중간 본문 (2열 구조) */
+.chk-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chk-meta-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+/* 카테고리별 원형 불릿 도트 */
+.chk-bullet-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.chk-bullet-dot.dot-prescription { background: #7d2638; }
+.chk-bullet-dot.dot-regular      { background: #3d8a63; }
+.chk-bullet-dot.dot-supplement   { background: #b08d4b; }
+
+.chk-slot-text {
+  font-weight: 700;
+  color: #7d2638;
+}
+
+.chk-time-text {
+  font-weight: 500;
+  color: #8c827a;
+}
+
+.chk-user-tag {
   background: #faede8;
   color: #d96b43;
-}
-
-.slot-tag {
-  font-size: 11px;
-  font-weight: 600;
-  color: #7a7066;
-  background: #f4efe8;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-.checklist-time {
-  font-size: 13.5px;
+  font-size: 10.5px;
   font-weight: 700;
-  color: #7a7066;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-left: 4px;
 }
 
-.med-name-line {
+.chk-med-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chk-med-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2b2523;
+  transition: all 0.15s ease;
+}
+
+.chk-med-name.line-through {
+  text-decoration: line-through;
+  color: #a89f95;
+}
+
+/* 처방약 / 상시약 / 영양제 텍스트 라벨 */
+.chk-cat-label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chk-cat-label.prescription { color: #7d2638; }
+.chk-cat-label.regular      { color: #2e7a54; }
+.chk-cat-label.supplement   { color: #b08d4b; }
+
+/* 우측 알림/삭제 아이콘 버튼 */
+.chk-actions-group {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.checklist-med-name {
-  margin: 0;
-  font-size: 14.5px;
-  font-weight: 700;
-  color: #2b2523;
-}
-
-.checklist-med-name.completed {
-  text-decoration: line-through;
-  color: #a89f95;
-}
-
-.category-tag {
-  font-size: 10.5px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-weight: 600;
-}
-
-.category-tag.cat-prescription { background: #fdeeee; color: #7d2638; }
-.category-tag.cat-regular      { background: #e8f5ec; color: #2a6f44; }
-.category-tag.cat-supplement   { background: #fbf5e7; color: #8e6819; }
-
-.checklist-med-desc {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: #7a7066;
-}
-
-/* 체크 토글 스위치 */
-.toggle-switch {
-  width: 44px;
-  height: 24px;
-  background: #ded6c9;
-  border-radius: 12px;
-  padding: 2px;
-  cursor: pointer;
-  position: relative;
-  transition: background-color 0.2s ease;
+.chk-icon-btn {
+  background: transparent;
   border: none;
+  color: #aba196;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease;
 }
 
-.toggle-switch.checked {
-  background: #7d2638;
+.chk-icon-btn:hover {
+  color: #524942;
 }
 
-.toggle-handle {
-  width: 20px;
-  height: 20px;
-  background: #ffffff;
-  border-radius: 50%;
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  transition: transform 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+.chk-icon-btn.delete:hover {
+  color: #c94040;
 }
 
-.toggle-switch.checked .toggle-handle {
-  transform: translateX(20px);
-}
-
-/* 5. 모달 */
+/* ==========================================================================
+   5. 보고서 모달 스타일
+   ========================================================================== */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -452,7 +551,7 @@
   border-radius: 10px;
   padding: 24px 28px;
   width: 90%;
-  max-width: 460px;
+  max-width: 480px;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
 }
 
@@ -480,19 +579,6 @@
   color: #7a7066;
 }
 
-.modal-footer-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 20px;
-  padding-top: 12px;
-  border-top: 1px solid #f0e9df;
-}
-
-/* ==========================================================================
-   진료 보고서 모달 - 복용 기간 및 N일차 전용 스타일
-   ========================================================================== */
-
 .report-prescription-card {
   border: 1px solid #f0e9df;
   border-radius: 8px;
@@ -516,7 +602,6 @@
   color: #2b2523;
 }
 
-/* N일차 뱃지 */
 .report-day-badge {
   background: #fdeeee;
   color: #7d2638;
@@ -533,52 +618,12 @@
   color: #9c6872;
 }
 
-/* 복용 기간 & 게이지 바 */
 .report-period-box {
   background: #faf8f5;
   border-radius: 6px;
   padding: 10px 12px;
 }
 
-.report-period-text {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: #574e47;
-  margin-bottom: 6px;
-}
-
-.report-percent-text {
-  font-weight: 700;
-  color: #7d2638;
-}
-
-.report-progress-track {
-  width: 100%;
-  height: 6px;
-  background: #e8e2d8;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.report-progress-bar {
-  height: 100%;
-  background: #7d2638;
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-/* 주의사항 문구 */
-.report-caution-text {
-  margin: 0;
-  font-size: 11.5px;
-  color: #b84c31;
-  background: #fdf5f3;
-  padding: 6px 10px;
-  border-radius: 4px;
-}
-
-/* 오늘 복약 타임라인 칩 */
 .report-dose-chips {
   display: flex;
   gap: 6px;
@@ -602,4 +647,13 @@
   background: #f5f4f2;
   color: #8c827a;
   border: 1px solid #dedad4;
+}
+
+.modal-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 12px;
+  border-top: 1px solid #f0e9df;
 }
