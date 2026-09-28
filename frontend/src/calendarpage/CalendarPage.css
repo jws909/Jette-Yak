@@ -689,11 +689,173 @@ input:checked + .slider:before { transform: translateX(18px); }
 .add-med-modal {
   background: #ffffff;
   color: #2b2523;
-  width: 360px;
-  padding: 26px;
-  border-radius: 8px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  width: 440px;
+  max-width: 94vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px 26px;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
   border: 1px solid #e5dfd4;
+}
+
+/* 내 보관함 약품 빠른 선택 섹션 */
+.shelf-select-section {
+  margin-bottom: 14px;
+}
+
+.shelf-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.shelf-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5a5149;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shelf-count {
+  font-size: 11px;
+  color: #8c827a;
+  font-weight: 600;
+}
+
+.shelf-manage-link {
+  font-size: 11px;
+  color: #7d2638;
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.shelf-manage-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.shelf-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 130px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.shelf-med-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fbf9f5;
+  border: 1px solid #ded6c9;
+  border-radius: 18px;
+  font-size: 12.5px;
+  color: #3b332e;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.shelf-med-chip:hover {
+  background: #f4eee4;
+  border-color: #c7bdad;
+}
+
+.shelf-med-chip.chip-reg.active {
+  background: #eef7f1;
+  border-color: #2b7044;
+  color: #1e5533;
+  font-weight: 600;
+}
+
+.shelf-med-chip.chip-sup.active {
+  background: #fdf5ea;
+  border-color: #b87b2b;
+  color: #8f5c1a;
+  font-weight: 600;
+}
+
+.shelf-med-chip .chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.shelf-med-chip .chip-text {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shelf-med-chip .chip-time-tag {
+  font-size: 10.5px;
+  color: #7a7066;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 5px;
+  border-radius: 10px;
+}
+
+.shelf-med-chip.active .chip-time-tag {
+  background: rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+}
+
+.shelf-med-chip .chip-check-icon {
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+.shelf-empty-hint {
+  font-size: 12px;
+  color: #8c827a;
+  background: #fcfbf9;
+  border: 1px dashed #ded6c9;
+  border-radius: 6px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* 구분선 */
+.form-group-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 14px 0 12px;
+}
+
+.form-group-divider::before,
+.form-group-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e8e2d8;
+}
+
+.form-group-divider span {
+  padding: 0 10px;
+  font-size: 11px;
+  color: #9c9288;
+  font-weight: 600;
+}
+
+/* 시간 자동 설정 안내 */
+.field-hint-time-auto {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: #2b7044;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .form-group {
@@ -803,6 +965,30 @@ input:checked + .slider:before { transform: translateX(18px); }
 
 .btn-remove-chip:hover {
   background-color: rgba(125, 38, 56, 0.15);
+}
+
+.selected-med-chip.shelf-source {
+  background-color: #f0f7f2;
+  border-color: #badfc7;
+  color: #1e5533;
+}
+
+.selected-med-chip.shelf-source .btn-remove-chip {
+  color: #1e5533;
+}
+
+.selected-med-chip.shelf-source .btn-remove-chip:hover {
+  background-color: rgba(30, 85, 51, 0.15);
+}
+
+.shelf-badge-tag {
+  background: #2b7044;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  letter-spacing: -0.2px;
 }
 
 .category-select-group {

@@ -439,15 +439,24 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
 
         boolean success = scheduleDAO.insertSchedule(dto) > 0;
-        if (success && medicationGuideDao != null) {
+        if (success) {
             try {
                 if (dto.getCabinetId() != null) {
-                    medicationGuideDao.updateStatus(dto.getUserId(), "C:" + dto.getCabinetId(), "ACTIVE");
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(dto.getUserId(), "C:" + dto.getCabinetId(), "ACTIVE");
+                    }
                 } else if (dto.getRoutineId() != null) {
-                    medicationGuideDao.updateStatus(dto.getUserId(), "R:" + dto.getRoutineId(), "ACTIVE");
+                    scheduleDAO.updateRoutineStatus(dto.getRoutineId(), "ACTIVE");
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(dto.getUserId(), "R:" + dto.getRoutineId(), "ACTIVE");
+                    }
                 }
-                medicationGuideDao.saveOverallGuide(dto.getUserId(), null);
-            } catch (Exception ignored) {}
+                if (medicationGuideDao != null) {
+                    medicationGuideDao.saveOverallGuide(dto.getUserId(), null);
+                }
+            } catch (Exception ex) {
+                org.apache.logging.log4j.LogManager.getLogger(getClass()).warn("복약 가이드 상태 연동 오류: {}", ex.getMessage());
+            }
         }
         return success;
     }
@@ -545,8 +554,26 @@ public class ScheduleServiceImpl implements ScheduleService {
         } else {
             // 단건 일정만 삭제
             boolean res = scheduleDAO.deleteSchedule(scheduleId) > 0;
-            if (res && medicationGuideDao != null) {
-                try { medicationGuideDao.saveOverallGuide(actualUserId, null); } catch (Exception ignored) {}
+            if (res) {
+                try {
+                    if (target.getCabinetId() != null) {
+                        int rem = scheduleDAO.countSchedulesByCabinetId(actualUserId, target.getCabinetId());
+                        if (rem == 0 && medicationGuideDao != null) {
+                            medicationGuideDao.updateStatus(actualUserId, "C:" + target.getCabinetId(), "STORED");
+                        }
+                    } else if (target.getRoutineId() != null) {
+                        int rem = scheduleDAO.countSchedulesByRoutineId(actualUserId, target.getRoutineId());
+                        if (rem == 0) {
+                            scheduleDAO.updateRoutineStatus(target.getRoutineId(), "PAUSED");
+                            if (medicationGuideDao != null) {
+                                medicationGuideDao.updateStatus(actualUserId, "R:" + target.getRoutineId(), "PAUSED");
+                            }
+                        }
+                    }
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.saveOverallGuide(actualUserId, null);
+                    }
+                } catch (Exception ignored) {}
             }
             return res;
         }
