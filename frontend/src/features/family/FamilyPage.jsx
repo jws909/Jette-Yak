@@ -33,10 +33,10 @@ export default function FamilyPage(props) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 체크리스트 내부 시간대 필터 탭 ('all' | 'morning' | 'lunch' | 'evening' | 'bedtime')
+  // 체크리스트 내부 시간대 필터 탭 ('all' | 'morning' | 'lunch' | 'evening')
   const [timeFilter, setTimeFilter] = useState('all');
 
-  // 보고서 모달 상태
+  // 보고서 모달 상태 (처방약 / 상시약 / 영양제 3단 분리)
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
@@ -134,7 +134,7 @@ export default function FamilyPage(props) {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
 
-  // 외부 복약 상태 변경 시 동기화
+  // 외부 복약 상태 동기화 수신
   useEffect(() => {
     const handleSync = () => {
       fetchDailySchedules(selectedDate);
@@ -144,7 +144,7 @@ export default function FamilyPage(props) {
     return () => window.removeEventListener('jette-intake-updated', handleSync);
   }, [selectedDate, fetchDailySchedules, fetchMonthSummary]);
 
-  // (4) 복약 체크박스 토글 (맨 앞 사각 체크박스 클릭)
+  // (4) 복약 체크박스 토글
   const toggleTaken = async (item) => {
     if (!currentUserId) {
       alert('로그인 후 이용할 수 있습니다.');
@@ -157,12 +157,10 @@ export default function FamilyPage(props) {
       ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
       : null;
 
-    // 1. UI 즉시 반응
     setSchedules((prev) =>
       prev.map((s) => (s.scheduleId === item.scheduleId ? { ...s, takenAt: nowIso } : s))
     );
 
-    // 2. 백엔드 실시간 저장
     try {
       await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
         method: 'POST',
@@ -177,7 +175,7 @@ export default function FamilyPage(props) {
     }
   };
 
-  // (5) 스케줄 삭제 액션 (휴지통 아이콘)
+  // (5) 스케줄 삭제
   const handleDeleteSchedule = async (scheduleId, e) => {
     e.stopPropagation();
     if (!window.confirm('이 복약 일정을 삭제하시겠습니까?')) return;
@@ -192,7 +190,7 @@ export default function FamilyPage(props) {
     }
   };
 
-  // (6) [보고서] 버튼 클릭 시
+  // (6) [보고서] 버튼 클릭 시: 처방약 / 상시약 / 영양제 3단 분리 종합 취합
   const handleOpenReportModal = async () => {
     setIsReportOpen(true);
     setIsReportLoading(true);
@@ -202,6 +200,7 @@ export default function FamilyPage(props) {
         ? (familyMembers[0]?.userId || currentUserId)
         : selectedMemberId;
 
+      // 처방전 목록 조회
       let presList = [];
       try {
         const presRes = await fetch(`/api/prescriptions?userId=${targetId}`);
@@ -211,21 +210,33 @@ export default function FamilyPage(props) {
         }
       } catch (err) {}
 
+      // 대상자명
       const targetMemberObj = familyMembers.find((m) => String(m.userId) === String(selectedMemberId));
-      const currentTargetName = targetMemberObj
-        ? `${targetMemberObj.name}`
-        : user?.name
-        ? `${user.name} (본인)`
-        : '가족 구성원';
+      let currentTargetName = '';
 
-      const prescriptionItems = schedules.filter((s) => s.type === 'prescription');
-      const uniquePrescriptions = [];
-      const seenNames = new Set();
+      if (selectedMemberId === 'all') {
+        currentTargetName = '가족 전체';
+      } else if (targetMemberObj) {
+        // role 매핑 (PROT: 자녀/부모님, GUAR: 배우자 등 프로젝트에 맞춤)
+        const roleLabel = targetMemberObj.relation || targetMemberObj.roleLabel || 
+          (targetMemberObj.role === 'GUAR' ? '배우자' : targetMemberObj.role === 'PROT' ? '자녀' : targetMemberObj.role);
+        currentTargetName = roleLabel ? `${targetMemberObj.name} (${roleLabel})` : targetMemberObj.name;
+      } else {
+        currentTargetName = user?.name ? `${user.name} (본인)` : '본인';
+      }
+
       const curDateObj = new Date(selectedDate);
 
+      // ==========================================
+      // [1] 처방약(Prescription) 취합
+      // ==========================================
+      const prescriptionItems = schedules.filter((s) => s.type === 'prescription');
+      const uniquePrescriptions = [];
+      const seenPresNames = new Set();
+
       for (const item of prescriptionItems) {
-        if (!seenNames.has(item.name)) {
-          seenNames.add(item.name);
+        if (!seenPresNames.has(item.name)) {
+          seenPresNames.add(item.name);
 
           const pId = item.prescriptionId || item.prescription_id;
           let pData = presList.find(p => 
@@ -273,7 +284,6 @@ export default function FamilyPage(props) {
           uniquePrescriptions.push({
             name: item.name,
             hospital: `${hospitalName} · ${doctorName}`,
-            purpose: purposeText,
             startDate: formatDate(startObj),
             endDate: formatDate(endObj),
             totalDays: totalDays,
@@ -283,10 +293,64 @@ export default function FamilyPage(props) {
         }
       }
 
+      // ==========================================
+      // [2] 상시약(Regular) 독립 취합
+      // ==========================================
+      const regularItems = schedules.filter((s) => s.type === 'regular');
+      const uniqueRegulars = [];
+      const seenRegNames = new Set();
+
+      for (const item of regularItems) {
+        if (!seenRegNames.has(item.name)) {
+          seenRegNames.add(item.name);
+          const relatedDoses = schedules
+            .filter((s) => s.name === item.name)
+            .map((d) => ({
+              time: String(d.time || '').substring(0, 5),
+              slot: d.slotLabel || getSlotFromTime(d.time).slotLabel,
+              taken: Boolean(d.takenAt),
+            }));
+
+          uniqueRegulars.push({
+            name: item.name,
+            memo: item.memo || '정기 상시 복용',
+            todayDoses: relatedDoses,
+          });
+        }
+      }
+
+      // ==========================================
+      // [3] 영양제(Supplement) 독립 취합
+      // ==========================================
+      const supplementItems = schedules.filter((s) => s.type === 'supplement');
+      const uniqueSupplements = [];
+      const seenSupNames = new Set();
+
+      for (const item of supplementItems) {
+        if (!seenSupNames.has(item.name)) {
+          seenSupNames.add(item.name);
+          const relatedDoses = schedules
+            .filter((s) => s.name === item.name)
+            .map((d) => ({
+              time: String(d.time || '').substring(0, 5),
+              slot: d.slotLabel || getSlotFromTime(d.time).slotLabel,
+              taken: Boolean(d.takenAt),
+            }));
+
+          uniqueSupplements.push({
+            name: item.name,
+            memo: item.memo || '건강기능식품 보충',
+            todayDoses: relatedDoses,
+          });
+        }
+      }
+
       setReportData({
         targetName: currentTargetName,
         targetDate: selectedDate,
         prescriptions: uniquePrescriptions,
+        regulars: uniqueRegulars,
+        supplements: uniqueSupplements,
       });
 
     } catch (err) {
@@ -296,7 +360,7 @@ export default function FamilyPage(props) {
     }
   };
 
-  // 가족 등록 핸들러
+  // 가족 등록
   const handleAddFamilyMember = async (e) => {
     e.preventDefault();
     if (!newMemberName.trim()) {
@@ -348,9 +412,7 @@ export default function FamilyPage(props) {
     setSelectedDate(getFormattedDate(now));
   };
 
-  // =========================================================================
-  // 4. 체크리스트 시간대별 카운트 및 필터링 계산
-  // =========================================================================
+  // 4. 체크리스트 시간대별 카운트 및 필터링
   const totalCount = schedules.length;
   const totalTakenCount = schedules.filter((s) => s.takenAt).length;
 
@@ -363,7 +425,6 @@ export default function FamilyPage(props) {
   const eveningList = schedules.filter((s) => getSlotFromTime(s.time).slot === 'evening');
   const eveningTaken = eveningList.filter((s) => s.takenAt).length;
 
-  // 현재 활성화된 탭 기준 노출 목록
   const filteredSchedules = schedules.filter((item) => {
     if (timeFilter === 'all') return true;
     return getSlotFromTime(item.time).slot === timeFilter;
@@ -379,8 +440,8 @@ export default function FamilyPage(props) {
     <div className="family-page-wrapper">
       {/* 1. 상단 타이틀 & 필터 칩 */}
       <div className="family-header">
-        <span className="family-subtitle">MEDICATION CALENDAR</span>
-        <h1 className="family-title">가족 복약 캘린더</h1>
+        <span className="family-subtitle">FAMILY MEDICATION</span>
+        <h1 className="family-title">가족 페이지</h1>
 
         <div className="family-controls">
           <div className="family-chips-group">
@@ -491,15 +552,14 @@ export default function FamilyPage(props) {
         </div>
       </div>
 
-      {/* 3. 하단 체크리스트 (스크린샷 디자인 1:1 완벽 이식) */}
+      {/* 3. 하단 체크리스트 */}
       <div className="family-card checklist-card-section">
-        {/* 상단 서브 헤더 */}
         <span className="chk-top-subtitle">SELECTED DATE</span>
         <h2 className="chk-top-title">
           {Number(selectedDate.split('-')[1])}월 {Number(selectedDate.split('-')[2])}일
         </h2>
 
-        {/* 상단 필터 탭 바 (전체 / 아침 / 점심 / 저녁) */}
+        {/* 필터 탭 */}
         <div className="chk-filter-bar">
           <button
             type="button"
@@ -533,7 +593,7 @@ export default function FamilyPage(props) {
           </button>
         </div>
 
-        {/* 리스트 목록 영역 */}
+        {/* 체크리스트 목록 */}
         <div className="chk-items-container">
           {loading ? (
             <div className="chk-empty-message">일정을 불러오는 중입니다...</div>
@@ -547,7 +607,6 @@ export default function FamilyPage(props) {
 
               return (
                 <div key={item.scheduleId} className={`chk-list-row ${isTaken ? 'is-taken' : ''}`}>
-                  {/* 맨 앞 사각 체크박스 */}
                   <label className="chk-checkbox-label">
                     <input
                       type="checkbox"
@@ -564,9 +623,7 @@ export default function FamilyPage(props) {
                     </span>
                   </label>
 
-                  {/* 중간 상세 정보 (2줄 구조) */}
                   <div className="chk-main-content">
-                    {/* 1행: 도트 + 아침/저녁 + 시간 (+ 가족 이름) */}
                     <div className="chk-meta-line">
                       <span className={`chk-bullet-dot ${catInfo.dotClass}`} />
                       <span className="chk-slot-text">{slotInfo.slotLabel}</span>
@@ -576,7 +633,6 @@ export default function FamilyPage(props) {
                       )}
                     </div>
 
-                    {/* 2행: 약품명 + 구분 라벨 */}
                     <div className="chk-med-line">
                       <span className={`chk-med-name ${isTaken ? 'line-through' : ''}`}>
                         {item.name}
@@ -587,7 +643,6 @@ export default function FamilyPage(props) {
                     </div>
                   </div>
 
-                  {/* 우측 알림/삭제 아이콘 */}
                   <div className="chk-actions-group">
                     <button type="button" className="chk-icon-btn" title="알림 설정">
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -614,29 +669,39 @@ export default function FamilyPage(props) {
         </div>
       </div>
 
-      {/* 4. 보고서 모달 */}
+      {/* 4. 보고서 모달 (처방약 / 상시약 / 영양제 3단 완전 분리 표기) */}
       {isReportOpen && (
         <div className="modal-overlay" onClick={() => setIsReportOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">🩺 진료 제출용 복약 브리핑</h3>
+              <h3 className="modal-title">병원 제출용 복약 브리핑</h3>
               <button type="button" className="modal-close-btn" onClick={() => setIsReportOpen(false)}>✕</button>
             </div>
 
             {isReportLoading ? (
               <div style={{ padding: '32px 0', textAlign: 'center', color: '#7a7066', fontSize: '13.5px' }}>
-                처방전 분석 데이터를 정리하는 중입니다...
+                복약 브리핑 데이터를 정리하는 중입니다...
               </div>
             ) : (
-              <div style={{ fontSize: '13.5px', color: '#333', lineHeight: 1.6 }}>
-                <div style={{ background: '#faf7f2', padding: '10px 14px', borderRadius: '6px', marginBottom: '14px' }}>
-                  <p style={{ margin: 0 }}>
-                    <strong>대상:</strong> {reportData?.targetName || '가족 구성원'}
-                  </p>
-                  <p style={{ margin: '4px 0 0' }}><strong>기준일자:</strong> {selectedDate}</p>
+              <div className="report-scroll-body">
+                <div className="report-header-info">
+                  <div className="report-patient-name">
+                    {reportData?.targetName || '본인'}
+                  </div>
+                  <div className="report-date-text">
+                    {selectedDate.split('-')[0]}년 {Number(selectedDate.split('-')[1])}월 {Number(selectedDate.split('-')[2])}일 기준
+                  </div>
                 </div>
 
-                <p style={{ margin: '0 0 8px', fontWeight: 'bold', color: '#7d2638' }}>[현재 복용 처방약 및 실시간 투약 현황]</p>
+                {/* ============================================================== */}
+                {/* [섹션 1] 현재 복용 처방약 */}
+                {/* ============================================================== */}
+                <div className="report-group-header prescription">
+                  <span className="report-group-dot dot-prescription" />
+                  <span className="report-group-title">1. 현재 복용 처방약</span>
+                  <span className="report-group-count">{reportData?.prescriptions?.length || 0}건</span>
+                </div>
+
                 {reportData?.prescriptions && reportData.prescriptions.length > 0 ? (
                   reportData.prescriptions.map((p, idx) => (
                     <div key={idx} className="report-prescription-card">
@@ -652,14 +717,8 @@ export default function FamilyPage(props) {
                         </span>
                       </div>
 
-                      {p.purpose && (
-                        <div style={{ background: '#fdf7f8', borderLeft: '3px solid #7d2638', padding: '6px 10px', fontSize: '12px', color: '#524942', borderRadius: '0 4px 4px 0' }}>
-                          <strong>AI 처방 목적:</strong> {p.purpose}
-                        </div>
-                      )}
-
                       <div className="report-period-box">
-                        <span style={{ fontSize: '12.5px', color: '#4a413a' }}>
+                        <span style={{ fontSize: '12px', color: '#4a413a' }}>
                           <strong>조제/복용 기간:</strong> {p.startDate} ~ {p.endDate}
                         </span>
                       </div>
@@ -677,14 +736,82 @@ export default function FamilyPage(props) {
                     </div>
                   ))
                 ) : (
-                  <p style={{ fontSize: '12px', color: '#7a7066', margin: 0 }}>해당 날짜에 복용 중인 처방약이 없습니다.</p>
+                  <p className="report-empty-notice">해당 날짜에 복용 중인 처방약이 없습니다.</p>
+                )}
+
+                {/* ============================================================== */}
+                {/* [섹션 2] 상시약 (정기 복용약) */}
+                {/* ============================================================== */}
+                <div className="report-group-header regular">
+                  <span className="report-group-dot dot-regular" />
+                  <span className="report-group-title">2. 상시 복용약</span>
+                  <span className="report-group-count">{reportData?.regulars?.length || 0}건</span>
+                </div>
+
+                {reportData?.regulars && reportData.regulars.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                    {reportData.regulars.map((r, idx) => (
+                      <div key={idx} className="report-sub-item-card regular">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ fontSize: '14px', color: '#2b2523' }}>{r.name}</strong>
+                        </div>
+                        <p style={{ margin: '3px 0 6px', fontSize: '11.5px', color: '#7a7066' }}>{r.memo}</p>
+                        <div className="report-dose-chips">
+                          {r.todayDoses?.map((d, dIdx) => (
+                            <span
+                              key={dIdx}
+                              className={`report-dose-chip ${d.taken ? 'done' : 'undone'}`}
+                            >
+                              {d.slot}({d.time}): {d.taken ? '✓ 복용완료' : '미복용'}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="report-empty-notice">등록된 상시약이 없습니다.</p>
+                )}
+
+                {/* ============================================================== */}
+                {/* [섹션 3] 영양제 (건강기능식품) */}
+                {/* ============================================================== */}
+                <div className="report-group-header supplement">
+                  <span className="report-group-dot dot-supplement" />
+                  <span className="report-group-title">3. 영양제 및 건강기능식품</span>
+                  <span className="report-group-count">{reportData?.supplements?.length || 0}건</span>
+                </div>
+
+                {reportData?.supplements && reportData.supplements.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {reportData.supplements.map((s, idx) => (
+                      <div key={idx} className="report-sub-item-card supplement">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ fontSize: '14px', color: '#2b2523' }}>{s.name}</strong>
+                        </div>
+                        <p style={{ margin: '3px 0 6px', fontSize: '11.5px', color: '#7a7066' }}>{s.memo}</p>
+                        <div className="report-dose-chips">
+                          {s.todayDoses?.map((d, dIdx) => (
+                            <span
+                              key={dIdx}
+                              className={`report-dose-chip ${d.taken ? 'done' : 'undone'}`}
+                            >
+                              {d.slot}({d.time}): {d.taken ? '✓ 복용완료' : '미복용'}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="report-empty-notice">등록된 영양제가 없습니다.</p>
                 )}
               </div>
             )}
 
             <div className="modal-footer-actions">
               <button type="button" className="family-btn-outline" onClick={() => window.print()}>
-                🖨️ 인쇄 / PDF 저장
+                인쇄 / PDF 저장
               </button>
               <button type="button" className="family-btn-primary" onClick={() => setIsReportOpen(false)}>
                 확인
