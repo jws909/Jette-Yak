@@ -13,7 +13,9 @@
   <select id="posts" parameterType="map" resultType="map">
     SELECT p.post_id AS "postId",p.category AS "category",p.title AS "title",DBMS_LOB.SUBSTR(p.content,260,1) AS "summary",
       p.medication_id AS "medicationId",p.medication_name AS "medicationName",p.review_status AS "reviewStatus",
-      u.nickname AS "authorName",p.user_id AS "authorId",TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",
+      u.nickname AS "authorName",p.user_id AS "authorId",
+      CASE WHEN u.profile_image_url IS NOT NULL THEN '/api/users/profile-image/user/'||TO_CHAR(u.user_id) END AS "authorProfileImageUrl",
+      TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",
       (SELECT COUNT(*) FROM community_post_helpful h WHERE h.post_id=p.post_id) AS "helpfulCount",
       (SELECT COUNT(*) FROM community_comments c WHERE c.post_id=p.post_id AND c.status='VISIBLE') AS "commentCount",
       CASE WHEN EXISTS(SELECT 1 FROM community_post_helpful h WHERE h.post_id=p.post_id AND h.user_id=#{viewerId}) THEN 1 ELSE 0 END AS "helpfulByMe"
@@ -25,7 +27,9 @@
   <select id="post" parameterType="map" resultType="map">
     SELECT p.post_id AS "postId",p.category AS "category",p.title AS "title",DBMS_LOB.SUBSTR(p.content,4000,1) AS "content",p.medication_id AS "medicationId",p.medication_name AS "medicationName",
       p.experience_duration AS "experienceDuration",p.age_group AS "ageGroup",p.purpose AS "purpose",p.occurrence_timing AS "occurrenceTiming",p.currently_taking AS "currentlyTaking",
-      p.review_status AS "reviewStatus",p.status AS "status",p.user_id AS "authorId",u.nickname AS "authorName",TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",TO_CHAR(p.updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt",
+      p.review_status AS "reviewStatus",p.status AS "status",p.user_id AS "authorId",u.nickname AS "authorName",
+      CASE WHEN u.profile_image_url IS NOT NULL THEN '/api/users/profile-image/user/'||TO_CHAR(u.user_id) END AS "authorProfileImageUrl",
+      TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",TO_CHAR(p.updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt",
       (SELECT COUNT(*) FROM community_post_helpful h WHERE h.post_id=p.post_id) AS "helpfulCount",
       CASE WHEN EXISTS(SELECT 1 FROM community_post_helpful h WHERE h.post_id=p.post_id AND h.user_id=#{viewerId}) THEN 1 ELSE 0 END AS "helpfulByMe"
     FROM community_posts p JOIN users u ON u.user_id=p.user_id WHERE p.post_id=#{postId} AND p.status&lt;&gt;'DELETED'
@@ -36,7 +40,7 @@
   </insert>
   <update id="updatePost" parameterType="map">UPDATE community_posts SET medication_id=#{medicationId,jdbcType=VARCHAR},medication_name=#{medicationName,jdbcType=VARCHAR},category=#{category},title=#{title},content=#{content},experience_duration=#{experienceDuration,jdbcType=VARCHAR},age_group=#{ageGroup,jdbcType=VARCHAR},purpose=#{purpose,jdbcType=VARCHAR},occurrence_timing=#{occurrenceTiming,jdbcType=VARCHAR},currently_taking=#{currentlyTaking},review_status=CASE WHEN #{category}='INFO_REPORT' THEN 'PENDING' ELSE 'NOT_REQUIRED' END,updated_at=SYSDATE WHERE post_id=#{postId} AND user_id=#{userId} AND status='VISIBLE'</update>
   <update id="deletePost" parameterType="map">UPDATE community_posts SET status='DELETED',updated_at=SYSDATE WHERE post_id=#{postId} AND user_id=#{userId} AND status&lt;&gt;'DELETED'</update>
-  <select id="comments" parameterType="long" resultType="map">SELECT c.comment_id AS "commentId",c.user_id AS "authorId",u.nickname AS "authorName",DBMS_LOB.SUBSTR(c.content,1000,1) AS "content",TO_CHAR(c.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt" FROM community_comments c JOIN users u ON u.user_id=c.user_id WHERE c.post_id=#{value} AND c.status='VISIBLE' ORDER BY c.created_at</select>
+  <select id="comments" parameterType="long" resultType="map">SELECT c.comment_id AS "commentId",c.user_id AS "authorId",u.nickname AS "authorName",CASE WHEN u.profile_image_url IS NOT NULL THEN '/api/users/profile-image/user/'||TO_CHAR(u.user_id) END AS "authorProfileImageUrl",DBMS_LOB.SUBSTR(c.content,1000,1) AS "content",TO_CHAR(c.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt" FROM community_comments c JOIN users u ON u.user_id=c.user_id WHERE c.post_id=#{value} AND c.status='VISIBLE' ORDER BY c.created_at</select>
   <insert id="insertComment" parameterType="map"><selectKey keyProperty="commentId" resultType="long" order="BEFORE">SELECT community_comments_seq.NEXTVAL FROM dual</selectKey>INSERT INTO community_comments(comment_id,post_id,user_id,content,status,created_at,updated_at) SELECT #{commentId},#{postId},#{userId},#{content},'VISIBLE',SYSDATE,SYSDATE FROM dual WHERE EXISTS(SELECT 1 FROM community_posts WHERE post_id=#{postId} AND status='VISIBLE')</insert>
   <update id="deleteComment" parameterType="map">UPDATE community_comments SET status='DELETED',updated_at=SYSDATE WHERE comment_id=#{commentId} AND user_id=#{userId}</update>
   <select id="helpfulCount" parameterType="map" resultType="int">SELECT COUNT(*) FROM community_post_helpful WHERE post_id=#{postId} AND user_id=#{userId}</select>
