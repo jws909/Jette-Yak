@@ -163,4 +163,16 @@ public class ScheduleDAO {
         params.put("status", status);
         return sqlSession.update("schedule.updateRoutineStatus", params);
     }
+
+    public boolean checkScheduleExists(Long userId, String scheduledDate, String scheduledTime, Long routineId, Long cabinetId, String medicationId) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("scheduledDate", scheduledDate);
+        params.put("scheduledTime", scheduledTime);
+        params.put("routineId", routineId);
+        params.put("cabinetId", cabinetId);
+        params.put("medicationId", medicationId);
+        Integer cnt = sqlSession.selectOne("schedule.checkScheduleExists", params);
+        return cnt != null && cnt > 0;
+    }
 }

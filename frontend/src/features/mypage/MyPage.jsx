@@ -84,6 +84,13 @@ export default function MyPage({ user, onUserUpdated }) {
   const [pushEnabled, setPushEnabled] = useState(true);
   const [saveToast, setSaveToast] = useState(false);
 
+  // 캘린더 복약 일정 등록 모달 state
+  const [scheduleModalMed, setScheduleModalMed] = useState(null);
+  const [schedStartDate, setSchedStartDate] = useState('');
+  const [schedTime, setSchedTime] = useState('09:00');
+  const [schedRepeatDays, setSchedRepeatDays] = useState(30);
+  const [isSubmittingSched, setIsSubmittingSched] = useState(false);
+
   const fetchEverydayMeds = async () => {
     try {
       setIsLoadingMeds(true);
@@ -251,6 +258,60 @@ export default function MyPage({ user, onUserUpdated }) {
     }
   };
 
+  const handleOpenScheduleModal = (med) => {
+    setScheduleModalMed(med);
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    setSchedStartDate(todayStr);
+    setSchedTime(med.takeTime && med.takeTime.includes(':') ? med.takeTime : '09:00');
+    setSchedRepeatDays(30);
+  };
+
+  const handleSaveScheduleFromMyPage = async (e) => {
+    e.preventDefault();
+    if (!scheduleModalMed) return;
+    const uid = user?.userId || '';
+    if (!uid) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    setIsSubmittingSched(true);
+    try {
+      const res = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: uid,
+          name: scheduleModalMed.name,
+          medicationId: scheduleModalMed.medicationId || null,
+          type: scheduleModalMed.source === 'CABINET' ? 'regular' : 'supplement',
+          scheduledDate: schedStartDate,
+          scheduledTime: schedTime,
+          alarmEnabled: 1,
+          repeatDays: schedRepeatDays,
+        }),
+      });
+
+      if (res.ok) {
+        alert(`'${scheduleModalMed.name}'의 ${schedRepeatDays}일간 복약 일정이 캘린더에 성공적으로 등록되었습니다!`);
+        setScheduleModalMed(null);
+        fetchEverydayMeds();
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: uid, date: schedStartDate }
+        }));
+      } else {
+        const errText = await res.text().catch(() => '');
+        alert('일정 등록에 실패했습니다.' + (errText ? ` (${errText})` : ''));
+      }
+    } catch (err) {
+      console.error('일정 등록 오류:', err);
+      alert('서버 통신 중 오류가 발생했습니다.');
+    } finally {
+      setIsSubmittingSched(false);
+    }
+  };
+
   const handlePwChange = (e) => {
     e.preventDefault();
     if (!currentPw || !newPw || !confirmPw) {
@@ -397,7 +458,6 @@ export default function MyPage({ user, onUserUpdated }) {
                     onClick={() => handleAddRoutineMed(medSearchText.trim())}
                   >
                     <div className="routine-prompt">
-                      <span className="routine-icon">✨</span>
                       <span><strong>&lsquo;{medSearchText.trim()}&rsquo;</strong> 영양제로 등록하기</span>
                     </div>
                     <span className="med-add-badge badge-routine">+ 영양제</span>
@@ -425,7 +485,7 @@ export default function MyPage({ user, onUserUpdated }) {
                         {med.entpName && <small className="everyday-subtext">{med.entpName}</small>}
                         {med.takeTime && (
                           <small className="everyday-time-tag">
-                            ⏰ 권장 {med.takeTime}{med.notes && med.notes !== '보관 등록' ? ` · ${med.notes}` : ''}
+                            권장 {med.takeTime}{med.notes && med.notes !== '보관 등록' ? ` · ${med.notes}` : ''}
                           </small>
                         )}
                       </div>
@@ -434,6 +494,17 @@ export default function MyPage({ user, onUserUpdated }) {
                       <span className={`everyday-type-badge ${med.source === 'CABINET' ? 'badge-cabinet' : 'badge-routine'}`}>
                         {med.type || (med.source === 'CABINET' ? '상비약' : '영양제')}
                       </span>
+                      <span className={`everyday-status-pill ${med.useStatus === 'ACTIVE' ? 'status-active' : 'status-stored'}`}>
+                        {med.useStatus === 'ACTIVE' ? '복용 중' : '보관 중'}
+                      </span>
+                      <button
+                        type="button"
+                        className="everyday-sched-btn"
+                        onClick={() => handleOpenScheduleModal(med)}
+                        title="캘린더에 매일/주기적 복약 일정 등록"
+                      >
+                        일정 등록
+                      </button>
                       <button
                         type="button"
                         className="everyday-delete-btn"
@@ -532,6 +603,95 @@ export default function MyPage({ user, onUserUpdated }) {
           </section>
         </div>
       </div>
+
+      {/* 캘린더 복약 일정 등록 모달 */}
+      {scheduleModalMed && (
+        <div className="modal-overlay" onClick={() => !isSubmittingSched && setScheduleModalMed(null)}>
+          <div className="mypage-sched-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sched-modal-header">
+              <h3>캘린더 복약 일정 등록</h3>
+              <button
+                type="button"
+                className="sched-modal-close"
+                onClick={() => !isSubmittingSched && setScheduleModalMed(null)}
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveScheduleFromMyPage}>
+              <div className="sched-med-summary">
+                <span className="sched-med-badge">{scheduleModalMed.source === 'CABINET' ? '상비약' : '영양제'}</span>
+                <strong className="sched-med-title">{scheduleModalMed.name}</strong>
+              </div>
+
+              <div className="sched-form-group">
+                <label>시작일</label>
+                <input
+                  type="date"
+                  className="styled-input"
+                  value={schedStartDate}
+                  onChange={(e) => setSchedStartDate(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="sched-form-group">
+                <label>복용 시간</label>
+                <input
+                  type="time"
+                  className="styled-input"
+                  value={schedTime}
+                  onChange={(e) => setSchedTime(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="sched-form-group">
+                <label>복용 기간 (주기)</label>
+                <div className="repeat-days-group">
+                  {[
+                    { label: '7일 (1주)', days: 7 },
+                    { label: '14일 (2주)', days: 14 },
+                    { label: '30일 (1개월)', days: 30 },
+                    { label: '90일 (3개월)', days: 90 },
+                  ].map(({ label, days }) => (
+                    <button
+                      key={days}
+                      type="button"
+                      className={`repeat-btn ${schedRepeatDays === days ? 'active' : ''}`}
+                      onClick={() => setSchedRepeatDays(days)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p className="field-hint-repeat">
+                  {schedStartDate || '시작일'}부터 <strong>{schedRepeatDays}일 동안 매일</strong> 같은 시간에 복약 일정이 자동 생성됩니다.
+                </p>
+              </div>
+
+              <div className="sched-modal-actions">
+                <button
+                  type="button"
+                  className="btn-sched-cancel"
+                  onClick={() => setScheduleModalMed(null)}
+                  disabled={isSubmittingSched}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="btn-sched-confirm"
+                  disabled={isSubmittingSched}
+                >
+                  {isSubmittingSched ? '일정 등록 중...' : `${schedRepeatDays}일간 일정 등록`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
