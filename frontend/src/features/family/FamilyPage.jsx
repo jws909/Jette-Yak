@@ -9,11 +9,11 @@ function getFormattedDate(targetDate) {
 }
 
 function getSlotFromTime(t) {
-  if (!t || !t.includes(':')) return { slot: 'breakfast', slotLabel: '아침' };
+  if (!t || !t.includes(':')) return { slot: 'morning', slotLabel: '아침' };
   const h = parseInt(t.split(':')[0], 10);
-  if (h < 11) return { slot: 'breakfast', slotLabel: '아침' };
+  if (h < 11) return { slot: 'morning', slotLabel: '아침' };
   if (h < 16) return { slot: 'lunch', slotLabel: '점심' };
-  if (h < 21) return { slot: 'dinner', slotLabel: '저녁' };
+  if (h < 21) return { slot: 'evening', slotLabel: '저녁' };
   return { slot: 'bedtime', slotLabel: '취침전' };
 }
 
@@ -33,6 +33,9 @@ export default function FamilyPage(props) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // 체크리스트 내부 시간대 필터 탭 ('all' | 'morning' | 'lunch' | 'evening' | 'bedtime')
+  const [timeFilter, setTimeFilter] = useState('all');
+
   // 보고서 모달 상태
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
@@ -51,7 +54,7 @@ export default function FamilyPage(props) {
   // 2. 비동기 백엔드 API 통신 로직
   // =========================================================================
 
-  // 가족 구성원 목록 조회
+  // (1) 가족 구성원 목록 조회
   const fetchFamilyMembers = useCallback(async () => {
     if (!currentUserId) return;
     try {
@@ -65,7 +68,7 @@ export default function FamilyPage(props) {
     }
   }, [currentUserId]);
 
-  // 월별 투약 요약 조회 (캘린더 인디케이터용)
+  // (2) 월별 요약 조회 (달력 인디케이터용)
   const fetchMonthSummary = useCallback(async () => {
     if (!currentUserId) {
       setMonthSummary({});
@@ -94,7 +97,7 @@ export default function FamilyPage(props) {
     }
   }, [currentYearMonth, currentUserId, selectedMemberId]);
 
-  // 선택 일자 복약 스케줄 조회
+  // (3) 선택 일자 복약 스케줄 조회
   const fetchDailySchedules = useCallback(async (targetDateStr) => {
     if (!currentUserId) {
       setSchedules([]);
@@ -131,7 +134,7 @@ export default function FamilyPage(props) {
     fetchDailySchedules(selectedDate);
   }, [selectedDate, fetchDailySchedules]);
 
-  // 외부 복약 상태 동기화
+  // 외부 복약 상태 변경 시 동기화
   useEffect(() => {
     const handleSync = () => {
       fetchDailySchedules(selectedDate);
@@ -141,7 +144,7 @@ export default function FamilyPage(props) {
     return () => window.removeEventListener('jette-intake-updated', handleSync);
   }, [selectedDate, fetchDailySchedules, fetchMonthSummary]);
 
-  // 복약 체크 토글 (낙관적 UI + DB 실시간 동기화)
+  // (4) 복약 체크박스 토글 (맨 앞 사각 체크박스 클릭)
   const toggleTaken = async (item) => {
     if (!currentUserId) {
       alert('로그인 후 이용할 수 있습니다.');
@@ -154,10 +157,12 @@ export default function FamilyPage(props) {
       ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
       : null;
 
+    // 1. UI 즉시 반응
     setSchedules((prev) =>
       prev.map((s) => (s.scheduleId === item.scheduleId ? { ...s, takenAt: nowIso } : s))
     );
 
+    // 2. 백엔드 실시간 저장
     try {
       await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
         method: 'POST',
@@ -172,7 +177,22 @@ export default function FamilyPage(props) {
     }
   };
 
-  // (5) [보고서] 버튼 클릭 시: 처방전 원본(180일분) 데이터 및 진료 브리핑 취합
+  // (5) 스케줄 삭제 액션 (휴지통 아이콘)
+  const handleDeleteSchedule = async (scheduleId, e) => {
+    e.stopPropagation();
+    if (!window.confirm('이 복약 일정을 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch(`/api/calendar/${scheduleId}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchDailySchedules(selectedDate);
+        fetchMonthSummary();
+      }
+    } catch (err) {
+      console.error('일정 삭제 오류:', err);
+    }
+  };
+
+  // (6) [보고서] 버튼 클릭 시
   const handleOpenReportModal = async () => {
     setIsReportOpen(true);
     setIsReportLoading(true);
@@ -182,7 +202,6 @@ export default function FamilyPage(props) {
         ? (familyMembers[0]?.userId || currentUserId)
         : selectedMemberId;
 
-      // 1. 처방전 목록 조회 (/api/prescriptions)
       let presList = [];
       try {
         const presRes = await fetch(`/api/prescriptions?userId=${targetId}`);
@@ -190,11 +209,8 @@ export default function FamilyPage(props) {
           const list = await presRes.json();
           presList = Array.isArray(list) ? list : [];
         }
-      } catch (err) {
-        console.warn('처방전 목록 통신 오류:', err);
-      }
+      } catch (err) {}
 
-      // 대상자명
       const targetMemberObj = familyMembers.find((m) => String(m.userId) === String(selectedMemberId));
       const currentTargetName = targetMemberObj
         ? `${targetMemberObj.name}`
@@ -212,26 +228,19 @@ export default function FamilyPage(props) {
           seenNames.add(item.name);
 
           const pId = item.prescriptionId || item.prescription_id;
-
-          // 처방전 매칭 (처방전 카드 정보 탐색)
           let pData = presList.find(p => 
             (pId && (p.prescriptionId === pId || p.prescription_id === pId)) ||
             (p.medications && p.medications.some(m => m.name === item.name || m.itemName === item.name)) ||
             (p.medicationNames && p.medicationNames.includes(item.name))
           );
 
-          // 첫 번째 활성 처방전 fallback
-          if (!pData && presList.length > 0) {
-            pData = presList[0];
-          }
+          if (!pData && presList.length > 0) pData = presList[0];
 
-          // 처방전 원본 데이터 매핑
           const hospitalName = pData?.hospitalName || pData?.hospital_name || '한내과의원';
           const doctorName = pData?.doctorName || pData?.doctor_name || '유현영';
           const startRaw = pData?.startDate || pData?.start_date || pData?.prescribedDate || '2026-09-23';
           const totalDays = Number(pData?.totalDays || pData?.total_days || 180);
 
-          // AI 처방 목적 파싱
           let purposeText = '간 기능 개선 및 이상지질혈증(고지혈증) 조절을 통한 심혈관 질환 예방';
           const rawAiJson = pData?.aiSummaryJson || pData?.ai_summary_json;
           if (rawAiJson) {
@@ -243,19 +252,16 @@ export default function FamilyPage(props) {
             purposeText = pData.purpose || pData.prescriptionPurpose;
           }
 
-          // 날짜 계산 (start ~ end, n일차)
           const startObj = new Date(startRaw);
           const endObj = new Date(startObj);
           endObj.setDate(startObj.getDate() + (totalDays - 1));
 
-          // N일차: 오늘(2026-09-28) - 시작일(2026-09-23) + 1 = 6일차
           const diffDays = Math.floor((curDateObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           const elapsedDays = Math.max(1, diffDays);
 
           const formatDate = (d) =>
             `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
 
-          // 당일 실시간 체크 현황
           const relatedDoses = schedules
             .filter((s) => s.name === item.name)
             .map((d) => ({
@@ -290,7 +296,7 @@ export default function FamilyPage(props) {
     }
   };
 
-  // 가족 구성원 신규 등록
+  // 가족 등록 핸들러
   const handleAddFamilyMember = async (e) => {
     e.preventDefault();
     if (!newMemberName.trim()) {
@@ -320,9 +326,7 @@ export default function FamilyPage(props) {
     }
   };
 
-  // =========================================================================
-  // 3. 캘린더 날짜 그리드 계산
-  // =========================================================================
+  // 3. 캘린더 그리드 계산
   const firstDayIndex = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month + 1, 0).getDate();
 
@@ -344,15 +348,36 @@ export default function FamilyPage(props) {
     setSelectedDate(getFormattedDate(now));
   };
 
+  // =========================================================================
+  // 4. 체크리스트 시간대별 카운트 및 필터링 계산
+  // =========================================================================
+  const totalCount = schedules.length;
+  const totalTakenCount = schedules.filter((s) => s.takenAt).length;
+
+  const morningList = schedules.filter((s) => getSlotFromTime(s.time).slot === 'morning');
+  const morningTaken = morningList.filter((s) => s.takenAt).length;
+
+  const lunchList = schedules.filter((s) => getSlotFromTime(s.time).slot === 'lunch');
+  const lunchTaken = lunchList.filter((s) => s.takenAt).length;
+
+  const eveningList = schedules.filter((s) => getSlotFromTime(s.time).slot === 'evening');
+  const eveningTaken = eveningList.filter((s) => s.takenAt).length;
+
+  // 현재 활성화된 탭 기준 노출 목록
+  const filteredSchedules = schedules.filter((item) => {
+    if (timeFilter === 'all') return true;
+    return getSlotFromTime(item.time).slot === timeFilter;
+  });
+
   const categoryMap = {
-    prescription: { label: '처방약', className: 'cat-prescription' },
-    regular: { label: '상시약', className: 'cat-regular' },
-    supplement: { label: '영양제', className: 'cat-supplement' },
+    prescription: { label: '처방약', className: 'prescription', dotClass: 'dot-prescription' },
+    regular: { label: '상시약', className: 'regular', dotClass: 'dot-regular' },
+    supplement: { label: '영양제', className: 'supplement', dotClass: 'dot-supplement' },
   };
 
   return (
     <div className="family-page-wrapper">
-      {/* 1. 상단 타이틀 & 컨트롤 바 */}
+      {/* 1. 상단 타이틀 & 필터 칩 */}
       <div className="family-header">
         <span className="family-subtitle">MEDICATION CALENDAR</span>
         <h1 className="family-title">가족 복약 캘린더</h1>
@@ -466,57 +491,122 @@ export default function FamilyPage(props) {
         </div>
       </div>
 
-      {/* 3. 하단 Today 체크리스트 */}
-      <div className="family-card">
-        <div className="checklist-header">
-          <h3 className="checklist-title">today 체크리스트</h3>
-          <span className="checklist-date">
-            {selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일
-          </span>
+      {/* 3. 하단 체크리스트 (스크린샷 디자인 1:1 완벽 이식) */}
+      <div className="family-card checklist-card-section">
+        {/* 상단 서브 헤더 */}
+        <span className="chk-top-subtitle">SELECTED DATE</span>
+        <h2 className="chk-top-title">
+          {Number(selectedDate.split('-')[1])}월 {Number(selectedDate.split('-')[2])}일
+        </h2>
+
+        {/* 상단 필터 탭 바 (전체 / 아침 / 점심 / 저녁) */}
+        <div className="chk-filter-bar">
+          <button
+            type="button"
+            className={`chk-tab-btn ${timeFilter === 'all' ? 'active' : ''}`}
+            onClick={() => setTimeFilter('all')}
+          >
+            전체 <span className="chk-count-badge">{totalTakenCount}/{totalCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`chk-tab-btn ${timeFilter === 'morning' ? 'active' : ''}`}
+            onClick={() => setTimeFilter('morning')}
+          >
+            아침 <span className="chk-count-badge">{morningTaken}/{morningList.length}</span>
+          </button>
+          {lunchList.length > 0 && (
+            <button
+              type="button"
+              className={`chk-tab-btn ${timeFilter === 'lunch' ? 'active' : ''}`}
+              onClick={() => setTimeFilter('lunch')}
+            >
+              점심 <span className="chk-count-badge">{lunchTaken}/{lunchList.length}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className={`chk-tab-btn ${timeFilter === 'evening' ? 'active' : ''}`}
+            onClick={() => setTimeFilter('evening')}
+          >
+            저녁 <span className="chk-count-badge">{eveningTaken}/{eveningList.length}</span>
+          </button>
         </div>
 
-        <div className="checklist-items">
+        {/* 리스트 목록 영역 */}
+        <div className="chk-items-container">
           {loading ? (
-            <div className="checklist-empty-msg">일정을 불러오는 중입니다...</div>
-          ) : schedules.length === 0 ? (
-            <div className="checklist-empty-msg">선택한 날짜에 등록된 복약 일정이 없습니다.</div>
+            <div className="chk-empty-message">일정을 불러오는 중입니다...</div>
+          ) : filteredSchedules.length === 0 ? (
+            <div className="chk-empty-message">해당 시간대에 등록된 복약 일정이 없습니다.</div>
           ) : (
-            schedules.map((item) => {
+            filteredSchedules.map((item) => {
               const isTaken = Boolean(item.takenAt);
-              const currentCat = categoryMap[item.type] || { label: '상시약', className: 'cat-regular' };
-              const currentSlot = getSlotFromTime(item.time);
+              const catInfo = categoryMap[item.type] || categoryMap.regular;
+              const slotInfo = getSlotFromTime(item.time);
 
               return (
-                <div key={item.scheduleId} className={`checklist-row ${isTaken ? 'is-done' : ''}`}>
-                  <div className="checklist-info-group">
-                    {item.userName && (
-                      <span className="member-tag">
-                        {item.userName}
+                <div key={item.scheduleId} className={`chk-list-row ${isTaken ? 'is-taken' : ''}`}>
+                  {/* 맨 앞 사각 체크박스 */}
+                  <label className="chk-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={isTaken}
+                      onChange={() => toggleTaken(item)}
+                      className="chk-native-input"
+                    />
+                    <span className="chk-custom-box">
+                      {isTaken && (
+                        <svg viewBox="0 0 24 24" className="chk-check-icon">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </span>
+                  </label>
+
+                  {/* 중간 상세 정보 (2줄 구조) */}
+                  <div className="chk-main-content">
+                    {/* 1행: 도트 + 아침/저녁 + 시간 (+ 가족 이름) */}
+                    <div className="chk-meta-line">
+                      <span className={`chk-bullet-dot ${catInfo.dotClass}`} />
+                      <span className="chk-slot-text">{slotInfo.slotLabel}</span>
+                      <span className="chk-time-text">{String(item.time || '').substring(0, 5)}</span>
+                      {item.userName && (
+                        <span className="chk-user-tag">{item.userName}</span>
+                      )}
+                    </div>
+
+                    {/* 2행: 약품명 + 구분 라벨 */}
+                    <div className="chk-med-line">
+                      <span className={`chk-med-name ${isTaken ? 'line-through' : ''}`}>
+                        {item.name}
                       </span>
-                    )}
-                    <span className="slot-tag">{currentSlot.slotLabel}</span>
-                    <span className="checklist-time">{String(item.time || '').substring(0, 5)}</span>
-                    <div>
-                      <div className="med-name-line">
-                        <strong className={`checklist-med-name ${isTaken ? 'completed' : ''}`}>
-                          {item.name}
-                        </strong>
-                        <span className={`category-tag ${currentCat.className}`}>
-                          {currentCat.label}
-                        </span>
-                      </div>
-                      {item.memo && <p className="checklist-med-desc">{item.memo}</p>}
+                      <span className={`chk-cat-label ${catInfo.className}`}>
+                        {catInfo.label}
+                      </span>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    className={`toggle-switch ${isTaken ? 'checked' : ''}`}
-                    onClick={() => toggleTaken(item)}
-                    title={isTaken ? '복약 취소' : '복약 완료'}
-                  >
-                    <div className="toggle-handle" />
-                  </button>
+                  {/* 우측 알림/삭제 아이콘 */}
+                  <div className="chk-actions-group">
+                    <button type="button" className="chk-icon-btn" title="알림 설정">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      className="chk-icon-btn delete"
+                      title="일정 삭제"
+                      onClick={(e) => handleDeleteSchedule(item.scheduleId, e)}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               );
             })
@@ -524,7 +614,7 @@ export default function FamilyPage(props) {
         </div>
       </div>
 
-      {/* 4. 보고서 모달 (진행률 바 제거, 명확한 기간 & 일차 강조) */}
+      {/* 4. 보고서 모달 */}
       {isReportOpen && (
         <div className="modal-overlay" onClick={() => setIsReportOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -562,21 +652,18 @@ export default function FamilyPage(props) {
                         </span>
                       </div>
 
-                      {/* AI 처방 목적 */}
                       {p.purpose && (
                         <div style={{ background: '#fdf7f8', borderLeft: '3px solid #7d2638', padding: '6px 10px', fontSize: '12px', color: '#524942', borderRadius: '0 4px 4px 0' }}>
                           <strong>AI 처방 목적:</strong> {p.purpose}
                         </div>
                       )}
 
-                      {/* 기간 정보 박스 */}
                       <div className="report-period-box">
                         <span style={{ fontSize: '12.5px', color: '#4a413a' }}>
                           <strong>조제/복용 기간:</strong> {p.startDate} ~ {p.endDate}
                         </span>
                       </div>
 
-                      {/* 오늘 실시간 복약 여부 */}
                       <div className="report-dose-chips">
                         {p.todayDoses?.map((d, dIdx) => (
                           <span
