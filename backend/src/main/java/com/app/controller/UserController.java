@@ -226,7 +226,15 @@ public class UserController {
 
     @GetMapping("/profile-image/{username}")
     public ResponseEntity<?> getProfileImage(@PathVariable("username") String username) throws IOException {
-        User user = userMapper.findByLoginId(username);
+        return profileImageResponse(userMapper.findByLoginId(username));
+    }
+
+    @GetMapping("/profile-image/user/{userId}")
+    public ResponseEntity<?> getProfileImageByUserId(@PathVariable("userId") Long userId) throws IOException {
+        return profileImageResponse(userMapper.findById(userId));
+    }
+
+    private ResponseEntity<?> profileImageResponse(User user) throws IOException {
         if (user == null || user.getProfileImageUrl() == null || user.getProfileImageUrl().isBlank()) {
             return ResponseEntity.notFound().build();
         }
