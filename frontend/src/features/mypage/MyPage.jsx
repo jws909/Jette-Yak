@@ -71,32 +71,184 @@ export default function MyPage({ user, onUserUpdated }) {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwMessage, setPwMessage] = useState('');
 
-  // 평소 복용 관리 (와이어프레임 2.png)
-  const [everydayMeds, setEverydayMeds] = useState([
-    { id: 1, name: '오메가-3', type: '영양제', dotColor: '#e09f3e' },
-    { id: 2, name: '듀오락 골드', type: '상시약', dotColor: '#5c9e76' }
-  ]);
+  // 평소 복용 관리 (상비약 & 영양제 DB 연동)
+  const [everydayMeds, setEverydayMeds] = useState([]);
+  const [isLoadingMeds, setIsLoadingMeds] = useState(false);
   const [medSearchText, setMedSearchText] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const searchBoxRef = useRef(null);
 
   // 알림 환경 설정
   const [pushEnabled, setPushEnabled] = useState(true);
   const [saveToast, setSaveToast] = useState(false);
 
+  const fetchEverydayMeds = async () => {
+    try {
+      setIsLoadingMeds(true);
+      const uid = user?.userId || '';
+      const uname = user?.username || '';
+      const params = new URLSearchParams();
+      if (uid) params.append('userId', uid);
+      if (uname) params.append('username', uname);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`/api/users/everyday-meds${queryStr}`);
+      if (res.ok) {
+        const list = await res.json();
+        setEverydayMeds(Array.isArray(list) ? list : []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch everyday meds', err);
+    } finally {
+      setIsLoadingMeds(false);
+    }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+    const load = async () => {
+      try {
+        const uid = user?.userId || '';
+        const uname = user?.username || '';
+        const params = new URLSearchParams();
+        if (uid) params.append('userId', uid);
+        if (uname) params.append('username', uname);
+        const queryStr = params.toString() ? `?${params.toString()}` : '';
+        const res = await fetch(`/api/users/everyday-meds${queryStr}`);
+        if (!ignore && res.ok) {
+          const list = await res.json();
+          setEverydayMeds(Array.isArray(list) ? list : []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch everyday meds', err);
+      }
+    };
+    load();
+    return () => { ignore = true; };
+  }, [user?.userId, user?.username]);
+
+  // 검색어 입력 시 의약품 자동완성 (250ms 디바운스)
+  useEffect(() => {
+    const keyword = medSearchText.trim();
+    if (!keyword) return;
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const res = await fetch(`/api/calendar/search-medications?keyword=${encodeURIComponent(keyword)}`);
+        if (res.ok) {
+          const list = await res.json();
+          setSearchResults(Array.isArray(list) ? list : []);
+          setIsDropdownOpen(true);
+        }
+      } catch (e) {
+        console.error('Search error', e);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [medSearchText]);
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // 상비약 추가 (의약품 DB 선택)
+  const handleAddCabinetMed = async (item) => {
+    try {
+      const uid = user?.userId || '';
+      const uname = user?.username || '';
+      const medId = item?.medicationId || item?.itemSeq;
+      if (!medId) return;
+      const res = await fetch('/api/users/everyday-meds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: uid,
+          username: uname,
+          type: 'CABINET',
+          medicationId: medId,
+        }),
+      });
+      if (res.ok) {
+        setMedSearchText('');
+        setIsDropdownOpen(false);
+        fetchEverydayMeds();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || '상비약 등록에 실패했습니다.');
+      }
+    } catch (e) {
+      console.error('Failed to add cabinet med', e);
+    }
+  };
+
+  // 영양제 추가 (직접 입력)
+  const handleAddRoutineMed = async (name) => {
+    const trimmed = (name || '').trim();
+    if (!trimmed) return;
+    try {
+      const uid = user?.userId || '';
+      const uname = user?.username || '';
+      const res = await fetch('/api/users/everyday-meds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: uid,
+          username: uname,
+          type: 'ROUTINE',
+          name: trimmed,
+        }),
+      });
+      if (res.ok) {
+        setMedSearchText('');
+        setIsDropdownOpen(false);
+        fetchEverydayMeds();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || '영양제 등록에 실패했습니다.');
+      }
+    } catch (e) {
+      console.error('Failed to add routine med', e);
+    }
+  };
+
   const handleAddMed = (e) => {
     e.preventDefault();
     if (!medSearchText.trim()) return;
-    const newMed = {
-      id: Date.now(),
-      name: medSearchText.trim(),
-      type: '영양제',
-      dotColor: '#e09f3e'
-    };
-    setEverydayMeds(prev => [...prev, newMed]);
-    setMedSearchText('');
+    handleAddRoutineMed(medSearchText.trim());
   };
 
-  const handleRemoveMed = (id) => {
-    setEverydayMeds(prev => prev.filter(m => m.id !== id));
+  const handleRemoveMed = async (med) => {
+    if (!med?.source || !med?.rawId) return;
+    if (!window.confirm(`'${med.name}'을(를) 평소 복용 목록에서 삭제하시겠습니까?`)) return;
+    try {
+      const uid = user?.userId || '';
+      const uname = user?.username || '';
+      const params = new URLSearchParams();
+      if (uid) params.append('userId', uid);
+      if (uname) params.append('username', uname);
+      const queryStr = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`/api/users/everyday-meds/${med.source.toLowerCase()}/${med.rawId}${queryStr}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        fetchEverydayMeds();
+      } else {
+        alert('삭제에 실패했습니다.');
+      }
+    } catch (e) {
+      console.error('Failed to delete everyday med', e);
+    }
   };
 
   const handlePwChange = (e) => {
@@ -177,10 +329,129 @@ export default function MyPage({ user, onUserUpdated }) {
         </div>
       </section>
 
-      {/* 2단 그리드: 비밀번호 변경 & 환경설정 (좌) + 평소 복용 관리 (우) */}
+      {/* 2단 그리드: 평소 복용 관리 (좌) + 비밀번호 변경 & 환경설정 (우) */}
       <div className="mypage-two-cols">
-        {/* 좌측 열 */}
+        {/* 좌측 열: 평소 복용 관리 (EVERYDAY MEDICATION) */}
         <div className="mypage-col-left">
+          <section className="mypage-subcard full-height">
+            <span className="meta-kicker">EVERYDAY MEDICATION</span>
+            <h2 className="subcard-title">평소 복용 관리</h2>
+
+            {/* 검색 및 추가 인풋 */}
+            <div className="everyday-search-wrapper" ref={searchBoxRef}>
+              <form onSubmit={handleAddMed} className="everyday-search-form">
+                <div className="search-pill-box">
+                  <svg className="inner-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 19l-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="약 또는 비타민 검색"
+                    className="search-pill-input"
+                    value={medSearchText}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMedSearchText(val);
+                      if (!val.trim()) {
+                        setSearchResults([]);
+                        setIsDropdownOpen(false);
+                      }
+                    }}
+                    onFocus={() => { if (medSearchText.trim()) setIsDropdownOpen(true); }}
+                  />
+                  {isSearching ? (
+                    <span className="search-mini-spinner" />
+                  ) : (
+                    <button type="submit" className="search-add-btn" title="영양제로 바로 추가">+</button>
+                  )}
+                </div>
+              </form>
+
+              {/* 검색 자동완성 드롭다운 */}
+              {isDropdownOpen && medSearchText.trim() && (
+                <div className="search-autocomplete-dropdown">
+                  {searchResults.length > 0 && (
+                    <div className="dropdown-section">
+                      <div className="dropdown-header">식약처 의약품 (선택 시 상비약 등록)</div>
+                      <div className="dropdown-med-list">
+                        {searchResults.slice(0, 8).map((item, idx) => (
+                          <div
+                            key={item.medicationId || item.itemSeq || idx}
+                            className="dropdown-med-item"
+                            onClick={() => handleAddCabinetMed(item)}
+                          >
+                            <div className="med-info">
+                              <strong className="med-title">{item.itemName}</strong>
+                              {item.entpName && <span className="med-corp">{item.entpName}</span>}
+                            </div>
+                            <span className="med-add-badge badge-cabinet">+ 상비약</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 하단: 영양제 직접 등록 버튼 */}
+                  <div
+                    className="dropdown-routine-item"
+                    onClick={() => handleAddRoutineMed(medSearchText.trim())}
+                  >
+                    <div className="routine-prompt">
+                      <span className="routine-icon">✨</span>
+                      <span><strong>&lsquo;{medSearchText.trim()}&rsquo;</strong> 영양제로 등록하기</span>
+                    </div>
+                    <span className="med-add-badge badge-routine">+ 영양제</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 등록된 목록 */}
+            <div className="everyday-list">
+              {isLoadingMeds ? (
+                <div className="everyday-loading">복용 목록을 불러오는 중...</div>
+              ) : everydayMeds.length === 0 ? (
+                <div className="everyday-empty">
+                  <p>등록된 평소 복용 약(상비약, 영양제)이 없습니다.</p>
+                  <span>위 검색창에서 의약품을 검색하거나 비타민 이름을 입력하여 등록해 보세요.</span>
+                </div>
+              ) : (
+                everydayMeds.map((med) => (
+                  <div key={med.id} className="everyday-item-row">
+                    <div className="everyday-left">
+                      <span className="everyday-dot" style={{ backgroundColor: med.dotColor || ('CABINET' === med.source ? '#5c9e76' : '#e09f3e') }} />
+                      <div className="everyday-name-block">
+                        <strong className="everyday-name">{med.name}</strong>
+                        {med.entpName && <small className="everyday-subtext">{med.entpName}</small>}
+                        {med.takeTime && (
+                          <small className="everyday-time-tag">
+                            ⏰ 권장 {med.takeTime}{med.notes && med.notes !== '보관 등록' ? ` · ${med.notes}` : ''}
+                          </small>
+                        )}
+                      </div>
+                    </div>
+                    <div className="everyday-right">
+                      <span className={`everyday-type-badge ${med.source === 'CABINET' ? 'badge-cabinet' : 'badge-routine'}`}>
+                        {med.type || (med.source === 'CABINET' ? '상비약' : '영양제')}
+                      </span>
+                      <button
+                        type="button"
+                        className="everyday-delete-btn"
+                        onClick={() => handleRemoveMed(med)}
+                        title="복용 목록에서 삭제"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* 우측 열: 비밀번호 변경 & 환경설정 */}
+        <div className="mypage-col-right">
           {/* 비밀번호 변경 */}
           <section className="mypage-subcard">
             <span className="meta-kicker">PASSWORD</span>
@@ -257,53 +528,6 @@ export default function MyPage({ user, onUserUpdated }) {
               >
                 회원 탈퇴
               </button>
-            </div>
-          </section>
-        </div>
-
-        {/* 우측 열: 평소 복용 관리 (EVERYDAY MEDICATION) */}
-        <div className="mypage-col-right">
-          <section className="mypage-subcard full-height">
-            <span className="meta-kicker">EVERYDAY MEDICATION</span>
-            <h2 className="subcard-title">평소 복용 관리</h2>
-
-            {/* 검색 및 추가 인풋 */}
-            <form onSubmit={handleAddMed} className="everyday-search-form">
-              <div className="search-pill-box">
-                <svg className="inner-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 19l-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="약 또는 비타민 검색"
-                  className="search-pill-input"
-                  value={medSearchText}
-                  onChange={(e) => setMedSearchText(e.target.value)}
-                />
-                <button type="submit" className="search-add-btn" title="복용 목록에 추가">+</button>
-              </div>
-            </form>
-
-            {/* 등록된 목록 */}
-            <div className="everyday-list">
-              {everydayMeds.map((med) => (
-                <div key={med.id} className="everyday-item-row">
-                  <div className="everyday-left">
-                    <span className="everyday-dot" style={{ backgroundColor: med.dotColor }} />
-                    <strong className="everyday-name">{med.name}</strong>
-                  </div>
-                  <div className="everyday-right">
-                    <span className="everyday-type-badge">{med.type}</span>
-                    <button
-                      type="button"
-                      className="everyday-delete-btn"
-                      onClick={() => handleRemoveMed(med.id)}
-                    >
-                      삭제
-                    </button>
-                  </div>
-                </div>
-              ))}
             </div>
           </section>
         </div>

@@ -95,9 +95,9 @@
         ) VALUES (
             #{userId},
             #{supplementName},
-            #{takeTime},
-            '캘린더 등록',
-            'ACTIVE',
+            #{takeTime, jdbcType=VARCHAR},
+            NVL(#{notes, jdbcType=VARCHAR}, '보관 등록'),
+            NVL(#{status, jdbcType=VARCHAR}, 'PAUSED'),
             SYSDATE
         )
     </insert>

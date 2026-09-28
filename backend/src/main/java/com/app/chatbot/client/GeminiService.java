@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class GeminiService {
@@ -239,6 +240,81 @@ public class GeminiService {
             "responseMimeType", "application/json",
             "responseJsonSchema", schema
         ));
+    }
+
+    /**
+     * 영양제/건강기능식품 품목명을 AI로 분석하여 영양학적·약학적 최적 권장 복용 시간과 조언을 도출합니다.
+     * 일반 식품, 간식(하리보, 과자 등), 음료 등 영양제가 아니거나 권장 시간이 없는 경우 takeTime을 null로 반환합니다.
+     */
+    public Map<String, Object> recommendSupplementIntake(String supplementName) {
+        if (supplementName == null || supplementName.isBlank()) {
+            return Map.of("isSupplement", false);
+        }
+
+        String instructions = """
+            너는 임상 약학 및 건강기능식품 영양 전문가 AI다.
+            사용자가 입력한 영양제/건강기능식품/일반식품 품목명을 분석하여,
+            공인된 영양학적·약학적 섭취 가이드라인에 따른 최적의 권장 복용 시간과 복약 조언을 JSON으로 제공한다.
+
+            [판별 및 작성 규칙]:
+            1. 품목 식별:
+               - 일반 식품, 젤리/사탕/과자/간식(예: 하리보, 초콜릿, 껌, 젤리), 음료(콜라, 주스, 커피 등), 공산품 등 건강기능식품/영양제가 아닌 경우:
+                 isSupplement: false, takeTime: null, advice: null
+               - 영양제/비타민/미네랄/유산균 등 건강기능식품인 경우:
+                 isSupplement: true
+            2. 권장 복용 시간(takeTime) - 24시간 형식 "HH:mm" (정확히 5자리 문자열) 또는 null:
+               - 아침 기상 직후 공복 ("07:30" 또는 "08:00"):
+                 * 유산균(프로바이오틱스) -> 위산 분비 전 장내 도달률 극대화
+                 * 철분 -> 공복 흡수율 극대화 (비타민C와 복용 권장)
+               - 아침 식후 ("09:00"):
+                 * 비타민 B군 (활력 증진, 야간 복용 시 수면 방해 가능)
+                 * 비타민 C (위장 자극 예방을 위해 식후 복용)
+                 * 코엔자임Q10, 홍삼 등 에너지 대사 보조제
+               - 점심 식후 ("13:00"):
+                 * 지용성 영양제: 오메가3(EPA/DHA), 루테인/지아잔틴, 비타민 D, 비타민 A, 비타민 E
+                 * 음식물 속 지방 성분과 함께 섭취 시 흡수율이 수 배 상승함
+               - 저녁 식후 / 취침 전 ("21:00" 또는 "22:00"):
+                 * 마그네슘, 칼슘 (근육 및 신경 이완, 수면의 질 개선)
+                 * 테아닌, 수면 보조 영양소
+               - 특별히 시간대가 정해지지 않고 하루 중 아무 때나 복용해도 되는 영양제의 경우:
+                 takeTime: null
+            3. advice:
+               - 권장 복용 타이밍 및 그 핵심 이유를 환자가 이해하기 쉬운 25자 이내의 간결한 한국어로 작성한다.
+               - 예: "점심 식후 권장 (지용성 흡수율 향상)"
+               - 예: "아침 공복 권장 (장내 유익균 정착 도움)"
+               - 예: "취침 전 권장 (신경 이완 및 숙면 도움)"
+               - 영양제가 아니거나 권장 시간이 없는 경우 null 또는 간결한 일반 안내.
+            """;
+
+        String prompt = "분석할 품목명: " + supplementName.trim();
+
+        Map<String, Object> schema = Map.of(
+            "type", "object",
+            "properties", Map.of(
+                "isSupplement", Map.of("type", "boolean"),
+                "takeTime", Map.of("type", "string", "nullable", true),
+                "advice", Map.of("type", "string", "nullable", true)
+            ),
+            "required", List.of("isSupplement", "takeTime", "advice")
+        );
+
+        if (isAvailable()) {
+            try {
+                String jsonStr = generate(instructions, prompt, Map.of(
+                    "temperature", 0.1,
+                    "maxOutputTokens", 512,
+                    "responseMimeType", "application/json",
+                    "responseJsonSchema", schema
+                ));
+                if (jsonStr != null && !jsonStr.isBlank()) {
+                    ObjectMapper mapper = new ObjectMapper();
+                    return mapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                }
+            } catch (Exception ex) {
+                org.apache.logging.log4j.LogManager.getLogger(getClass()).warn("영양제 복용 시간 AI 추천 실패: {}", ex.getMessage());
+            }
+        }
+        return Map.of("isSupplement", false);
     }
 
     public String summarizeMedication(String itemName, String className, String materialName, String efficacy, String usageDosage) {
@@ -476,12 +552,13 @@ public class GeminiService {
             1. 절대 근거 없는 억측이나 의례적이고 일반론적인 주의사항(예: '영양제는 무조건 처방약과 1~2시간 간격을 두고 드세요' 등)을 지어내지 마라.
             2. 등록된 약품(처방약, 상비약, 영양제 등) 간에 의학적으로 확인된 상호작용(예: 퀴놀론계/테트라사이클린 항생제와 마그네슘/철분/칼슘 결합 등)이나 실제 DUR 병용금기가 존재하지 않는다면, 불필요하게 '시간 간격을 두고 복용하라'는 식의 경고를 일절 추가하지 마라.
             3. 검색되거나 확인된 주의사항이 없는 항목은 억지로 채우지 말고 반드시 빈 배열([])로 반환하라.
-            4. 일반 간식이나 식품성 영양제(예: 젤리류, 마이구미, 일반 비타민 등)가 등록되어 있더라도, 특정 의약품과 상호작용이 규명되지 않았다면 아무런 제약이나 경고를 두지 마라.
+            4. 일반 간식이나 식품성 영양제(예: 젤리류, 마이구미, 하리보, 일반 비타민 등)가 등록되어 있더라도, 특정 의약품과 상호작용이 규명되지 않았다면 아무런 제약이나 경고를 두지 마라.
+            5. 복용 시간 및 일정 요령(scheduleTips): 처방약의 공식적인 복약 지도(식전/식후/취침전 등)에 명시된 필수 사항만 작성하라. 성분 정보나 의학적 복용 타이밍이 존재하지 않는 일반 식품/간식(예: 하리보, 젤리 등)이나 일반 영양제에 대해 AI가 임의로 특정 복용 시간(예: '아침 9시에 복용하세요' 등)을 지어내거나 권장하지 마라. 특별한 복약 시간 요령이 없으면 scheduleTips는 반드시 빈 배열([])로 반환하라.
 
             [필드별 작성 요령]
             - headline: 환자 복약 상태를 대표하는 핵심 1줄 요약 (예: "처방약 2종을 복용 중이며, 큰 상호작용 없이 안전합니다.")
             - overallSummary: 처방전의 진료 목적을 포함하여, 복용 중인 약들의 조합과 전반적인 복약 상태에 대한 1~2문장 설명
-            - scheduleTips: 공식적인 복약 지도에 명시된 시간대별 권장 요령 (예: "식후 30분에 복용"). 근거 없는 시간 간격 두기는 절대 작성 금지. 특별한 주의점이 없으면 빈 배열([]) 반환.
+            - scheduleTips: 공식적인 복약 지도에 명시된 시간대별 권장 요령 (예: "식후 30분에 복용"). 근거 없는 시간 간격 두기나 임의 복용 시간(아침 9시 등) 작성 절대 금지. 특별한 주의점이 없으면 빈 배열([]) 반환.
             - durAlerts: 아래 [DUR 성분 및 금기·상호작용 분석 결과]에 제공된 medication_interactions DB 조회 결과(병용금기 성분 및 금기 사유/부작용(taboo_effect), 성분 중복, 임부/노인/연령 금기 등)를 충실히 반영하여 구체적이고 전문적인 경고를 작성하라. 확인된 금기나 상호작용 문제가 전혀 없으면 빈 배열([]) 반환.
             - foodAndLifestyle: 실제로 처방된 약물에 명백히 금기시되는 특정 음식(예: 고지혈증약과 자몽, 소염진통제 복용 중 금주 등)만 작성. 해당 약물과 무관한 일반 상식 나열 금지. 해당 사항이 없으면 빈 배열([]) 반환.
             - consultationAdvice: 이상 반응 발생 시 대처법 및 의료진/약사 상담 권장 안내 1문장.
@@ -514,11 +591,17 @@ public class GeminiService {
                 String typeName = "PRESCRIPTION".equals(med.getSource()) ? "처방약"
                                 : "CABINET".equals(med.getSource()) ? "상비약" : "영양제/보조제";
                 sb.append("- ").append(med.getItemName())
-                  .append(" (").append(typeName).append(")")
-                  .append(med.getMaterialName() != null ? " [성분: " + med.getMaterialName() + "]" : "")
-                  .append(med.getNotes() != null ? " [복용법: " + med.getNotes() + "]" : "")
-                  .append(med.getTakeTime() != null ? " [복용시간: " + med.getTakeTime() + "]" : "")
-                  .append("\n");
+                  .append(" (").append(typeName).append(")");
+                if (med.getMaterialName() != null && !med.getMaterialName().isBlank()) {
+                    sb.append(" [성분: ").append(med.getMaterialName()).append("]");
+                }
+                if (med.getNotes() != null && !med.getNotes().isBlank() && !med.getNotes().contains("등록")) {
+                    sb.append(" [복용법: ").append(med.getNotes()).append("]");
+                }
+                if (med.getTakeTime() != null && !med.getTakeTime().isBlank()) {
+                    sb.append(" [환자 설정 시간: ").append(med.getTakeTime()).append("]");
+                }
+                sb.append("\n");
             }
         }
 

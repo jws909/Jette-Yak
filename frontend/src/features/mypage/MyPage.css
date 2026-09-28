@@ -167,11 +167,12 @@
 /* 2단 그리드 */
 .mypage-two-cols {
   display: grid;
-  grid-template-columns: 1fr 1.15fr;
+  grid-template-columns: 1.15fr 1fr;
   gap: 20px;
 }
 
-.mypage-col-left {
+.mypage-col-left,
+.mypage-col-right {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -349,9 +350,14 @@ input:checked + .toggle-slider:before {
   color: #b53838;
 }
 
-/* 우측: 평소 복용 관리 */
-.everyday-search-form {
+/* 좌측: 평소 복용 관리 */
+.everyday-search-wrapper {
+  position: relative;
   margin-bottom: 20px;
+}
+
+.everyday-search-form {
+  margin-bottom: 0;
 }
 
 .search-pill-box {
@@ -369,6 +375,7 @@ input:checked + .toggle-slider:before {
   height: 16px;
   color: #948b81;
   margin-right: 8px;
+  flex-shrink: 0;
 }
 
 .search-pill-input {
@@ -391,6 +398,137 @@ input:checked + .toggle-slider:before {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.search-add-btn:hover {
+  background: #641e2d;
+}
+
+.search-mini-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ddd6cb;
+  border-top-color: #7d2638;
+  border-radius: 50%;
+  animation: miniSpin 0.6s linear infinite;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+@keyframes miniSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* 검색 자동완성 드롭다운 */
+.search-autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #ffffff;
+  border: 1px solid #dcd5c9;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(43, 37, 35, 0.12);
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.dropdown-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8c8278;
+  background: #f7f3ec;
+  padding: 6px 12px;
+  border-bottom: 1px solid #ede7dc;
+}
+
+.dropdown-med-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdown-med-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f4efe7;
+  transition: background 0.15s ease;
+}
+
+.dropdown-med-item:hover {
+  background: #fbf8f3;
+}
+
+.dropdown-med-item .med-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  margin-right: 8px;
+}
+
+.dropdown-med-item .med-title {
+  font-size: 13px;
+  color: #2b2523;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-med-item .med-corp {
+  font-size: 11px;
+  color: #8c8278;
+}
+
+.med-add-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.med-add-badge.badge-cabinet {
+  background: #e8f4ed;
+  color: #2b7a4b;
+}
+
+.med-add-badge.badge-routine {
+  background: #fbf0df;
+  color: #b7791f;
+}
+
+.dropdown-routine-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 12px;
+  background: #faf6f0;
+  cursor: pointer;
+  border-top: 1px dashed #dcd5c9;
+  transition: background 0.15s ease;
+}
+
+.dropdown-routine-item:hover {
+  background: #f3ede2;
+}
+
+.dropdown-routine-item .routine-prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #5c4d44;
+}
+
+.dropdown-routine-item .routine-icon {
+  font-size: 14px;
 }
 
 .everyday-list {
@@ -402,7 +540,7 @@ input:checked + .toggle-slider:before {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 6px;
+  padding: 12px 6px;
   border-bottom: 1px solid #f2ede6;
 }
 
@@ -410,28 +548,67 @@ input:checked + .toggle-slider:before {
   display: flex;
   align-items: center;
   gap: 10px;
+  overflow: hidden;
 }
 
 .everyday-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.everyday-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
 }
 
 .everyday-name {
-  font-size: 14px;
+  font-size: 13.5px;
   color: #2b2523;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.everyday-subtext {
+  font-size: 11px;
+  color: #8c8278;
 }
 
 .everyday-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
+  flex-shrink: 0;
 }
 
 .everyday-type-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 3px;
+}
+
+.everyday-type-badge.badge-cabinet {
+  background: #e8f4ed;
+  color: #2b7a4b;
+}
+
+.everyday-type-badge.badge-routine {
+  background: #fbf0df;
+  color: #b7791f;
+}
+
+.everyday-time-tag {
+  display: block;
   font-size: 11.5px;
-  color: #8a8177;
+  color: #c2410c;
+  font-weight: 500;
+  margin-top: 2px;
+  line-height: 1.35;
 }
 
 .everyday-delete-btn {
@@ -440,6 +617,41 @@ input:checked + .toggle-slider:before {
   font-size: 11.5px;
   color: #a49b90;
   cursor: pointer;
+  padding: 2px 4px;
+  transition: color 0.15s ease;
+}
+
+.everyday-delete-btn:hover {
+  color: #b53838;
+}
+
+.everyday-empty {
+  padding: 36px 16px;
+  text-align: center;
+  color: #8c8278;
+  background: #faf7f2;
+  border: 1px dashed #e2dad0;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.everyday-empty p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #5c5248;
+}
+
+.everyday-empty span {
+  font-size: 11.5px;
+  color: #948b81;
+}
+
+.everyday-loading {
+  padding: 24px;
+  text-align: center;
+  color: #8c8278;
+  font-size: 12.5px;
 }
 
 .everyday-delete-btn:hover {
