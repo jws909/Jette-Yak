@@ -46,7 +46,7 @@ public class ManagementCheck {
   check(controller.update("P:1",new com.app.guide.controller.MedicationManagementController.StatusRequest("ACTIVE"),RegisteredGuideCheck.request(null)).getStatusCodeValue()==401,"anonymous mutation denied");
   String sql=config.getMappedStatement("com.app.guide.dao.MedicationGuideDao.collection").getBoundSql(Map.of("userId",11L)).getSql();
   String fixture="""
-   WITH today AS (SELECT TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) d FROM dual),
+   WITH today AS (SELECT TRUNC(SYSDATE + (9/24)) d FROM dual),
    prescriptions AS (SELECT 1 prescription_id,11 user_id,d dispensed_date FROM today UNION ALL SELECT 2,11,d-3 FROM today UNION ALL SELECT 3,11,d+1 FROM today UNION ALL SELECT 4,22,d FROM today),
    prescription_items AS (SELECT 1 item_id,1 prescription_id,'M' medication_id,1 total_days,'meal' usage_timing FROM dual UNION ALL SELECT 2,2,'M',1,'meal' FROM dual UNION ALL SELECT 3,3,'M',1,'meal' FROM dual UNION ALL SELECT 4,4,'M',1,'meal' FROM dual),
    medications AS (SELECT 'M' medication_id,'fixture' item_name,'maker' entp_name,'Alpha' material_name,CAST(NULL AS VARCHAR2(100)) item_image_url FROM dual),

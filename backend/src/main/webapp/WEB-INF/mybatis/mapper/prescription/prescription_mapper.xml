@@ -22,7 +22,7 @@
             #{prescriptionImageUrl},
             #{aiSummaryJson, jdbcType=CLOB},
             #{hasDiscontinuedDrug},
-            SYSDATE
+            (SYSDATE + (9/24))
         )
     </insert>
 

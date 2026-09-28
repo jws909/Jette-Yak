@@ -26,7 +26,7 @@ public class RegisteredGuideCheck {
   String sql=config.getMappedStatement("com.app.guide.dao.MedicationGuideDao.findRegistered").getBoundSql(Map.of("userId",11L)).getSql();
   // Read-only CTE fixtures exercise the real mapper SQL without inserting personal records.
   String fixtures="""
-   WITH today AS (SELECT TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) d FROM dual),
+   WITH today AS (SELECT TRUNC(SYSDATE + (9/24)) d FROM dual),
    prescriptions AS (
      SELECT 1 prescription_id,11 user_id,d dispensed_date FROM today UNION ALL
      SELECT 2,11,d-2 FROM today UNION ALL SELECT 3,11,d+1 FROM today UNION ALL

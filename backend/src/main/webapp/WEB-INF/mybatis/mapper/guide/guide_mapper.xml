@@ -60,17 +60,21 @@
             JOIN prescription_items i ON i.prescription_id = p.prescription_id
             JOIN medications m ON m.medication_id = i.medication_id
             WHERE p.user_id = #{userId}
-              AND TRUNC(p.dispensed_date) &lt;= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE))
-              AND TRUNC(p.dispensed_date) + i.total_days &gt; TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE))
+              AND TRUNC(p.dispensed_date) &lt;= TRUNC(SYSDATE + (9/24))
+              AND TRUNC(p.dispensed_date) + i.total_days &gt; TRUNC(SYSDATE + (9/24))
             UNION ALL
             SELECT 'C:' || TO_CHAR(c.cabinet_id), 'CABINET', m.medication_id, m.item_name, m.entp_name,
                 CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(500)), CAST(NULL AS VARCHAR2(5))
             FROM cabinet_medications c JOIN medications m ON m.medication_id = c.medication_id
             WHERE c.user_id = #{userId}
+              AND EXISTS (SELECT 1 FROM schedules s WHERE s.cabinet_id = c.cabinet_id AND s.user_id = #{userId})
             UNION ALL
             SELECT 'R:' || TO_CHAR(r.routine_id), 'ROUTINE', CAST(NULL AS VARCHAR2(20)), r.supplement_name,
                 CAST(NULL AS VARCHAR2(200)), CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(10)), r.notes, r.take_time
-            FROM routine_medications r WHERE r.user_id = #{userId} AND r.status = 'ACTIVE'
+            FROM routine_medications r
+            WHERE r.user_id = #{userId}
+              AND r.status = 'ACTIVE'
+              AND EXISTS (SELECT 1 FROM schedules s WHERE s.routine_id = r.routine_id AND s.user_id = #{userId})
         ) ORDER BY CASE source WHEN 'PRESCRIPTION' THEN 1 WHEN 'CABINET' THEN 2 ELSE 3 END,
             item_name, registration_id
     </select>
@@ -88,10 +92,10 @@
             TO_CHAR(p.dispensed_date, 'YYYY-MM-DD') start_date,
             TO_CHAR(TRUNC(p.dispensed_date)+i.total_days-1,'YYYY-MM-DD') end_date,
             i.usage_timing notes, CAST(NULL AS VARCHAR2(5)) take_time,
-            TRUNC(p.dispensed_date)+i.total_days-TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) days_remaining,
+            TRUNC(p.dispensed_date)+i.total_days-TRUNC(SYSDATE + (9/24)) days_remaining,
             CASE WHEN p.dispensed_date IS NULL OR i.total_days IS NULL OR i.total_days &lt;= 0 THEN 'UNKNOWN'
-                 WHEN TRUNC(p.dispensed_date) &gt; TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) THEN 'UPCOMING'
-                 WHEN TRUNC(p.dispensed_date)+i.total_days &lt;= TRUNC(CAST(SYSTIMESTAMP AT TIME ZONE 'Asia/Seoul' AS DATE)) THEN 'ENDED'
+                 WHEN TRUNC(p.dispensed_date) &gt; TRUNC(SYSDATE + (9/24)) THEN 'UPCOMING'
+                 WHEN TRUNC(p.dispensed_date)+i.total_days &lt;= TRUNC(SYSDATE + (9/24)) THEN 'ENDED'
                  ELSE 'CURRENT' END period_state,
             'ACTIVE' default_status
         FROM prescriptions p JOIN prescription_items i ON i.prescription_id=p.prescription_id
@@ -112,6 +116,12 @@
     </sql>
     <select id="collection" resultMap="managed" timeout="15">
         SELECT r.*, CASE WHEN r.period_state IN ('ENDED','UPCOMING') THEN r.period_state
+                        WHEN r.source IN ('CABINET', 'ROUTINE') AND NOT EXISTS (
+                            SELECT 1 FROM schedules sch
+                            WHERE sch.user_id = #{userId}
+                              AND (('CABINET' = r.source AND sch.cabinet_id = TO_NUMBER(SUBSTR(r.registration_id, 3)))
+                                OR ('ROUTINE' = r.source AND sch.routine_id = TO_NUMBER(SUBSTR(r.registration_id, 3))))
+                        ) THEN r.default_status
                         ELSE NVL(s.use_status,r.default_status) END use_status
         FROM (<include refid="ownedRegistrations"/>) r
         LEFT JOIN medication_use_states s ON s.user_id=#{userId} AND s.registration_id=r.registration_id
@@ -123,14 +133,14 @@
                WHERE r.registration_id=#{registrationId} AND r.period_state NOT IN ('ENDED','UPCOMING')
                AND (#{status} != 'STORED' OR r.source='CABINET')) v
         ON (s.user_id=v.user_id AND s.registration_id=v.registration_id)
-        WHEN MATCHED THEN UPDATE SET s.use_status=#{status},s.updated_at=SYSDATE
+        WHEN MATCHED THEN UPDATE SET s.use_status=#{status},s.updated_at=(SYSDATE + (9/24))
         WHEN NOT MATCHED THEN INSERT (user_id,registration_id,use_status,updated_at)
-            VALUES (v.user_id,v.registration_id,#{status},SYSDATE)
+            VALUES (v.user_id,v.registration_id,#{status},(SYSDATE + (9/24)))
     </update>
     <update id="updateAiSummary" parameterType="map">
         UPDATE medications
         SET ai_summary_json = #{aiSummaryJson, jdbcType=CLOB},
-            updated_at = SYSDATE
+            updated_at = (SYSDATE + (9/24))
         WHERE medication_id = #{medicationId}
     </update>
     <select id="findOverallGuide" parameterType="long" resultType="com.app.guide.dto.OverallGuideDto" timeout="10">
@@ -146,9 +156,9 @@
         ON (g.user_id = d.user_id)
         WHEN MATCHED THEN
             UPDATE SET g.ai_guide = #{aiGuide, jdbcType=CLOB},
-                       g.med_updated_at = SYSDATE
+                       g.med_updated_at = (SYSDATE + (9/24))
         WHEN NOT MATCHED THEN
             INSERT (user_id, ai_guide, med_updated_at)
-            VALUES (#{userId}, #{aiGuide, jdbcType=CLOB}, SYSDATE)
+            VALUES (#{userId}, #{aiGuide, jdbcType=CLOB}, (SYSDATE + (9/24)))
     </update>
 </mapper>

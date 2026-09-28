@@ -1,6 +1,27 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import './OverallAiGuideCard.css';
 
+function formatAnalysisTime(timeStr) {
+  if (!timeStr) return '';
+  try {
+    const parts = timeStr.trim().split(/[\sT]+/);
+    if (parts.length >= 2) {
+      const datePart = parts[0].replace(/-/g, '.');
+      const timeParts = parts[1].split(':');
+      if (timeParts.length >= 2) {
+        const hour = parseInt(timeParts[0], 10);
+        const minute = timeParts[1];
+        const ampm = hour < 12 ? '오전' : '오후';
+        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+        return `${datePart} ${ampm} ${displayHour}:${minute}`;
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return timeStr;
+}
+
 export default function OverallAiGuideCard({ revision }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -85,7 +106,7 @@ export default function OverallAiGuideCard({ revision }) {
           <span className="overall-badge">✨ AI 종합 복약 가이드</span>
           <span className="overall-sub-meta">
             현재 복용 중인 약 {data.activeCount || 0}종 분석
-            {data.medUpdatedAt && ` · 최근 분석: ${data.medUpdatedAt}`}
+            {data.medUpdatedAt && ` · 최근 분석: ${formatAnalysisTime(data.medUpdatedAt)}`}
           </span>
         </div>
         <button

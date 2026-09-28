@@ -48,17 +48,23 @@ public class ScheduleDAO {
         return cabinetId;
     }
 
-    public Long findOrCreateRoutineId(Long userId, String supplementName, String takeTime) {
+    public Long findOrCreateRoutineId(Long userId, String supplementName, String takeTime, String notes) {
         Map<String, Object> params = new HashMap<>();
         params.put("userId", userId);
         params.put("supplementName", supplementName);
-        params.put("takeTime", takeTime != null ? takeTime : "09:00");
+        params.put("takeTime", (takeTime != null && !takeTime.isBlank()) ? takeTime.trim() : null);
         Long routineId = sqlSession.selectOne("schedule.selectRoutineId", params);
         if (routineId == null) {
+            params.put("status", "PAUSED");
+            params.put("notes", (notes != null && !notes.isBlank()) ? notes.trim() : "보관 등록");
             sqlSession.insert("schedule.insertRoutineMedication", params);
             routineId = sqlSession.selectOne("schedule.selectRoutineId", params);
         }
         return routineId;
+    }
+
+    public Long findOrCreateRoutineId(Long userId, String supplementName, String takeTime) {
+        return findOrCreateRoutineId(userId, supplementName, takeTime, "보관 등록");
     }
 
     public List<Map<String, Object>> selectMonthlyScheduleSummary(Long userId, String yearMonth) {
