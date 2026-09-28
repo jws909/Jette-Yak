@@ -273,9 +273,14 @@ public class UserController {
     }
 
     private String profileImagePath(User user) {
-        return user.getProfileImageUrl() == null || user.getProfileImageUrl().isBlank()
-                ? ""
-                : "/api/users/profile-image/" + user.getLoginId();
+        if (user == null || user.getProfileImageUrl() == null || user.getProfileImageUrl().isBlank()) {
+            return "";
+        }
+        Path imagePath = profileUploadDirectory().resolve(Path.of(user.getProfileImageUrl()).getFileName());
+        if (!Files.isRegularFile(imagePath)) {
+            return "";
+        }
+        return "/api/users/profile-image/" + user.getLoginId();
     }
 
     private Long resolveUserId(Long userId, String username, javax.servlet.http.HttpServletRequest httpRequest) {

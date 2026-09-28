@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import './CommunityPage.css'
+import defaultProfileImg from '../../assets/Default_profile.png'
 
 const categories={ALL:'전체',EXPERIENCE:'복용 경험',QUESTION:'질문',SIDE_EFFECT:'부작용 경험',INFO_REPORT:'정보 제보'}
 const reasons={MISINFORMATION:'허위·부정확한 정보',DANGEROUS_ADVICE:'위험한 복용 권유',DRUG_SALE:'의약품 판매·나눔',ADVERTISEMENT:'광고',ABUSE:'욕설·괴롭힘',PRIVACY:'개인정보 노출',OTHER:'기타'}
@@ -13,7 +14,8 @@ function UserAvatar({name,imageUrl,size='small'}){
   const [imageFailed,setImageFailed]=useState(false)
   useEffect(()=>setImageFailed(false),[imageUrl])
   const initial=(name||'?').trim().charAt(0)||'?'
-  return <span className={'community-avatar '+size} aria-label={(name||'사용자')+' 프로필'}>{imageUrl&&!imageFailed?<img src={imageUrl} alt="" onError={()=>setImageFailed(true)}/>:<span aria-hidden="true">{initial}</span>}</span>
+  const avatarSrc = imageUrl && !imageFailed ? imageUrl : defaultProfileImg
+  return <span className={'community-avatar '+size} aria-label={(name||'사용자')+' 프로필'}><img src={avatarSrc} alt="" onError={()=>setImageFailed(true)}/></span>
 }
 
 export default function CommunityPage({user}){

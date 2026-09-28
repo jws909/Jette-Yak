@@ -60,7 +60,6 @@ export default function OverallAiGuideCard({ revision }) {
   if (loading) {
     return (
       <div className="overall-guide-loading-box">
-        <span className="pulse-sparkle">✨</span>
         <p>AI가 현재 복용 중인 모든 약과 DUR 상호작용을 종합 분석하고 있습니다...</p>
       </div>
     );
@@ -69,7 +68,7 @@ export default function OverallAiGuideCard({ revision }) {
   if (error) {
     return (
       <div className="overall-guide-error-box">
-        <p>⚠️ {error}</p>
+        <p>{error}</p>
         <button type="button" className="btn-retry-guide" onClick={() => fetchGuide(false)}>
           다시 시도
         </button>
@@ -103,7 +102,7 @@ export default function OverallAiGuideCard({ revision }) {
     <section className="overall-ai-guide-card" aria-label="AI 통합 복약 가이드">
       <div className="overall-guide-header">
         <div className="overall-header-left">
-          <span className="overall-badge">✨ AI 종합 복약 가이드</span>
+          <span className="overall-badge">AI 종합 복약 가이드</span>
           <span className="overall-sub-meta">
             현재 복용 중인 약 {data.activeCount || 0}종 분석
             {data.medUpdatedAt && ` · 최근 분석: ${formatAnalysisTime(data.medUpdatedAt)}`}
@@ -116,7 +115,7 @@ export default function OverallAiGuideCard({ revision }) {
           onClick={() => fetchGuide(true)}
           title="최신 복약 목록으로 AI 가이드 재분석"
         >
-          {refreshing ? '분석 중...' : '🔄 AI 다시 분석'}
+          {refreshing ? '분석 중...' : 'AI 다시 분석'}
         </button>
       </div>
 
@@ -131,9 +130,7 @@ export default function OverallAiGuideCard({ revision }) {
         {/* 1. 시간대별 복약 요령 */}
         {guide.scheduleTips && guide.scheduleTips.length > 0 && (
           <div className="advice-column schedule-col">
-            <h4 className="advice-col-title">
-              <span className="advice-col-icon">⏰</span> 시간대별 복용 요령
-            </h4>
+            <h4 className="advice-col-title">시간대별 복용 요령</h4>
             <ul className="advice-list">
               {guide.scheduleTips.map((tip, idx) => (
                 <li key={idx} className="advice-item">{tip}</li>
@@ -145,9 +142,7 @@ export default function OverallAiGuideCard({ revision }) {
         {/* 2. DUR 상호작용 및 금기 주의 */}
         {guide.durAlerts && guide.durAlerts.length > 0 && (
           <div className="advice-column dur-col">
-            <h4 className="advice-col-title">
-              <span className="advice-col-icon">⚠️</span> 상호작용 &amp; 금기 주의
-            </h4>
+            <h4 className="advice-col-title">상호작용 &amp; 금기 주의</h4>
             <ul className="advice-list">
               {guide.durAlerts.map((alert, idx) => (
                 <li key={idx} className="advice-item alert-item">{alert}</li>
@@ -159,9 +154,7 @@ export default function OverallAiGuideCard({ revision }) {
         {/* 3. 음식 및 일상 생활 가이드 */}
         {guide.foodAndLifestyle && guide.foodAndLifestyle.length > 0 && (
           <div className="advice-column lifestyle-col">
-            <h4 className="advice-col-title">
-              <span className="advice-col-icon">🍽️</span> 음식 &amp; 일상 주의
-            </h4>
+            <h4 className="advice-col-title">음식 &amp; 일상 주의</h4>
             <ul className="advice-list">
               {guide.foodAndLifestyle.map((item, idx) => (
                 <li key={idx} className="advice-item">{item}</li>
@@ -173,7 +166,6 @@ export default function OverallAiGuideCard({ revision }) {
 
       {guide.consultationAdvice && (
         <div className="overall-consultation-footer">
-          <span className="consultation-icon">💡</span>
           <p className="consultation-text">{guide.consultationAdvice}</p>
         </div>
       )}

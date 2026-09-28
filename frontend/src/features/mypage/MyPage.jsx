@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import './MyPage.css';
+import defaultProfileImg from '../../assets/Default_profile.png';
 
 export default function MyPage({ user, onUserUpdated }) {
   const [nickname, setNickname] = useState(user?.name || '김메디');
   const [isEditingNick, setIsEditingNick] = useState(false);
   const [email] = useState(user?.email || 'jetteyak_2026 · hello@jetteyak.kr');
   const [profileImage, setProfileImage] = useState(user?.profileImageUrl || '');
+  const [imgError, setImgError] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const fileInputRef = useRef(null);
 
@@ -16,6 +18,8 @@ export default function MyPage({ user, onUserUpdated }) {
       .then((profile) => {
         if (!profile) return;
         setNickname(profile.nickname || user.name);
+        setProfileImage(profile.profileImageUrl || '');
+        setImgError(false);
         onUserUpdated?.({
           name: profile.nickname || user.name,
           profileImageUrl: profile.profileImageUrl || '',
@@ -354,9 +358,18 @@ export default function MyPage({ user, onUserUpdated }) {
           if (e.target.closest('button')) fileInputRef.current?.click();
         }}>
           <div
-            className={`profile-photo-circle ${profileImage ? 'has-image' : ''}`}
-            style={profileImage ? { backgroundImage: `url(${profileImage})` } : undefined}
-          >김</div>
+            className="profile-photo-circle has-image"
+            style={{ backgroundImage: `url(${profileImage && !imgError ? profileImage : defaultProfileImg})` }}
+          >
+            {profileImage && !imgError && (
+              <img
+                src={profileImage}
+                alt=""
+                style={{ display: 'none' }}
+                onError={() => setImgError(true)}
+              />
+            )}
+          </div>
           <input ref={fileInputRef} className="profile-photo-input" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleProfilePhotoChange} />
           <button type="button" className="photo-change-btn">사진 변경</button>
         </div>
