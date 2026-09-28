@@ -32,6 +32,9 @@ public class MedicationGuideDao {
         return session.selectOne("com.app.guide.dao.MedicationGuideDao.findOverallGuide", userId);
     }
     public int saveOverallGuide(long userId, String aiGuide) {
-        return session.update("com.app.guide.dao.MedicationGuideDao.saveOverallGuide", Map.of("userId", userId, "aiGuide", aiGuide));
+        Map<String, Object> params = new java.util.HashMap<>();
+        params.put("userId", userId);
+        params.put("aiGuide", aiGuide);
+        return session.update("com.app.guide.dao.MedicationGuideDao.saveOverallGuide", params);
     }
 }
