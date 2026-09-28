@@ -37,11 +37,65 @@
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+/* 
+   사이트 내 텍스트 요소에 제때약 폰트 적용
+   - font-weight: normal !important: 볼드 처리 시 브라우저가 인위적으로 덧칠(Faux Bold)하여
+     글씨가 뭉개지고 뿌옇게 번지는 현상을 원천 방지하고 로고처럼 매끄러운 굵기 유지
+   - font-synthesis: none !important: 가짜 볼드체 합성 차단
+   - antialiased: 글자 테두리를 또렷하고 매끄럽게 보정
+   - Font Awesome 등 아이콘 폰트는 제외하여 아이콘 깨짐 방지
+*/
+*:not(i):not([class*="fa-"]):not([class*="fa-"] *) {
   font-family: var(--app-font-family) !important;
   font-weight: normal !important;
   font-synthesis: none !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Font Awesome 아이콘 폰트 및 가상 요소 복구 */
+.fa,
+.fas,
+.far,
+.fal,
+.fad,
+.fab,
+.fa-solid,
+.fa-regular,
+.fa-light,
+.fa-thin,
+.fa-duotone,
+.fa-brands,
+[class*="fa-"],
+[class*="fa-"]::before,
+[class*="fa-"]::after {
+  font-family: var(--fa-style-family, "Font Awesome 6 Free") !important;
+  font-style: normal !important;
+  font-synthesis: weight style !important;
+}
+
+.fa-solid,
+.fas,
+.fa-solid::before,
+.fas::before {
+  font-weight: 900 !important;
+}
+
+.fa-regular,
+.far,
+.fa-regular::before,
+.far::before {
+  font-weight: 400 !important;
+}
+
+.fa-brands,
+.fab,
+.fa-brands::before,
+.fab::before {
+  font-family: "Font Awesome 6 Brands" !important;
+  font-weight: 400 !important;
 }
 
 body {
