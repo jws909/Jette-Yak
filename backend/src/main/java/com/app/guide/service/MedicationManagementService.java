@@ -1,5 +1,6 @@
 package com.app.guide.service;
 import java.util.*;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import com.app.guide.dao.MedicationGuideDao;
 import com.app.guide.dto.*;
@@ -55,15 +56,20 @@ public class MedicationManagementService {
             );
         }
 
+        String currentSignature = calculateActiveSignature(active);
         var cached = dao.findOverallGuide(userId);
         if (!forceRefresh && cached != null && cached.getAiGuide() != null && !cached.getAiGuide().isBlank()) {
-            return Map.of(
-                "hasActiveMeds", true,
-                "activeCount", active.size(),
-                "aiGuide", cached.getAiGuide(),
-                "medUpdatedAt", cached.getMedUpdatedAt() != null ? cached.getMedUpdatedAt() : "",
-                "cached", true
-            );
+            String cachedSignature = extractSignature(cached.getAiGuide());
+            // 복용 중인 약 목록에 변화가 없으면 기존 분석 결과 반환 (불필요한 AI 재호출 방지)
+            if (!cachedSignature.isBlank() && currentSignature.equals(cachedSignature)) {
+                return Map.of(
+                    "hasActiveMeds", true,
+                    "activeCount", active.size(),
+                    "aiGuide", cached.getAiGuide(),
+                    "medUpdatedAt", cached.getMedUpdatedAt() != null ? cached.getMedUpdatedAt() : "",
+                    "cached", true
+                );
+            }
         }
 
         List<com.app.prescription.dto.PrescriptionDTO> activeRxList = new ArrayList<>();
@@ -95,16 +101,57 @@ public class MedicationManagementService {
             ? gemini.generateOverallGuide(active, activeRxList, comparison)
             : (gemini != null ? gemini.createFallbackOverallGuide(active, activeRxList, comparison) : "{}");
 
-        dao.saveOverallGuide(userId, generatedGuide);
+        String guideWithSignature = injectSignature(generatedGuide, currentSignature);
+        dao.saveOverallGuide(userId, guideWithSignature);
         var updated = dao.findOverallGuide(userId);
 
         return Map.of(
             "hasActiveMeds", true,
             "activeCount", active.size(),
-            "aiGuide", generatedGuide,
+            "aiGuide", guideWithSignature,
             "medUpdatedAt", (updated != null && updated.getMedUpdatedAt() != null) ? updated.getMedUpdatedAt() : "",
             "cached", false
         );
+    }
+
+    private String calculateActiveSignature(List<RegisteredMedicationDto> activeMeds) {
+        if (activeMeds == null || activeMeds.isEmpty()) {
+            return "";
+        }
+        return activeMeds.stream()
+            .map(m -> String.format("%s|%s|%s|%s",
+                Objects.toString(m.getRegistrationId(), ""),
+                Objects.toString(m.getMedicationId(), ""),
+                Objects.toString(m.getItemName(), "").trim(),
+                Objects.toString(m.getTakeTime(), "").trim()
+            ))
+            .sorted()
+            .collect(Collectors.joining(";"));
+    }
+
+    private String extractSignature(String jsonStr) {
+        if (jsonStr == null || jsonStr.isBlank()) return "";
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(jsonStr);
+            if (node.has("activeSignature") && !node.get("activeSignature").isNull()) {
+                return node.get("activeSignature").asText();
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    private String injectSignature(String jsonStr, String signature) {
+        if (jsonStr == null || jsonStr.isBlank()) return jsonStr;
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(jsonStr);
+            if (node.isObject()) {
+                ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("activeSignature", signature);
+                return mapper.writeValueAsString(node);
+            }
+        } catch (Exception ignored) {}
+        return jsonStr;
     }
 
     private void populatePrescriptionAiGuide(com.app.prescription.dto.PrescriptionDTO rx) {
