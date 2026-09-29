@@ -11,4 +11,6 @@ public interface UserService {
     boolean isNicknameAvailable(String nickname);
 
     void signup(SignupRequest request);
+
+    void withdraw(Long userId);
 }

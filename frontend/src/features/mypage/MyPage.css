@@ -352,6 +352,12 @@ input:checked + .toggle-slider:before {
   color: #b53838;
 }
 
+.withdraw-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 /* 좌측: 평소 복용 관리 */
 .everyday-search-wrapper {
   position: relative;
@@ -864,5 +870,31 @@ input:checked + .toggle-slider:before {
   .mypage-two-cols {
     grid-template-columns: 1fr;
   }
+}
+
+/* 비로그인 안내 메시지 (guide 페이지 style과 통일) */
+.mypage-empty-guide {
+  padding: 48px 24px;
+  background: #ffffff;
+  border: 1px solid #e2dbd0;
+  text-align: center;
+  font-size: 14px;
+  color: #5a5149;
+  line-height: 1.6;
+  margin-top: 16px;
+}
+
+.mypage-empty-guide a {
+  display: inline-block;
+  margin-left: 8px;
+  color: #7d2638;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
+}
+
+.mypage-empty-guide a:hover {
+  color: #5a1926;
 }
 

@@ -305,13 +305,7 @@ public class UserController {
                 }
             } catch (Exception ignored) {}
         }
-        try {
-            User demoUser = userMapper.findByLoginId("test12");
-            if (demoUser != null && demoUser.getUserId() != null) {
-                return demoUser.getUserId();
-            }
-        } catch (Exception ignored) {}
-        return 1L;
+        return null;
     }
 
     /**
@@ -500,5 +494,62 @@ public class UserController {
         }
 
         return ResponseEntity.ok(Map.of("success", true, "message", "삭제되었습니다."));
+    }
+
+    /**
+     * 회원 탈퇴 API
+     * POST /api/users/withdraw
+     */
+    @PostMapping(value = "/withdraw", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> withdraw(
+            @RequestBody(required = false) Map<String, Object> body,
+            @RequestParam(value = "userId", required = false) Long userIdParam,
+            @RequestParam(value = "username", required = false) String usernameParam,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+
+        Long userId = null;
+        String username = null;
+        if (body != null) {
+            if (body.get("userId") != null) {
+                try {
+                    userId = Long.valueOf(body.get("userId").toString());
+                } catch (NumberFormatException ignored) {}
+            }
+            if (body.get("username") != null) {
+                username = body.get("username").toString();
+            }
+        }
+        if (userId == null) userId = userIdParam;
+        if (username == null) username = usernameParam;
+
+        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        if (resolvedUserId == null || resolvedUserId <= 0L) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
+        }
+
+        User user = userMapper.findById(resolvedUserId);
+        if (resolvedUserId.equals(1L) || (user != null && ("test12".equalsIgnoreCase(user.getLoginId()) || "demo".equalsIgnoreCase(user.getLoginId())))) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "체험용 계정은 탈퇴할 수 없습니다."));
+        }
+
+        try {
+            userService.withdraw(resolvedUserId);
+
+            // 세션 무효화
+            if (httpRequest != null) {
+                var session = httpRequest.getSession(false);
+                if (session != null) {
+                    session.invalidate();
+                }
+            }
+
+            return ResponseEntity.ok(Map.of("success", true, "message", "회원 탈퇴가 완료되었습니다."));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            org.apache.logging.log4j.LogManager.getLogger(getClass()).error("회원 탈퇴 처리 실패: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", "회원 탈퇴 처리 중 오류가 발생했습니다."));
+        }
     }
 }
