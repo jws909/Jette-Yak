@@ -46,6 +46,12 @@ export default function FamilyPage(props) {
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('PROT');
 
+  // 기존 State들 부근에 추가
+  const [familyAddTab, setFamilyAddTab] = useState('direct'); // 'direct' 또는 'invite'
+  const [newMemberSex, setNewMemberSex] = useState('M');      // 남아 'M', 여아 'F'
+  const [newMemberBirth, setNewMemberBirth] = useState('');    // 생년월일
+  const [inviteLoginId, setInviteLoginId] = useState('');      // 회원 연동용 ID
+
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -389,6 +395,47 @@ export default function FamilyPage(props) {
       console.error('가족 등록 통신 오류:', err);
     }
   };
+
+  // 회원 연동(초대) 처리 함수
+  const handleInviteFamilyMember = async (e) => {
+  if (e) e.preventDefault(); // 1. 기본 submit 폼 새로고침 방지 (필수!)
+
+  if (!inviteLoginId.trim()) {
+    alert("초대할 가족의 아이디를 입력해주세요.");
+    return;
+  }
+
+  // 로그인된 내 USER_ID 가져오기 (현재 프로젝트에서 쓰시는 상태나 변수명으로 확인)
+  // 예: user?.userId, currentUser?.userId, loginUser?.userId, user?.id 등
+  const myUserId = user?.userId || user?.id || 1; 
+
+  try {
+    const response = await fetch('/api/family/invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        senderId: myUserId,                 // 백엔드가 요구하는 키: senderId
+        targetLoginId: inviteLoginId.trim() // 백엔드가 요구하는 키: targetLoginId
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      alert("가족 연동 초대를 보냈습니다!");
+      setInviteLoginId("");
+      setIsAddFamilyModalOpen(false);
+    } else {
+      // 400, 404 등 백엔드에서 던진 구체적인 에러 메시지 출력
+      alert(data.message || "연동 요청에 실패했습니다.");
+    }
+  } catch (error) {
+    console.error("초대 요청 에러:", error);
+    alert("서버 통신 중 오류가 발생했습니다.");
+  }
+};
 
   // 3. 캘린더 그리드 계산
   const firstDayIndex = new Date(year, month, 1).getDay();
@@ -822,50 +869,164 @@ export default function FamilyPage(props) {
       )}
 
       {/* 5. 가족 등록 모달 */}
+
+      
       {isAddFamilyModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAddFamilyModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content family-add-modal" onClick={(e) => e.stopPropagation()}>
+            {/* 상단 헤더: 깔끔한 원형 SVG 닫기 버튼 적용 */}
             <div className="modal-header">
-              <h3 className="modal-title">가족 구성원 등록</h3>
-              <button type="button" className="modal-close-btn" onClick={() => setIsAddFamilyModalOpen(false)}>✕</button>
+              <h3 className="modal-title">가족 구성원 추가</h3>
+              <button 
+                type="button" 
+                className="modal-close-btn" 
+                onClick={() => setIsAddFamilyModalOpen(false)}
+                aria-label="닫기"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
             </div>
 
-            <form onSubmit={handleAddFamilyMember}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#555' }}>이름</label>
-                  <input
-                    type="text"
-                    placeholder="예: 김민우"
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #ded6c9', borderRadius: '6px', marginTop: '4px', boxSizing: 'border-box' }}
-                    value={newMemberName}
-                    onChange={(e) => setNewMemberName(e.target.value)}
-                    autoFocus
-                  />
+            {/* 2-Track 탭 전환 (영유아 직접등록 vs 회원 연동) */}
+            <div className="family-add-tabs">
+              <button
+                type="button"
+                className={`family-add-tab ${familyAddTab === 'direct' ? 'active' : ''}`}
+                onClick={() => setFamilyAddTab('direct')}
+              >
+                직접 등록 (영유아·피보호자)
+              </button>
+              <button
+                type="button"
+                className={`family-add-tab ${familyAddTab === 'invite' ? 'active' : ''}`}
+                onClick={() => setFamilyAddTab('invite')}
+              >
+                회원 연동 (배우자·성인)
+              </button>
+            </div>
+
+            {/* [Track 1] 1~2세 영유아 / 가입 불가능한 피보호자 직접 등록 */}
+            {familyAddTab === 'direct' ? (
+              <form onSubmit={handleAddFamilyMember}>
+                <div className="family-add-notice">
+                  스마트폰이 없거나 가입이 불가능한 영유아·자녀는 보호자가 직접 프로필을 생성하여 대리 관리합니다.
                 </div>
 
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 600, color: '#555' }}>구분</label>
-                  <select
-                    style={{ width: '100%', padding: '8px 10px', border: '1px solid #ded6c9', borderRadius: '6px', marginTop: '4px', boxSizing: 'border-box' }}
-                    value={newMemberRole}
-                    onChange={(e) => setNewMemberRole(e.target.value)}
-                  >
-                    <option value="PROT">피보호자 (자녀 / 부모님)</option>
-                    <option value="GUAR">공동 보호자 (배우자)</option>
-                  </select>
-                </div>
-              </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label className="family-form-label">
+                      이름 <span style={{ color: '#c94040' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="family-form-input"
+                      placeholder="예: 김민우"
+                      value={newMemberName}
+                      onChange={(e) => setNewMemberName(e.target.value)}
+                      autoFocus
+                      required
+                    />
+                  </div>
 
-              <div className="modal-footer-actions">
-                <button type="button" className="family-btn-outline" onClick={() => setIsAddFamilyModalOpen(false)}>
-                  취소
-                </button>
-                <button type="submit" className="family-btn-primary">
-                  등록하기
-                </button>
-              </div>
-            </form>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label className="family-form-label">관계 구분</label>
+                      <select
+                        className="family-form-select"
+                        value={newMemberRole}
+                        onChange={(e) => setNewMemberRole(e.target.value)}
+                      >
+                        <option value="PROT">자녀 (영유아/어린이)</option>
+                        <option value="PROT_SENIOR">부모님 (어르신)</option>
+                        <option value="GUAR">공동 보호자 (배우자)</option>
+                        <option value="ETC">기타 피보호자</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="family-form-label">성별</label>
+                      <div style={{ display: 'flex', gap: '14px', alignItems: 'center', height: '38px' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', cursor: 'pointer' }}>
+                          <input
+                            type="radio"
+                            name="memberSex"
+                            value="M"
+                            checked={newMemberSex === 'M'}
+                            onChange={() => setNewMemberSex('M')}
+                          />
+                          남아
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', cursor: 'pointer' }}>
+                          <input
+                            type="radio"
+                            name="memberSex"
+                            value="F"
+                            checked={newMemberSex === 'F'}
+                            onChange={() => setNewMemberSex('F')}
+                          />
+                          여아
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="family-form-label">생년월일 (선택)</label>
+                    <input
+                      type="date"
+                      className="family-form-input"
+                      value={newMemberBirth}
+                      onChange={(e) => setNewMemberBirth(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer-actions">
+                  <button type="button" className="family-btn-outline" onClick={() => setIsAddFamilyModalOpen(false)}>
+                    취소
+                  </button>
+                  <button type="submit" className="family-btn-primary">
+                    프로필 생성
+                  </button>
+                </div>
+              </form>
+            ) : (
+              /* [Track 2] 기존 가입 회원 연동 */
+              <form onSubmit={handleInviteFamilyMember}>
+                <div className="family-add-notice">
+                  이미 제떼약에 가입된 가족의 아이디를 검색하여 복약 일정을 공유하고 승인을 요청합니다.
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label className="family-form-label">
+                      가족 로그인 아이디 <span style={{ color: '#c94040' }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="family-form-input"
+                      placeholder="예: spouse_id123"
+                      value={inviteLoginId}
+                      onChange={(e) => setInviteLoginId(e.target.value)}
+                      autoFocus
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer-actions">
+                  <button type="button" className="family-btn-outline" onClick={() => setIsAddFamilyModalOpen(false)}>
+                    취소
+                  </button>
+                  <button type="submit" className="family-btn-primary">
+                    연동 요청 보내기
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
