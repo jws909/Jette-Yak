@@ -7,3 +7,9 @@ export function groupMedications(items) {
   }
   return [...groups.values()]
 }
+
+export function activeMedicationRegistrations(items) {
+  return items.filter(item => item.useStatus === 'ACTIVE'
+    && item.periodState !== 'ENDED'
+    && item.periodState !== 'UPCOMING')
+}

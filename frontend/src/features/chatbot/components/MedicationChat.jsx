@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import useRemote from '../../guide/useRemote'
 import InteractionSummary from '../../guide/InteractionSummary'
 import RegisteredMedications from '../../guide/RegisteredMedications'
-import { groupMedications } from '../../guide/medicationGroups'
+import { activeMedicationRegistrations, groupMedications } from '../../guide/medicationGroups'
 import MedicationSearch from './MedicationSearch'
 import CatalogSearch from './CatalogSearch'
 import CatalogResults, { DurReports } from './CatalogResults'
@@ -46,7 +46,7 @@ function MedicationConversation() {
   const selected = selection === undefined ? (linked.data?.medication ? {...linked.data.medication,itemSeq:linked.data.medication.medicationId} : null) : selection
   const [otherSelection, setOther] = useState(undefined)
   const other = otherSelection === undefined ? (linkedCompare.data?.medication ? {...linkedCompare.data.medication,itemSeq:linkedCompare.data.medication.medicationId} : null) : otherSelection
-  const ownProducts = groupMedications(mine.data?.items || []).filter(item=>item.medicationId)
+  const ownProducts = groupMedications(activeMedicationRegistrations(mine.data?.items || [])).filter(item=>item.medicationId)
   const community = useRemote(selected?.itemSeq ? '/api/community/posts?medicationId='+encodeURIComponent(selected.itemSeq)+'&sort=LATEST&page=1' : null)
   const communityQuery = selected ? new URLSearchParams({medicationId:String(selected.itemSeq),medicationName:selected.itemName||''}).toString() : ''
   const [question, setQuestion] = useState('')
@@ -200,16 +200,16 @@ function MedicationConversation() {
             : <p>선택한 약이 없어요.<br />검색하거나 질문에 약 이름을 적어주세요.</p>}
         </div>
         {selected&&<section className="related-community"><div><span>이 약의 커뮤니티</span><Link to={'/community?'+communityQuery}>전체 보기 →</Link></div>{community.loading&&<p>관련 글을 찾고 있어요…</p>}{community.error&&<p>관련 글을 불러오지 못했습니다.</p>}{community.data?.items?.slice(0,3).map(post=><Link className="related-community-post" key={post.postId} to={'/community?'+communityQuery+'&postId='+post.postId}><strong>{post.title}</strong><small>{post.authorName} · 댓글 {post.commentCount||0}</small></Link>)}{community.data&&community.data.total===0&&<p>아직 이 약에 연결된 글이 없어요.</p>}</section>}
-        <details className="chat-personal-panel"><summary>내 약에서 선택</summary>
+        <details className="chat-personal-panel"><summary>복용 중인 내 약에서 선택</summary>
           {mine.loading && <p role="status">등록 약을 불러오는 중…</p>}
           {mine.error && (mine.status===401 ? <Link to="/login?next=/chat">로그인하고 내 약 불러오기 →</Link> : <p role="alert">{mine.error}<button onClick={mine.retry}>다시 시도</button></p>)}
-          {mine.data && <><button type="button" className="load-more" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion('내가 먹는 약끼리 같이 먹어도 돼?')}>복용 중인 내 약 DUR 확인</button>
+          {mine.data && <>{ownProducts.length > 0 && <button type="button" className="load-more" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion('내가 먹는 약끼리 같이 먹어도 돼?')}>복용 중인 내 약 DUR 확인</button>}
             {ownProducts.map(item=><button type="button" className="drug-option" key={item.key} disabled={loading || Boolean(paging)} onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>{item.itemName}</button>)}
-            {!ownProducts.length && <p>연결된 제품이 없습니다. <Link to="/guide">내 약 관리 →</Link></p>}</>}
+            {!ownProducts.length && <p>현재 복용 중인 약이 없습니다. <Link to="/guide">내 약 관리 →</Link></p>}</>}
         </details>
         {selected && <details className="chat-personal-panel" open={Boolean(compareId)}><summary>다른 약과 함께 먹어도 될까? · 비교 약 선택</summary>
-          <select aria-label="내 등록 약 중 비교할 약" disabled={loading || Boolean(paging)} value={other?.itemSeq || ''} onChange={event=>{const item=ownProducts.find(item=>item.medicationId===event.target.value);setOther(item?{...item,itemSeq:item.medicationId}:null)}}>
-            <option value="">내 등록 약에서 선택</option>{other && !ownProducts.some(item=>item.medicationId===other.itemSeq) && <option value={other.itemSeq}>{other.itemName}</option>}
+          <select aria-label="복용 중인 약 중 비교할 약" disabled={loading || Boolean(paging)} value={other?.itemSeq || ''} onChange={event=>{const item=ownProducts.find(item=>item.medicationId===event.target.value);setOther(item?{...item,itemSeq:item.medicationId}:null)}}>
+            <option value="">복용 중인 내 약에서 선택</option>{other && !ownProducts.some(item=>item.medicationId===other.itemSeq) && <option value={other.itemSeq}>{other.itemName}</option>}
             {ownProducts.filter(item=>item.medicationId!==selected.itemSeq).map(item=><option key={item.key} value={item.medicationId}>{item.itemName}</option>)}
           </select>
           <MedicationSearch onSelect={setOther} disabled={loading || Boolean(paging)} />
@@ -239,7 +239,7 @@ function MedicationConversation() {
                 {message.choices.length < message.choiceTotal && <button type="button" className="load-more" disabled={Boolean(paging) || loading} onClick={() => moreChoices(message)}>다른 제품 더 보기 ({message.choices.length}/{message.choiceTotal})</button>}
               </div>}
               {message.loginRequired && <Link to="/login?next=/chat">로그인하기 →</Link>}
-              {message.registeredMedications && <div>{groupMedications(message.registeredMedications).map(item=><div key={item.key}><strong>{item.itemName}</strong><RegisteredMedications items={item.registrations}/>{item.medicationId && <button type="button" className="drug-option" onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>이 약 질문하기</button>}</div>)}</div>}
+              {message.registeredMedications && <div>{groupMedications(activeMedicationRegistrations(message.registeredMedications)).map(item=><div key={item.key}><strong>{item.itemName}</strong><RegisteredMedications items={item.registrations}/>{item.medicationId && <button type="button" className="drug-option" onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>이 약 질문하기</button>}</div>)}</div>}
               <InteractionSummary data={message.comparison}/>
               {message.sources.length > 0 && <h4>확인한 약 · DB 근거</h4>}
               <CatalogResults data={message.catalog} onMore={() => searchCatalog(message.catalog.query,message)} onSelect={selectDrug} busy={loading || Boolean(paging)} />
