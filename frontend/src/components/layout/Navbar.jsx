@@ -253,11 +253,33 @@ export default function Navbar({
                             role="button"
                             tabIndex={0}
                           >
-                            <div className={`notif-indicator ${n.type}`} />
                             <div className="notif-item-body">
                               <span className="notif-item-title">{n.title}</span>
                               <p className="notif-item-text">{n.text}</p>
                               <span className="notif-item-time">{n.time}</span>
+
+                              {/* 초대 알림 전용 액션 버튼 영역 */}
+                              {n.isInvitation && (
+                                <div 
+                                  className="notif-actions" 
+                                  onClick={(e) => e.stopPropagation()} // 클릭 시 부모 카드의 읽음 처리 이벤트 방지
+                                >
+                                  <button
+                                    type="button"
+                                    className="notif-btn-accept"
+                                    onClick={() => handleRespondInvitation(n.inviteId, 'ACCEPT')}
+                                  >
+                                    수락
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="notif-btn-reject"
+                                    onClick={() => handleRespondInvitation(n.inviteId, 'REJECT')}
+                                  >
+                                    거절
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         ))
