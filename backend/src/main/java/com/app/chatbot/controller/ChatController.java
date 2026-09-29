@@ -58,6 +58,14 @@ public class ChatController {
             return ResponseEntity.badRequest().body(Map.of("error", "질문을 1~1000자로 입력해주세요."));
         if (request.getRecentQuestions().size() > 4 || request.getRecentQuestions().stream().anyMatch(q -> q == null || q.isBlank() || q.length() > 1000))
             return ResponseEntity.badRequest().body(Map.of("error", "최근 대화 정보를 확인해주세요."));
+        int conversationLength = request.getConversation().stream()
+            .filter(java.util.Objects::nonNull)
+            .mapToInt(turn -> turn.getContent() == null ? 0 : turn.getContent().length()).sum();
+        if (request.getConversation().size() > 12 || conversationLength > 10000
+                || request.getConversation().stream().anyMatch(turn -> turn == null
+                    || !("user".equals(turn.getRole()) || "assistant".equals(turn.getRole()))
+                    || turn.getContent() == null || turn.getContent().isBlank() || turn.getContent().length() > 1500))
+            return ResponseEntity.badRequest().body(Map.of("error", "대화 이력을 확인해주세요."));
         if ((request.getItemSeq() != null && request.getItemSeq().length() > 30)
                 || request.getSelections().size() > 8
                 || request.getSelections().entrySet().stream().anyMatch(e ->

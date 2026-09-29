@@ -9,7 +9,7 @@ import com.app.chatbot.client.GeminiException;
 /** AI output is untrusted. Only validated literal entities may reach a bound DB query. */
 public record QuestionAnalysis(Intent intent, List<String> medications, List<String> foods,
         List<String> topics, boolean useSelectedMedication, boolean needsClarification, CatalogQuery query, String clarificationQuestion) {
-    public enum Intent { MEDICATION_INFO, FOOD_INTERACTION, DRUG_INTERACTION, LIFESTYLE, MY_MEDICATIONS, MY_DUR, DB_SEARCH, DUR_INFO, DOSAGE_RISK, MEDICATION_MISUSE, OTHER }
+    public enum Intent { MEDICATION_INFO, FOOD_INTERACTION, DRUG_INTERACTION, LIFESTYLE, MY_MEDICATIONS, MY_DUR, DB_SEARCH, DUR_INFO, SYMPTOM_CONSULTATION, GENERAL_HEALTH, SITE_HELP, DOSAGE_RISK, MEDICATION_MISUSE, OTHER }
     private static final Pattern DOSAGE_COUNT = Pattern.compile("(\\d{1,4})\\s*(개|알|정|캡슐|포|병)");
 
     /**
@@ -43,9 +43,50 @@ public record QuestionAnalysis(Intent intent, List<String> medications, List<Str
         return Optional.empty();
     }
 
+    /** Red flags are handled locally so malformed or unavailable AI output cannot suppress urgent advice. */
+    public static boolean hasEmergencySignal(String question) {
+        String text = normalize(question == null ? "" : question);
+        return containsAny(text,
+            "숨을못쉬", "숨이안쉬", "호흡곤란", "질식", "의식을잃", "의식이없", "기절했",
+            "경련해", "경련중", "피를토", "토혈", "검은변", "대량출혈", "심한가슴통증",
+            "가슴이찢어", "입술이파래", "혀가부어", "목이부어숨", "전신두드러기숨",
+            "마비가왔", "말이안나와", "극단적선택", "자살하고", "죽고싶어", "자해했");
+    }
+
     private static boolean containsAny(String text, String... values) {
         for (String value : values) if (text.contains(value)) return true;
         return false;
+    }
+
+    /**
+     * Personal symptom statements must never become a product recommendation list merely because
+     * the classifier produced DB_SEARCH. Explicit factual catalog requests remain searchable.
+     */
+    public static boolean shouldPreferCounseling(String question, List<String> recentQuestions) {
+        String text = normalize(question == null ? "" : question);
+        boolean explicitCatalog = containsAny(text, "효능", "성분", "제품목록", "약목록", "목록으로",
+            "검색해", "검색할", "조회해", "db에서", "등록된약", "제조사", "품목코드", "edicode");
+        boolean personalAction = containsAny(text, "약알려", "약을알려", "무슨약", "어떤약", "약추천",
+            "추천해", "뭘먹", "뭐먹", "먹어야", "먹어도", "복용해도", "써도돼", "사용해도");
+        boolean symptom = containsAny(text,
+            "아파", "아픈데", "아프고", "통증", "두통", "복통", "어지러", "메스꺼", "구역질",
+            "토했", "토할", "구토", "설사", "열이나", "열나", "발열", "기침", "콧물", "코막",
+            "두드러기", "가려", "부었", "붓고", "속쓰", "속이불편", "소화가안", "저려", "마비",
+            "숨이차", "숨쉬기", "피곤", "졸려", "불면", "잠이안", "잠을못자", "감기", "몸살",
+            "생리통", "치통", "인후통", "근육통", "편두통", "소화불량", "변비", "충혈", "다쳤",
+            "우울", "불안", "공황", "혈압이높", "혈당이높", "증상이", "증상은");
+
+        if (symptom && personalAction) return true;
+        if (symptom && !explicitCatalog) return true;
+        if (explicitCatalog) return false;
+
+        boolean followUp = containsAny(text, "어제부터", "오늘부터", "방금부터", "며칠", "일주일", "계속",
+            "가끔", "더심해", "나아졌", "점정도", "정도야", "열도", "없어", "있어", "그래", "맞아");
+        followUp = followUp || text.matches(".*\\d+(시간|일|주|개월)(째|됐어?|전|동안)?.*")
+            || text.matches(".*\\d+(/10|점).*?");
+        if (!followUp || recentQuestions == null) return false;
+        return recentQuestions.stream().skip(Math.max(0, recentQuestions.size() - 2L))
+            .anyMatch(previous -> shouldPreferCounseling(previous, List.of()));
     }
     public static QuestionAnalysis parse(String json, String question) {
         return parse(json, question, List.of());

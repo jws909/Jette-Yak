@@ -9,6 +9,7 @@ public class QuestionRoutingCheck {
     static int checks;
     static String analysis;
     static int answerCalls;
+    static String serverContext;
     static final List<String> queries = new ArrayList<>();
     static MedicationChatDto med(String id, String name) {
         var m = new MedicationChatDto(); m.setItemSeq(id); m.setItemName(name); return m;
@@ -27,13 +28,30 @@ public class QuestionRoutingCheck {
     static final GeminiService ai = new GeminiService() {
         @Override public String analyzeQuestion(String q, String selected) { return analysis; }
         @Override public String ask(String q, String refs) { answerCalls++; return "DB 답변"; }
+        @Override public ConversationAnswer counsel(String q, String refs, List<ChatTurn> history) {
+            return new ConversationAnswer("증상 상담 답변", List.of("언제부터 시작됐나요?"), "ROUTINE");
+        }
+        @Override public ConversationAnswer counsel(String q, String refs, List<ChatTurn> history, String context) {
+            serverContext=context;
+            return new ConversationAnswer("대화형 답변", List.of("조금 더 알려주시겠어요?"), "ROUTINE");
+        }
     };
     static String parsed(String intent, List<String> meds, List<String> foods, List<String> topics, boolean selected, boolean clarify) throws Exception {
         return new ObjectMapper().writeValueAsString(Map.of("intent",intent,"medications",meds,"foods",foods,"topics",topics,
             "useSelectedMedication",selected,"needsClarification",clarify));
     }
+    static String catalogParsed(String value) throws Exception {
+        return new ObjectMapper().writeValueAsString(Map.of(
+            "intent","DB_SEARCH","medications",List.of(),"foods",List.of(),"topics",List.of(),
+            "useSelectedMedication",false,"needsClarification",false,"clarificationQuestion","",
+            "query",Map.of("kind","MEDICATIONS","filters",List.of(Map.of("field","EFFICACY","value",value)),
+                "tabooType",0,"grade","","ageBase","","status","ANY")));
+    }
     static Map<String,Object> chat(String question, String id, Map<String,String> choices) {
-        queries.clear(); var r=new MedicationChatRequest(); r.setQuestion(question); r.setItemSeq(id); r.setSelections(choices);
+        return chat(question,id,choices,List.of());
+    }
+    static Map<String,Object> chat(String question, String id, Map<String,String> choices, List<String> history) {
+        queries.clear(); var r=new MedicationChatRequest(); r.setQuestion(question); r.setItemSeq(id); r.setSelections(choices);r.setRecentQuestions(history);
         return new MedicationChatService(dao,ai,null,new com.app.guide.service.DurGuideService(null) {
             @Override public DurResult find(String material) { return new DurResult("NO_MATCH",List.of(),List.of(),List.of(),List.of()); }
         }).chat(r);
@@ -65,17 +83,55 @@ public class QuestionRoutingCheck {
         analysis=parsed("DRUG_INTERACTION",List.of("타이레놀정"),List.of(),List.of(),true,false);
         check(((List<?>)chat("이 약이랑 타이레놀정 함께 먹어?","1",Map.of()).get("sources")).size()==2,"current plus explicit second medicine");
         analysis=parsed("DRUG_INTERACTION",List.of(),List.of(),List.of(),true,true);
-        check(chat("그거랑 같이 먹어?","1",Map.of()).get("answer").toString().contains("궁금한가요"),"unclear pronoun clarified");
+        check(Boolean.TRUE.equals(chat("그거랑 같이 먹어?","1",Map.of()).get("conversationMode")),"unclear pronoun becomes a conversational clarification");
         analysis="not-json";
         result=chat("텐텐 하루에 50개 먹으면 어떻게 돼?","1",Map.of());
         check(result.get("answer").toString().contains("119") && result.get("activeMedication")==tenten,
             "overdose wording bypasses model classification and returns urgent guidance");
+        result=chat("숨이 안 쉬어지고 입술이 파래",null,Map.of());
+        check(result.get("answer").toString().contains("119") && "EMERGENCY".equals(result.get("urgency")),
+            "emergency symptom bypasses model and returns emergency guidance");
+        analysis=parsed("SYMPTOM_CONSULTATION",List.of(),List.of(),List.of(),false,false);
+        result=chat("어제부터 머리가 아파",null,Map.of());
+        check(Boolean.TRUE.equals(result.get("conversationMode"))
+            && ((List<?>)result.get("followUpQuestions")).size()==1,"symptom conversation returns a focused follow-up");
+        analysis=catalogParsed("머리가 아픈");
+        result=chat("머리가 아픈데 약을 알려줘",null,Map.of());
+        check(Boolean.TRUE.equals(result.get("conversationMode")) && !result.containsKey("catalog"),
+            "personal symptom cannot become a zero-result catalog search even when classifier is wrong");
+        for(String symptom : List.of("배가 아픈데 무슨 약을 먹어야 해?", "어지러운데 뭐 먹지?", "열이 나고 기침해",
+                "약 먹고 두드러기가 생겼어", "감기 걸렸는데 약 알려줘", "잠을 못 자는데 무슨 약 먹어?",
+                "혈압이 높은데 약 추천해줘", "우울하고 불안한데 약 알려줘"))
+            check(QuestionAnalysis.shouldPreferCounseling(symptom,List.of()),"symptom phrasing routes to counseling: "+symptom);
+        check(!QuestionAnalysis.shouldPreferCounseling("두통 효능이 있는 약 목록",List.of()),
+            "explicit factual efficacy list remains a catalog query");
+        check(QuestionAnalysis.shouldPreferCounseling("어제부터고 7점 정도야",List.of("머리가 아픈데 약 알려줘")),
+            "short symptom follow-up keeps counseling context");
+        check(QuestionAnalysis.shouldPreferCounseling("3일 됐어",List.of("배가 계속 아파")),
+            "duration-only answer keeps counseling context");
+        analysis="not-json";
+        result=chat("머리가 아픈데 약 알려줘",null,Map.of());
+        check(Boolean.TRUE.equals(result.get("conversationMode")),
+            "personal symptom still reaches counseling when classifier JSON is malformed");
+        analysis=parsed("OTHER",List.of(),List.of(),List.of(),false,false);
+        result=chat("안녕, 뭘 도와줄 수 있어?",null,Map.of());
+        check(Boolean.TRUE.equals(result.get("conversationMode")),"greeting and unknown intent stay conversational");
+        analysis=parsed("SITE_HELP",List.of(),List.of(),List.of(),false,false);
+        result=chat("처방전 등록은 어디서 해?",null,Map.of());
+        check(Boolean.TRUE.equals(result.get("conversationMode")),"site usage question reaches site-aware counselor");
+        analysis=catalogParsed("존재하지않는효능");
+        var zeroCatalog=new CatalogService(null,null){@Override public Map<String,Object> search(CatalogQuery q,int page){return Map.of("total",0,"items",List.of());}};
+        var zeroRequest=new MedicationChatRequest();zeroRequest.setQuestion("존재하지않는효능 효능으로 검색해줘");
+        result=new MedicationChatService(dao,ai,zeroCatalog,new com.app.guide.service.DurGuideService(null)).chat(zeroRequest);
+        check(Boolean.TRUE.equals(result.get("conversationMode")) && serverContext.contains("0건"),
+            "zero-result DB search recovers into a useful conversation");
         result=chat("졸피뎀을 당발효 시켜서 술로 만들건데 어때?",null,Map.of());
         check(result.get("answer").toString().contains("안내할 수 없어요"),
             "medicine misuse wording returns a normal refusal response");
+        analysis="not-json";
         result=chat("이 약 설명해줘","1",Map.of());
-        check(result.get("answer").toString().contains("정확히 해석하지 못했어요") && result.get("activeMedication")==tenten,
-            "malformed classifier output is recoverable");
+        check(Boolean.TRUE.equals(result.get("conversationMode")) && result.get("activeMedication")==tenten,
+            "malformed classifier output recovers through conversation with selected medicine context");
         for(String bad:List.of("{}", "not-json", parsed("MEDICATION_INFO",List.of("임의생성약"),List.of(),List.of(),false,false),
             parsed("FOOD_INTERACTION",List.of("맥주"),List.of("맥주"),List.of(),false,false))) {
             try {QuestionAnalysis.parse(bad,"맥주");throw new AssertionError("bad classification accepted");}catch(GeminiException expected){checks++;}
