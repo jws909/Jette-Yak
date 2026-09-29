@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import './MyPage.css';
 import defaultProfileImg from '../../assets/Default_profile.png';
 
-export default function MyPage({ user, onUserUpdated }) {
+export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [nickname, setNickname] = useState(user?.name || '김메디');
   const [isEditingNick, setIsEditingNick] = useState(false);
   const [email] = useState(user?.email || 'jetteyak_2026 · hello@jetteyak.kr');
   const [profileImage, setProfileImage] = useState(user?.profileImageUrl || '');
   const [imgError, setImgError] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -96,6 +98,10 @@ export default function MyPage({ user, onUserUpdated }) {
   const [isSubmittingSched, setIsSubmittingSched] = useState(false);
 
   const fetchEverydayMeds = async () => {
+    if (!user?.userId && !user?.username) {
+      setEverydayMeds([]);
+      return;
+    }
     try {
       setIsLoadingMeds(true);
       const uid = user?.userId || '';
@@ -119,6 +125,10 @@ export default function MyPage({ user, onUserUpdated }) {
   useEffect(() => {
     let ignore = false;
     const load = async () => {
+      if (!user?.userId && !user?.username) {
+        setEverydayMeds([]);
+        return;
+      }
       try {
         const uid = user?.userId || '';
         const uname = user?.username || '';
@@ -337,6 +347,64 @@ export default function MyPage({ user, onUserUpdated }) {
     setSaveToast(true);
     setTimeout(() => setSaveToast(false), 3000);
   };
+
+  const handleWithdraw = async () => {
+    // 체험용 계정 보호 체크
+    if (!user || user.isDemo || user.username === 'demo' || user.username === 'test12' || user.userId === 1) {
+      alert('체험용 계정은 탈퇴할 수 없습니다.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      '정말 회원 탈퇴를 진행하시겠습니까?\n\n' +
+      '탈퇴 시 등록된 복약 스케줄, 처방전, 보관함 및 영양제 목록, 커뮤니티 작성 글/댓글, 가족 연동 등 모든 개인 데이터가 영구적으로 완전 삭제되며 복구할 수 없습니다.'
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsWithdrawing(true);
+      const res = await fetch('/api/users/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.userId, username: user.username }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        alert('회원 탈퇴가 정상적으로 완료되었습니다. 그동안 제때약을 이용해 주셔서 감사합니다.');
+        try {
+          if (onLogout) {
+            await onLogout();
+          }
+        } catch (ignored) {}
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        sessionStorage.clear();
+        window.location.replace('/');
+      } else {
+        alert(data.message || '회원 탈퇴 처리에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('회원 탈퇴 오류:', err);
+      alert('서버와 통신 중 오류가 발생했습니다.');
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
+  if (!user) {
+    return (
+      <div className="mypage-wrapper">
+        <header className="page-section-header">
+          <span className="section-meta-tag">MY ACCOUNT</span>
+          <h1 className="section-title">마이 페이지</h1>
+        </header>
+        <p className="mypage-empty-guide">
+          로그인하면 마이페이지와 내 약 설정을 이용할 수 있어요.{' '}
+          <Link to="/login?next=/mypage">로그인</Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="mypage-wrapper">
@@ -608,9 +676,10 @@ export default function MyPage({ user, onUserUpdated }) {
               <button
                 type="button"
                 className="withdraw-btn"
-                onClick={() => alert('탈퇴 전 저장된 복약 기록이 모두 삭제됩니다. 정말 탈퇴하시겠습니까?')}
+                onClick={handleWithdraw}
+                disabled={isWithdrawing}
               >
-                회원 탈퇴
+                {isWithdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
               </button>
             </div>
           </section>

@@ -261,7 +261,7 @@ function App() {
     localStorage.setItem('token', loginData.token);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     const next = new URLSearchParams(window.location.search).get('next');
-    navigate(['/guide','/chat','/community'].includes(next) ? next : '/');
+    navigate(['/guide','/chat','/community','/mypage','/family'].includes(next) ? next : '/');
   };
 
   const handleLogout = async () => {
@@ -277,6 +277,7 @@ function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     sessionStorage.removeItem('notif_modal_dismissed');
+    navigate('/');
   };
 
   const handleUserUpdated = (changes) => {
@@ -384,7 +385,7 @@ function App() {
               onLogout={handleLogout}
               onLoginDemoToggle={handleLoginDemoToggle}
             >
-              <MyPage user={user} onUserUpdated={handleUserUpdated} />
+              <MyPage user={user} onUserUpdated={handleUserUpdated} onLogout={handleLogout} />
             </MainLayout>
           }
         />
