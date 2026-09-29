@@ -16,6 +16,40 @@ export default function Navbar({
 
   const notifBoxRef = useRef(null);
 
+  // ★ 1. 가족 초대 수락/거절 핸들러 함수
+  const handleRespondInvitation = async (inviteId, action) => {
+    if (!user?.userId) return;
+
+    try {
+      const res = await fetch('/api/family/invitations/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteId: inviteId,
+          userId: user.userId,
+          action: action // 'ACCEPT' 또는 'REJECT'
+        })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        if (action === 'ACCEPT') {
+          alert('가족 초대를 수락했습니다!');
+          window.location.reload();
+        } else {
+          alert('초대를 거절했습니다.');
+          setNotifications((prev) => prev.filter((n) => n.id !== `invitation-${inviteId}`));
+        }
+      } else {
+        alert(data.message || '초대 응답 처리에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('초대 처리 에러:', err);
+      alert('서버 통신 중 오류가 발생했습니다.');
+    }
+  };
+
   // 로그인 시 사용자의 실제 복약 일정(원샷 브리핑) 및 처방전 주의사항 로드
   useEffect(() => {
     if (!isLoggedIn || !user?.userId) {
@@ -34,6 +68,30 @@ export default function Navbar({
 
     const loadNotifications = async () => {
       const items = [];
+
+      // ★ 2. 나에게 도착한 가족 연동 초대 내역 조회
+      try {
+        const invRes = await fetch(`/api/family/invitations?userId=${userId}`);
+        if (invRes.ok) {
+          const invList = await invRes.json();
+          if (Array.isArray(invList) && invList.length > 0) {
+            invList.forEach((inv) => {
+              items.push({
+                id: `invitation-${inv.inviteId}`,
+                type: 'routine',
+                title: '가족 연동 초대 요청',
+                text: `'${inv.senderName}'님이 [${inv.familyName}] 그룹으로 초대했습니다.`,
+                time: inv.createdAt || '방금 전',
+                read: false,
+                isInvitation: true,
+                inviteId: inv.inviteId,
+              });
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Navbar 가족 초대 조회 실패:', err);
+      }
 
       try {
         // 1. 처방전 주의사항 및 판매중단 약품 알림
@@ -79,10 +137,8 @@ export default function Navbar({
         if (calRes.ok) {
           const calList = await calRes.json();
           if (Array.isArray(calList) && calList.length > 0) {
-            // 시간순 정렬
             const sorted = [...calList].sort((a, b) => (a.time || '').localeCompare(b.time || ''));
             
-            // 시간대별 그룹화 (예: 08:30 -> ["아모잘탄정", "비타민C"])
             const grouped = {};
             sorted.forEach((sched) => {
               const t = (sched.time || '').substring(0, 5);
@@ -90,7 +146,6 @@ export default function Navbar({
               grouped[t].push(sched.name ? sched.name.trim() : '약품');
             });
 
-            // "08:30 아모잘탄정 외 1건 · 13:00 소화제 · 19:00 비타민" 포맷 생성
             const summaryParts = Object.entries(grouped).map(([time, names]) => {
               const firstMed = names[0];
               const extraCount = names.length - 1;
@@ -98,7 +153,6 @@ export default function Navbar({
               return `${time} ${medDesc}`;
             });
 
-            // 전체 일정을 단 1장의 카드로 깔끔하게 등록
             items.push({
               id: 'today-daily-briefing',
               type: 'routine',
@@ -129,7 +183,6 @@ export default function Navbar({
       const newNotifId = `realtime-dose-${isPre ? 'pre' : 'main'}-${item.time}`;
 
       setNotifications((prev) => {
-        // 중복 추가 방지
         if (prev.some((n) => n.id === newNotifId)) return prev;
 
         return [
@@ -141,7 +194,7 @@ export default function Navbar({
               ? `[${item.time}] '${item.name}' 복약 30분 전입니다. 미리 준비하세요.`
               : `[${item.time}] '${item.name}' 복용 시간입니다. 잊지 말고 복용하세요!`,
             time: item.time,
-            read: false, // 미읽음 표시로 뱃지 카운트 증가
+            read: false,
           },
           ...prev,
         ];
@@ -253,6 +306,7 @@ export default function Navbar({
                             role="button"
                             tabIndex={0}
                           >
+                            <div className={`notif-indicator ${n.type}`} />
                             <div className="notif-item-body">
                               <span className="notif-item-title">{n.title}</span>
                               <p className="notif-item-text">{n.text}</p>
@@ -262,7 +316,7 @@ export default function Navbar({
                               {n.isInvitation && (
                                 <div 
                                   className="notif-actions" 
-                                  onClick={(e) => e.stopPropagation()} // 클릭 시 부모 카드의 읽음 처리 이벤트 방지
+                                  onClick={(e) => e.stopPropagation()}
                                 >
                                   <button
                                     type="button"
