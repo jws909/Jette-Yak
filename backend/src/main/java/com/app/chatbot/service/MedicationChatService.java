@@ -82,9 +82,9 @@ public class MedicationChatService {
         }
         if (analysis.intent() == QuestionAnalysis.Intent.MY_MEDICATIONS || analysis.intent() == QuestionAnalysis.Intent.MY_DUR) {
             if(userId==null || userId<=0) { var response=reply("내 약 조회는 로그인이 필요합니다.",List.of(),List.of());response.put("loginRequired",true);return response; }
-            var response=reply(analysis.intent()==QuestionAnalysis.Intent.MY_DUR ? "복용 중 상태인 약 사이의 DUR 기록입니다." : "등록한 약 목록입니다. 제품을 선택해 질문을 이어가세요.",List.of(),List.of());
+            var response=reply(analysis.intent()==QuestionAnalysis.Intent.MY_DUR ? "복용 중 상태인 약 사이의 DUR 기록입니다." : "현재 복용 중인 약 목록입니다. 제품을 선택해 질문을 이어가세요.",List.of(),List.of());
             if(analysis.intent()==QuestionAnalysis.Intent.MY_DUR) response.put("comparison",management.myComparison(userId));
-            else response.put("registeredMedications",management.collection(userId));
+            else response.put("registeredMedications",activeRegistrations(management.collection(userId)));
             return response;
         }
         if (analysis.intent() == QuestionAnalysis.Intent.OTHER)
@@ -218,13 +218,22 @@ public class MedicationChatService {
                 || text.contains("복용중") || text.contains("복용하는약") || text.contains("처방약")))
             return List.of();
         LinkedHashMap<String,MedicationChatDto> result = new LinkedHashMap<>();
-        for (var registration : management.collection(userId)) {
-            if (!"ACTIVE".equals(registration.getUseStatus()) || registration.getMedicationId() == null) continue;
+        for (var registration : activeRegistrations(management.collection(userId))) {
+            if (registration.getMedicationId() == null) continue;
             MedicationChatDto medication = medicationDao.findChatMedicationByItemSeq(registration.getMedicationId());
             if (medication != null) result.put(medication.getItemSeq(), medication);
             if (result.size() == 8) break;
         }
         return List.copyOf(result.values());
+    }
+
+    static List<com.app.guide.dto.RegisteredMedicationDto> activeRegistrations(
+            List<com.app.guide.dto.RegisteredMedicationDto> registrations) {
+        if (registrations == null) return List.of();
+        return registrations.stream().filter(registration -> registration != null
+            && "ACTIVE".equals(registration.getUseStatus())
+            && !"ENDED".equals(registration.getPeriodState())
+            && !"UPCOMING".equals(registration.getPeriodState())).toList();
     }
 
     private static Map<String,Object> emergencyReply(MedicationChatDto selected) {

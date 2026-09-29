@@ -14,6 +14,11 @@ public class QuestionRoutingCheck {
     static MedicationChatDto med(String id, String name) {
         var m = new MedicationChatDto(); m.setItemSeq(id); m.setItemName(name); return m;
     }
+    static com.app.guide.dto.RegisteredMedicationDto registration(String id, String useStatus, String periodState) {
+        var value = new com.app.guide.dto.RegisteredMedicationDto();
+        value.setRegistrationId(id); value.setMedicationId(id); value.setUseStatus(useStatus); value.setPeriodState(periodState);
+        return value;
+    }
     static final MedicationChatDto tenten = med("1", "텐텐츄정");
     static final MedicationChatDto tylenol = med("2", "타이레놀정");
     static final MedicationChatDto tylenol2 = med("3", "타이레놀서방정");
@@ -142,6 +147,28 @@ public class QuestionRoutingCheck {
         check(QuestionAnalysis.parse(inherited,"그 약의 성분은?",List.of("타이레놀 알려줘")).medications().equals(List.of("타이레놀")),"followup can reference prior literal medicine");
         try {QuestionAnalysis.parse(inherited,"그 약의 성분은?");throw new AssertionError("invented entity accepted");}catch(GeminiException expected){checks++;}
         try {QuestionAnalysis.parse(inherited,"성분은?",java.util.Collections.nCopies(5,"타이레놀"));throw new AssertionError("unbounded history accepted");}catch(GeminiException expected){checks++;}
+        var active = MedicationChatService.activeRegistrations(List.of(
+            registration("active", "ACTIVE", "CURRENT"),
+            registration("ended-status", "ENDED", "CURRENT"),
+            registration("ended-period", "ACTIVE", "ENDED"),
+            registration("upcoming", "ACTIVE", "UPCOMING"),
+            registration("stored", "STORED", "CURRENT")));
+        check(active.size()==1 && "active".equals(active.get(0).getRegistrationId()),
+            "chat medication selection contains only currently active registrations");
+        var managementDao = new com.app.guide.dao.MedicationGuideDao(null) {
+            @Override public List<com.app.guide.dto.RegisteredMedicationDto> collection(long userId) {
+                return List.of(registration("active", "ACTIVE", "CURRENT"),
+                    registration("finished", "ENDED", "ENDED"), registration("future", "UPCOMING", "UPCOMING"));
+            }
+        };
+        var management = new com.app.guide.service.MedicationManagementService(managementDao, null);
+        var service = new MedicationChatService(dao, ai, null, new com.app.guide.service.DurGuideService(null), management);
+        var myRequest = new MedicationChatRequest(); myRequest.setQuestion("내가 등록한 약 보여줘");
+        analysis=parsed("MY_MEDICATIONS",List.of(),List.of(),List.of(),false,false);
+        var myResult = service.chat(myRequest, 11L);
+        var visible = (List<?>)myResult.get("registeredMedications");
+        check(visible.size()==1 && myResult.get("answer").toString().contains("현재 복용 중"),
+            "MY_MEDICATIONS response excludes completed and upcoming registrations");
         System.out.println("PASS: "+checks+" intent routing and validation checks");
     }
 }
