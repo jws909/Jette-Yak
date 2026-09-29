@@ -13,7 +13,7 @@ const fields = [
   ['itemName', '제품명'], ['entpName', '업체명'], ['materialName', '성분'],
   ['ediCode', 'EDI 코드'], ['updatedAt', '자료 수정일'], ['className', '분류'], ['etcOtcCode', '전문·일반'], ['efficacy', '효능·효과'], ['usageDosage', '용법·용량'],
 ]
-const suggestions = ['임산부가 먹으면 안 되는 약들이 뭐야?', '아세트아미노펜 성분이 들어간 약', '나이 많은 사람이 주의해야 하는 약은?', '두통 효능이 있는 약']
+const suggestions = ['어제부터 머리가 아파', '약을 먹고 두드러기가 생겼어', '이 증상으로 병원에 가야 할까?', '임산부가 먹으면 안 되는 약들이 뭐야?']
 
 async function readResponse(response) {
   if (!(response.headers.get('content-type') || '').includes('application/json'))
@@ -95,8 +95,13 @@ function MedicationConversation() {
       id, question: text, choiceLabel, selections, answer: null, sources: [], choices: [], choicePage: 1,
     }])
     try {
-      const recentQuestions = messages.filter(message => !message.failed && message.answer !== null && !message.question.startsWith('조건 검색: ')).slice(-4).map(message => message.question)
-      const data = await postQuestion({ itemSeq: selected?.itemSeq, question: text, selections, recentQuestions }, controller.signal)
+      const completed = messages.filter(message => !message.failed && message.answer !== null && !message.question.startsWith('조건 검색: '))
+      const recentQuestions = completed.slice(-4).map(message => message.question)
+      const conversation = completed.slice(-6).flatMap(message => [
+        { role: 'user', content: message.question.slice(0, 1500) },
+        { role: 'assistant', content: message.answer.slice(0, 1500) },
+      ])
+      const data = await postQuestion({ itemSeq: selected?.itemSeq, question: text, selections, recentQuestions, conversation }, controller.signal)
       if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('서버 응답에 답변이 없습니다.')
       if (requestRef.current !== controller) return
       const seconds = data.seconds
@@ -105,7 +110,9 @@ function MedicationConversation() {
         sources: Array.isArray(data.sources) ? data.sources : [],
         choices: Array.isArray(data.choices) ? data.choices : [],
         choiceKeyword: data.choiceKeyword, choiceTotal: data.choiceTotal || 0,
-        catalog: data.catalog, durReports: data.durReports, durNotice: data.durNotice, seconds,
+        catalog: data.catalog, durReports: data.durReports, durNotice: data.durNotice,
+        conversationMode: Boolean(data.conversationMode), urgency: data.urgency,
+        followUpQuestions: Array.isArray(data.followUpQuestions) ? data.followUpQuestions : [], seconds,
       } : message))
       if (data.activeMedication) setSelected(data.activeMedication)
       setQuestion('')
@@ -117,6 +124,14 @@ function MedicationConversation() {
       clearTimeout(timer)
       if (requestRef.current === controller) { requestRef.current = null; setLoading(false) }
     }
+  }
+
+  function startNewConversation() {
+    if (requestRef.current) return
+    setMessages([])
+    setQuestion('')
+    setError('')
+    inputRef.current?.focus()
   }
 
   async function compareProducts() {
@@ -168,7 +183,7 @@ function MedicationConversation() {
     <header className="page-heading">
       <span className="eyebrow">JETTE-YAK / PERSONAL HEALTH GUIDE</span>
       <h1>궁금한 약 정보,<br /><em>다양하게 물어보세요.</em></h1>
-      <p>약 이름·성분·효능부터 임부·노인·연령·병용금기까지 DB에서 찾아드려요.</p>
+      <p>불편한 증상과 복약 고민을 자연스럽게 이야기하면 필요한 내용을 함께 좁혀가요.</p>
     </header>
     <section className="chat-layout" aria-label="약 정보 AI 도우미">
       <aside className="product-panel">
@@ -204,16 +219,17 @@ function MedicationConversation() {
         <p className="scope-note">다른 약 이름을 질문하면 새로 찾아드려요.<br />“효능은?”처럼 이름을 생략하면 현재 선택한 약을 기준으로 안내해요.</p>
       </aside>
       <div className="conversation">
-        <header className="conversation-heading"><h2>약 정보 AI 도우미</h2><span>DB 자료 기반 안내</span></header>
+        <header className="conversation-heading"><h2>복약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>대화 맥락 + DB 근거</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
         {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{['효능은?','복용법은?','등록된 DUR 주의사항은?'].map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
         <div className="chat-log" ref={logRef} role="log" aria-label="질문과 답변" aria-live="polite" aria-relevant="additions text">
-          {messages.length === 0 && <div className="welcome"><span className="welcome-mark" aria-hidden="true">✦</span><h3>궁금한 조건으로 물어보세요.</h3>
-            <p>약 이름이 없어도 성분·효능·금기 조건으로 조회할 수 있어요.<br />특정 제품의 질문은 제품을 선택하면 이어갈 수 있어요.</p>
+          {messages.length === 0 && <div className="welcome"><span className="welcome-mark" aria-hidden="true">✦</span><h3>지금 어떤 도움이 필요한가요?</h3>
+            <p>증상이나 복용 중 불편한 점을 편하게 말해주세요.<br />필요한 질문을 이어가며 다음 행동을 함께 정리해드려요.</p>
             <div className="suggestions">{suggestions.map(text => <button type="button" key={text} onClick={() => { setQuestion(text); inputRef.current?.focus() }}>{text} ↗</button>)}</div>
           </div>}
           {messages.map(message => <article className="exchange" key={message.id}>
             <div className="question-bubble"><span className="bubble-label">내 질문</span><p>{message.question}</p>{message.choiceLabel && <small>선택한 제품: {message.choiceLabel}</small>}</div>
-            {message.answer !== null && <div className="answer-bubble"><span className="bubble-label">✦ 답변 요약</span><p>{message.answer}</p>
+            {message.answer !== null && <div className={'answer-bubble ' + (message.urgency === 'EMERGENCY' ? 'answer-emergency' : message.urgency === 'PROMPT' ? 'answer-prompt' : '')}><span className="bubble-label">✦ {message.conversationMode ? '상담 답변' : '답변 요약'}</span><p>{message.answer}</p>
+              {message.followUpQuestions?.length > 0 && <section className="follow-up-questions" aria-label="추가로 필요한 정보"><strong>답변을 위해 이것만 더 알려주세요</strong><ul>{message.followUpQuestions.map(item => <li key={item}>{item}</li>)}</ul></section>}
               {message.sources.length > 0 && <p className="answer-subject">{message.sources.map(source => source.itemName).join(' · ')}</p>}
               {message.choices.length > 0 && <div className="choice-list">
                 {message.choices.map(drug => <button type="button" className="drug-option" key={drug.itemSeq} disabled={loading}
@@ -237,16 +253,16 @@ function MedicationConversation() {
             </div>}
             {message.failed && <p className="failed-message">답변을 받지 못했어요. 질문을 다시 보내주세요.</p>}
           </article>)}
-          {(loading || paging) && <p className="loading" role="status"><span aria-hidden="true" />약 정보를 찾아 답변을 작성하고 있어요…</p>}
+          {(loading || paging) && <p className="loading" role="status"><span aria-hidden="true" />대화 맥락과 필요한 정보를 확인하고 있어요…</p>}
         </div>
         <form className="composer" onSubmit={event => { event.preventDefault(); sendQuestion(question) }}>
           <label htmlFor="chat-question">질문하기</label>
-          <textarea id="chat-question" ref={inputRef} onKeyDown={submitOnEnter} value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} rows={3} disabled={loading || Boolean(paging)} required placeholder="예: 임부금기 약 알려줘 / 아세트아미노펜 성분 검색 / 이 약의 DUR은?" />
+          <textarea id="chat-question" ref={inputRef} onKeyDown={submitOnEnter} value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} rows={3} disabled={loading || Boolean(paging)} required placeholder="예: 어제부터 머리가 아파 / 이 약 먹고 속이 불편해 / 이 증상으로 병원에 가야 할까?" />
           {error && <p className="error-message" role="alert">{error}</p>}
           <div className="composer-footer"><small>Enter 전송 · Shift+Enter 줄바꿈 · {question.length} / 1000</small><button type="submit" disabled={loading || Boolean(paging) || !question.trim()}>{loading ? '답변 작성 중…' : '질문 보내기'} ↗</button></div>
         </form>
       </div>
     </section>
-    <footer className="page-footer">정확한 내용은 참고 원문을 확인해주세요. 등록되지 않은 상호작용은 판단하지 않습니다.</footer>
+    <footer className="page-footer">증상 안내는 진단을 대신하지 않습니다. 약 정보는 표시된 DB 근거를 확인하고, 응급 증상은 119 또는 응급실에 도움을 요청하세요.</footer>
   </main>
 }

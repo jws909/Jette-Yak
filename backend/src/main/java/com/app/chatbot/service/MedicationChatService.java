@@ -4,6 +4,7 @@ import java.util.*;
 import org.springframework.stereotype.Service;
 import com.app.chatbot.dao.ChatbotDao;
 import com.app.chatbot.client.GeminiService;
+import com.app.chatbot.client.ConversationAnswer;
 import com.app.chatbot.dto.MedicationChatDto;
 import com.app.chatbot.dto.MedicationChatRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -43,26 +44,42 @@ public class MedicationChatService {
         MedicationChatDto selected = request.getItemSeq() == null || request.getItemSeq().isBlank() ? null
             : medicationDao.findChatMedicationByItemSeq(request.getItemSeq().trim());
 
+        if (QuestionAnalysis.hasEmergencySignal(question))
+            return emergencyReply(selected);
         Optional<QuestionAnalysis.Intent> directSafetyIntent = QuestionAnalysis.safetyIntent(question);
         if (directSafetyIntent.isPresent())
             return safetyReply(directSafetyIntent.get(), selected);
 
+        List<String> userHistory = request.getConversation().stream()
+            .filter(turn -> "user".equals(turn.getRole()))
+            .map(turn -> turn.getContent().trim()).toList();
+        if (userHistory.size() > 4) userHistory = userHistory.subList(userHistory.size() - 4, userHistory.size());
+        if (userHistory.isEmpty()) userHistory = request.getRecentQuestions();
         String classification = geminiService.analyzeQuestion(
-            question, selected == null ? null : selected.getItemName(), request.getRecentQuestions());
+            question, selected == null ? null : selected.getItemName(), userHistory, request.getConversation());
         QuestionAnalysis analysis;
         try {
-            analysis = QuestionAnalysis.parse(classification, question, request.getRecentQuestions());
+            analysis = QuestionAnalysis.parse(classification, question, userHistory);
         } catch (com.app.chatbot.client.GeminiException invalidClassification) {
             // The provider succeeded but returned a classification that failed our trust boundary.
             // Treat this as a recoverable conversation result instead of an HTTP 5xx failure.
-            return reply("질문을 정확히 해석하지 못했어요. 궁금한 약 이름과 내용을 한 문장으로 다시 적어주세요.",
-                selected == null ? List.of() : List.of(selected), List.of());
+            return counselReply(question, selected == null ? registeredContext(question, userId) : List.of(selected), request,
+                "질문 분류 결과가 유효하지 않았음. 사용자의 목적을 추측해 단정하지 말고 자연스럽게 답하거나 한 가지를 확인할 것.");
         }
         if (analysis.intent() == QuestionAnalysis.Intent.DOSAGE_RISK
                 || analysis.intent() == QuestionAnalysis.Intent.MEDICATION_MISUSE)
             return safetyReply(analysis.intent(), selected);
-        if (analysis.needsClarification())
-            return reply(analysis.clarificationQuestion().isBlank() ? "특정 약의 주의사항이 궁금한가요, 아니면 조건에 해당하는 약 목록이 궁금한가요?" : analysis.clarificationQuestion(), List.of(), List.of());
+        boolean conversational = analysis.intent() == QuestionAnalysis.Intent.SYMPTOM_CONSULTATION
+            || analysis.intent() == QuestionAnalysis.Intent.GENERAL_HEALTH
+            || analysis.intent() == QuestionAnalysis.Intent.SITE_HELP
+            || QuestionAnalysis.shouldPreferCounseling(question, userHistory);
+        if (analysis.needsClarification()) {
+            List<MedicationChatDto> context = analysis.useSelectedMedication() && selected != null
+                ? List.of(selected) : registeredContext(question, userId);
+            return counselReply(question, context, request,
+                analysis.clarificationQuestion().isBlank() ? "질문의 목적이나 대상이 아직 명확하지 않음"
+                    : "분류기가 확인이 필요하다고 판단함: " + analysis.clarificationQuestion());
+        }
         if (analysis.intent() == QuestionAnalysis.Intent.MY_MEDICATIONS || analysis.intent() == QuestionAnalysis.Intent.MY_DUR) {
             if(userId==null || userId<=0) { var response=reply("내 약 조회는 로그인이 필요합니다.",List.of(),List.of());response.put("loginRequired",true);return response; }
             var response=reply(analysis.intent()==QuestionAnalysis.Intent.MY_DUR ? "복용 중 상태인 약 사이의 DUR 기록입니다." : "등록한 약 목록입니다. 제품을 선택해 질문을 이어가세요.",List.of(),List.of());
@@ -71,9 +88,13 @@ public class MedicationChatService {
             return response;
         }
         if (analysis.intent() == QuestionAnalysis.Intent.OTHER)
-            return reply("약 이름·성분·효능·제조사·분류·코드·허가 상태나 DUR 금기 조건을 질문해주세요. 로그인하면 내 등록 약도 조회할 수 있습니다.", List.of(), List.of());
-        if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH) {
+            return counselReply(question, selected != null && analysis.useSelectedMedication() ? List.of(selected) : List.of(), request,
+                "서비스 범위와의 관련성이 불명확함. 사용자의 말을 무시하지 말고 필요한 도움을 한 번 확인할 것.");
+        if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH && !conversational) {
             var data = catalog.search(analysis.query(), 1);
+            if (((Number)data.getOrDefault("total", 0)).longValue() == 0)
+                return counselReply(question, List.of(), request,
+                    "구조화된 의약품 DB 검색 결과가 0건임. 결과가 있다고 만들지 말고, 검색 의도를 설명한 뒤 더 적절한 제품명·성분명·조건을 한 가지씩 확인할 것.");
             var response = reply("조건에 맞는 DB 기록 " + data.get("total") + "건을 찾았습니다. 아래 목록과 원문을 확인해주세요.", List.of(), List.of());
             response.put("catalog", data); return response;
         }
@@ -82,9 +103,14 @@ public class MedicationChatService {
         LinkedHashMap<String, MedicationChatDto> targets = new LinkedHashMap<>();
         List<String> missing = new ArrayList<>();
         if (analysis.useSelectedMedication()) {
+            if (selected == null && conversational)
+                return counselReply(question, registeredContext(question, userId), request);
             if (selected == null) return reply("어떤 약이 궁금한가요? 약 이름을 적거나 검색에서 선택해주세요.", List.of(), List.of());
             targets.put(selected.getItemSeq(), selected);
         }
+
+        if (conversational && hints.isEmpty() && targets.isEmpty())
+            return counselReply(question, registeredContext(question, userId), request);
 
         for (String hint : hints) {
             String keyword = normalize(hint);
@@ -127,6 +153,8 @@ public class MedicationChatService {
         if (targets.isEmpty())
             return reply("어떤 약이 궁금한가요? 약 이름을 적거나 검색에서 선택해주세요.", List.of(), List.of());
         List<MedicationChatDto> sources = new ArrayList<>(targets.values());
+        if (conversational)
+            return counselReply(question, sources, request);
         String names = String.join(", ", sources.stream().map(MedicationChatDto::getItemName).toList());
         if (analysis.intent() == QuestionAnalysis.Intent.FOOD_INTERACTION)
             return reply("현재 조회한 " + names + " 자료에는 " + String.join(", ", analysis.foods())
@@ -136,21 +164,87 @@ public class MedicationChatService {
                 + " 관련 주의사항이 없어 해당 활동의 안전 여부를 판단할 수 없습니다.", sources, List.of());
         if (analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION || analysis.intent() == QuestionAnalysis.Intent.DUR_INFO)
             return durReply(sources, analysis);
-        String references;
-        try { references = objectMapper.writeValueAsString(sources); }
-        catch (JsonProcessingException e) { throw new IllegalStateException("약 정보 변환 실패", e); }
-        if (references.length() > 2500)
-            return reply("등록된 자료가 길어 원문을 제공합니다. 아래 참고 정보에서 확인해주세요.", sources, List.of());
-        String answer = geminiService.ask(question, references);
+        String references = referenceJson(sources);
+        String answer = geminiService.ask(question, references, request.getConversation());
         return reply(answer, sources, List.of());
+    }
+
+    private Map<String,Object> counselReply(String question, List<MedicationChatDto> sources, MedicationChatRequest request) {
+        return counselReply(question, sources, request, "없음");
+    }
+
+    private Map<String,Object> counselReply(String question, List<MedicationChatDto> sources, MedicationChatRequest request, String serverContext) {
+        String references = referenceJson(sources);
+        ConversationAnswer counsel = geminiService.counsel(question, references, request.getConversation(), serverContext);
+        String answer = counsel.answer();
+        if ("EMERGENCY".equals(counsel.urgency()) && !answer.contains("119") && !answer.contains("응급실"))
+            answer = "지금은 추가 답변을 기다리지 말고 119에 연락하거나 가까운 응급실로 가세요.\n\n" + answer;
+        Map<String,Object> response = reply(answer, sources, List.of());
+        response.put("conversationMode", true);
+        response.put("followUpQuestions", counsel.followUpQuestions());
+        response.put("urgency", counsel.urgency());
+        return response;
+    }
+
+    private String referenceJson(List<MedicationChatDto> sources) {
+        try {
+            String full = objectMapper.writeValueAsString(sources);
+            if (full.length() <= 30000) return full;
+            List<Map<String,Object>> compact = new ArrayList<>();
+            for (MedicationChatDto source : sources) {
+                Map<String,Object> item = new LinkedHashMap<>();
+                item.put("itemSeq", source.getItemSeq()); item.put("itemName", source.getItemName());
+                item.put("entpName", source.getEntpName()); item.put("materialName", source.getMaterialName());
+                item.put("className", source.getClassName()); item.put("etcOtcCode", source.getEtcOtcCode());
+                item.put("efficacy", clip(source.getEfficacy(), 1500));
+                item.put("usageDosage", clip(source.getUsageDosage(), 1500));
+                item.put("isDiscontinued", source.getIsDiscontinued()); item.put("updatedAt", source.getUpdatedAt());
+                compact.add(item);
+            }
+            return objectMapper.writeValueAsString(compact);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("약 정보 변환 실패", e);
+        }
+    }
+
+    private static String clip(String value, int max) {
+        return value == null || value.length() <= max ? value : value.substring(0, max) + "…";
+    }
+
+    private List<MedicationChatDto> registeredContext(String question, Long userId) {
+        if (userId == null || userId <= 0 || management == null) return List.of();
+        String text = normalize(question);
+        if (!(text.contains("내약") || text.contains("먹는약") || text.contains("먹고있는약")
+                || text.contains("복용중") || text.contains("복용하는약") || text.contains("처방약")))
+            return List.of();
+        LinkedHashMap<String,MedicationChatDto> result = new LinkedHashMap<>();
+        for (var registration : management.collection(userId)) {
+            if (!"ACTIVE".equals(registration.getUseStatus()) || registration.getMedicationId() == null) continue;
+            MedicationChatDto medication = medicationDao.findChatMedicationByItemSeq(registration.getMedicationId());
+            if (medication != null) result.put(medication.getItemSeq(), medication);
+            if (result.size() == 8) break;
+        }
+        return List.copyOf(result.values());
+    }
+
+    private static Map<String,Object> emergencyReply(MedicationChatDto selected) {
+        Map<String,Object> response = reply("지금 적어주신 내용은 즉시 확인이 필요한 응급 신호일 수 있어요. "
+            + "추가 답변을 기다리지 말고 119에 연락하거나 가까운 응급실로 가세요. 혼자라면 주변 사람에게 바로 도움을 요청하세요.",
+            selected == null ? List.of() : List.of(selected), List.of());
+        response.put("conversationMode", true);
+        response.put("followUpQuestions", List.of());
+        response.put("urgency", "EMERGENCY");
+        return response;
     }
 
     private static Map<String,Object> safetyReply(QuestionAnalysis.Intent intent, MedicationChatDto selected) {
         List<MedicationChatDto> context = selected == null ? List.of() : List.of(selected);
         if (intent == QuestionAnalysis.Intent.DOSAGE_RISK) {
             String subject = selected == null ? "해당 약을" : "선택한 약 ‘" + selected.getItemName() + "’을";
-            return reply(subject + " 질문에 적은 양만큼 복용하지 마세요. 이미 복용했거나 바로 복용하려는 상황이면 "
+            Map<String,Object> response = reply(subject + " 질문에 적은 양만큼 복용하지 마세요. 이미 복용했거나 바로 복용하려는 상황이면 "
                 + "챗봇 답변을 기다리지 말고 즉시 119 또는 가까운 응급실에 도움을 요청하세요.", context, List.of());
+            response.put("urgency", "EMERGENCY");
+            return response;
         }
         return reply("의약품을 발효·가공해 술로 만들거나 허가된 방법과 다르게 사용하는 방법은 안내할 수 없어요. "
             + "약은 제품에 등록된 용법대로 사용해주세요. 정상 복용법이나 DB에 등록된 상호작용은 확인해드릴 수 있어요.",

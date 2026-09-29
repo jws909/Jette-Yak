@@ -1,9 +1,13 @@
 package com.app.chatbot.dto;
+import java.util.List;
 import java.util.Map;
 public class MedicationChatRequest {
-    private java.util.List<String> recentQuestions = java.util.List.of();
-    public java.util.List<String> getRecentQuestions() { return recentQuestions; }
-    public void setRecentQuestions(java.util.List<String> value) { recentQuestions = value == null ? java.util.List.of() : value; }
+    private List<String> recentQuestions = List.of();
+    private List<ChatTurn> conversation = List.of();
+    public List<String> getRecentQuestions() { return recentQuestions; }
+    public void setRecentQuestions(List<String> value) { recentQuestions = value == null ? List.of() : value; }
+    public List<ChatTurn> getConversation() { return conversation; }
+    public void setConversation(List<ChatTurn> value) { conversation = value == null ? List.of() : value; }
     private String itemSeq;
     private String question;
     private Map<String, String> selections = Map.of();
