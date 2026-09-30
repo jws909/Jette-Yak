@@ -26,7 +26,22 @@
 
 등록 건이 여러 개여도 같은 제품은 한 번만 비교한다. 서로 다른 제품에 각각 존재하는 A/B 성분이 병용금기 원문에 일치하는 경우만 표시하며 역방향도 확인한다. 최대 50개 제품까지 비교한다.
 
-성분은 공백과 대소문자를 정규화한 정확 일치만 사용한다. 제품 미연결/성분 없음/DUR 기록 미연결을 구분해 표시한다. 조회 결과가 없다고 안전함을 의미하지 않는다.
+`20260930_ingredient_normalization.sql`을 SQL Developer에서 전체 스크립트 실행(F5)한 뒤 서버를 재시작한다. 이 스크립트는 다음 작업을 함께 수행한다.
+
+- 기존 제품 및 DUR 원문에서 표준 성분과 검증된 별칭 인덱스를 생성한다.
+- 기존 모든 제품의 성분 연결을 다시 만든다.
+- 기존 영양제 중 제품명이 정확히 하나의 제품과 일치하는 기록만 제품 ID에 연결한다.
+- 이후 식약처 API에서 변경된 제품은 동기화 시 자동으로 성분 인덱스를 갱신한다.
+
+공백·문장부호·대소문자 차이는 정규화하고, 한글/영문 번역이나 염 형태처럼 의미 확인이 필요한 별칭은 자동 병합하지 않는다. 검증한 별칭만 `INGREDIENT_ALIASES`에 `VERIFIED=1`, `SOURCE='MANUAL'`로 등록한다. 이미 서로 다른 표준 성분으로 생성된 두 표기를 합칠 때는 별칭 행의 `INGREDIENT_ID`를 검증한 표준 성분 ID로 변경하고 마이그레이션의 `MEDICATION_INGREDIENTS` 재생성 구간을 다시 실행한다. 제품 미연결/성분 없음/DUR 기록 미연결을 구분해 표시하며, 조회 결과가 없다고 안전함을 의미하지 않는다.
+
+적용 확인 SQL:
+
+```sql
+SELECT COUNT(*) FROM ingredient_master;
+SELECT match_status, COUNT(*) FROM medication_ingredients GROUP BY match_status;
+SELECT COUNT(*) FROM routine_medications WHERE medication_id IS NOT NULL;
+```
 
 ## 검증
 

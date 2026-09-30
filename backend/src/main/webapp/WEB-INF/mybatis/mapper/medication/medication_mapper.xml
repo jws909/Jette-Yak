@@ -186,4 +186,26 @@
 		medications
 
 	</select>
+<select id="findIngredientIdByAlias" parameterType="string" resultType="long">
+    SELECT ingredient_id FROM ingredient_aliases
+    WHERE normalized_alias=#{value} AND verified=1
+</select>
+<select id="nextIngredientId" resultType="long">
+    SELECT ingredient_master_seq.NEXTVAL FROM dual
+</select>
+<insert id="insertIngredientMaster" parameterType="map">
+    INSERT INTO ingredient_master(ingredient_id,canonical_name,normalized_name,created_at,updated_at)
+    VALUES(#{ingredientId},#{rawName},#{normalizedName},SYSDATE,SYSDATE)
+</insert>
+<insert id="insertIngredientAlias" parameterType="map">
+    INSERT INTO ingredient_aliases(normalized_alias,ingredient_id,alias_name,source,verified,created_at)
+    VALUES(#{normalizedName},#{ingredientId},#{rawName},'AUTO_EXACT',1,SYSDATE)
+</insert>
+<delete id="deleteMedicationIngredients" parameterType="string">
+    DELETE FROM medication_ingredients WHERE medication_id=#{value}
+</delete>
+<insert id="insertMedicationIngredient" parameterType="map">
+    INSERT INTO medication_ingredients(medication_id,normalized_raw_name,raw_name,ingredient_id,match_status,updated_at)
+    VALUES(#{medicationId},#{normalizedName},#{rawName},#{ingredientId},'EXACT',SYSDATE)
+</insert>
 </mapper>

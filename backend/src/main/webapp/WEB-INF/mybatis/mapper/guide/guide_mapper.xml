@@ -38,6 +38,74 @@
         )
         ORDER BY taboo_type, ingr_a_name, ingr_b_name, grade, age_base, taboo_effect, updated_at
     </select>
+    <!--
+        제품 성분을 표준 성분 ID로 조회한다. 별칭 테이블을 거치므로 DUR과 제품의
+        표기가 달라도 관리자가 검증한 별칭이면 같은 성분으로 비교할 수 있다.
+    -->
+    <resultMap id="medicationIngredient" type="com.app.guide.dto.MedicationIngredientDto" autoMapping="false">
+        <result column="ingredient_id" property="ingredientId" />
+        <result column="canonical_name" property="canonicalName" />
+        <result column="raw_name" property="rawName" />
+        <result column="normalized_name" property="normalizedName" />
+        <result column="match_status" property="matchStatus" />
+    </resultMap>
+    <select id="findMedicationIngredients" parameterType="map" resultMap="medicationIngredient" timeout="10">
+        SELECT mi.ingredient_id, im.canonical_name, mi.raw_name,
+               mi.normalized_raw_name AS normalized_name, mi.match_status
+        FROM medication_ingredients mi
+        LEFT JOIN ingredient_master im ON im.ingredient_id = mi.ingredient_id
+        WHERE mi.medication_id = #{medicationId}
+        ORDER BY mi.raw_name
+    </select>
+    <select id="resolveIngredientAliases" parameterType="map" resultMap="medicationIngredient" timeout="10">
+        SELECT ia.ingredient_id, im.canonical_name, ia.alias_name AS raw_name,
+               ia.normalized_alias AS normalized_name,
+               CASE WHEN ia.verified = 1 THEN 'ALIAS' ELSE 'UNMATCHED' END AS match_status
+        FROM ingredient_aliases ia
+        JOIN ingredient_master im ON im.ingredient_id = ia.ingredient_id
+        WHERE ia.verified = 1 AND ia.normalized_alias IN
+        <foreach collection="names" item="name" open="(" separator="," close=")">#{name}</foreach>
+    </select>
+    <sql id="durCanonicalMatches">
+        SELECT ia.ingredient_id
+        FROM medication_interactions d
+        JOIN ingredient_aliases ia
+          ON ia.verified = 1
+         AND ia.normalized_alias = LOWER(REGEXP_REPLACE(TRIM(d.ingr_a_name), '[[:space:][:punct:]]', ''))
+        WHERE d.taboo_type IN (1, 2, 3, 4)
+        UNION ALL
+        SELECT ib.ingredient_id
+        FROM medication_interactions d
+        JOIN ingredient_aliases ib
+          ON ib.verified = 1
+         AND ib.normalized_alias = LOWER(REGEXP_REPLACE(TRIM(d.ingr_b_name), '[[:space:][:punct:]]', ''))
+        WHERE d.taboo_type = 4 AND d.ingr_b_name IS NOT NULL
+    </sql>
+    <select id="findDurByIngredientIds" parameterType="map" resultMap="dur" timeout="10">
+        SELECT DISTINCT d.ingr_a_name, d.ingr_b_name, d.taboo_type, d.taboo_effect,
+               d.age_base, d.grade, TO_CHAR(d.updated_at, 'YYYY-MM-DD HH24:MI:SS') AS updated_at
+        FROM medication_interactions d
+        WHERE d.taboo_type IN (1,2,3,4) AND (EXISTS (
+            SELECT 1 FROM ingredient_aliases ia
+            WHERE ia.verified=1
+              AND ia.normalized_alias=LOWER(REGEXP_REPLACE(TRIM(d.ingr_a_name), '[[:space:][:punct:]]', ''))
+              AND ia.ingredient_id IN
+              <foreach collection="ingredientIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ) OR (d.taboo_type=4 AND EXISTS (
+            SELECT 1 FROM ingredient_aliases ib
+            WHERE ib.verified=1
+              AND ib.normalized_alias=LOWER(REGEXP_REPLACE(TRIM(d.ingr_b_name), '[[:space:][:punct:]]', ''))
+              AND ib.ingredient_id IN
+              <foreach collection="ingredientIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        )))
+        ORDER BY d.taboo_type, d.ingr_a_name, d.ingr_b_name, d.grade, d.age_base, d.taboo_effect, d.updated_at
+    </select>
+    <select id="findDurMatchedIngredientIds" parameterType="map" resultType="long" timeout="10">
+        SELECT DISTINCT cm.ingredient_id
+        FROM (<include refid="durCanonicalMatches"/>) cm
+        WHERE cm.ingredient_id IN
+        <foreach collection="ingredientIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
     <resultMap id="registered" type="com.app.guide.dto.RegisteredMedicationDto" autoMapping="false">
         <id column="registration_id" property="registrationId" />
         <result column="source" property="source" />
@@ -69,9 +137,10 @@
             WHERE c.user_id = #{userId}
               AND EXISTS (SELECT 1 FROM schedules s WHERE s.cabinet_id = c.cabinet_id AND s.user_id = #{userId})
             UNION ALL
-            SELECT 'R:' || TO_CHAR(r.routine_id), 'ROUTINE', CAST(NULL AS VARCHAR2(20)), r.supplement_name,
-                CAST(NULL AS VARCHAR2(200)), CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(10)), r.notes, r.take_time
+            SELECT 'R:' || TO_CHAR(r.routine_id), 'ROUTINE', r.medication_id, NVL(m.item_name,r.supplement_name),
+                m.entp_name, CAST(NULL AS VARCHAR2(10)), CAST(NULL AS VARCHAR2(10)), r.notes, r.take_time
             FROM routine_medications r
+            LEFT JOIN medications m ON m.medication_id=r.medication_id
             WHERE r.user_id = #{userId}
               AND (r.status IS NULL OR r.status != 'ENDED')
               AND EXISTS (SELECT 1 FROM schedules s WHERE s.routine_id = r.routine_id AND s.user_id = #{userId})
@@ -106,12 +175,16 @@
             CASE WHEN EXISTS (SELECT 1 FROM schedules s WHERE s.cabinet_id = c.cabinet_id AND s.user_id = #{userId}) THEN 'ACTIVE' ELSE 'STORED' END default_status
         FROM cabinet_medications c JOIN medications m ON m.medication_id=c.medication_id WHERE c.user_id=#{userId}
         UNION ALL
-        SELECT 'R:' || TO_CHAR(r.routine_id),'ROUTINE',NULL,r.supplement_name,NULL,NULL,NULL,NULL,NULL,r.notes,r.take_time,NULL,
+        SELECT 'R:' || TO_CHAR(r.routine_id),'ROUTINE',r.medication_id,
+            NVL(m.item_name, r.supplement_name),m.entp_name,m.material_name,m.item_image_url,
+            NULL,NULL,r.notes,r.take_time,NULL,
             CASE WHEN r.status='ENDED' THEN 'ENDED' ELSE 'CURRENT' END,
             CASE WHEN r.status='ENDED' THEN 'ENDED'
                  WHEN EXISTS (SELECT 1 FROM schedules s WHERE s.routine_id = r.routine_id AND s.user_id = #{userId}) THEN 'ACTIVE'
                  ELSE 'PAUSED' END default_status
-        FROM routine_medications r WHERE r.user_id=#{userId}
+        FROM routine_medications r
+        LEFT JOIN medications m ON m.medication_id=r.medication_id
+        WHERE r.user_id=#{userId}
     </sql>
     <select id="collection" resultMap="managed" timeout="15">
         SELECT r.*, CASE WHEN r.period_state IN ('ENDED','UPCOMING') THEN r.period_state
@@ -136,6 +209,10 @@
         WHEN NOT MATCHED THEN INSERT (user_id,registration_id,use_status,updated_at)
             VALUES (v.user_id,v.registration_id,#{status},(SYSDATE + (9/24)))
     </update>
+    <delete id="deleteUseState" parameterType="map">
+        DELETE FROM medication_use_states
+        WHERE user_id=#{userId} AND registration_id=#{registrationId}
+    </delete>
     <update id="updateAiSummary" parameterType="map">
         UPDATE medications
         SET ai_summary_json = #{aiSummaryJson, jdbcType=CLOB},

@@ -264,17 +264,23 @@ public class MedicationChatService {
         boolean pair = analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION && sources.size() > 1;
         int type = analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION ? 4 : analysis.query().tabooType();
         List<Map<String,Object>> reports = new ArrayList<>();
-        List<Set<String>> ingredients = sources.stream().map(m -> Set.copyOf(com.app.guide.service.DurGuideService.ingredients(m.getMaterialName()).stream().map(MedicationChatService::normalize).toList())).toList();
+        List<com.app.guide.service.DurGuideService.DurResult> findings=sources.stream()
+            .map(source->dur.find(source.getItemSeq(),source.getMaterialName())).toList();
+        Map<String,Long> canonicalNames=new LinkedHashMap<>();
+        findings.forEach(found->canonicalNames.putAll(found.canonicalIngredientIds()));
+        List<Set<String>> ingredients=findings.stream().map(found->Set.copyOf(found.queriedIngredients().stream()
+            .map(name->ingredientKey(name,canonicalNames)).toList())).toList();
         LinkedHashMap<String,com.app.guide.dto.DurInfoDto> pairs = new LinkedHashMap<>();
         List<String> unmatched = new ArrayList<>();
-        for (MedicationChatDto source : sources) {
-            var found = dur.find(source.getMaterialName());
+        for (int sourceIndex=0;sourceIndex<sources.size();sourceIndex++) {
+            MedicationChatDto source=sources.get(sourceIndex);
+            var found=findings.get(sourceIndex);
             unmatched.addAll(found.unmatchedIngredients());
             var rows = found.items().stream().filter(r -> (type == 0 || r.getTabooType() == type)
                 && (analysis.query().grade().isEmpty() || analysis.query().grade().equals(r.getGrade()))
                 && (analysis.query().ageBase().isEmpty() || r.getAgeBase() != null && r.getAgeBase().contains(analysis.query().ageBase()))).toList();
             if (pair) {
-                for (var row : rows) if (bridges(ingredients, row))
+                for (var row : rows) if (bridgesCanonical(ingredients, row, canonicalNames))
                     pairs.put(row.getIngrAName()+"|"+row.getIngrBName()+"|"+row.getTabooEffect(),row);
             } else reports.add(Map.of("label",source.getItemName(),"items",rows.stream().limit(100).toList(),"total",rows.size(),
                 "unmatchedIngredients",found.unmatchedIngredients(),"status",found.status()));
@@ -284,7 +290,7 @@ public class MedicationChatService {
         var response = reply(pair ? "선택한 약들의 성분을 서로 대조한 병용금기 조회 결과입니다."
             : "선택한 약의 성분에 연결된 DUR 조회 결과입니다.",sources,List.of());
         response.put("durReports",reports);
-        response.put("durNotice","성분명 일치로 조회한 DB 원문입니다. 표기가 다른 성분은 연결되지 않을 수 있습니다. 조회 기록이 없다고 안전하다고 판단할 수 없습니다. 개인별 복용 가능 여부를 판정한 결과가 아닙니다. 기록은 항목별 최대 100건까지 표시합니다.");
+        response.put("durNotice","제품 성분과 검증된 별칭을 표준 성분으로 연결해 조회한 DUR 원문입니다. 아직 검증되지 않은 별칭은 누락될 수 있습니다. 조회 기록이 없다고 안전하다고 판단할 수 없습니다. 개인별 복용 가능 여부를 판정한 결과가 아닙니다. 기록은 항목별 최대 100건까지 표시합니다.");
         return response;
     }
     static boolean bridges(List<Set<String>> ingredients, com.app.guide.dto.DurInfoDto row) {
@@ -292,6 +298,18 @@ public class MedicationChatService {
         for(int i=0;i<ingredients.size();i++) for(int j=0;j<ingredients.size();j++)
             if(i!=j && ingredients.get(i).contains(normalize(row.getIngrAName())) && ingredients.get(j).contains(normalize(row.getIngrBName()))) return true;
         return false;
+    }
+    private static boolean bridgesCanonical(List<Set<String>> ingredients,com.app.guide.dto.DurInfoDto row,Map<String,Long> canonicalIds){
+        if(row.getTabooType()!=4||row.getIngrBName()==null)return false;
+        String a=ingredientKey(row.getIngrAName(),canonicalIds),b=ingredientKey(row.getIngrBName(),canonicalIds);
+        for(int i=0;i<ingredients.size();i++)for(int j=0;j<ingredients.size();j++)
+            if(i!=j&&ingredients.get(i).contains(a)&&ingredients.get(j).contains(b))return true;
+        return false;
+    }
+    private static String ingredientKey(String name,Map<String,Long> canonicalIds){
+        String normalized=com.app.guide.service.DurGuideService.normalize(name);
+        Long id=canonicalIds.get(normalized);
+        return id==null?"name:"+normalized:"id:"+id;
     }
     private static String normalize(String text) {
         return text == null ? "" : text.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);

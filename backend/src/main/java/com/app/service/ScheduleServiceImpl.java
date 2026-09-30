@@ -431,11 +431,16 @@ public class ScheduleServiceImpl implements ScheduleService {
                 throw new IllegalArgumentException("영양제 이름을 입력해 주세요.");
             }
 
-            Long routineId = scheduleDAO.findOrCreateRoutineId(dto.getUserId(), supName.trim(), dto.getScheduledTime());
+            String linkedMedicationId=dto.getMedicationId();
+            if(linkedMedicationId!=null&&!linkedMedicationId.isBlank()
+                    && !scheduleDAO.checkMedicationExists(linkedMedicationId))
+                throw new IllegalArgumentException("선택한 제품 정보를 찾을 수 없습니다.");
+            Long routineId = scheduleDAO.findOrCreateRoutineId(dto.getUserId(), supName.trim(),
+                    dto.getScheduledTime(), "일정에서 등록", linkedMedicationId);
             dto.setRoutineId(routineId);
             dto.setCabinetId(null);
             dto.setPrescriptionId(null);
-            dto.setMedicationId(null);
+            dto.setMedicationId(linkedMedicationId);
         }
 
         LocalDate startDate;

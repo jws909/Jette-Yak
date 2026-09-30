@@ -87,6 +87,7 @@
     <insert id="insertRoutineMedication" parameterType="map">
         INSERT INTO routine_medications (
             user_id,
+            medication_id,
             supplement_name,
             take_time,
             notes,
@@ -94,6 +95,7 @@
             created_at
         ) VALUES (
             #{userId},
+            #{medicationId, jdbcType=VARCHAR},
             #{supplementName},
             #{takeTime, jdbcType=VARCHAR},
             NVL(#{notes, jdbcType=VARCHAR}, '보관 등록'),
@@ -101,6 +103,12 @@
             SYSDATE
         )
     </insert>
+    <!-- 검색 결과에서 선택한 영양제는 기존 자유 입력 기록에도 제품 연결을 보강한다. -->
+    <update id="updateRoutineMedicationLink" parameterType="map">
+        UPDATE routine_medications SET medication_id=#{medicationId}
+        WHERE routine_id=#{routineId} AND user_id=#{userId}
+          AND (medication_id IS NULL OR medication_id=#{medicationId})
+    </update>
 
     <!-- 8. 월별 요약 조회: 달력 점/바 인디케이터 통합 -->
     <select id="selectMonthlyScheduleSummary" parameterType="map" resultType="map">

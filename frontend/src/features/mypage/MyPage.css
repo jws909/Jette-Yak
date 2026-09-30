@@ -528,6 +528,19 @@ input:checked + .toggle-slider:before {
   flex-shrink: 0;
 }
 
+.med-add-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.med-add-actions .med-add-badge {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
 .med-add-badge.badge-cabinet {
   background: #e8f4ed;
   color: #2b7a4b;

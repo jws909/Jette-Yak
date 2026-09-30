@@ -41,4 +41,10 @@ public class MedicationDaoImpl implements MedicationDao {
 		 */
 		return sqlSession.selectOne(NAMESPACE + "countMedications");
 	}
+    @Override public Long findIngredientIdByAlias(String value) { return sqlSession.selectOne(NAMESPACE+"findIngredientIdByAlias", value); }
+    @Override public Long nextIngredientId() { return sqlSession.selectOne(NAMESPACE+"nextIngredientId"); }
+    @Override public int insertIngredientMaster(Map<String,Object> values) { return sqlSession.insert(NAMESPACE+"insertIngredientMaster", values); }
+    @Override public int insertIngredientAlias(Map<String,Object> values) { return sqlSession.insert(NAMESPACE+"insertIngredientAlias", values); }
+    @Override public int deleteMedicationIngredients(String medicationId) { return sqlSession.delete(NAMESPACE+"deleteMedicationIngredients", medicationId); }
+    @Override public int insertMedicationIngredient(Map<String,Object> values) { return sqlSession.insert(NAMESPACE+"insertMedicationIngredient", values); }
 }
