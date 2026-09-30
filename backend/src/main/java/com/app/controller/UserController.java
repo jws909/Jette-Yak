@@ -5,6 +5,7 @@ import com.app.domain.User;
 import com.app.mapper.UserMapper;
 import com.app.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Collections;
+import javax.sql.DataSource;
 
 /**
  * 회원가입 / 중복확인 컨트롤러 (DB 연동 + 형식 검증 버전).
@@ -35,6 +37,10 @@ public class UserController {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    @Qualifier("data_source")
+    private DataSource dataSource;
 
     @Autowired(required = false)
     private com.app.dao.ScheduleDAO scheduleDAO;
@@ -113,12 +119,52 @@ public class UserController {
         response.put("username", user.getLoginId());
         response.put("nickname", user.getNickname());
         response.put("profileImageUrl", profileImagePath(user));
+        response.put("pushEnabled", user.getPushEnabled() == null ? 1 : user.getPushEnabled());
         response.put("role", user.getRole() == null ? "USER" : user.getRole());
         response.put("breakfastTime", user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
         response.put("lunchTime", user.getLunchTime() != null ? user.getLunchTime() : "12:00");
         response.put("dinnerTime", user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
         response.put("bedtime", user.getBedtime() != null ? user.getBedtime() : "22:00");
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping(value = "/push-settings", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> updatePushSettings(@RequestBody Map<String, Object> body) {
+        Long userId = body.get("userId") == null ? null : Long.valueOf(body.get("userId").toString());
+        String username = body.get("username") == null ? null : body.get("username").toString().trim();
+        Object enabledValue = body.get("pushEnabled");
+        if (((userId == null || userId <= 0L) && (username == null || username.isBlank())) || enabledValue == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "알림 설정 정보를 확인해 주세요."));
+        }
+
+        boolean enabled = enabledValue instanceof Boolean
+                ? (Boolean) enabledValue
+                : "true".equalsIgnoreCase(enabledValue.toString()) || "1".equals(enabledValue.toString());
+        try {
+            int updated;
+            if (userId != null && userId > 0L) {
+                try (java.sql.Connection connection = dataSource.getConnection();
+                     java.sql.PreparedStatement statement = connection.prepareStatement(
+                             "UPDATE users SET push_enabled = ?, updated_at = SYSDATE WHERE user_id = ?")) {
+                    statement.setInt(1, enabled ? 1 : 0);
+                    statement.setLong(2, userId);
+                    updated = statement.executeUpdate();
+                }
+            } else {
+                try (java.sql.Connection connection = dataSource.getConnection();
+                     java.sql.PreparedStatement statement = connection.prepareStatement(
+                             "UPDATE users SET push_enabled = ?, updated_at = SYSDATE WHERE login_id = ?")) {
+                    statement.setInt(1, enabled ? 1 : 0);
+                    statement.setString(2, username);
+                    updated = statement.executeUpdate();
+                }
+            }
+            if (updated == 0) return ResponseEntity.notFound().build();
+            return ResponseEntity.ok(Map.of("success", true, "pushEnabled", enabled ? 1 : 0));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "message", "알림 설정 저장 중 DB 오류가 발생했습니다."));
+        }
     }
 
     /**

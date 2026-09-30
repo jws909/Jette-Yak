@@ -152,6 +152,13 @@
 			<artifactId>commons-io</artifactId>
 			<version>2.16.1</version>
 		</dependency>
+		
+		<!-- MySQL Connector/J -->
+<dependency>
+    <groupId>com.mysql</groupId>
+    <artifactId>mysql-connector-j</artifactId>
+    <version>8.3.0</version> <!-- 본인 프로젝트 환경에 맞는 버전 (또는 8.0.33 등) -->
+</dependency>
 	</dependencies>
 	
 </project>
