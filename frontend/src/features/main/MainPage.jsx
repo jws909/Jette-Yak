@@ -710,8 +710,8 @@ export default function MainPage({ user }) {
         items: combinedItems,
         allCount: allPrescriptions.length,
         aiGuide: {
-          purpose: `등록된 처방전 ${allPrescriptions.length}건을 종합하여 통합 관리 중입니다.`,
-          summary: `여러 의료기관의 처방전을 통합하여 처방 의약품 간 중복 성분 및 상호작용을 상시 검토하고 최적의 복약 일정을 안내합니다.`
+          purpose: '등록된 모든 처방 약품을 한눈에 모아 복약 일정을 안내합니다.',
+          summary: '복용 중인 처방전들의 약품을 통합하여 중복 성분 및 상호작용을 확인하고 일정을 관리합니다.'
         }
       };
     } else {
@@ -1931,7 +1931,9 @@ export default function MainPage({ user }) {
               {prescriptionData?.aiGuide?.purpose && (
                 <div className="summary-ai-guide-banner">
                   <div className="ai-guide-purpose-row">
-                    <span className="ai-guide-tag">AI 처방 목적</span>
+                    <span className="ai-guide-tag">
+                      {selectedRxId === 'all' ? '통합 복약 안내' : '이 처방을 받은 이유 (AI)'}
+                    </span>
                     <strong className="ai-guide-purpose-text">{prescriptionData.aiGuide.purpose}</strong>
                   </div>
                   {prescriptionData.aiGuide.summary && (
@@ -3020,7 +3022,7 @@ export default function MainPage({ user }) {
                               if (!purpose) return null;
                               return (
                                 <div className="manage-card-ai-purpose">
-                                  <span className="ai-badge-sm">AI 처방 목적</span>
+                                  <span className="ai-badge-sm">이 처방을 받은 이유 (AI)</span>
                                   <span className="ai-purpose-text">{purpose}</span>
                                 </div>
                               );
