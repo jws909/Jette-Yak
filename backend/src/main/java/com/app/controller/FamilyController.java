@@ -179,20 +179,35 @@ public class FamilyController {
 	 */
 	@PostMapping("/invite")
 	public ResponseEntity<?> sendInvitation(@RequestBody Map<String, Object> req) {
-		Long senderId = Long.valueOf(req.get("senderId").toString());
-		String targetLoginId = (String) req.get("targetLoginId");
-		String role = req.get("role") != null ? (String) req.get("role") : "BABY";
-
-		if (targetLoginId == null || targetLoginId.trim().isEmpty()) {
-			return ResponseEntity.badRequest().body(Collections.singletonMap("message", "초대할 상대방의 아이디를 입력해주세요."));
-		}
-
 		Connection conn = null;
 		try {
 			conn = dataSource.getConnection();
 			conn.setAutoCommit(false);
 
-			// 1) 초대를 보내는 유저의 FAMILY_ID 조회 (없으면 생성)
+			Long senderId = Long.valueOf(req.get("senderId").toString());
+			String targetLoginId = (String) req.get("targetLoginId");
+			String role = req.get("role") != null ? (String) req.get("role") : "BABY";
+
+			// 1) 대상 회원 존재 여부 및 USER_ID 확인
+			Long targetUserId = null;
+			String findUserSql = "SELECT USER_ID FROM USERS WHERE LOGIN_ID = ?";
+			try (PreparedStatement pstmt = conn.prepareStatement(findUserSql)) {
+				pstmt.setString(1, targetLoginId);
+				try (ResultSet rs = pstmt.executeQuery()) {
+					if (rs.next()) {
+						targetUserId = rs.getLong("USER_ID");
+					} else {
+						return ResponseEntity.badRequest().body(Collections.singletonMap("message", "해당 아이디를 가진 회원을 찾을 수 없습니다."));
+					}
+				}
+			}
+
+			// 자기 자신 초대 방지
+			if (senderId.equals(targetUserId)) {
+				return ResponseEntity.badRequest().body(Collections.singletonMap("message", "본인은 초대할 수 없습니다."));
+			}
+
+			// 2) 보낸 사람의 FAMILY_ID 확인 (없으면 새로 생성)
 			Long familyId = null;
 			String checkFamSql = "SELECT FAMILY_ID FROM USERS WHERE USER_ID = ?";
 			try (PreparedStatement pstmt = conn.prepareStatement(checkFamSql)) {
@@ -200,69 +215,47 @@ public class FamilyController {
 				try (ResultSet rs = pstmt.executeQuery()) {
 					if (rs.next()) {
 						familyId = rs.getLong("FAMILY_ID");
-						if (rs.wasNull()) familyId = 0L;
+						if (rs.wasNull()) familyId = null;
 					}
 				}
 			}
 
 			if (familyId == null || familyId == 0L) {
-				String insertFamSql = "INSERT INTO FAMILIES (FAMILY_NAME) VALUES (?)";
-				try (PreparedStatement pstmt = conn.prepareStatement(insertFamSql, new String[] { "FAMILY_ID" })) {
-					pstmt.setString(1, "우리 가족");
+				// 가족 그룹 시퀀스 생성
+				String createFamSql = "INSERT INTO FAMILY_GROUPS (FAMILY_ID, CREATED_AT) VALUES (FAMILY_SEQ.NEXTVAL, SYSDATE)";
+				try (PreparedStatement pstmt = conn.prepareStatement(createFamSql)) {
 					pstmt.executeUpdate();
-					try (ResultSet rs = pstmt.getGeneratedKeys()) {
-						if (rs.next()) familyId = rs.getLong(1);
+				}
+				String getSeqSql = "SELECT FAMILY_SEQ.CURRVAL FROM DUAL";
+				try (PreparedStatement pstmt = conn.prepareStatement(getSeqSql);
+					 ResultSet rs = pstmt.executeQuery()) {
+					if (rs.next()) {
+						familyId = rs.getLong(1);
 					}
 				}
-				String updateGuardSql = "UPDATE USERS SET FAMILY_ID = ? WHERE USER_ID = ?";
-				try (PreparedStatement pstmt = conn.prepareStatement(updateGuardSql)) {
+				// 본인 계정에 가족 ID 반영
+				String updateMyFamSql = "UPDATE USERS SET FAMILY_ID = ? WHERE USER_ID = ?";
+				try (PreparedStatement pstmt = conn.prepareStatement(updateMyFamSql)) {
 					pstmt.setLong(1, familyId);
 					pstmt.setLong(2, senderId);
 					pstmt.executeUpdate();
 				}
 			}
 
-			// 2) 대상 유저 검색 (오직 LOGIN_ID로만 조회)
-			Long targetUserId = null;
-			Long targetFamilyId = null;
-			String findUserSql = "SELECT USER_ID, FAMILY_ID FROM USERS WHERE LOGIN_ID = ?";
-			try (PreparedStatement pstmt = conn.prepareStatement(findUserSql)) {
-				pstmt.setString(1, targetLoginId.trim());
-				try (ResultSet rs = pstmt.executeQuery()) {
-					if (rs.next()) {
-						targetUserId = rs.getLong("USER_ID");
-						targetFamilyId = rs.getLong("FAMILY_ID");
-						if (rs.wasNull()) targetFamilyId = 0L;
-					}
-				}
-			}
-
-			if (targetUserId == null) {
-				return ResponseEntity.status(404).body(Collections.singletonMap("message", "존재하지 않는 회원 아이디입니다."));
-			}
-
-			if (targetUserId.equals(senderId)) {
-				return ResponseEntity.badRequest().body(Collections.singletonMap("message", "본인 아이디로는 초대를 보낼 수 없습니다."));
-			}
-
-			if (familyId.equals(targetFamilyId)) {
-				return ResponseEntity.badRequest().body(Collections.singletonMap("message", "이미 같은 가족으로 등록되어 있는 회원입니다."));
-			}
-
-			// 3) 대기 중(PENDING)인 초대 내역 중복 체크
+			// 3) 이미 대기 중인 초대장이 있는지 체크
 			String checkDupSql = "SELECT COUNT(*) FROM FAMILY_INVITATIONS WHERE FAMILY_ID = ? AND RECEIVER_ID = ? AND STATUS = 'PENDING'";
 			try (PreparedStatement pstmt = conn.prepareStatement(checkDupSql)) {
 				pstmt.setLong(1, familyId);
 				pstmt.setLong(2, targetUserId);
 				try (ResultSet rs = pstmt.executeQuery()) {
 					if (rs.next() && rs.getInt(1) > 0) {
-						return ResponseEntity.badRequest().body(Collections.singletonMap("message", "이미 초대를 보낸 상태입니다. 상대방의 승인을 기다려주세요."));
+						return ResponseEntity.badRequest().body(Collections.singletonMap("message", "이미 대기 중인 초대가 존재합니다."));
 					}
 				}
 			}
 
-			// 4) 초대장 등록
-			String insertInvSql = "INSERT INTO FAMILY_INVITATIONS (FAMILY_ID, SENDER_ID, RECEIVER_ID, STATUS, CREATED_AT) VALUES (?, ?, ?, 'PENDING', SYSDATE)";
+			// 4) 초대장 등록 (물음표 4개와 파라미터 1, 2, 3, 4 완벽 매핑)
+			String insertInvSql = "INSERT INTO FAMILY_INVITATIONS (FAMILY_ID, SENDER_ID, RECEIVER_ID, ROLE, STATUS, CREATED_AT) VALUES (?, ?, ?, ?, 'PENDING', SYSDATE)";
 			try (PreparedStatement pstmt = conn.prepareStatement(insertInvSql)) {
 				pstmt.setLong(1, familyId);
 				pstmt.setLong(2, senderId);
