@@ -181,6 +181,7 @@ public class FamilyController {
 	public ResponseEntity<?> sendInvitation(@RequestBody Map<String, Object> req) {
 		Long senderId = Long.valueOf(req.get("senderId").toString());
 		String targetLoginId = (String) req.get("targetLoginId");
+		String role = req.get("role") != null ? (String) req.get("role") : "BABY";
 
 		if (targetLoginId == null || targetLoginId.trim().isEmpty()) {
 			return ResponseEntity.badRequest().body(Collections.singletonMap("message", "초대할 상대방의 아이디를 입력해주세요."));
@@ -266,6 +267,7 @@ public class FamilyController {
 				pstmt.setLong(1, familyId);
 				pstmt.setLong(2, senderId);
 				pstmt.setLong(3, targetUserId);
+				pstmt.setString(4, role);
 				pstmt.executeUpdate();
 			}
 
@@ -338,6 +340,7 @@ public class FamilyController {
 
 			// 1) 대상 초대 확인
 			Long familyId = null;
+			String inviteRole = null;
 			String checkSql = "SELECT FAMILY_ID FROM FAMILY_INVITATIONS WHERE INVITE_ID = ? AND RECEIVER_ID = ? AND STATUS = 'PENDING'";
 			try (PreparedStatement pstmt = conn.prepareStatement(checkSql)) {
 				pstmt.setLong(1, inviteId);
@@ -345,6 +348,7 @@ public class FamilyController {
 				try (ResultSet rs = pstmt.executeQuery()) {
 					if (rs.next()) {
 						familyId = rs.getLong("FAMILY_ID");
+						inviteRole = rs.getString("ROLE");
 					} else {
 						return ResponseEntity.badRequest().body(Collections.singletonMap("message", "유효하지 않거나 이미 처리된 초대입니다."));
 					}
@@ -357,7 +361,8 @@ public class FamilyController {
 				String updateUSql = "UPDATE USERS SET FAMILY_ID = ? WHERE USER_ID = ?";
 				try (PreparedStatement pstmt = conn.prepareStatement(updateUSql)) {
 					pstmt.setLong(1, familyId);
-					pstmt.setLong(2, userId);
+					pstmt.setString(2, inviteRole);
+					pstmt.setLong(3, userId);
 					pstmt.executeUpdate();
 				}
 
