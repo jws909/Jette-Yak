@@ -33,6 +33,43 @@ export default function FamilyPage(props) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const [inviteRole, setInviteRole] = useState('BABY'); // 기본값: 자녀
+
+  // 역할 영문 -> 한글 변환 함수
+  // 역할 한글 변환 함수 (영문 대소문자/공백 완벽 대응)
+  // 역할 한글 변환 함수 (영문 대소문자/공백 완벽 대응)
+  // 역할 한글 변환 함수 (GUAR 대응)
+  const getRoleLabel = (role) => {
+    if (!role) return '';
+    const r = String(role).trim().toUpperCase();
+
+    // 보호자 / 관리자 (GUAR, PROT 등)
+    if (['GUAR', 'GUARDIAN', 'PROT', 'PROTECTOR', '보호자'].includes(r)) {
+      return '(보호자)';
+    }
+
+    // 부모님
+    if (['PARENT', 'FATHER', 'MOTHER', 'PARENTS', '부모님', '부모', '아빠', '엄마'].includes(r)) {
+      return '(부모님)';
+    }
+
+    // 자녀
+    if (['BABY', 'CHILD', 'KID', 'SON', 'DAUGHTER', '자녀', '아이', '아기'].includes(r)) {
+      return '(자녀)';
+    }
+
+    // 배우자
+    if (['SPOUSE', 'HUSBAND', 'WIFE', '배우자', '남편', '아내'].includes(r)) {
+      return '(배우자)';
+    }
+
+    // 본인
+    if (['SELF', 'ME', '본인'].includes(r)) {
+      return '(본인)';
+    }
+
+    return `(${role})`;
+  };
   // 체크리스트 내부 시간대 필터 탭 ('all' | 'morning' | 'lunch' | 'evening')
   const [timeFilter, setTimeFilter] = useState('all');
 
@@ -417,7 +454,8 @@ export default function FamilyPage(props) {
       },
       body: JSON.stringify({
         senderId: myUserId,                 // 백엔드가 요구하는 키: senderId
-        targetLoginId: inviteLoginId.trim() // 백엔드가 요구하는 키: targetLoginId
+        targetLoginId: inviteLoginId.trim(), // 백엔드가 요구하는 키: targetLoginId
+        role: inviteRole,
       }),
     });
 
@@ -499,16 +537,24 @@ export default function FamilyPage(props) {
             >
               전체
             </button>
-            {familyMembers.map((member) => (
-              <button
-                key={member.userId}
-                type="button"
-                className={`family-chip ${String(selectedMemberId) === String(member.userId) ? 'selected' : ''}`}
-                onClick={() => setSelectedMemberId(member.userId)}
-              >
-                {member.name}
-              </button>
-            ))}
+            {familyMembers.map((member) => {
+              // 현재 로그인한 본인 계정인지 확인
+              const isMe = Number(member.userId) === Number(currentUserId);
+
+              return (
+                <button
+                  key={member.userId}
+                  type="button"
+                  className={`family-chip ${String(selectedMemberId) === String(member.userId) ? 'selected' : ''}`}
+                  onClick={() => setSelectedMemberId(member.userId)}
+                >
+                  {member.name}
+                  <span style={{ fontSize: '0.85em', marginLeft: '4px', opacity: 0.85 }}>
+                    {isMe ? '(본인)' : getRoleLabel(member.role)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
           <div className="family-action-buttons">
@@ -1014,6 +1060,16 @@ export default function FamilyPage(props) {
                       autoFocus
                       required
                     />
+
+                    <select 
+                      value={inviteRole} 
+                      onChange={(e) => setInviteRole(e.target.value)}
+                      style={{ marginLeft: '8px', padding: '6px' }}
+                    >
+                      <option value="BABY">자녀</option>
+                      <option value="PARENT">부모님</option>
+                      <option value="SPOUSE">배우자</option>
+                    </select>
                   </div>
                 </div>
 
