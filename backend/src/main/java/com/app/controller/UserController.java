@@ -45,6 +45,9 @@ public class UserController {
     @Autowired(required = false)
     private com.app.chatbot.client.GeminiService geminiService;
 
+    @Autowired
+    private com.app.service.EverydayMedicationService everydayMedicationService;
+
     @GetMapping(value = "/check-username", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Map<String, Object>> checkUsername(@RequestParam("value") String value) {
         try {
@@ -396,6 +399,9 @@ public class UserController {
                 return ResponseEntity.badRequest().body(Map.of("success", false, "message", "영양제 이름을 입력해주세요."));
             }
             if (scheduleDAO != null) {
+                if (medicationId != null && !medicationId.isBlank() && !scheduleDAO.checkMedicationExists(medicationId)) {
+                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "선택한 제품 정보를 찾을 수 없습니다."));
+                }
                 String takeTime = body.get("takeTime") != null && !body.get("takeTime").toString().trim().isEmpty()
                         ? body.get("takeTime").toString().trim() : null;
                 String notes = body.get("notes") != null && !body.get("notes").toString().trim().isEmpty()
@@ -435,7 +441,7 @@ public class UserController {
                     notes = "보관 등록";
                 }
 
-                Long routineId = scheduleDAO.findOrCreateRoutineId(userId, name, takeTime, notes);
+                Long routineId = scheduleDAO.findOrCreateRoutineId(userId, name, takeTime, notes, medicationId);
                 if (medicationGuideDao != null) {
                     try {
                         medicationGuideDao.updateStatus(userId, "R:" + routineId, "PAUSED");
@@ -477,23 +483,12 @@ public class UserController {
         }
         userId = resolvedUserId;
 
-        if (scheduleDAO != null) {
-            if ("CABINET".equalsIgnoreCase(source) || "C".equalsIgnoreCase(source)) {
-                scheduleDAO.deleteCabinetMedication(userId, id);
-                scheduleDAO.deleteSchedulesByCabinetId(userId, id);
-            } else if ("ROUTINE".equalsIgnoreCase(source) || "R".equalsIgnoreCase(source)) {
-                scheduleDAO.deleteRoutineMedication(userId, id);
-                scheduleDAO.deleteSchedulesByRoutineId(userId, id);
-            }
+        try {
+            everydayMedicationService.delete(userId,source,id);
+            return ResponseEntity.ok(Map.of("success",true,"message","삭제되었습니다."));
+        } catch(IllegalArgumentException exception) {
+            return ResponseEntity.badRequest().body(Map.of("success",false,"message",exception.getMessage()));
         }
-
-        if (medicationGuideDao != null) {
-            try {
-                medicationGuideDao.saveOverallGuide(userId, null);
-            } catch (Exception ignored) {}
-        }
-
-        return ResponseEntity.ok(Map.of("success", true, "message", "삭제되었습니다."));
     }
 
     /**

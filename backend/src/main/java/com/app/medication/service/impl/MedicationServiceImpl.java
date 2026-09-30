@@ -16,17 +16,20 @@ import com.app.medication.dao.MedicationDao;
 import com.app.medication.dto.MedicationPermitApiResponse;
 import com.app.medication.dto.MedicationPermitDto;
 import com.app.medication.service.MedicationService;
+import com.app.medication.service.IngredientIndexService;
 import com.app.util.PublicDataApiKey;
 
 @Service
 public class MedicationServiceImpl implements MedicationService {
 
 	private final MedicationDao medicationDao;
+	private final IngredientIndexService ingredientIndexService;
 
 	@Autowired
-	public MedicationServiceImpl(MedicationDao medicationDao) {
+	public MedicationServiceImpl(MedicationDao medicationDao, IngredientIndexService ingredientIndexService) {
 
 		this.medicationDao = medicationDao;
+		this.ingredientIndexService = ingredientIndexService;
 	}
 
 	/*
@@ -164,6 +167,7 @@ public class MedicationServiceImpl implements MedicationService {
 			 * 아무 작업 없음 → 0
 			 */
 			int result = medicationDao.mergePermitMedication(medication);
+			if (result > 0) ingredientIndexService.indexMedication(medication.getItemSeq(), medication.getMaterialName());
 
 			processedCount++;
 
@@ -414,6 +418,7 @@ public class MedicationServiceImpl implements MedicationService {
 				 * → 0
 				 */
 				int result = medicationDao.mergePermitMedication(medication);
+				if (result > 0) ingredientIndexService.indexMedication(medication.getItemSeq(), medication.getMaterialName());
 
 				/*
 				 * API에서 정상적으로 읽어서

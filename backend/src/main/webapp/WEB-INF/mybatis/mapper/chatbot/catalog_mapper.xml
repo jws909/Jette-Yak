@@ -18,7 +18,16 @@
 <when test="f.field == 'COMPANY'">INSTR(LOWER(REGEXP_REPLACE(m.entp_name, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
 <when test="f.field == 'CLASSIFICATION'">INSTR(LOWER(REGEXP_REPLACE(m.class_name, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
 <when test="f.field == 'CATEGORY'">INSTR(LOWER(REGEXP_REPLACE(m.etc_otc_code, '[[:space:]]', '')), #{f.value}) &gt; 0</when>
- <when test="f.field == 'INGREDIENT'">(INSTR(LOWER(REGEXP_REPLACE(m.material_name, '[[:space:]]', '')), #{f.value}) &gt; 0 OR INSTR(LOWER(REGEXP_REPLACE(REGEXP_SUBSTR(m.item_name, '\([^)]*\)'), '[[:space:]]', '')), #{f.value}) &gt; 0)</when>
+ <when test="f.field == 'INGREDIENT'">(
+   INSTR(LOWER(REGEXP_REPLACE(m.material_name, '[[:space:]]', '')), #{f.value}) &gt; 0
+   OR INSTR(LOWER(REGEXP_REPLACE(REGEXP_SUBSTR(m.item_name, '\([^)]*\)'), '[[:space:]]', '')), #{f.value}) &gt; 0
+   OR EXISTS (
+     SELECT 1 FROM medication_ingredients mi
+     JOIN ingredient_aliases ia ON ia.ingredient_id=mi.ingredient_id AND ia.verified=1
+     WHERE mi.medication_id=m.medication_id
+       AND INSTR(ia.normalized_alias, LOWER(REGEXP_REPLACE(#{f.value}, '[[:space:][:punct:]]', ''))) &gt; 0
+   )
+ )</when>
  <when test="f.field == 'CODE'">(INSTR(LOWER(REGEXP_REPLACE(m.medication_id, '[[:space:]]', '')), #{f.value}) &gt; 0 OR INSTR(LOWER(REGEXP_REPLACE(m.edi_code, '[[:space:]]', '')), #{f.value}) &gt; 0)</when>
  <otherwise>1=0</otherwise></choose></foreach>
  <if test="status == 'ACTIVE'">AND m.is_discontinued = 0</if>
@@ -34,17 +43,16 @@
 </sql>
 <sql id="durMatchCte"><if test="tabooType != 0 or grade != '' or ageBase != ''">
  WITH filtered_dur AS (SELECT /*+ MATERIALIZE */ ingr_a_name, ingr_b_name, taboo_type FROM medication_interactions d WHERE 1=1 <include refid="durConditions" />),
- dur_keys AS (
-   SELECT LOWER(REGEXP_REPLACE(ingr_a_name, '[[:space:]]', '')) ingredient FROM filtered_dur
-   UNION SELECT LOWER(REGEXP_REPLACE(ingr_b_name, '[[:space:]]', '')) FROM filtered_dur WHERE taboo_type=4 AND ingr_b_name IS NOT NULL
- ), med_ingredients AS (
-   SELECT /*+ MATERIALIZE */ m.medication_id, LOWER(REGEXP_REPLACE(part.ingredient, '[[:space:]]', '')) ingredient
-   FROM medications m CROSS APPLY (
-      SELECT REGEXP_SUBSTR(m.material_name, '[^/]+', 1, LEVEL) ingredient FROM dual
-      CONNECT BY LEVEL &lt;= REGEXP_COUNT(m.material_name, '/') + 1
-   ) part WHERE m.material_name IS NOT NULL
+ dur_ingredient_ids AS (
+   SELECT ia.ingredient_id FROM filtered_dur d JOIN ingredient_aliases ia
+     ON ia.verified=1 AND ia.normalized_alias=LOWER(REGEXP_REPLACE(TRIM(d.ingr_a_name), '[[:space:][:punct:]]', ''))
+   UNION
+   SELECT ib.ingredient_id FROM filtered_dur d JOIN ingredient_aliases ib
+     ON ib.verified=1 AND ib.normalized_alias=LOWER(REGEXP_REPLACE(TRIM(d.ingr_b_name), '[[:space:][:punct:]]', ''))
+   WHERE d.taboo_type=4 AND d.ingr_b_name IS NOT NULL
  ), dur_matches AS (
-   SELECT DISTINCT mi.medication_id FROM med_ingredients mi JOIN dur_keys dk ON dk.ingredient=mi.ingredient
+   SELECT DISTINCT mi.medication_id FROM medication_ingredients mi
+   JOIN dur_ingredient_ids di ON di.ingredient_id=mi.ingredient_id
  )
  </if></sql>
 <select id="countMedications" parameterType="map" resultType="int" timeout="15">

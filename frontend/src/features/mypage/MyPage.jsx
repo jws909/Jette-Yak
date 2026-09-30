@@ -214,8 +214,8 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   };
 
   // 영양제 추가 (직접 입력)
-  const handleAddRoutineMed = async (name) => {
-    const trimmed = (name || '').trim();
+  const handleAddRoutineMed = async (name, item = null) => {
+    const trimmed = (item?.itemName || name || '').trim();
     if (!trimmed) return;
     try {
       const uid = user?.userId || '';
@@ -228,6 +228,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
           username: uname,
           type: 'ROUTINE',
           name: trimmed,
+          medicationId: item?.medicationId || item?.itemSeq || null,
         }),
       });
       if (res.ok) {
@@ -265,7 +266,8 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       if (res.ok) {
         fetchEverydayMeds();
       } else {
-        alert('삭제에 실패했습니다.');
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || '삭제에 실패했습니다.');
       }
     } catch (e) {
       console.error('Failed to delete everyday med', e);
@@ -514,19 +516,21 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
                 <div className="search-autocomplete-dropdown">
                   {searchResults.length > 0 && (
                     <div className="dropdown-section">
-                      <div className="dropdown-header">식약처 의약품 (선택 시 상비약 등록)</div>
+                      <div className="dropdown-header">식약처 의약품과 연결해 등록</div>
                       <div className="dropdown-med-list">
                         {searchResults.slice(0, 8).map((item, idx) => (
                           <div
                             key={item.medicationId || item.itemSeq || idx}
                             className="dropdown-med-item"
-                            onClick={() => handleAddCabinetMed(item)}
                           >
                             <div className="med-info">
                               <strong className="med-title">{item.itemName}</strong>
                               {item.entpName && <span className="med-corp">{item.entpName}</span>}
                             </div>
-                            <span className="med-add-badge badge-cabinet">+ 상비약</span>
+                            <div className="med-add-actions">
+                              <button type="button" className="med-add-badge badge-cabinet" onClick={() => handleAddCabinetMed(item)}>+ 상비약</button>
+                              <button type="button" className="med-add-badge badge-routine" onClick={() => handleAddRoutineMed('', item)}>+ 영양제</button>
+                            </div>
                           </div>
                         ))}
                       </div>

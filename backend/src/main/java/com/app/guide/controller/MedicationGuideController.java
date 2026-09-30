@@ -72,7 +72,7 @@ public class MedicationGuideController {
 
             boolean hasAiSummary = medication.getAiSummaryJson() != null && !medication.getAiSummaryJson().isBlank();
             return ResponseEntity.ok(Map.of("medication", medication, "source", "등록된 식약처 허가정보 · e약은요 · DUR 자료 · AI 요약",
-                "dur", dur != null ? dur.find(medication.getMaterialName()) : Map.of(),
+                "dur", dur != null ? dur.find(medication.getMedicationId(), medication.getMaterialName()) : Map.of(),
                 "coverage", Map.of("lifestyle", hasAiSummary, "sideEffects", hasAiSummary, "dur", true)));
         } catch (DataAccessException e) {
             LogManager.getLogger(getClass()).error("생활가이드 DB 조회 실패", e);

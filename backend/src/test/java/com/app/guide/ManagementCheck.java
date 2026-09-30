@@ -12,12 +12,17 @@ public class ManagementCheck {
  static int checks;static void check(boolean ok,String name){if(!ok)throw new AssertionError(name);checks++;}
  static MedicationGuideDto med(String id,String ingredient){var m=new MedicationGuideDto();m.setMedicationId(id);m.setItemName(id);m.setMaterialName(ingredient);return m;}
  static RegisteredMedicationDto registered(String id,String state){var r=new RegisteredMedicationDto();r.setRegistrationId(id);r.setMedicationId(id);r.setItemName(id);r.setUseStatus(state);return r;}
+ static MedicationIngredientDto ingredient(long id,String name){var i=new MedicationIngredientDto();i.setIngredientId(id);i.setRawName(name);i.setNormalizedName(DurGuideService.normalize(name));i.setMatchStatus("EXACT");return i;}
  public static void main(String[] args)throws Exception{
   var a=med("A","Alpha/Beta");var b=med("B","Gamma/Alpha");var c=med("C",null);
   var row=new DurInfoDto();row.setTabooType(4);row.setIngrAName("Gamma");row.setIngrBName("Beta");row.setTabooEffect("fixture pair");
   final long[] owner={0};
   var dao=new MedicationGuideDao(null){
    @Override public MedicationGuideDto find(String id){return Map.of("A",a,"B",b,"C",c).get(id);}
+   @Override public List<MedicationIngredientDto> findMedicationIngredients(String id){return switch(id){case "A"->List.of(ingredient(1,"Alpha"),ingredient(2,"Beta"));case "B"->List.of(ingredient(3,"Gamma"),ingredient(1,"Alpha"));default->List.of();};}
+   @Override public List<MedicationIngredientDto> resolveIngredientAliases(List<String> names){var out=new ArrayList<MedicationIngredientDto>();if(names.contains("alpha"))out.add(ingredient(1,"Alpha"));if(names.contains("beta"))out.add(ingredient(2,"Beta"));if(names.contains("gamma"))out.add(ingredient(3,"Gamma"));return out;}
+   @Override public List<DurInfoDto> findDurByIngredientIds(List<Long> ids){return ids.contains(2L)||ids.contains(3L)?List.of(row):List.of();}
+   @Override public List<Long> findDurMatchedIngredientIds(List<Long> ids){return ids.stream().filter(v->v==2L||v==3L).toList();}
    @Override public List<DurInfoDto> findDur(List<String> names){return names.contains("beta")||names.contains("gamma")?List.of(row):List.of();}
    @Override public List<RegisteredMedicationDto> collection(long userId){owner[0]=userId;var unlinked=registered("free","ACTIVE");unlinked.setMedicationId(null);return List.of(registered("A","ACTIVE"),registered("A","ACTIVE"),registered("B","ACTIVE"),registered("C","STORED"),registered("C","UNCONFIRMED"),unlinked);}
    @Override public int updateStatus(long userId,String id,String status){owner[0]=userId;return id.equals("P:1")?1:0;}
@@ -55,7 +60,7 @@ public class ManagementCheck {
    prescription_items AS (SELECT 1 item_id,1 prescription_id,'M' medication_id,1 total_days,'meal' usage_timing FROM dual UNION ALL SELECT 2,2,'M',1,'meal' FROM dual UNION ALL SELECT 3,3,'M',1,'meal' FROM dual UNION ALL SELECT 4,4,'M',1,'meal' FROM dual),
    medications AS (SELECT 'M' medication_id,'fixture' item_name,'maker' entp_name,'Alpha' material_name,CAST(NULL AS VARCHAR2(100)) item_image_url FROM dual),
    cabinet_medications AS (SELECT 1 cabinet_id,11 user_id,'M' medication_id FROM dual UNION ALL SELECT 2,22,'M' FROM dual UNION ALL SELECT 3,11,'M' FROM dual UNION ALL SELECT 4,11,'M' FROM dual),
-   routine_medications AS (SELECT 1 routine_id,11 user_id,'supplement' supplement_name,'08:00' take_time,'note' notes,'ACTIVE' status FROM dual UNION ALL SELECT 2,11,'ended','08:00','note','ENDED' FROM dual UNION ALL SELECT 3,11,'paused','08:00','note','PAUSED' FROM dual),
+   routine_medications AS (SELECT 1 routine_id,11 user_id,CAST(NULL AS VARCHAR2(20)) medication_id,'supplement' supplement_name,'08:00' take_time,'note' notes,'ACTIVE' status FROM dual UNION ALL SELECT 2,11,NULL,'ended','08:00','note','ENDED' FROM dual UNION ALL SELECT 3,11,NULL,'paused','08:00','note','PAUSED' FROM dual),
    medication_use_states AS (SELECT 11 user_id,'C:3' registration_id,'STORED' use_status FROM dual UNION ALL SELECT 11,'C:4','ENDED' FROM dual UNION ALL SELECT 11,'P:2','ACTIVE' FROM dual UNION ALL SELECT 22,'C:1','STORED' FROM dual)
    """;
   try(var connection=ds.getConnection();var st=connection.prepareStatement(fixture+sql)){

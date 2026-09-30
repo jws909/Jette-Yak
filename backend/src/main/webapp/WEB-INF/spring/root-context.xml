@@ -39,6 +39,12 @@ http://www.springframework.org/schema/task http://www.springframework.org/schema
 			ref="sqlSessionFactory" />
 	</bean>
 
+	<!-- 여러 DELETE/INSERT를 하나의 작업으로 묶는 @Transactional용 관리자 -->
+	<bean id="transactionManager"
+		class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="data_source" />
+	</bean>
+
 	<!-- 회원가입 기능 추가: UserMapper 인터페이스를 자동으로 빈 등록 -->
 	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
 		<property name="basePackage" value="com.app.mapper" />

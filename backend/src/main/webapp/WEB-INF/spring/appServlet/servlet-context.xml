@@ -3,12 +3,15 @@
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xmlns:beans="http://www.springframework.org/schema/beans"
 	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:tx="http://www.springframework.org/schema/tx"
 	xsi:schemaLocation="http://www.springframework.org/schema/mvc
 http://www.springframework.org/schema/mvc/spring-mvc.xsd
 http://www.springframework.org/schema/beans
 http://www.springframework.org/schema/beans/spring-beans.xsd
 http://www.springframework.org/schema/context
-http://www.springframework.org/schema/context/spring-context.xsd">
+http://www.springframework.org/schema/context/spring-context.xsd
+http://www.springframework.org/schema/tx
+http://www.springframework.org/schema/tx/spring-tx.xsd">
 
 
 	<!-- <annotation-driven /> -->
@@ -17,6 +20,7 @@ http://www.springframework.org/schema/context/spring-context.xsd">
 	<context:component-scan base-package="com.app.dao" />
 	<context:component-scan base-package="com.app.util" />
 	<context:component-scan base-package="com.app.main,com.app.medication,com.app.easydrug,com.app.chatbot,com.app.guide,com.app.prescription,com.app.community" />
+	<tx:annotation-driven transaction-manager="transactionManager" />
 	<!-- <context:component-scan base-package="com.app.config"/> -->
 
 	<!-- 파일 본문 10MB와 multipart 메타데이터를 함께 받을 수 있도록 요청 한도를 12MB로 설정 -->
