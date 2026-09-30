@@ -41,7 +41,7 @@ function App() {
 
   // 세션 userId 자동 복구
   useEffect(() => {
-    if (user?.username && (!user?.userId || !user?.role)) {
+    if (user?.username && (!user?.userId || !user?.role || user?.pushEnabled === undefined)) {
       const targetUser = user.username === 'demo' ? 'test12' : user.username;
       fetch(`/api/users/profile?username=${encodeURIComponent(targetUser)}`)
         .then((res) => (res.ok ? res.json() : null))
@@ -54,6 +54,7 @@ function App() {
                 username: data.username || curr?.username || targetUser,
                 name: curr?.name || data.nickname || '체험 사용자',
                 role: data.role || curr?.role || 'USER',
+                pushEnabled: data.pushEnabled !== false && data.pushEnabled !== 0 && data.pushEnabled !== '0',
               };
               localStorage.setItem('user', JSON.stringify(updated));
               return updated;
@@ -66,13 +67,15 @@ function App() {
 
   // ★ 2. 로그인 시 브라우저 권한 상태를 확인하고, 미결정('default')이면 안내 모달 띄우기
   useEffect(() => {
-    if (isLoggedIn && 'Notification' in window) {
+    const pushEnabled = user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0';
+    if (!pushEnabled) setShowPermissionModal(false);
+    if (isLoggedIn && pushEnabled && 'Notification' in window) {
       const isAlreadyDismissed = sessionStorage.getItem('notif_modal_dismissed') === 'true';
       if (Notification.permission === 'default' && !isAlreadyDismissed) {
         setShowPermissionModal(true);
       }
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, user?.pushEnabled]);
 
   // 사용자가 모달에서 [알림 받기 (예)]를 클릭했을 때 실행되는 핸들러 (User Gesture 만족)
   const handleRequestPermission = async () => {
@@ -100,6 +103,14 @@ function App() {
 
   // 3. 전역 00초 칼동기화 타이머: [30분 전 예비 알림] + [정시 본 알람]
   useEffect(() => {
+    const medicationAlertsEnabled = user?.pushEnabled !== false
+      && user?.pushEnabled !== 0
+      && user?.pushEnabled !== '0';
+    if (!medicationAlertsEnabled) {
+      setGlobalAlertItem(null);
+      return;
+    }
+
     let resolvedUserId = user?.userId;
     if (!resolvedUserId) {
       try {
@@ -114,6 +125,7 @@ function App() {
 
     let timeoutId;
     let intervalId;
+    let isActive = true;
     const alertedTags = new Set();
 
     const triggerCheck = async () => {
@@ -132,7 +144,7 @@ function App() {
         const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${todayDateStr}`);
         if (!res.ok) return;
         const todayList = await res.json();
-        if (!Array.isArray(todayList)) return;
+        if (!isActive || !Array.isArray(todayList)) return;
 
         const timeGroups = {};
         todayList.forEach((item) => {
@@ -222,10 +234,11 @@ function App() {
     }, Math.max(0, msUntilNextMinute));
 
     return () => {
+      isActive = false;
       clearTimeout(timeoutId);
       clearInterval(intervalId);
     };
-  }, [user?.userId]);
+  }, [user?.userId, user?.pushEnabled]);
 
   // 전역 모달 복약 완료 처리
   const handleConfirmTakeFromGlobalAlert = async () => {

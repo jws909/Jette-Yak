@@ -1,6 +1,7 @@
 package com.app.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +17,7 @@ import java.util.*;
 public class FamilyController {
 
 	@Autowired
+	@Qualifier("data_source")
 	private DataSource dataSource;
 
 	/**

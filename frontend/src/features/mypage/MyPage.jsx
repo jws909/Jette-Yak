@@ -22,10 +22,12 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
         setNickname(profile.nickname || user.name);
         setProfileImage(profile.profileImageUrl || '');
         setImgError(false);
+        setPushEnabled(profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0');
         onUserUpdated?.({
           name: profile.nickname || user.name,
           profileImageUrl: profile.profileImageUrl || '',
           userId: profile.userId || user?.userId,
+          pushEnabled: profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0',
         });
       })
       .catch(() => {});
@@ -87,7 +89,8 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const searchBoxRef = useRef(null);
 
   // 알림 환경 설정
-  const [pushEnabled, setPushEnabled] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
 
   // 캘린더 복약 일정 등록 모달 state
@@ -345,9 +348,27 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     setTimeout(() => setPwMessage(''), 3000);
   };
 
-  const handleSaveSettings = () => {
-    setSaveToast(true);
-    setTimeout(() => setSaveToast(false), 3000);
+  const handleSaveSettings = async () => {
+    if (!user?.userId && !user?.username) return;
+    setIsSavingSettings(true);
+    try {
+      const response = await fetch('/api/users/push-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user?.userId, username: user?.username, pushEnabled }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.message || '알림 설정 저장에 실패했습니다.');
+      const savedPushEnabled = data.pushEnabled !== false && data.pushEnabled !== 0 && data.pushEnabled !== '0';
+      setPushEnabled(savedPushEnabled);
+      onUserUpdated?.({ pushEnabled: savedPushEnabled });
+      setSaveToast(true);
+      setTimeout(() => setSaveToast(false), 3000);
+    } catch (error) {
+      alert(error.message || '알림 설정 저장에 실패했습니다.');
+    } finally {
+      setIsSavingSettings(false);
+    }
   };
 
   const handleWithdraw = async () => {
@@ -672,6 +693,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               type="button"
               className="action-solid-btn"
               onClick={handleSaveSettings}
+              disabled={isSavingSettings}
             >
               변경 사항 저장
             </button>

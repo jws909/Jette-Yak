@@ -25,6 +25,9 @@ public interface UserMapper {
 
     int updateProfileImageUrl(@Param("loginId") String loginId, @Param("profileImageUrl") String profileImageUrl);
 
+    int updatePushEnabled(@Param("userId") Long userId, @Param("loginId") String loginId,
+                          @Param("pushEnabled") int pushEnabled);
+
     int updateMealTimes(@Param("userId") Long userId,
                         @Param("loginId") String loginId,
                         @Param("breakfastTime") String breakfastTime,

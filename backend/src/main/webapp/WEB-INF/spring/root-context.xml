@@ -50,5 +50,18 @@ http://www.springframework.org/schema/task http://www.springframework.org/schema
 		<property name="basePackage" value="com.app.mapper" />
 		<property name="sqlSessionFactoryBeanName" value="sqlSessionFactory" />
 	</bean>
+	
+	<!-- 1. DataSource 설정 -->
+<bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+    <property name="driverClassName" value="com.mysql.cj.jdbc.Driver"/>
+    <property name="url" value="jdbc:mysql://localhost:3306/FREEPDB1?serverTimezone=UTC"/>
+    <property name="username" value="jette_yak"/>
+    <property name="password" value="JetteYak#2026!db"/>
+</bean>
+
+<!-- 2. JdbcTemplate 설정 -->
+<bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+    <property name="dataSource" ref="dataSource"/>
+</bean>
 
 </beans>
