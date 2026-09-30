@@ -12,8 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.sql.DataSource;
-
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -41,10 +41,10 @@ public class CalendarController {
 	private ScheduleService scheduleService;
 
 	@Autowired
-	private DataSource dataSource;
+	private SqlSessionFactory sqlSessionFactory;
 
 	/**
-	 * 사용자의 FAMILY_ID를 기반으로 가족 구성원들의 USER_ID 목록 조회
+	 * 기존 MyBatis 오라클 세션을 활용한 가족 구성원 USER_ID 목록 조회
 	 */
 	private List<Long> getFamilyUserIds(Long userId) {
 		List<Long> ids = new ArrayList<>();
@@ -53,7 +53,8 @@ public class CalendarController {
 		String selectFamilySql = "SELECT FAMILY_ID FROM USERS WHERE USER_ID = ?";
 		String listSql = "SELECT USER_ID FROM USERS WHERE FAMILY_ID = ?";
 
-		try (Connection conn = dataSource.getConnection()) {
+		try (SqlSession session = sqlSessionFactory.openSession();
+		     Connection conn = session.getConnection()) {
 			Long familyId = null;
 			try (PreparedStatement pstmt = conn.prepareStatement(selectFamilySql)) {
 				pstmt.setLong(1, userId);
@@ -103,66 +104,31 @@ public class CalendarController {
 			return ResponseEntity.ok(Collections.emptyList());
 		}
 
-		// 개별 탭 조회 시 기존 로직
-		// 개별 탭 조회 시 기존 로직
-				if (!isFamily) {
-					List<ScheduleDTO> list = scheduleService.getDailySchedules(userId, date);
-					return ResponseEntity.ok(list != null ? list : Collections.emptyList());
-				}
+		// 개별 탭 조회
+		if (!isFamily) {
+			List<ScheduleDTO> list = scheduleService.getDailySchedules(userId, date);
+			return ResponseEntity.ok(list != null ? list : Collections.emptyList());
+		}
 
-				// 전체(가족) 탭 조회 시: 가족 구성원 전체의 복약 일정 집계
-				// 전체(가족) 탭 조회 시: 가족 구성원 전체의 복약 일정 집계
-				List<Long> familyUserIds = getFamilyUserIds(userId);
-				Map<Long, Map<String, String>> familyInfo = getFamilyMemberInfoMap(userId);
-				List<ScheduleDTO> combinedList = new ArrayList<>();
-				Set<Long> seenScheduleIds = new HashSet<>();
+		// 전체(가족) 탭 조회: 가족 구성원 전체 일정 취합
+		List<Long> familyUserIds = getFamilyUserIds(userId);
+		List<ScheduleDTO> combinedList = new ArrayList<>();
+		Set<Long> seenScheduleIds = new HashSet<>();
 
-				for (Long fUid : familyUserIds) {
-					List<ScheduleDTO> memberSchedules = scheduleService.getDailySchedules(fUid, date);
-					if (memberSchedules != null) {
-						Map<String, String> info = familyInfo.get(fUid);
-						// DB에서 해당 유저의 NAME을 직접 가져오고, 혹시 없으면 빈 문자열("")
-						String mName = (info != null && info.get("name") != null) ? info.get("name") : "";
-						String mRole = (info != null && info.get("role") != null) ? info.get("role") : "";
-
-						for (ScheduleDTO item : memberSchedules) {
-							if (item.getScheduleId() == null || seenScheduleIds.add(item.getScheduleId())) {
-								item.setUserName(mName);     // 실제 복용자 이름
-								item.setUserRole(mRole);     // 복용자 역할
-								item.setUserId(fUid);        // 소유자 ID
-								combinedList.add(item);
-							}
-						}
+		for (Long fUid : familyUserIds) {
+			List<ScheduleDTO> memberSchedules = scheduleService.getDailySchedules(fUid, date);
+			if (memberSchedules != null) {
+				for (ScheduleDTO item : memberSchedules) {
+					if (item.getScheduleId() == null || seenScheduleIds.add(item.getScheduleId())) {
+						item.setUserId(fUid); // 소유자 ID 바인딩
+						combinedList.add(item);
 					}
 				}
-				combinedList.sort(Comparator.comparing(ScheduleDTO::getTime, Comparator.nullsLast(String::compareTo)));
-				return ResponseEntity.ok(combinedList);
 			}
+		}
 
-			/**
-			 * 가족 구성원의 [USER_ID -> {name, role}] 정보 조회 헬퍼 메서드
-			 */
-	private Map<Long, Map<String, String>> getFamilyMemberInfoMap(Long userId) {
-	    Map<Long, Map<String, String>> result = new HashMap<>();
-	    // NICKNAME 컬럼을 가져오도록 수정
-	    String sql = "SELECT USER_ID, NICKNAME, ROLE FROM USERS "
-	               + "WHERE FAMILY_ID = (SELECT FAMILY_ID FROM USERS WHERE USER_ID = ?)";
-	    try (Connection conn = dataSource.getConnection();
-	         PreparedStatement pstmt = conn.prepareStatement(sql)) {
-	        pstmt.setLong(1, userId);
-	        try (ResultSet rs = pstmt.executeQuery()) {
-	            while (rs.next()) {
-	                Long uid = rs.getLong("USER_ID");
-	                Map<String, String> info = new HashMap<>();
-	                info.put("name", rs.getString("NICKNAME")); // NICKNAME에서 값 추출
-	                info.put("role", rs.getString("ROLE"));
-	                result.put(uid, info);
-	            }
-	        }
-	    } catch (Exception e) {
-	        e.printStackTrace();
-	    }
-	    return result;
+		combinedList.sort(Comparator.comparing(ScheduleDTO::getTime, Comparator.nullsLast(String::compareTo)));
+		return ResponseEntity.ok(combinedList);
 	}
 
 	@GetMapping("/search-medications")
@@ -236,13 +202,11 @@ public class CalendarController {
 			return ResponseEntity.ok(Collections.emptyList());
 		}
 
-		// 개별 탭 조회 시 기존 로직
 		if (!isFamily) {
 			List<Map<String, Object>> summary = scheduleService.getMonthlySummary(userId, yearMonth);
 			return ResponseEntity.ok(summary != null ? summary : Collections.emptyList());
 		}
 
-		// 전체(가족) 탭 조회 시: 가족 구성원 전체의 날짜별 점/선 요약 집계
 		List<Long> familyUserIds = getFamilyUserIds(userId);
 		Map<String, Map<String, Object>> dateMap = new HashMap<>();
 
