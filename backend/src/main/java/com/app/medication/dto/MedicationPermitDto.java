@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 허가정보 품목 한 건을 MEDICATIONS 테이블 필드로 변환하는 DTO입니다.
+ * 핵심 규칙: 허가취소일과 상태를 이용해 isDiscontinued 값을 계산하므로 상태 규칙 변경 시 함께 수정해야 합니다.
+ */
 package com.app.medication.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

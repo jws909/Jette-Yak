@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 의약품 허가정보 시험·전체 동기화를 실행하는 관리용 API입니다.
+ * 핵심 규칙: 외부 API 전체 수집은 오래 걸릴 수 있으므로 호출 결과로 처리 건수를 반환합니다.
+ */
 package com.app.medication.controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;

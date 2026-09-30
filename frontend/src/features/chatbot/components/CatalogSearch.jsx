@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 조건 검색의 종류와 값을 입력받아 구조화된 검색 요청을 상위 컴포넌트로 전달합니다.
+ * 핵심 규칙: 자연어 상담 입력과 목적이 다르므로 독립된 폼 상태를 유지합니다.
+ */
 import { useState } from 'react'
 const options = [['NAME','약 이름'],['INGREDIENT','성분'],['EFFICACY','효능'],['USAGE','복용법'],['COMPANY','제조사'],['CLASSIFICATION','분류'],['CODE','품목·EDI 코드'],['CATEGORY','전문·일반 구분']]
 export default function CatalogSearch({ onSearch, disabled }) {

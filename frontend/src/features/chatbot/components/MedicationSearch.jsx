@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 제품명 일부를 입력해 의약품을 찾고 현재 대화의 대상 약을 선택합니다.
+ * 핵심 규칙: 선택된 품목코드는 이후 질문에 함께 전달되며 입력 문자열만으로 제품을 확정하지 않습니다.
+ */
 import { useEffect, useId, useRef, useState } from 'react'
 
 export default function MedicationSearch({ onSelect, disabled }) {

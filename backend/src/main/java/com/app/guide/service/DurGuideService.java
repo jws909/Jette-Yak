@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 제품 성분을 DUR 테이블 성분명과 연결하여 약별 주의정보를 조회합니다.
+ * 핵심 규칙: 성분 표기 차이로 누락될 수 있으므로 결과 0건을 안전하다는 뜻으로 해석하지 않습니다.
+ */
 package com.app.guide.service;
 import java.util.*;
 import org.springframework.stereotype.Service;

@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: e약은요 공공 API를 페이지별로 호출하여 기존 의약품의 효능·용법·이미지를 보강합니다.
+ * 핵심 규칙: API 성공 코드와 빈 페이지를 확인하고, 품목기준코드가 없는 데이터는 저장 대상에서 제외합니다.
+ */
 package com.app.easydrug.service.impl;
 import java.net.URI;
 import java.util.List;

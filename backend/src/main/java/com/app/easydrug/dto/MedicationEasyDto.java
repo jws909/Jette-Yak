@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: e약은요 품목 한 건에서 효능, 용법, 이미지 URL과 품목기준코드를 받습니다.
+ * 핵심 규칙: 품목기준코드는 허가정보로 먼저 만든 MEDICATIONS 행을 찾는 연결 키입니다.
+ */
 package com.app.easydrug.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

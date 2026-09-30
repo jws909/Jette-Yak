@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 게시글 또는 댓글 신고 대상과 사용자가 작성한 사유를 받는 요청 DTO입니다.
+ * 핵심 규칙: 신고자는 서버 세션에서 정하며 같은 사용자의 중복 신고 여부는 서비스·DB에서 확인합니다.
+ */
 package com.app.community.dto;
 
 public class CommunityReportRequest {

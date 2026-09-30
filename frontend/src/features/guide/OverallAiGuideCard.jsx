@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 활성 복용약 전체를 기준으로 만든 AI 통합 가이드를 조회·재분석하여 표시합니다.
+ * 핵심 규칙: 서버 캐시와 약 목록 버전을 사용하므로 사용자가 요청할 때만 강제 재분석합니다.
+ */
 import React, { useState, useEffect, useCallback } from 'react';
 import './OverallAiGuideCard.css';
 

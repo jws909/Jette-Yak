@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.medication.dao.MedicationDao">
+<!--
+  식약처 허가정보를 medication_id(품목기준코드) 기준으로 MERGE한다.
+  기존 값과 실제 차이가 있을 때만 UPDATE하여 단순 재동기화로 updated_at이 바뀌지 않게 한다.
+-->
 <update id="mergePermitMedication"
 		parameterType="com.app.medication.dto.MedicationPermitDto">
 

@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 질문 분류, DB 조회, 안전 응답, Gemini 상담을 순서대로 조정하는 챗봇 핵심 서비스입니다.
+ * 핵심 규칙: 응급·과다복용 질문은 AI 호출 전에 우선 처리하고, 약 정보 답변은 조회된 DB 자료만 근거로 사용합니다.
+ */
 package com.app.chatbot.service;
 
 import java.util.*;
@@ -44,12 +48,16 @@ public class MedicationChatService {
         MedicationChatDto selected = request.getItemSeq() == null || request.getItemSeq().isBlank() ? null
             : medicationDao.findChatMedicationByItemSeq(request.getItemSeq().trim());
 
+        // 1. 생명·안전에 직접 관련된 표현은 AI 분류 결과를 기다리지 않고 규칙으로 먼저 처리한다.
+        //    이 순서를 바꾸면 외부 API 지연이나 오분류 때문에 응급 안내가 늦어질 수 있다.
         if (QuestionAnalysis.hasEmergencySignal(question))
             return emergencyReply(selected);
         Optional<QuestionAnalysis.Intent> directSafetyIntent = QuestionAnalysis.safetyIntent(question);
         if (directSafetyIntent.isPresent())
             return safetyReply(directSafetyIntent.get(), selected);
 
+        // 2. 최근 사용자 발화만 추려 질문 분류 문맥으로 사용한다.
+        //    전체 대화를 계속 보내면 비용과 지연이 커지므로 분류에는 최대 4개 질문만 사용한다.
         List<String> userHistory = request.getConversation().stream()
             .filter(turn -> "user".equals(turn.getRole()))
             .map(turn -> turn.getContent().trim()).toList();
@@ -61,8 +69,8 @@ public class MedicationChatService {
         try {
             analysis = QuestionAnalysis.parse(classification, question, userHistory);
         } catch (com.app.chatbot.client.GeminiException invalidClassification) {
-            // The provider succeeded but returned a classification that failed our trust boundary.
-            // Treat this as a recoverable conversation result instead of an HTTP 5xx failure.
+            // Gemini 호출은 성공했지만 서버가 허용하지 않은 분류값 또는 형식이 반환된 경우다.
+            // 사용자가 5xx 오류만 보게 하지 않고, 제한된 상담 모드에서 필요한 내용을 다시 확인한다.
             return counselReply(question, selected == null ? registeredContext(question, userId) : List.of(selected), request,
                 "질문 분류 결과가 유효하지 않았음. 사용자의 목적을 추측해 단정하지 말고 자연스럽게 답하거나 한 가지를 확인할 것.");
         }
@@ -80,6 +88,8 @@ public class MedicationChatService {
                 analysis.clarificationQuestion().isBlank() ? "질문의 목적이나 대상이 아직 명확하지 않음"
                     : "분류기가 확인이 필요하다고 판단함: " + analysis.clarificationQuestion());
         }
+        // 3. "내 약" 데이터는 로그인 세션의 userId가 있을 때만 조회한다.
+        //    요청 본문의 품목코드와 달리 사용자 소유 데이터이므로 인증 여부를 반드시 확인해야 한다.
         if (analysis.intent() == QuestionAnalysis.Intent.MY_MEDICATIONS || analysis.intent() == QuestionAnalysis.Intent.MY_DUR) {
             if(userId==null || userId<=0) { var response=reply("내 약 조회는 로그인이 필요합니다.",List.of(),List.of());response.put("loginRequired",true);return response; }
             var response=reply(analysis.intent()==QuestionAnalysis.Intent.MY_DUR ? "복용 중 상태인 약 사이의 DUR 기록입니다." : "현재 복용 중인 약 목록입니다. 제품을 선택해 질문을 이어가세요.",List.of(),List.of());
@@ -90,6 +100,7 @@ public class MedicationChatService {
         if (analysis.intent() == QuestionAnalysis.Intent.OTHER)
             return counselReply(question, selected != null && analysis.useSelectedMedication() ? List.of(selected) : List.of(), request,
                 "서비스 범위와의 관련성이 불명확함. 사용자의 말을 무시하지 말고 필요한 도움을 한 번 확인할 것.");
+        // 4. 목록을 요구한 질문은 자연어 답변보다 구조화 DB 검색 결과를 우선 반환한다.
         if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH && !conversational) {
             var data = catalog.search(analysis.query(), 1);
             if (((Number)data.getOrDefault("total", 0)).longValue() == 0)
@@ -98,6 +109,8 @@ public class MedicationChatService {
             var response = reply("조건에 맞는 DB 기록 " + data.get("total") + "건을 찾았습니다. 아래 목록과 원문을 확인해주세요.", List.of(), List.of());
             response.put("catalog", data); return response;
         }
+        // 5. 질문에서 추출한 약 이름을 실제 DB 품목과 연결한다.
+        //    후보가 여러 개면 임의로 하나를 고르지 않고 사용자에게 제품 선택 목록을 돌려준다.
         List<String> hints = analysis.medications();
         if (hints.size() > 8) return reply("약 이름을 짧게 적거나, 왼쪽 검색에서 약을 선택해주세요.", List.of(), List.of());
         LinkedHashMap<String, MedicationChatDto> targets = new LinkedHashMap<>();
@@ -114,7 +127,7 @@ public class MedicationChatService {
 
         for (String hint : hints) {
             String keyword = normalize(hint);
-            // Confirmed choices are revalidated against the database and name hint.
+            // 화면에서 선택한 품목코드도 그대로 신뢰하지 않고 DB 존재 여부와 검색어 일치를 재검증한다.
             String chosenId = request.getSelections().get(hint);
             if (chosenId != null) {
                 MedicationChatDto chosen = medicationDao.findChatMedicationByItemSeq(chosenId);
@@ -153,6 +166,7 @@ public class MedicationChatService {
         if (targets.isEmpty())
             return reply("어떤 약이 궁금한가요? 약 이름을 적거나 검색에서 선택해주세요.", List.of(), List.of());
         List<MedicationChatDto> sources = new ArrayList<>(targets.values());
+        // 6. 증상·건강 상담은 확인된 약 자료를 문맥으로 전달하고 후속 질문이 가능한 상담 응답을 만든다.
         if (conversational)
             return counselReply(question, sources, request);
         String names = String.join(", ", sources.stream().map(MedicationChatDto::getItemName).toList());
@@ -190,6 +204,7 @@ public class MedicationChatService {
         try {
             String full = objectMapper.writeValueAsString(sources);
             if (full.length() <= 30000) return full;
+            // 효능·용법 원문이 길어 프롬프트가 과도하게 커지면 핵심 필드만 남기고 각 원문을 자른다.
             List<Map<String,Object>> compact = new ArrayList<>();
             for (MedicationChatDto source : sources) {
                 Map<String,Object> item = new LinkedHashMap<>();
@@ -212,6 +227,8 @@ public class MedicationChatService {
     }
 
     private List<MedicationChatDto> registeredContext(String question, Long userId) {
+        // 사용자가 "내가 먹는 약"을 명시한 경우에만 활성 등록 약을 자동 문맥으로 붙인다.
+        // 일반 증상 질문마다 전체 복용약을 보내면 불필요한 개인정보와 토큰이 증가하므로 제한한다.
         if (userId == null || userId <= 0 || management == null) return List.of();
         String text = normalize(question);
         if (!(text.contains("내약") || text.contains("먹는약") || text.contains("먹고있는약")
@@ -261,6 +278,8 @@ public class MedicationChatService {
     }
 
     private Map<String,Object> durReply(List<MedicationChatDto> sources, QuestionAnalysis analysis) {
+        // 병용 질문이면 A약 성분과 B약 성분이 DUR 행의 양쪽 성분을 실제로 연결하는지 대조한다.
+        // 단일 약 DUR 조회에서는 임부·노인·연령·병용 유형과 등급 조건만 필터링한다.
         boolean pair = analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION && sources.size() > 1;
         int type = analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION ? 4 : analysis.query().tabooType();
         List<Map<String,Object>> reports = new ArrayList<>();

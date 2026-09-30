@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.community.CommunityMapper">
+  <!--
+    커뮤니티 목록·상세·댓글·첨부·신고·관리자 처리 SQL을 모아 둔 매퍼다.
+    수정·삭제 SQL은 postId만 사용하지 않고 userId 또는 관리자 조건을 함께 검사해 소유권을 보장한다.
+  -->
   <sql id="postWhere">
     WHERE p.status='VISIBLE'
     <if test="category != null and category != ''">AND p.category=#{category}</if>

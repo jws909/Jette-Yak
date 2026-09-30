@@ -1,3 +1,7 @@
+/**
+ * 질문 의도별로 안전 응답, 제품 선택, DB 검색, 자연어 상담 중 올바른 경로를 선택하는지 확인합니다.
+ * 외부 AI와 DB는 모의 구현으로 대체해 분기 로직만 빠르게 검증합니다.
+ */
 package com.app.chatbot.service;
 import java.util.*;
 import com.app.chatbot.client.*;

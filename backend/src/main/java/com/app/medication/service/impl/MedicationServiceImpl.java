@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 식약처 허가정보 API를 페이지별로 읽고 품목기준코드 기준으로 MEDICATIONS를 동기화합니다.
+ * 핵심 규칙: API 키 인코딩, 응답 성공 코드, 빈 품목, 페이지 종료 조건을 변경할 때 중복 적재에 주의해야 합니다.
+ */
 package com.app.medication.service.impl;
 
 import java.util.List;

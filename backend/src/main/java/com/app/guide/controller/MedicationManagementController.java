@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 로그인 사용자의 처방약·직접 추가 약 목록과 복용 상태 변경 API를 제공합니다.
+ * 핵심 규칙: userId는 요청에서 받지 않고 세션에서 읽어 다른 사용자의 약 목록 접근을 막습니다.
+ */
 package com.app.guide.controller;
 import java.util.*;
 import javax.servlet.http.HttpServletRequest;

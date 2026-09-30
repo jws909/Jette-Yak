@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 사용자 등록 약 통합, 복용 상태 변경, 활성 약 간 DUR 비교를 담당합니다.
+ * 핵심 규칙: 처방약과 직접 추가 약의 서로 다른 키를 하나의 화면 모델로 합치되 소유권 검사를 유지합니다.
+ */
 package com.app.guide.service;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,6 +39,8 @@ public class MedicationManagementService {
     public List<RegisteredMedicationDto> collection(long userId) { return dao.collection(userId); }
 
     public void update(long userId,String registrationId,String status) {
+        // registrationId의 P/C/R 접두사는 서로 다른 등록 출처를 구분한다.
+        // userId를 SQL 조건에 함께 넘겨 다른 사용자의 등록 행이 변경되지 않게 한다.
         if (registrationId==null || !registrationId.matches("[PCR]:[0-9]{1,30}") || status==null
                 || !Set.of("ACTIVE","PAUSED","ENDED","STORED").contains(status)) throw new IllegalArgumentException("복용 상태를 확인해주세요.");
         if (dao.updateStatus(userId,registrationId,status)!=1)
@@ -46,6 +52,7 @@ public class MedicationManagementService {
     }
 
     public Map<String, Object> getOverallGuide(long userId, boolean forceRefresh) {
+        // 종료·보관·중지 상태는 현재 복약 분석에서 제외하고 ACTIVE 등록만 AI 입력으로 사용한다.
         var all = collection(userId);
         var active = all.stream().filter(r -> "ACTIVE".equals(r.getUseStatus())).toList();
         if (active.isEmpty()) {
@@ -56,6 +63,8 @@ public class MedicationManagementService {
             );
         }
 
+        // 활성 약의 ID·이름·복용시간을 정렬한 서명을 캐시 키로 사용한다.
+        // 약 목록이 그대로라면 저장된 AI 결과를 반환해 호출 시간과 비용을 줄인다.
         String currentSignature = calculateActiveSignature(active);
         var cached = dao.findOverallGuide(userId);
         if (!forceRefresh && cached != null && cached.getAiGuide() != null && !cached.getAiGuide().isBlank()) {
@@ -72,6 +81,7 @@ public class MedicationManagementService {
             }
         }
 
+        // 처방전 요약은 현재 날짜가 복용 기간 안이고 ACTIVE 처방약과 연결된 경우에만 포함한다.
         List<com.app.prescription.dto.PrescriptionDTO> activeRxList = new ArrayList<>();
         if (prescriptionDAO != null) {
             try {
@@ -189,6 +199,8 @@ public class MedicationManagementService {
         return !now.before(start) && !now.after(end);
     }
     public Map<String,Object> myComparison(long userId) {
+        // 현재 복용 중인 제품만 DUR 비교 대상으로 삼고, 공식 제품과 연결되지 않은 등록은
+        // unlinked 목록으로 별도 반환해 "주의정보 없음"으로 오해하지 않게 한다.
         var all=collection(userId);
         var active=all.stream().filter(r->"ACTIVE".equals(r.getUseStatus())).toList();
         var ids=active.stream().map(RegisteredMedicationDto::getMedicationId).filter(Objects::nonNull).distinct().toList();
@@ -198,6 +210,8 @@ public class MedicationManagementService {
         return result;
     }
     public Map<String,Object> compare(List<String> input) {
+        // 클라이언트가 보낸 제품 ID를 DB에서 다시 확인하고 중복을 제거한다.
+        // 최대 50개 제한은 조합 비교량과 응답 크기가 급격히 증가하는 것을 막기 위한 상한이다.
         if(input==null || input.size()>50 || input.stream().anyMatch(id->id==null||id.isBlank()||id.length()>20))
             throw new IllegalArgumentException("비교할 제품은 최대 50개까지 선택해주세요.");
         var medicines=new ArrayList<MedicationGuideDto>();

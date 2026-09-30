@@ -1,3 +1,7 @@
+/**
+ * 허용·금지 검색 필드와 실제 Oracle 조건 검색 결과를 확인하는 카탈로그 통합 점검입니다.
+ * 첫 번째 실행 인수로 backend 프로젝트의 절대 경로가 필요합니다.
+ */
 package com.app.chatbot.service;
 import java.nio.file.*;import java.util.*;
 import com.fasterxml.jackson.databind.ObjectMapper;

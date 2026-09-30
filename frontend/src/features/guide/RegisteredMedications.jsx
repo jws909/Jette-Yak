@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 같은 제품에 연결된 처방·직접 추가 등록 행과 각 복용 상태 변경 버튼을 표시합니다.
+ * 핵심 규칙: 상태 저장 중에는 중복 요청을 막기 위해 버튼을 비활성화합니다.
+ */
 const labels = { PRESCRIPTION: '처방약', CABINET: '상비약', ROUTINE: '상시약 · 영양제' }
 const statusLabels = { ACTIVE: '복용 중', STORED: '보관 중', UNCONFIRMED: '복용 확인 필요', PAUSED: '복용 안 함', ENDED: '종료', UPCOMING: '시작 전' }
 export default function RegisteredMedications({ items, onStatus, busy }) {

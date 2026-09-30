@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 약 검색, 선택 약 문맥, 대화 이력, AI 상담 응답을 한 화면에서 관리하는 챗봇 컨테이너입니다.
+ * 핵심 규칙: 서버가 반환한 응답 종류에 따라 상담 문장, DB 출처, 검색 결과, 후속 질문을 구분해 표시합니다.
+ */
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import useRemote from '../../guide/useRemote'
@@ -39,6 +43,9 @@ function MedicationConversation() {
   const params = new URLSearchParams(useLocation().search)
   const id = params.get('medicationId')
   const compareId = params.get('compareId')
+
+  // 내 약 관리 또는 커뮤니티에서 전달한 품목코드가 있으면 해당 약을 초기 대화 대상으로 불러온다.
+  // URL의 표시 이름은 신뢰하지 않고 서버가 품목코드로 조회한 제품 정보를 사용한다.
   const linked = useRemote(id ? '/api/guides/medications/'+encodeURIComponent(id) : null)
   const linkedCompare = useRemote(compareId ? '/api/guides/medications/'+encodeURIComponent(compareId) : null)
   const mine = useRemote('/api/guides/collection')
@@ -61,6 +68,7 @@ function MedicationConversation() {
   const logRef = useRef(null)
   const inputRef = useRef(null)
 
+  // 페이지를 벗어난 뒤 늦게 도착한 응답이 화면 상태를 바꾸지 않도록 진행 중 요청을 취소한다.
   useEffect(() => () => { requestRef.current?.abort(); requestRef.current = null }, [])
   useEffect(() => {
     const log = logRef.current
@@ -83,6 +91,8 @@ function MedicationConversation() {
   }
 
   async function sendQuestion(text, selections = {}, choiceLabel = '') {
+    // 한 번에 하나의 상담 요청만 유지해 답변 순서가 뒤바뀌는 현상을 막는다.
+    // 사용자 질문은 먼저 화면에 넣고 같은 ID의 메시지에 서버 답변을 채운다.
     text = text.trim()
     if (requestRef.current || !text || text.length > 1000) return
     const controller = new AbortController()
@@ -95,6 +105,8 @@ function MedicationConversation() {
       id, question: text, choiceLabel, selections, answer: null, sources: [], choices: [], choicePage: 1,
     }])
     try {
+      // 실패한 요청과 별도 조건 검색은 자연어 대화 문맥에서 제외한다.
+      // 서버 제한에 맞춰 최근 질문 4개, 완성된 대화 6개만 전송한다.
       const completed = messages.filter(message => !message.failed && message.answer !== null && !message.question.startsWith('조건 검색: '))
       const recentQuestions = completed.slice(-4).map(message => message.question)
       const conversation = completed.slice(-6).flatMap(message => [
@@ -127,6 +139,7 @@ function MedicationConversation() {
   }
 
   function startNewConversation() {
+    // 현재 선택 약은 유지하고 대화 이력만 초기화한다.
     if (requestRef.current) return
     setMessages([])
     setQuestion('')
@@ -135,6 +148,7 @@ function MedicationConversation() {
   }
 
   async function compareProducts() {
+    // 프런트에서 상호작용을 추측하지 않고 두 품목코드를 서버에 보내 DUR 원문을 비교한다.
     if (!selected || !other || selected.itemSeq===other.itemSeq || requestRef.current || paging) return
     const id = nextMessageId()
     const controller = new AbortController();requestRef.current=controller;setLoading(true);setError('')
@@ -161,6 +175,8 @@ function MedicationConversation() {
   }
 
   async function searchCatalog(query, existing = null) {
+    // 조건 검색은 /api/chat/catalog를 사용하는 별도 흐름이다.
+    // existing이 있으면 다음 페이지를 기존 검색 결과 뒤에 이어 붙인다.
     if (requestRef.current || paging) return
     const id = nextMessageId()
     const controller = new AbortController()

@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 현재 복용 중인 약 사이에서 발견된 DUR 비교 결과를 요약합니다.
+ * 핵심 규칙: 경고 건수가 없어도 상호작용이 없다고 단정하지 않는 안내를 유지합니다.
+ */
 import { Link } from 'react-router-dom'
 import { DurRecord } from '../chatbot/components/CatalogResults'
 export default function InteractionSummary({ data }) {

@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 커뮤니티 목록·상세·작성·댓글·첨부·신고와 관리자 도구를 관리하는 페이지입니다.
+ * 핵심 규칙: 로그인 사용자와 작성자 ID를 비교해 수정·삭제 버튼을 표시하고 서버에서도 다시 권한을 확인합니다.
+ */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import './CommunityPage.css'
@@ -8,6 +12,7 @@ const reasons={MISINFORMATION:'허위·부정확한 정보',DANGEROUS_ADVICE:'�
 const reportTargets={POST:'게시글',COMMENT:'댓글'}
 const emptyForm={category:'EXPERIENCE',title:'',content:'',medicationId:'',medicationName:'',experienceDuration:'',ageGroup:'',purpose:'',occurrenceTiming:'',currentlyTaking:false}
 
+// 공통 API 처리: 정상 응답의 JSON을 반환하고 실패 응답의 message를 화면용 Error로 변환한다.
 async function api(url,options){const res=await fetch(url,options);const data=await res.json().catch(()=>({}));if(!res.ok)throw new Error(data.message||'요청을 처리하지 못했습니다.');return data}
 
 function UserAvatar({name,imageUrl,size='small'}){
@@ -39,6 +44,7 @@ export default function CommunityPage({user}){
   const [imageFiles,setImageFiles]=useState([])
   const [documentFiles,setDocumentFiles]=useState([])
   const [submitting,setSubmitting]=useState(false)
+  // 등록 버튼 연속 클릭으로 동일 게시글이 여러 번 생성되지 않도록 렌더링과 무관한 잠금을 둔다.
   const submitLock=useRef(false)
   const isAdmin=user?.role==='ADMIN'
   const canWrite=Boolean(user?.userId)&&user?.username!=='demo'
@@ -49,15 +55,21 @@ export default function CommunityPage({user}){
   useEffect(()=>{const postId=initialParams.get('postId');if(postId)openPost(postId)},[initialParams])
   useEffect(()=>{if(medQuery.trim().length<1)return;const t=setTimeout(()=>api('/api/community/medications?q='+encodeURIComponent(medQuery)).then(setMeds).catch(()=>setMeds([])),250);return()=>clearTimeout(t)},[medQuery])
   async function openPost(id){try{setSelected(await api('/api/community/posts/'+id));setNotice('')}catch(e){setError(e.message)}}
+  // 본문을 먼저 저장해 postId를 받은 다음 첨부파일을 연결한다.
+  // 첨부만 실패하면 이미 저장된 글을 유지하고 사용자에게 부분 성공 사실을 알린다.
   async function submitPost(e){e.preventDefault();if(submitLock.current)return;submitLock.current=true;setSubmitting(true);let post=null;try{post=await api(editingId?'/api/community/posts/'+editingId:'/api/community/posts',{method:editingId?'PATCH':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)});if(imageFiles.length)await uploadAttachments(post.postId,'IMAGE',imageFiles);if(documentFiles.length)await uploadAttachments(post.postId,'FILE',documentFiles);post=await api('/api/community/posts/'+post.postId);setCompose(false);setEditingId(null);setForm(emptyForm);setMedQuery('');setImageFiles([]);setDocumentFiles([]);setNotice(editingId?'글을 수정했습니다.':'글을 등록했습니다.');await load();setSelected(post)}catch(e){if(post){setCompose(false);setEditingId(null);setImageFiles([]);setDocumentFiles([]);setNotice('글은 저장했지만 일부 첨부파일을 등록하지 못했습니다. '+e.message);await load();await openPost(post.postId)}else setNotice(e.message)}finally{submitLock.current=false;setSubmitting(false)}}
   async function uploadAttachments(postId,type,files){for(const file of files){const body=new FormData();body.append('type',type);body.append('files',file);const response=await fetch('/api/community/posts/'+postId+'/attachments',{method:'POST',body});const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(data.message||'첨부파일을 등록하지 못했습니다.')}}
   async function toggleHelpful(){try{const data=await api('/api/community/posts/'+selected.postId+'/helpful',{method:'POST'});setSelected(v=>({...v,helpfulByMe:data.active?1:0,helpfulCount:data.count}));setResult(v=>({...v,items:v.items.map(x=>x.postId===selected.postId?{...x,helpfulByMe:data.active?1:0,helpfulCount:data.count}:x)}))}catch(e){setNotice(e.message)}}
   async function submitComment(e){e.preventDefault();try{await api('/api/community/posts/'+selected.postId+'/comments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:comment})});setComment('');await openPost(selected.postId)}catch(e){setNotice(e.message)}}
+  // 사용자가 작성한 신고 사유는 관리자에게 그대로 전달한다. 화면에서 빈 값과 길이를 먼저 확인하지만
+  // 권한, 대상 유형, 최대 길이는 조작 방지를 위해 서버에서도 다시 검증한다.
   async function report(targetType,targetId){if(!canWrite){setNotice('로그인 후 신고할 수 있습니다.');return}const input=window.prompt('신고 사유를 적어주세요.\n작성한 내용은 관리자에게 전달됩니다.');if(input===null)return;const detail=input.trim();if(!detail){setNotice('신고 사유를 입력해주세요.');return}if(detail.length>500){setNotice('신고 사유는 500자 이내로 입력해주세요.');return}try{await api('/api/community/reports',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({targetType,targetId,reason:'OTHER',detail})});setNotice('신고가 접수되었습니다. 관리자 확인 후 처리됩니다.')}catch(e){setNotice(e.message)}}
   function editPost(){setEditingId(selected.postId);setForm({category:selected.category,title:selected.title,content:selected.content,medicationId:selected.medicationId||'',medicationName:selected.medicationName||'',experienceDuration:selected.experienceDuration||'',ageGroup:selected.ageGroup||'',purpose:selected.purpose||'',occurrenceTiming:selected.occurrenceTiming||'',currentlyTaking:Number(selected.currentlyTaking)===1});setMedQuery(selected.medicationName||'');setImageFiles([]);setDocumentFiles([]);setSelected(null);setCompose(true)}
   async function deletePost(){if(!window.confirm('이 글을 삭제할까요?'))return;try{await api('/api/community/posts/'+selected.postId,{method:'DELETE'});setSelected(null);setNotice('글을 삭제했습니다.');load()}catch(e){setNotice(e.message)}}
   async function deleteComment(id){if(!window.confirm('댓글을 삭제할까요?'))return;try{await api('/api/community/comments/'+id,{method:'DELETE'});openPost(selected.postId)}catch(e){setNotice(e.message)}}
   async function deleteAttachment(id){if(!window.confirm('첨부파일을 삭제할까요?'))return;try{await api('/api/community/attachments/'+id,{method:'DELETE'});await openPost(selected.postId);setNotice('첨부파일을 삭제했습니다.')}catch(e){setNotice(e.message)}}
+  // 일반 신고와 약 정보 제보 검토 목록은 서로 독립적이므로 병렬로 불러온다.
+  // 관리자 버튼의 노출 여부와 별개로 각 서버 API가 관리자 권한을 다시 확인해야 한다.
   async function loadReports(){try{const [a,b]=await Promise.all([api('/api/community/admin/reports'),api('/api/community/admin/info-reports')]);setReports(a);setInfoReports(b)}catch(e){setNotice(e.message)}}
   async function moderatePost(id,status){try{await api('/api/community/admin/posts/'+id+'/status',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});setNotice('게시글 상태를 변경했습니다.');load();loadReports();if(selected?.postId===id)setSelected(null)}catch(e){setNotice(e.message)}}
   async function resolveReport(id,status){try{await api('/api/community/admin/reports/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status,resolutionNote:''})});loadReports()}catch(e){setNotice(e.message)}}

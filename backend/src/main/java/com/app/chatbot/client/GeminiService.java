@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: Gemini REST API 호출과 프롬프트, JSON Schema 응답 검증을 전담합니다.
+ * 핵심 규칙: DB 조회와 사용자 권한 판단은 하지 않으며, 외부 AI의 응답은 반드시 파싱·길이·허용값 검사를 거쳐 반환합니다.
+ */
 package com.app.chatbot.client;
 
 import java.io.File;
@@ -43,6 +47,8 @@ public class GeminiService {
     }
 
     private static String resolveApiKey() {
+        // 운영 환경은 환경 변수, 로컬 개발은 JVM 속성 또는 git에서 제외된 properties 순으로 찾는다.
+        // 코드와 저장소에는 실제 API 키를 넣지 않는다.
         String key = System.getenv("GEMINI_API_KEY");
         if (key != null && !key.isBlank()) return key.trim();
         key = System.getProperty("GEMINI_API_KEY");
@@ -68,7 +74,7 @@ public class GeminiService {
         return apiKey != null && !apiKey.isBlank();
     }
 
-    // Test constructor: no real API key or external request is needed in tests.
+    // 테스트에서 실제 API 키나 외부 요청 없이 모의 RestTemplate을 주입할 수 있는 생성자다.
     GeminiService(RestTemplate client, String key, String modelName) {
         restTemplate = client;
         apiKey = key == null ? "" : key.trim();
@@ -100,6 +106,8 @@ public class GeminiService {
     }
 
     public ConversationAnswer counsel(String question, String referenceJson, List<ChatTurn> conversation, String serverContext) {
+        // 자유 형식 문장을 그대로 믿지 않고 JSON Schema로 답변·후속 질문·긴급도 구조를 강제한다.
+        // 아래에서도 길이와 enum을 다시 검사해 공급자 응답을 서버의 신뢰 경계 안으로 가져온다.
         Map<String,Object> schema = Map.of("type", "object", "properties", Map.of(
             "answer", Map.of("type", "string"),
             "followUpQuestions", Map.of("type", "array", "maxItems", 2, "items", Map.of("type", "string")),
@@ -907,6 +915,7 @@ public class GeminiService {
     }
 
     private String generate(String instructions, String prompt, Map<String, Object> generationConfig) {
+        // 모든 Gemini 기능은 이 메서드를 통과한다. 모델명은 URL에 들어가므로 허용 패턴을 먼저 검사한다.
         if (apiKey.isBlank())
             throw new GeminiException(503, "AI 서비스의 GEMINI_API_KEY가 설정되지 않았습니다.");
         if (!model.matches("gemini-[A-Za-z0-9.\\-]+"))
@@ -924,7 +933,7 @@ public class GeminiService {
                 "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent",
                 new HttpEntity<>(body, headers), JsonNode.class);
         } catch (RestClientResponseException e) {
-            // Provider bodies may include user data. Do not retain them in exceptions/logs.
+            // 공급자 오류 본문에는 사용자 질문이 포함될 수 있으므로 예외나 로그에 원문을 남기지 않는다.
             int status = e.getRawStatusCode();
             if (status == 429)
                 throw new GeminiException(429, "Gemini API 사용 한도에 도달했습니다. 잠시 후 다시 시도하거나 AI Studio에서 할당량을 확인해주세요.");
@@ -941,7 +950,7 @@ public class GeminiService {
         if (response == null || response.path("promptFeedback").hasNonNull("blockReason"))
             throw new GeminiException(502, "Gemini에서 답변을 제공하지 않았습니다. 질문을 바꿔주세요.");
         JsonNode candidate = response.path("candidates").path(0);
-        // Never present truncated dosage instructions as a complete answer.
+        // 잘린 복용 지시를 완성된 답처럼 보여주지 않도록 STOP으로 끝난 응답만 사용한다.
         if (!"STOP".equals(candidate.path("finishReason").asText()))
             throw new GeminiException(502, "AI 답변이 정상적으로 완료되지 않았습니다. 질문을 짧게 나누어 다시 시도해주세요.");
         StringBuilder answer = new StringBuilder();
