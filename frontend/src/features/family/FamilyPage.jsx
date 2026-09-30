@@ -521,6 +521,73 @@ export default function FamilyPage(props) {
     supplement: { label: '영양제', className: 'supplement', dotClass: 'dot-supplement' },
   };
 
+  // 알람 설정 모달 상태
+  const [alarmModalOpen, setAlarmModalOpen] = useState(false);
+  const [targetScheduleForAlarm, setTargetScheduleForAlarm] = useState(null);
+  const [newAlarmTime, setNewAlarmTime] = useState('08:00');
+  const [alarmEnabled, setAlarmEnabled] = useState(true);
+
+  // 일정 삭제 모달 상태
+  const [scheduleDeleteModalOpen, setScheduleDeleteModalOpen] = useState(false);
+  const [targetScheduleForDelete, setTargetScheduleForDelete] = useState(null);
+
+  // 1) 알람 모달 열기
+  const handleOpenAlarmModal = (item) => {
+    setTargetScheduleForAlarm(item);
+    setNewAlarmTime(item.time ? String(item.time).substring(0, 5) : '08:00');
+    setAlarmEnabled(item.alarmEnabled ?? true);
+    setAlarmModalOpen(true);
+  };
+
+  // 2) 알람 일괄 저장 API 호출
+  const handleSaveAlarm = async () => {
+    if (!targetScheduleForAlarm) return;
+    try {
+      const res = await fetch(
+        `/api/calendar/${targetScheduleForAlarm.scheduleId}/alarm?newTime=${encodeURIComponent(newAlarmTime)}&alarmEnabled=${alarmEnabled}&date=${selectedDate}`,
+        { method: 'POST' }
+      );
+      if (res.ok) {
+        alert('알람 설정이 변경되었습니다.');
+        setAlarmModalOpen(false);
+        // 당일 일정 다시 불러오기 (사용하시는 함수명 확인: fetchDailySchedules 등)
+        if (typeof fetchDailySchedules === 'function') fetchDailySchedules(selectedDate);
+      } else {
+        alert('알람 설정 변경에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('알람 변경 오류:', err);
+    }
+  };
+
+  // 3) 삭제 모달 열기
+  const handleOpenScheduleDeleteModal = (item) => {
+    setTargetScheduleForDelete(item);
+    setScheduleDeleteModalOpen(true);
+  };
+
+  // 4) 삭제 실행 API 호출 (deleteAll: true면 전체 반복 삭제, false면 오늘만 삭제)
+  const handleExecuteScheduleDelete = async (deleteAll) => {
+    if (!targetScheduleForDelete) return;
+    try {
+      const targetUid = targetScheduleForDelete.userId || currentUserId;
+      const res = await fetch(
+        `/api/calendar/${targetScheduleForDelete.scheduleId}/delete?deleteAll=${deleteAll}&userId=${targetUid}&date=${selectedDate}`,
+        { method: 'POST' }
+      );
+      if (res.ok) {
+        setScheduleDeleteModalOpen(false);
+        setTargetScheduleForDelete(null);
+        if (typeof fetchDailySchedules === 'function') fetchDailySchedules(selectedDate);
+        if (typeof fetchMonthSummary === 'function') fetchMonthSummary();
+      } else {
+        alert('일정 삭제에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('일정 삭제 오류:', err);
+    }
+  };
+
   return (
     <div className="family-page-wrapper">
       {/* 1. 상단 타이틀 & 필터 칩 */}
@@ -717,18 +784,29 @@ export default function FamilyPage(props) {
                   </label>
 
                   <div className="chk-main-content">
+                    {/* 상단: 점 + 시간대 + 시간 + 실제 복용자 이름/역할 */}
                     <div className="chk-meta-line">
                       <span className={`chk-bullet-dot ${catInfo.dotClass}`} />
                       <span className="chk-slot-text">{slotInfo.slotLabel}</span>
                       <span className="chk-time-text">{String(item.time || '').substring(0, 5)}</span>
-                      {item.userName && (
-                        <span className="chk-user-tag">{item.userName}</span>
+                      
+                      {/* 전체 탭일 때: '가족' 대신 실제 유저 이름과 역할 표시 */}
+                      {selectedMemberId === 'all' && (
+                        <span className="chk-user-tag">
+                          {(item.userName && item.userName !== '가족') 
+                            ? item.userName 
+                            : (familyMembers?.find(m => Number(m.userId) === Number(item.userId))?.name || '본인')}
+                          {Number(item.userId) === Number(currentUserId) 
+                            ? ' (본인)' 
+                            : (item.userRole || item.role ? ` (${getRoleLabel(item.userRole || item.role)})` : '')}
+                        </span>
                       )}
                     </div>
 
+                    {/* 하단: 약 이름 + 처방약/영양제 라벨 (기존 코드 그대로 유지) */}
                     <div className="chk-med-line">
                       <span className={`chk-med-name ${isTaken ? 'line-through' : ''}`}>
-                        {item.name}
+                        {item.name || item.medicationName}
                       </span>
                       <span className={`chk-cat-label ${catInfo.className}`}>
                         {catInfo.label}
@@ -736,18 +814,27 @@ export default function FamilyPage(props) {
                     </div>
                   </div>
 
+                  {/* 액션 버튼: 알림 설정 & 일정 삭제 */}
                   <div className="chk-actions-group">
-                    <button type="button" className="chk-icon-btn" title="알림 설정">
+                    {/* 1. 알람 휠 모달 열기 */}
+                    <button 
+                      type="button" 
+                      className="chk-icon-btn" 
+                      title="알림 설정"
+                      onClick={() => handleOpenAlarmModal(item)}
+                    >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                       </svg>
                     </button>
+
+                    {/* 2. 캘린더 스타일 삭제 모달 열기 */}
                     <button
                       type="button"
                       className="chk-icon-btn delete"
                       title="일정 삭제"
-                      onClick={(e) => handleDeleteSchedule(item.scheduleId, e)}
+                      onClick={() => handleOpenScheduleDeleteModal(item)}
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="3 6 5 6 21 6" />
@@ -1086,6 +1173,10 @@ export default function FamilyPage(props) {
           </div>
         </div>
       )}
+
+      
+
+
     </div>
   );
 }

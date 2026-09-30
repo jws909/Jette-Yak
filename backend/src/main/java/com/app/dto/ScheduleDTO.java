@@ -64,4 +64,25 @@ public class ScheduleDTO {
 
     public String getSlotLabel() { return slotLabel; }
     public void setSlotLabel(String slotLabel) { this.slotLabel = slotLabel; }
+    
+ // 1) 변수 추가 (기존 private 변수들 있는 곳)
+    private String userName;
+    private String userRole;
+
+    // 2) Getter / Setter 추가 (클래스 하단)
+    public String getUserName() {
+        return userName;
+    }
+
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    public String getUserRole() {
+        return userRole;
+    }
+
+    public void setUserRole(String userRole) {
+        this.userRole = userRole;
+    }
 }
