@@ -58,6 +58,10 @@ function MedicationConversation() {
   const communityQuery = selected ? new URLSearchParams({medicationId:String(selected.itemSeq),medicationName:selected.itemName||''}).toString() : ''
   const [question, setQuestion] = useState('')
   const [messages, setMessages] = useState([])
+  const [conversationId, setConversationId] = useState(null)
+  const [historyItems, setHistoryItems] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(true)
+  const [historyLoginRequired, setHistoryLoginRequired] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [paging, setPaging] = useState(null)
@@ -68,8 +72,37 @@ function MedicationConversation() {
   const logRef = useRef(null)
   const inputRef = useRef(null)
 
+  async function loadHistories() {
+    setHistoryLoading(true)
+    try {
+      const response = await fetch('/api/chat/conversations', { headers: { Accept: 'application/json' } })
+      if (response.status === 401) {
+        setHistoryLoginRequired(true)
+        setHistoryItems([])
+        return
+      }
+      const data = await readResponse(response)
+      setHistoryLoginRequired(false)
+      setHistoryItems(Array.isArray(data.items) ? data.items : [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   // 페이지를 벗어난 뒤 늦게 도착한 응답이 화면 상태를 바꾸지 않도록 진행 중 요청을 취소한다.
   useEffect(() => () => { requestRef.current?.abort(); requestRef.current = null }, [])
+  useEffect(() => {
+    let active = true
+    fetch('/api/chat/conversations', { headers: { Accept: 'application/json' } }).then(async response => {
+      if (!active) return
+      if (response.status === 401) { setHistoryLoginRequired(true); setHistoryItems([]); return }
+      const data = await readResponse(response)
+      if (active) { setHistoryLoginRequired(false); setHistoryItems(Array.isArray(data.items) ? data.items : []) }
+    }).catch(err => { if (active) setError(err.message) }).finally(() => { if (active) setHistoryLoading(false) })
+    return () => { active = false }
+  }, [])
   useEffect(() => {
     const log = logRef.current
     if (!log) return
@@ -90,7 +123,7 @@ function MedicationConversation() {
     inputRef.current?.focus()
   }
 
-  async function sendQuestion(text, selections = {}, choiceLabel = '') {
+  async function sendQuestion(text, selections = {}, choiceLabel = '', chosenDrug = null) {
     // 한 번에 하나의 상담 요청만 유지해 답변 순서가 뒤바뀌는 현상을 막는다.
     // 사용자 질문은 먼저 화면에 넣고 같은 ID의 메시지에 서버 답변을 채운다.
     text = text.trim()
@@ -101,6 +134,9 @@ function MedicationConversation() {
     const id = nextMessageId()
     setLoading(true)
     setError('')
+    // 여러 검색 결과 중 고른 제품은 이 요청과 이후 대화의 기준 약으로 즉시 확정한다.
+    // selections는 서버의 검색어-품목 일치 검증에, itemSeq는 현재 대화 약 갱신에 사용한다.
+    if (chosenDrug) setSelected(chosenDrug)
     setMessages(previous => [...previous, {
       id, question: text, choiceLabel, selections, answer: null, sources: [], choices: [], choicePage: 1,
     }])
@@ -113,7 +149,7 @@ function MedicationConversation() {
         { role: 'user', content: message.question.slice(0, 1500) },
         { role: 'assistant', content: message.answer.slice(0, 1500) },
       ])
-      const data = await postQuestion({ itemSeq: selected?.itemSeq, question: text, selections, recentQuestions, conversation }, controller.signal)
+      const data = await postQuestion({ conversationId, itemSeq: chosenDrug?.itemSeq || selected?.itemSeq, question: text, selections, recentQuestions, conversation }, controller.signal)
       if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('서버 응답에 답변이 없습니다.')
       if (requestRef.current !== controller) return
       const seconds = data.seconds
@@ -127,6 +163,10 @@ function MedicationConversation() {
         followUpQuestions: Array.isArray(data.followUpQuestions) ? data.followUpQuestions : [], seconds,
       } : message))
       if (data.activeMedication) setSelected(data.activeMedication)
+      if (data.conversationId) {
+        setConversationId(Number(data.conversationId))
+        loadHistories()
+      }
       setQuestion('')
     } catch (err) {
       if (requestRef.current !== controller) return
@@ -142,9 +182,44 @@ function MedicationConversation() {
     // 현재 선택 약은 유지하고 대화 이력만 초기화한다.
     if (requestRef.current) return
     setMessages([])
+    setConversationId(null)
     setQuestion('')
     setError('')
     inputRef.current?.focus()
+  }
+
+  async function openConversation(id) {
+    if (requestRef.current || loading || paging) return
+    setHistoryLoading(true); setError('')
+    try {
+      const data = await readResponse(await fetch('/api/chat/conversations/' + encodeURIComponent(id)))
+      const restored = (Array.isArray(data.messages) ? data.messages : []).map(message => ({
+        ...message,
+        sources: Array.isArray(message.sources) ? message.sources : [],
+        choices: Array.isArray(message.choices) ? message.choices : [],
+        followUpQuestions: Array.isArray(message.followUpQuestions) ? message.followUpQuestions : [],
+        choicePage: message.choicePage || 1,
+      }))
+      setMessages(restored)
+      setConversationId(Number(data.conversation?.conversationId || id))
+      const activeMedication = [...restored].reverse().find(message => message.activeMedication)?.activeMedication
+      if (activeMedication) setSelected(activeMedication)
+      else if (data.conversation?.medicationId) {
+        const guide = await readResponse(await fetch('/api/guides/medications/' + encodeURIComponent(data.conversation.medicationId)))
+        if (guide.medication) setSelected({ ...guide.medication, itemSeq: guide.medication.medicationId })
+      } else setSelected(null)
+      setQuestion('')
+    } catch (err) { setError(err.message) }
+    finally { setHistoryLoading(false) }
+  }
+
+  async function deleteConversation(id) {
+    if (requestRef.current || !window.confirm('이 대화 기록을 삭제하시겠습니까?')) return
+    try {
+      await readResponse(await fetch('/api/chat/conversations/' + encodeURIComponent(id), { method: 'DELETE' }))
+      if (Number(id) === Number(conversationId)) startNewConversation()
+      await loadHistories()
+    } catch (err) { setError(err.message) }
   }
 
   async function compareProducts() {
@@ -215,6 +290,20 @@ function MedicationConversation() {
             <button type="button" className="clear-selection" disabled={loading} onClick={() => setSelected(null)}>선택 해제</button></>
             : <p>선택한 약이 없어요.<br />검색하거나 질문에 약 이름을 적어주세요.</p>}
         </div>
+        <details className="chat-history-panel" open>
+          <summary>지난 상담 기록</summary>
+          {historyLoading && <p>대화 기록을 불러오는 중…</p>}
+          {historyLoginRequired && <p><Link to="/login?next=/chat">로그인하고 상담 기록 보기 →</Link></p>}
+          {!historyLoading && !historyLoginRequired && historyItems.length === 0 && <p>저장된 상담 기록이 없습니다.</p>}
+          <div className="chat-history-list">
+            {historyItems.map(item => <div className={Number(item.conversationId) === Number(conversationId) ? 'active' : ''} key={item.conversationId}>
+              <button type="button" className="chat-history-open" disabled={loading || Boolean(paging)} onClick={() => openConversation(item.conversationId)}>
+                <strong>{item.title}</strong><small>{item.updatedAt} · 질문 {item.messageCount || 0}개</small>
+              </button>
+              <button type="button" className="chat-history-delete" aria-label={`${item.title} 대화 삭제`} onClick={() => deleteConversation(item.conversationId)}>×</button>
+            </div>)}
+          </div>
+        </details>
         {selected&&<section className="related-community"><div><span>이 약의 커뮤니티</span><Link to={'/community?'+communityQuery}>전체 보기 →</Link></div>{community.loading&&<p>관련 글을 찾고 있어요…</p>}{community.error&&<p>관련 글을 불러오지 못했습니다.</p>}{community.data?.items?.slice(0,3).map(post=><Link className="related-community-post" key={post.postId} to={'/community?'+communityQuery+'&postId='+post.postId}><strong>{post.title}</strong><small>{post.authorName} · 댓글 {post.commentCount||0}</small></Link>)}{community.data&&community.data.total===0&&<p>아직 이 약에 연결된 글이 없어요.</p>}</section>}
         <details className="chat-personal-panel"><summary>복용 중인 내 약에서 선택</summary>
           {mine.loading && <p role="status">등록 약을 불러오는 중…</p>}
@@ -235,7 +324,7 @@ function MedicationConversation() {
         <p className="scope-note">다른 약 이름을 질문하면 새로 찾아드려요.<br />“효능은?”처럼 이름을 생략하면 현재 선택한 약을 기준으로 안내해요.</p>
       </aside>
       <div className="conversation">
-        <header className="conversation-heading"><h2>복약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>대화 맥락 + DB 근거</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
+        <header className="conversation-heading"><h2>복약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>{conversationId ? '저장된 상담 · DB 근거' : '새 상담 · DB 근거'}</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
         {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{['효능은?','복용법은?','등록된 DUR 주의사항은?'].map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
         <div className="chat-log" ref={logRef} role="log" aria-label="질문과 답변" aria-live="polite" aria-relevant="additions text">
           {messages.length === 0 && <div className="welcome"><span className="welcome-mark" aria-hidden="true">✦</span><h3>지금 어떤 도움이 필요한가요?</h3>
@@ -249,7 +338,7 @@ function MedicationConversation() {
               {message.sources.length > 0 && <p className="answer-subject">{message.sources.map(source => source.itemName).join(' · ')}</p>}
               {message.choices.length > 0 && <div className="choice-list">
                 {message.choices.map(drug => <button type="button" className="drug-option" key={drug.itemSeq} disabled={loading}
-                  onClick={() => sendQuestion(message.question, { ...message.selections, [message.choiceKeyword]: drug.itemSeq }, drug.itemName)}>
+                  onClick={() => sendQuestion(message.question, { ...message.selections, [message.choiceKeyword]: drug.itemSeq }, drug.itemName, drug)}>
                   <strong>{drug.itemName}</strong><small>{drug.entpName || '업체 정보 없음'}</small>
                 </button>)}
                 {message.choices.length < message.choiceTotal && <button type="button" className="load-more" disabled={Boolean(paging) || loading} onClick={() => moreChoices(message)}>다른 제품 더 보기 ({message.choices.length}/{message.choiceTotal})</button>}

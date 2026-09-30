@@ -6,6 +6,7 @@ package com.app.chatbot.dto;
 import java.util.List;
 import java.util.Map;
 public class MedicationChatRequest {
+    private Long conversationId;
     private List<String> recentQuestions = List.of();
     private List<ChatTurn> conversation = List.of();
     public List<String> getRecentQuestions() { return recentQuestions; }
@@ -15,6 +16,8 @@ public class MedicationChatRequest {
     private String itemSeq;
     private String question;
     private Map<String, String> selections = Map.of();
+    public Long getConversationId() { return conversationId; }
+    public void setConversationId(Long value) { conversationId = value; }
     public String getItemSeq() { return itemSeq; }
     public void setItemSeq(String value) { itemSeq = value; }
     public String getQuestion() { return question; }

@@ -55,3 +55,20 @@ SELECT COUNT(*) FROM routine_medications WHERE medication_id IS NOT NULL;
 ## 실행
 
 Eclipse에서 Project Build 후 Tomcat Publish/재시작, 브라우저 새로고침 및 로그인. 등록한 약은 기본 복용 중으로 DUR 비교에 반영되며, 상태를 변경하면 비교 대상도 갱신된다. 이번 코드는 소스에 반영되어 있으며 현재 실행 중인 Tomcat에 자동 재배포하지 않았다.
+
+## 챗봇 대화 기록
+
+`20260930_chat_history.sql`을 SQL Developer에서 스크립트 실행(F5)한 뒤 Tomcat을 다시 시작한다.
+
+- 로그인 사용자의 세션 `userId`로 대화 소유자를 저장한다.
+- 한 대화방에 사용자 질문과 AI 답변을 순서대로 저장한다.
+- 답변의 DB 출처, DUR 결과, 후속 질문도 JSON으로 보관해 다시 열었을 때 복원한다.
+- 대화 조회와 삭제는 대화 ID와 로그인 사용자 ID를 함께 검사한다.
+- 비로그인 사용자는 상담할 수 있지만 서버에 대화 기록을 저장하지 않는다.
+
+적용 확인 SQL:
+
+```sql
+SELECT COUNT(*) FROM chat_conversations;
+SELECT COUNT(*) FROM chat_messages;
+```

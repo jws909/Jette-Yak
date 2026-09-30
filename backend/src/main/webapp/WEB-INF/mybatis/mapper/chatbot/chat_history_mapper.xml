@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.chatbot.dao.ChatHistoryDao">
+  <select id="nextConversationId" resultType="long">SELECT chat_conversation_seq.NEXTVAL FROM dual</select>
+  <select id="nextMessageId" resultType="long">SELECT chat_message_seq.NEXTVAL FROM dual</select>
+  <insert id="insertConversation" parameterType="map">
+    INSERT INTO chat_conversations(conversation_id,user_id,title,medication_id,created_at,updated_at)
+    VALUES(#{conversationId},#{userId},#{title},#{medicationId,jdbcType=VARCHAR},SYSDATE,SYSDATE)
+  </insert>
+  <update id="updateConversation" parameterType="map">
+    UPDATE chat_conversations SET updated_at=SYSDATE,
+      medication_id=#{medicationId,jdbcType=VARCHAR}
+    WHERE conversation_id=#{conversationId} AND user_id=#{userId}
+  </update>
+  <insert id="insertMessage" parameterType="map">
+    INSERT INTO chat_messages(message_id,conversation_id,role,content,payload_json,created_at)
+    VALUES(#{messageId},#{conversationId},#{role},#{content,jdbcType=CLOB},#{payloadJson,jdbcType=CLOB},SYSDATE)
+  </insert>
+  <select id="countOwned" parameterType="map" resultType="int">
+    SELECT COUNT(*) FROM chat_conversations WHERE conversation_id=#{conversationId} AND user_id=#{userId}
+  </select>
+  <select id="findConversations" parameterType="map" resultType="map" timeout="10">
+    SELECT c.conversation_id AS "conversationId",c.title AS "title",c.medication_id AS "medicationId",
+      TO_CHAR(c.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",
+      TO_CHAR(c.updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt",
+      (SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id=c.conversation_id AND m.role='USER') AS "messageCount"
+    FROM chat_conversations c WHERE c.user_id=#{userId}
+    ORDER BY c.updated_at DESC,c.conversation_id DESC
+    FETCH FIRST 100 ROWS ONLY
+  </select>
+  <select id="findConversation" parameterType="map" resultType="map" timeout="10">
+    SELECT conversation_id AS "conversationId",title AS "title",medication_id AS "medicationId",
+      TO_CHAR(created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",TO_CHAR(updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt"
+    FROM chat_conversations WHERE conversation_id=#{conversationId} AND user_id=#{userId}
+  </select>
+  <resultMap id="historyMessage" type="com.app.chatbot.dto.ChatHistoryMessageDto" autoMapping="false">
+    <id column="message_id" property="messageId"/>
+    <result column="role" property="role"/>
+    <result column="content" property="content" javaType="java.lang.String" jdbcType="CLOB"/>
+    <result column="payload_json" property="payloadJson" javaType="java.lang.String" jdbcType="CLOB"/>
+    <result column="created_at" property="createdAt"/>
+  </resultMap>
+  <select id="findMessages" parameterType="map" resultMap="historyMessage" timeout="10">
+    SELECT m.message_id,m.role,m.content,m.payload_json,TO_CHAR(m.created_at,'YYYY-MM-DD HH24:MI:SS') created_at
+    FROM chat_messages m JOIN chat_conversations c ON c.conversation_id=m.conversation_id
+    WHERE m.conversation_id=#{conversationId} AND c.user_id=#{userId}
+    ORDER BY m.message_id
+  </select>
+  <delete id="deleteConversation" parameterType="map">
+    DELETE FROM chat_conversations WHERE conversation_id=#{conversationId} AND user_id=#{userId}
+  </delete>
+</mapper>
