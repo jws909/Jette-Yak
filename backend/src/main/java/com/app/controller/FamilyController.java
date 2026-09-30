@@ -334,7 +334,9 @@ public class FamilyController {
 			// 1) 대상 초대 확인
 			Long familyId = null;
 			String inviteRole = null;
-			String checkSql = "SELECT FAMILY_ID FROM FAMILY_INVITATIONS WHERE INVITE_ID = ? AND RECEIVER_ID = ? AND STATUS = 'PENDING'";
+			String checkSql =
+				    "SELECT FAMILY_ID, ROLE FROM FAMILY_INVITATIONS " +
+				    "WHERE INVITE_ID = ? AND RECEIVER_ID = ? AND STATUS = 'PENDING'";
 			try (PreparedStatement pstmt = conn.prepareStatement(checkSql)) {
 				pstmt.setLong(1, inviteId);
 				pstmt.setLong(2, userId);
@@ -351,13 +353,15 @@ public class FamilyController {
 			if ("ACCEPT".equalsIgnoreCase(action)) {
 				// [승인 시]
 				// 2) USERS 테이블의 FAMILY_ID 갱신
-				String updateUSql = "UPDATE USERS SET FAMILY_ID = ? WHERE USER_ID = ?";
-				try (PreparedStatement pstmt = conn.prepareStatement(updateUSql)) {
-					pstmt.setLong(1, familyId);
-					pstmt.setString(2, inviteRole);
-					pstmt.setLong(3, userId);
-					pstmt.executeUpdate();
-				}
+				String updateUSql =
+					    "UPDATE USERS SET FAMILY_ID = ?, ROLE = ? WHERE USER_ID = ?";
+
+					try (PreparedStatement pstmt = conn.prepareStatement(updateUSql)) {
+					    pstmt.setLong(1, familyId);
+					    pstmt.setString(2, inviteRole);
+					    pstmt.setLong(3, userId);
+					    pstmt.executeUpdate();
+					}
 
 				// 3) FAMILY_MEMBERS 테이블에 관계 등록 (FAMILY_ID, USER_ID)
 				String insertMemSql = "INSERT INTO FAMILY_MEMBERS (FAMILY_ID, USER_ID) VALUES (?, ?)";
