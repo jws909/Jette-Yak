@@ -104,29 +104,65 @@ public class CalendarController {
 		}
 
 		// 개별 탭 조회 시 기존 로직
-		if (!isFamily) {
-			List<ScheduleDTO> list = scheduleService.getDailySchedules(userId, date);
-			return ResponseEntity.ok(list != null ? list : Collections.emptyList());
-		}
+		// 개별 탭 조회 시 기존 로직
+				if (!isFamily) {
+					List<ScheduleDTO> list = scheduleService.getDailySchedules(userId, date);
+					return ResponseEntity.ok(list != null ? list : Collections.emptyList());
+				}
 
-		// 전체(가족) 탭 조회 시: 가족 구성원 전체의 복약 일정 집계
-		List<Long> familyUserIds = getFamilyUserIds(userId);
-		List<ScheduleDTO> combinedList = new ArrayList<>();
-		Set<Long> seenScheduleIds = new HashSet<>();
+				// 전체(가족) 탭 조회 시: 가족 구성원 전체의 복약 일정 집계
+				// 전체(가족) 탭 조회 시: 가족 구성원 전체의 복약 일정 집계
+				List<Long> familyUserIds = getFamilyUserIds(userId);
+				Map<Long, Map<String, String>> familyInfo = getFamilyMemberInfoMap(userId);
+				List<ScheduleDTO> combinedList = new ArrayList<>();
+				Set<Long> seenScheduleIds = new HashSet<>();
 
-		for (Long fUid : familyUserIds) {
-			List<ScheduleDTO> memberSchedules = scheduleService.getDailySchedules(fUid, date);
-			if (memberSchedules != null) {
-				for (ScheduleDTO item : memberSchedules) {
-					if (item.getScheduleId() == null || seenScheduleIds.add(item.getScheduleId())) {
-						combinedList.add(item);
+				for (Long fUid : familyUserIds) {
+					List<ScheduleDTO> memberSchedules = scheduleService.getDailySchedules(fUid, date);
+					if (memberSchedules != null) {
+						Map<String, String> info = familyInfo.get(fUid);
+						// DB에서 해당 유저의 NAME을 직접 가져오고, 혹시 없으면 빈 문자열("")
+						String mName = (info != null && info.get("name") != null) ? info.get("name") : "";
+						String mRole = (info != null && info.get("role") != null) ? info.get("role") : "";
+
+						for (ScheduleDTO item : memberSchedules) {
+							if (item.getScheduleId() == null || seenScheduleIds.add(item.getScheduleId())) {
+								item.setUserName(mName);     // 실제 복용자 이름
+								item.setUserRole(mRole);     // 복용자 역할
+								item.setUserId(fUid);        // 소유자 ID
+								combinedList.add(item);
+							}
+						}
 					}
 				}
+				combinedList.sort(Comparator.comparing(ScheduleDTO::getTime, Comparator.nullsLast(String::compareTo)));
+				return ResponseEntity.ok(combinedList);
 			}
-		}
 
-		combinedList.sort(Comparator.comparing(ScheduleDTO::getTime, Comparator.nullsLast(String::compareTo)));
-		return ResponseEntity.ok(combinedList);
+			/**
+			 * 가족 구성원의 [USER_ID -> {name, role}] 정보 조회 헬퍼 메서드
+			 */
+	private Map<Long, Map<String, String>> getFamilyMemberInfoMap(Long userId) {
+	    Map<Long, Map<String, String>> result = new HashMap<>();
+	    // NICKNAME 컬럼을 가져오도록 수정
+	    String sql = "SELECT USER_ID, NICKNAME, ROLE FROM USERS "
+	               + "WHERE FAMILY_ID = (SELECT FAMILY_ID FROM USERS WHERE USER_ID = ?)";
+	    try (Connection conn = dataSource.getConnection();
+	         PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	        pstmt.setLong(1, userId);
+	        try (ResultSet rs = pstmt.executeQuery()) {
+	            while (rs.next()) {
+	                Long uid = rs.getLong("USER_ID");
+	                Map<String, String> info = new HashMap<>();
+	                info.put("name", rs.getString("NICKNAME")); // NICKNAME에서 값 추출
+	                info.put("role", rs.getString("ROLE"));
+	                result.put(uid, info);
+	            }
+	        }
+	    } catch (Exception e) {
+	        e.printStackTrace();
+	    }
+	    return result;
 	}
 
 	@GetMapping("/search-medications")
