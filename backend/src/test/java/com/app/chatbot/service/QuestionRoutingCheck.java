@@ -88,6 +88,11 @@ public class QuestionRoutingCheck {
         analysis=parsed("MEDICATION_INFO",List.of("타이레놀"),List.of(),List.of(),false,false);
         check(((List<?>)chat("타이레놀은?","1",Map.of()).get("choices")).size()==2,"ambiguous name asks selection");
         check(chat("타이레놀은?","1",Map.of("타이레놀","2")).get("activeMedication")==tylenol,"confirmed selection preserved");
+        analysis=parsed("MEDICATION_INFO",List.of("타이레놀"),List.of(),List.of(),false,true);
+        result=chat("타이레놀 복용법은?","1",Map.of("타이레놀","2"));
+        check(result.get("activeMedication")==tylenol && "DB 답변".equals(result.get("answer"))
+            && !Boolean.TRUE.equals(result.get("conversationMode")),
+            "confirmed product bypasses repeated name clarification and replaces prior context");
         try {chat("타이레놀은?","1",Map.of("타이레놀","1"));throw new AssertionError("forged selection accepted");}catch(IllegalArgumentException expected){checks++;}
         analysis=parsed("DRUG_INTERACTION",List.of("타이레놀정"),List.of(),List.of(),true,false);
         check(((List<?>)chat("이 약이랑 타이레놀정 함께 먹어?","1",Map.of()).get("sources")).size()==2,"current plus explicit second medicine");

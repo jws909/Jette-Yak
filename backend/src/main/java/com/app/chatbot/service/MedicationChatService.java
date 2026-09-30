@@ -45,16 +45,22 @@ public class MedicationChatService {
     public Map<String,Object> chat(MedicationChatRequest request) { return chat(request,null); }
     public Map<String, Object> chat(MedicationChatRequest request, Long userId) {
         String question = request.getQuestion().trim();
-        MedicationChatDto selected = request.getItemSeq() == null || request.getItemSeq().isBlank() ? null
+        MedicationChatDto selectedByItem = request.getItemSeq() == null || request.getItemSeq().isBlank() ? null
             : medicationDao.findChatMedicationByItemSeq(request.getItemSeq().trim());
 
         // 1. 생명·안전에 직접 관련된 표현은 AI 분류 결과를 기다리지 않고 규칙으로 먼저 처리한다.
         //    이 순서를 바꾸면 외부 API 지연이나 오분류 때문에 응급 안내가 늦어질 수 있다.
         if (QuestionAnalysis.hasEmergencySignal(question))
-            return emergencyReply(selected);
+            return emergencyReply(selectedByItem);
         Optional<QuestionAnalysis.Intent> directSafetyIntent = QuestionAnalysis.safetyIntent(question);
         if (directSafetyIntent.isPresent())
-            return safetyReply(directSafetyIntent.get(), selected);
+            return safetyReply(directSafetyIntent.get(), selectedByItem);
+
+        // 제품 선택 목록에서 방금 고른 품목코드는 질문을 다시 분석하기 전에 확정한다.
+        // 이전에 대화하던 약보다 새 선택을 우선해야 선택 직후 같은 약 이름을 되묻지 않는다.
+        LinkedHashMap<String,MedicationChatDto> explicitSelections=resolveSelections(request,question);
+        MedicationChatDto selected=explicitSelections.size()==1
+            ? explicitSelections.values().iterator().next() : selectedByItem;
 
         // 2. 최근 사용자 발화만 추려 질문 분류 문맥으로 사용한다.
         //    전체 대화를 계속 보내면 비용과 지연이 커지므로 분류에는 최대 4개 질문만 사용한다.
@@ -81,7 +87,9 @@ public class MedicationChatService {
             || analysis.intent() == QuestionAnalysis.Intent.GENERAL_HEALTH
             || analysis.intent() == QuestionAnalysis.Intent.SITE_HELP
             || QuestionAnalysis.shouldPreferCounseling(question, userHistory);
-        if (analysis.needsClarification()) {
+        boolean productSelectionResolved=!explicitSelections.isEmpty()
+            && analysis.intent()==QuestionAnalysis.Intent.MEDICATION_INFO;
+        if (analysis.needsClarification()&&!productSelectionResolved) {
             List<MedicationChatDto> context = analysis.useSelectedMedication() && selected != null
                 ? List.of(selected) : registeredContext(question, userId);
             return counselReply(question, context, request,
@@ -98,7 +106,8 @@ public class MedicationChatService {
             return response;
         }
         if (analysis.intent() == QuestionAnalysis.Intent.OTHER)
-            return counselReply(question, selected != null && analysis.useSelectedMedication() ? List.of(selected) : List.of(), request,
+            return counselReply(question, !explicitSelections.isEmpty()?List.copyOf(explicitSelections.values()):
+                (selected != null && analysis.useSelectedMedication() ? List.of(selected) : List.of()), request,
                 "서비스 범위와의 관련성이 불명확함. 사용자의 말을 무시하지 말고 필요한 도움을 한 번 확인할 것.");
         // 4. 목록을 요구한 질문은 자연어 답변보다 구조화 DB 검색 결과를 우선 반환한다.
         if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH && !conversational) {
@@ -114,6 +123,7 @@ public class MedicationChatService {
         List<String> hints = analysis.medications();
         if (hints.size() > 8) return reply("약 이름을 짧게 적거나, 왼쪽 검색에서 약을 선택해주세요.", List.of(), List.of());
         LinkedHashMap<String, MedicationChatDto> targets = new LinkedHashMap<>();
+        explicitSelections.values().forEach(value->targets.put(value.getItemSeq(),value));
         List<String> missing = new ArrayList<>();
         if (analysis.useSelectedMedication()) {
             if (selected == null && conversational)
@@ -130,12 +140,12 @@ public class MedicationChatService {
             // 화면에서 선택한 품목코드도 그대로 신뢰하지 않고 DB 존재 여부와 검색어 일치를 재검증한다.
             String chosenId = request.getSelections().get(hint);
             if (chosenId != null) {
-                MedicationChatDto chosen = medicationDao.findChatMedicationByItemSeq(chosenId);
-                if (chosen == null || !normalize(chosen.getItemName()).contains(keyword))
-                    throw new IllegalArgumentException("선택한 약이 검색어와 일치하지 않습니다. 다시 선택해주세요.");
+                MedicationChatDto chosen=explicitSelections.get(hint);
                 targets.put(chosen.getItemSeq(), chosen);
                 continue;
             }
+            // 분류기가 선택 전 검색어를 조금 다르게 돌려줘도 이미 확정된 제품이면 재검색하지 않는다.
+            if(explicitSelections.values().stream().anyMatch(chosen->normalize(chosen.getItemName()).contains(keyword)))continue;
             List<MedicationChatDto> matches = medicationDao.searchChatMedicationsByName(keyword, 0, PAGE_SIZE);
             if (matches.isEmpty()) { missing.add(hint); continue; }
             List<MedicationChatDto> exact = matches.stream()
@@ -181,6 +191,22 @@ public class MedicationChatService {
         String references = referenceJson(sources);
         String answer = geminiService.ask(question, references, request.getConversation());
         return reply(answer, sources, List.of());
+    }
+
+    private LinkedHashMap<String,MedicationChatDto> resolveSelections(MedicationChatRequest request,String question){
+        LinkedHashMap<String,MedicationChatDto> result=new LinkedHashMap<>();
+        String normalizedQuestion=normalize(question);
+        for(var entry:request.getSelections().entrySet()){
+            String hint=entry.getKey()==null?"":entry.getKey().trim();
+            String id=entry.getValue()==null?"":entry.getValue().trim();
+            if(hint.isBlank()||id.isBlank()||!normalizedQuestion.contains(normalize(hint)))
+                throw new IllegalArgumentException("선택한 약의 검색어를 확인할 수 없습니다. 다시 선택해주세요.");
+            MedicationChatDto chosen=medicationDao.findChatMedicationByItemSeq(id);
+            if(chosen==null||!normalize(chosen.getItemName()).contains(normalize(hint)))
+                throw new IllegalArgumentException("선택한 약이 검색어와 일치하지 않습니다. 다시 선택해주세요.");
+            result.put(hint,chosen);
+        }
+        return result;
     }
 
     private Map<String,Object> counselReply(String question, List<MedicationChatDto> sources, MedicationChatRequest request) {
