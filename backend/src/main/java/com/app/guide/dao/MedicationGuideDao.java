@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 의약품 상세, DUR, 사용자 등록 약과 상태 변경에 필요한 DB 조회 계약입니다.
+ * 핵심 규칙: 복용 중 비교 쿼리는 ACTIVE 상태와 사용자 소유 조건을 모두 포함해야 합니다.
+ */
 package com.app.guide.dao;
 import java.util.Map;
 import java.util.List;

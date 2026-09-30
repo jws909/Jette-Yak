@@ -1,3 +1,7 @@
+/**
+ * 로컬 가짜 HTTP 서버로 Gemini 요청 형식, 오류 매핑, JSON 응답 검증을 확인하는 독립 실행 점검 코드입니다.
+ * 실제 API 키나 외부 네트워크를 사용하지 않으며 main 메서드로 실행합니다.
+ */
 package com.app.chatbot.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,7 +18,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 import com.app.chatbot.dto.ChatTurn;
 
-// Standalone contract check: run main(). Uses only a local fake HTTP server.
+// 독립 실행 계약 점검: main()을 실행하며 로컬 가짜 HTTP 서버만 사용한다.
 public class GeminiServiceCheck {
     private static int httpStatus = 200;
     private static String response;

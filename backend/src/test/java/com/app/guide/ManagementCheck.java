@@ -1,3 +1,7 @@
+/**
+ * 사용자 등록 약 상태 변경, 중복 제거, 활성 약 DUR 비교를 모의 DAO로 확인합니다.
+ * userId 전달과 등록 ID 검증이 유지되는지도 함께 점검합니다.
+ */
 package com.app.guide;
 import java.nio.file.*;import java.util.*;import java.sql.*;
 import org.apache.ibatis.datasource.unpooled.UnpooledDataSource;

@@ -1,3 +1,7 @@
+/*
+ * 파일 역할: 커뮤니티 목록, 작성 폼, 상세 모달, 첨부파일과 관리자 영역의 스타일입니다.
+ * 유지보수: 모달 닫기 버튼과 작성일이 겹치지 않도록 헤더 여백을 변경할 때 함께 확인합니다.
+ */
 .community-page{display:flex;flex-direction:column;gap:24px;color:#2b2523}.community-header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}.community-header h1{margin-bottom:8px}.community-header p{margin:0;color:#736b63;line-height:1.7}.community-primary{border:0;border-radius:8px;background:#7d2638;color:#fff;padding:11px 18px;font:inherit;font-weight:700;cursor:pointer}.community-primary:hover{background:#68202f}.community-safety{display:grid;grid-template-columns:auto 1fr auto;gap:12px 18px;align-items:center;padding:16px 18px;border:1px solid #dfd3c4;border-left:4px solid #7d2638;background:#fffaf5;border-radius:8px;font-size:13px;line-height:1.6}.community-safety span{color:#6f655c}.community-safety a,.community-side a{color:#7d2638;font-weight:700;text-decoration:none}.community-notice{padding:12px 16px;border-radius:8px;background:#f3e8eb;color:#7d2638}.community-toolbar {
   display: flex;
   gap: 12px;

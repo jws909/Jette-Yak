@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: EasyDrugDao 호출을 easydrug_mapper.xml의 MyBatis 구문과 연결합니다.
+ * 핵심 규칙: 매퍼 namespace 또는 SQL id 변경 시 이 구현체의 식별자도 함께 수정해야 합니다.
+ */
 package com.app.easydrug.dao.impl;
 import java.util.Map;
 import org.apache.ibatis.session.SqlSession;

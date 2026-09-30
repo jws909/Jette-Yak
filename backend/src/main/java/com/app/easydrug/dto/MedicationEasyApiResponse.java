@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: e약은요 공공 API의 header/body/items 페이지 응답 구조를 그대로 매핑합니다.
+ * 핵심 규칙: 사용하지 않는 필드는 무시하며 실제 품목 데이터는 MedicationEasyDto 목록으로 받습니다.
+ */
 package com.app.easydrug.dto;
 
 import java.util.List;

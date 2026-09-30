@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 로그인 사용자의 등록 약을 상태별·제품별 탭으로 보여주는 내 약 관리 메인 페이지입니다.
+ * 핵심 규칙: 목록, 약 상세, DUR 비교, AI 통합 요약을 각각 독립적으로 불러와 일부 실패가 전체 화면을 막지 않게 합니다.
+ */
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import './GuidePage.css'
@@ -13,6 +17,8 @@ function valueOrMissing(value) { return value?.trim() || '등록된 정보가 �
 
 
 function MedicationInformation({ item, compact, onSelect, onStatus, busy }) {
+  // 전체 약 탭(compact)과 제품별 상세 탭이 같은 서버 자료를 사용하도록 표시 로직을 공유한다.
+  // medicationId가 없는 등록 행은 복용 상태만 표시하고 공식 제품 정보 요청은 보내지 않는다.
   const guide = useRemote(item.medicationId ? '/api/guides/medications/' + encodeURIComponent(item.medicationId) : null)
   const medication = guide.data?.medication
   const aiSummary = (() => {
@@ -85,8 +91,10 @@ function MedicationInformation({ item, compact, onSelect, onStatus, busy }) {
 }
 
 export default function GuidePage() {
+  // revision이 증가하면 목록·DUR 비교·AI 통합 가이드가 같은 시점의 데이터로 다시 조회된다.
   const [revision, setRevision] = useState(0)
   const registered = useRemote('/api/guides/collection', revision)
+  // 목록이 먼저 준비된 뒤 비교를 요청해 로그인 오류나 초기 로딩 중 중복 요청을 줄인다.
   const comparison = useRemote(registered.data ? '/api/guides/collection/dur' : null, revision)
   const [scope, setScope] = useState('CURRENT')
   const [saving, setSaving] = useState(false)
@@ -95,6 +103,8 @@ export default function GuidePage() {
   const scopes = [['CURRENT','전체 약'],['ACTIVE','복용 중'],['STORED','보관 중'],['PAUSED','복용 안 함'],['ENDED','종료된 기록']]
   const filtered = rows.filter(row => scope === 'CURRENT' ? row.useStatus !== 'ENDED' : row.useStatus === scope)
   async function updateStatus(id,status) {
+    // registrationId에는 처방약과 직접 추가 약을 구분하는 접두사가 포함된다.
+    // 프런트에서 분해하지 않고 서버에 그대로 보내 소유권 확인과 실제 테이블 갱신을 맡긴다.
     setSaving(true);setSaveMessage('')
     try {
       const response = await fetch('/api/guides/collection/'+encodeURIComponent(id), {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})})
@@ -104,11 +114,13 @@ export default function GuidePage() {
     } catch(error) { setSaveMessage(error.message) } finally {setSaving(false)}
   }
   const [selectedKey, setSelectedKey] = useState('all')
+  // 같은 제품이 처방전과 직접 추가 목록에 여러 번 있어도 제품 탭은 하나만 만들고 등록 내역은 묶어서 보여준다.
   const items = groupMedications(filtered)
   const selected = items.find(item => item.key === selectedKey)
   const activeKey = selected?.key || 'all'
   const tabs = [{ key: 'all', itemName: '전체 약' }, ...items]
   function tabKeyDown(event, index) {
+    // WAI-ARIA 탭 키보드 규칙에 맞춰 방향키와 Home/End로 탭을 이동한다.
     let next
     if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
     if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length

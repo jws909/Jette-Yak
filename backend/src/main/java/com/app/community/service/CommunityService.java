@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 커뮤니티 목록·상세·작성·댓글·신고·첨부파일과 관리자 처리를 담당합니다.
+ * 핵심 규칙: 모든 변경 작업 전에 로그인, 작성자 소유권 또는 관리자 권한을 확인하는 것이 핵심 규칙입니다.
+ */
 package com.app.community.service;
 
 import java.io.IOException;
@@ -32,6 +36,7 @@ public class CommunityService {
         Map<String,Object> post=dao.post(id,viewerId);if(post==null) throw new NoSuchElementException("게시글을 찾을 수 없습니다.");
         Map<String,Object> result=new LinkedHashMap<>(post);result.put("comments",dao.comments(id));result.put("attachments",dao.attachments(id));return result;
     }
+    // 작성자 ID는 컨트롤러가 로그인 세션에서 꺼내 전달한다. 요청 DTO의 사용자 정보는 사용하지 않는다.
     @Transactional public Map<String,Object> create(long userId,CommunityPostRequest r) {
         Map<String,Object> p=values(r);p.put("userId",userId);long id=dao.insertPost(p);return post(id,userId);
     }
@@ -49,6 +54,7 @@ public class CommunityService {
         boolean active=dao.helpfulCount(postId,userId)==0;if(active)dao.addHelpful(postId,userId);else dao.removeHelpful(postId,userId);
         return Map.of("active",active,"count",dao.helpfulTotal(postId));
     }
+    // 신고 대상 유형과 사유 코드는 허용 목록으로 제한하고, 관리자가 읽을 상세 사유는 필수로 저장한다.
     @Transactional public void report(long userId,CommunityReportRequest r) {
         if(r==null||r.getTargetId()==null||!Set.of("POST","COMMENT").contains(r.getTargetType())||!REPORT_REASONS.contains(r.getReason())) throw new IllegalArgumentException("신고 항목을 확인해주세요.");
         String detail=required(r.getDetail(),500,"신고 사유를 입력해주세요.");
@@ -63,6 +69,8 @@ public class CommunityService {
 
     @Transactional
     public List<Map<String,Object>> addAttachments(long postId,long userId,String type,List<MultipartFile> files) {
+        // DB의 작성자 소유권을 먼저 확인한 뒤 파일을 저장한다. 화면에서 숨긴 업로드 버튼만으로는
+        // 다른 사용자의 게시글에 첨부하는 요청을 막을 수 없으므로 이 검사를 제거하면 안 된다.
         String normalized=clean(type,10).toUpperCase(Locale.ROOT);
         if(!Set.of("IMAGE","FILE").contains(normalized)) throw new IllegalArgumentException("첨부파일 종류를 확인해주세요.");
         if(dao.ownsPost(postId,userId)==0) throw new SecurityException("첨부파일을 등록할 수 없는 게시글입니다.");
@@ -78,6 +86,7 @@ public class CommunityService {
     public CommunityAttachmentFile downloadAttachment(long id) {
         Map<String,Object> item=dao.attachment(id);
         if(item==null) throw new NoSuchElementException("첨부파일을 찾을 수 없습니다.");
+        // 저장 이름만 파일 경로에 사용하고 정규화된 결과가 업로드 폴더 밖으로 나가면 거부한다.
         Path path=attachmentDirectory().resolve(String.valueOf(item.get("storedName"))).normalize();
         if(!path.startsWith(attachmentDirectory())||!Files.isRegularFile(path)) throw new NoSuchElementException("첨부파일을 찾을 수 없습니다.");
         try { return new CommunityAttachmentFile(Files.readAllBytes(path),String.valueOf(item.get("originalName")),String.valueOf(item.get("contentType")),"IMAGE".equals(item.get("attachmentType"))); }
@@ -93,6 +102,8 @@ public class CommunityService {
     }
 
     private void saveAttachment(long postId,long userId,String type,MultipartFile file,Path directory) {
+        // 브라우저가 보낸 MIME 유형만 믿지 않고 확장자와 이미지 디코딩 결과를 함께 검사한다.
+        // 일반 파일도 실행 가능한 확장자를 차단해 업로드 폴더가 프로그램 배포 경로가 되지 않게 한다.
         long max=type.equals("IMAGE")?5L*1024*1024:10L*1024*1024;
         if(file.getSize()>max) throw new IllegalArgumentException(type.equals("IMAGE")?"이미지는 파일당 5MB까지 등록할 수 있습니다.":"일반 파일은 파일당 10MB까지 등록할 수 있습니다.");
         String original=safeOriginalName(file.getOriginalFilename());

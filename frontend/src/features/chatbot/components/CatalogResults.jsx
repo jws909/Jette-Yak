@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 성분·효능·DUR 조건 검색 결과와 페이지 이동을 표시하는 전용 컴포넌트입니다.
+ * 핵심 규칙: 검색 결과는 DB 기록이며 복용 추천이 아니라는 안내를 항상 함께 보여줍니다.
+ */
 const types = { 1: '임부금기', 2: '노인금기', 3: '특정연령대금기', 4: '병용금기' }
 const fields = [['materialName','성분'],['efficacy','효능·효과'],['usageDosage','용법·용량'],['className','분류'],['etcOtcCode','전문·일반'],['ediCode','EDI 코드'],['updatedAt','자료 수정일']]
 export function DurRecord({ record }) {

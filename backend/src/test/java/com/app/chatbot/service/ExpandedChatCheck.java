@@ -1,3 +1,7 @@
+/**
+ * MyBatis 매퍼와 모의 Gemini 응답을 결합해 확장된 챗봇 검색·답변 흐름을 확인합니다.
+ * DB 연결 설정을 읽으므로 로컬 테스트 DB가 준비된 환경에서 실행해야 합니다.
+ */
 package com.app.chatbot.service;
 import java.util.*;import java.nio.file.*;
 import com.app.chatbot.client.GeminiService;import com.app.chatbot.dao.*;import com.app.chatbot.dao.impl.ChatbotDaoImpl;

@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 커뮤니티 게시글, 댓글, 첨부파일, 신고 조회·변경을 정의하는 DAO 계약입니다.
+ * 핵심 규칙: 서비스 계층이 소유권을 검사한 뒤 이 메서드를 호출해야 합니다.
+ */
 package com.app.community.dao;
 
 import java.util.List;

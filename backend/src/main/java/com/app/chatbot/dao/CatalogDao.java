@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 성분·효능·분류·DUR 등 조건 검색에 필요한 DB 조회 계약입니다.
+ * 핵심 규칙: CatalogService가 만든 안전한 필터만 받아 MyBatis 매퍼로 전달합니다.
+ */
 package com.app.chatbot.dao;
 import java.util.*;
 import org.springframework.stereotype.Repository;

@@ -1,3 +1,7 @@
+/**
+ * 실제 매퍼를 로드하여 성분명 정규화와 DUR 유형별 조회 결과를 확인하는 통합 점검입니다.
+ * 로컬 DB의 테스트 데이터와 db.properties 설정이 필요합니다.
+ */
 package com.app.guide;
 import java.nio.file.*;import java.util.*;import java.sql.*;
 import com.app.guide.dao.MedicationGuideDao;

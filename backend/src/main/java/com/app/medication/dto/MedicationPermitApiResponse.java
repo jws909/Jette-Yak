@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 식약처 의약품 허가정보 API의 header/body/items 페이지 구조를 매핑합니다.
+ * 핵심 규칙: 응답 성공 여부와 전체 페이지 수 계산에 header, totalCount, numOfRows를 사용합니다.
+ */
 package com.app.medication.dto;
 
 import java.util.List;

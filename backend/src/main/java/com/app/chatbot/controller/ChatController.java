@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 챗봇 검색·질문 API의 입력값을 검증하고 로그인 세션의 사용자 ID를 서비스에 전달합니다.
+ * 핵심 규칙: 클라이언트가 보낸 userId는 신뢰하지 않고 서버 세션을 사용자 식별 기준으로 사용합니다.
+ */
 package com.app.chatbot.controller;
 
 import java.util.Map;

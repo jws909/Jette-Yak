@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: AI 분류 JSON을 서버가 신뢰할 수 있는 Intent와 검색 조건으로 변환합니다.
+ * 핵심 규칙: 응급 신호와 과다복용 표현은 규칙으로도 검사해 AI 분류 실패 시 안전망을 제공합니다.
+ */
 package com.app.chatbot.service;
 
 import java.util.*;

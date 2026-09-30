@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 구조화된 검색 조건을 페이지 정보와 함께 DAO에 전달하고 결과 개수와 목록을 조립합니다.
+ * 핵심 규칙: 사용자 자연어를 직접 해석하지 않고 검증된 CatalogQuery만 처리합니다.
+ */
 package com.app.chatbot.service;
 import java.util.*;
 import org.springframework.stereotype.Service;

@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 제품별 기본정보와 DUR 주의정보를 내 약 관리 화면에 제공하는 조회 API입니다.
+ * 핵심 규칙: 제품 정보가 없다는 것과 DUR 기록이 없다는 것을 서로 다른 응답으로 구분합니다.
+ */
 package com.app.guide.controller;
 import java.util.Map;
 import org.springframework.dao.DataAccessException;

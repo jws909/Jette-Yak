@@ -1,3 +1,7 @@
+/**
+ * 파일 역할: 게시글·댓글·첨부파일·신고·관리자 처리 API를 노출합니다.
+ * 핵심 규칙: 작성자와 관리자 권한은 요청값이 아니라 로그인 세션의 사용자 정보로 판단합니다.
+ */
 package com.app.community.controller;
 
 import java.util.*;
