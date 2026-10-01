@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './FamilyPage.css';
 
 function getFormattedDate(targetDate) {
@@ -32,6 +32,22 @@ export default function FamilyPage(props) {
   const [monthSummary, setMonthSummary] = useState({});
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const chipsRef = useRef(null);
+
+  // 마우스 휠로도 가로 스크롤 가능하도록 편의 지원
+  useEffect(() => {
+    const el = chipsRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   const [inviteRole, setInviteRole] = useState('BABY'); // 기본값: 자녀
 
@@ -596,7 +612,7 @@ export default function FamilyPage(props) {
         <h1 className="family-title">가족 페이지</h1>
 
         <div className="family-controls">
-          <div className="family-chips-group">
+          <div className="family-chips-group" ref={chipsRef}>
             <button
               type="button"
               className={`family-chip ${selectedMemberId === 'all' ? 'selected' : ''}`}
