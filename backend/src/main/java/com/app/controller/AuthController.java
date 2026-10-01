@@ -1,6 +1,5 @@
 package com.app.controller;
 
-import java.util.UUID;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -48,7 +47,6 @@ public class AuthController {
 
         if (!isValid) {
             LoginResponse failResponse = new LoginResponse(
-                    null,
                     request.getUsername(),
                     "아이디 또는 비밀번호가 올바르지 않습니다."
             );
@@ -65,7 +63,6 @@ public class AuthController {
         }
 
         LoginResponse successResponse = new LoginResponse(
-                UUID.randomUUID().toString(),
                 user.getUserId(),
                 user.getLoginId(),
                 user.getNickname(),

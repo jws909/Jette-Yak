@@ -23,7 +23,7 @@ function App() {
   const navigate = useNavigate();
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(
-    localStorage.getItem('token') && localStorage.getItem('user')
+    localStorage.getItem('user')
   ));
   const [user, setUser] = useState(() => {
     try {
@@ -271,7 +271,6 @@ function App() {
     };
     setIsLoggedIn(true);
     setUser(loggedInUser);
-    localStorage.setItem('token', loginData.token);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     const next = new URLSearchParams(window.location.search).get('next');
     navigate(['/guide','/chat','/community','/mypage','/family'].includes(next) ? next : '/');
@@ -336,7 +335,6 @@ function App() {
 
     setIsLoggedIn(true);
     setUser(demoUser);
-    localStorage.setItem('token', 'demo-token');
     localStorage.setItem('user', JSON.stringify(demoUser));
     navigate('/');
   };
