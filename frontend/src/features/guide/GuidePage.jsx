@@ -155,7 +155,7 @@ export default function GuidePage() {
       {registered.loading && <p role="status">등록한 약을 불러오고 있어요…</p>}
       {registered.error && (registered.status === 401 ? <p className="guide-empty">로그인하면 내 등록 약을 볼 수 있어요. <Link to="/login?next=/guide">로그인</Link></p>
         : <p role="alert">{registered.error}</p>)}
-      {registered.data && !items.length && <p className="guide-empty">선택한 상태의 약이 없습니다. <Link className="my-med-action" to="/?register=prescription">처방전 등록하기 →</Link></p>}
+      {registered.data && !items.length && <p className="guide-empty">선택한 상태의 약이 없습니다. <Link className="my-med-action" to="/medication/register?tab=prescription">처방전 등록하기 →</Link></p>}
       {registered.data && items.length > 0 && (selected ? <MedicationInformation key={selected.key} item={selected} onStatus={updateStatus} busy={saving || registered.loading} />
         : <><div className="my-med-overview-heading"><h2>전체 약 <span>{items.length}개</span></h2>
           <p className="guide-note">등록 출처와 복용 상태를 함께 표시합니다. 제품명을 누르면 상세 정보를 볼 수 있어요.</p></div>

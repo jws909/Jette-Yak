@@ -809,14 +809,12 @@ export default function MainPage({ user }) {
     }
   };
 
-  // 처방전 업로드 모달 상태
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(() => new URLSearchParams(window.location.search).get('register') === 'prescription');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [uploadFile, setUploadFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270도
-  const [isFlipped, setIsFlipped] = useState(false); // 좌우 반전 여부
-  const [isDragging, setIsDragging] = useState(false);
+  // 처방전 등록 파라미터 감지 시 약 등록 전용 페이지로 즉시 안내
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('register') === 'prescription') {
+      navigate('/medication/register?tab=prescription', { replace: true });
+    }
+  }, [navigate]);
 
   // 약품 상세 모달 상태
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
@@ -902,7 +900,6 @@ export default function MainPage({ user }) {
     const userId = user?.userId;
     if (!userId) {
       setAllPrescriptions([]);
-      setPrescriptionList([]);
       setHasPrescription(false);
       setRoutineItems([]);
       return;
@@ -915,227 +912,24 @@ export default function MainPage({ user }) {
         if (rawList.length > 0) {
           const mappedList = rawList.map(mapPrescriptionToState);
           setAllPrescriptions(mappedList);
-          setPrescriptionList(rawList);
           setHasPrescription(true);
         } else {
           setAllPrescriptions([]);
-          setPrescriptionList([]);
           setHasPrescription(false);
           setRoutineItems([]);
         }
       } else {
         setAllPrescriptions([]);
-        setPrescriptionList([]);
         setHasPrescription(false);
         setRoutineItems([]);
       }
     } catch (err) {
       console.warn('처방전 목록 로드 실패:', err);
       setAllPrescriptions([]);
-      setPrescriptionList([]);
       setHasPrescription(false);
       setRoutineItems([]);
     }
   }, [user?.userId]);
-
-  // 처방전 목록/수정/삭제 관리 모달 상태
-  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
-  const [prescriptionList, setPrescriptionList] = useState([]);
-  const [isLoadingList, setIsLoadingList] = useState(false);
-  const [editingPrescription, setEditingPrescription] = useState(null);
-  const [editForm, setEditForm] = useState({
-    prescriptionId: null,
-    hospitalName: '',
-    doctorName: '',
-    dispensedDate: '',
-    totalDays: 3,
-    items: [],
-  });
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [manageAlert, setManageAlert] = useState(null);
-
-  const fetchPrescriptionList = useCallback(async () => {
-    const userId = user?.userId;
-    if (!userId) {
-      setPrescriptionList([]);
-      return;
-    }
-    setIsLoadingList(true);
-    try {
-      const res = await fetch(`/api/prescriptions/list?userId=${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPrescriptionList(data.prescriptions || []);
-      }
-    } catch (err) {
-      console.warn('처방전 목록 로드 실패:', err);
-    } finally {
-      setIsLoadingList(false);
-    }
-  }, [user?.userId]);
-
-  const openManageModal = () => {
-    setEditingPrescription(null);
-    setManageAlert(null);
-    setIsManageModalOpen(true);
-    fetchPrescriptionList();
-  };
-
-  const closeManageModal = () => {
-    setIsManageModalOpen(false);
-    setEditingPrescription(null);
-    setManageAlert(null);
-  };
-
-  const startEditPrescription = (rx) => {
-    setManageAlert(null);
-    let dateStr = '';
-    if (rx.dispensedDate) {
-      if (typeof rx.dispensedDate === 'string') {
-        dateStr = rx.dispensedDate.slice(0, 10);
-      } else {
-        const d = new Date(rx.dispensedDate);
-        if (!isNaN(d.getTime())) {
-          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        }
-      }
-    }
-    setEditForm({
-      prescriptionId: rx.prescriptionId,
-      hospitalName: rx.hospitalName || '',
-      doctorName: rx.doctorName || '',
-      dispensedDate: dateStr,
-      totalDays: rx.totalDays || 3,
-      items: (rx.items || []).map((it) => ({
-        itemId: it.itemId,
-        medicationId: it.medicationId,
-        itemName: it.itemName || '',
-        dailyDose: it.dailyDose != null ? it.dailyDose : 1,
-        dailyFrequency: it.dailyFrequency || 3,
-        usageTiming: it.usageTiming || '1일 3회 식후 30분',
-        totalDays: it.totalDays || rx.totalDays || 3,
-        className: it.className || '',
-        ediCode: it.ediCode || '',
-        isDiscontinued: Boolean(it.isDiscontinued),
-      })),
-    });
-    setEditingPrescription(rx);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editForm.hospitalName.trim()) {
-      alert('의료기관(병원명)을 입력해주세요.');
-      return;
-    }
-    if (editForm.items.length === 0) {
-      alert('최소 1개 이상의 처방 약품이 포함되어야 합니다.');
-      return;
-    }
-    for (let i = 0; i < editForm.items.length; i++) {
-      if (!editForm.items[i].itemName.trim()) {
-        alert(`${i + 1}번째 약품의 이름을 입력해주세요.`);
-        return;
-      }
-    }
-
-    setIsSavingEdit(true);
-    setManageAlert(null);
-
-    try {
-      const res = await fetch(`/api/prescriptions/${editForm.prescriptionId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      });
-
-      if (res.ok) {
-        setManageAlert({ type: 'success', message: '처방전 정보가 성공적으로 수정되었습니다.' });
-        await fetchPrescriptionList();
-        await reloadPrescriptionAndRoutine();
-        setTimeout(() => {
-          setEditingPrescription(null);
-          setManageAlert(null);
-        }, 1200);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setManageAlert({ type: 'error', message: errData.message || '처방전 수정에 실패했습니다.' });
-      }
-    } catch (err) {
-      console.error('처방전 수정 오류:', err);
-      setManageAlert({ type: 'error', message: '서버 통신 중 오류가 발생했습니다.' });
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleDeletePrescription = async (rxId) => {
-    const userId = user?.userId;
-    if (!userId) {
-      alert('로그인이 필요한 기능입니다.');
-      return;
-    }
-    if (!window.confirm('정말 이 처방전을 삭제하시겠습니까?\n포함된 처방 약품 및 오늘의 복약 루틴이 함께 삭제됩니다.')) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/prescriptions/${rxId}?userId=${userId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        await fetchPrescriptionList();
-        await reloadPrescriptionAndRoutine();
-
-        // 캘린더 및 사이드바 등 전역 UI에 처방전 삭제 및 복약 일정 갱신 알림
-        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-          detail: { userId: userId }
-        }));
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || '처방전 삭제에 실패했습니다.');
-      }
-    } catch (err) {
-      console.error('처방전 삭제 오류:', err);
-      alert('처방전 삭제 중 오류가 발생했습니다.');
-    }
-  };
-
-  const handleAddMedicineToEdit = () => {
-    setEditForm((prev) => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        {
-          itemId: null,
-          medicationId: '',
-          itemName: '',
-          dailyDose: 1,
-          dailyFrequency: 3,
-          usageTiming: '1일 3회 식후 30분',
-          totalDays: prev.totalDays || 3,
-          className: '',
-          ediCode: '',
-          isDiscontinued: false,
-        },
-      ],
-    }));
-  };
-
-  const handleRemoveMedicineFromEdit = (idx) => {
-    setEditForm((prev) => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== idx),
-    }));
-  };
-
-  const handleEditItemChange = (idx, field, value) => {
-    setEditForm((prev) => {
-      const nextItems = [...prev.items];
-      nextItems[idx] = { ...nextItems[idx], [field]: value };
-      return { ...prev, items: nextItems };
-    });
-  };
 
   // 컴포넌트 마운트 및 user.userId 변경 시 최신 처방전 DB 조회
   useEffect(() => {
@@ -1253,13 +1047,14 @@ export default function MainPage({ user }) {
     }
   }, [mealTimes, activeMedsForTargetDate, targetDate, user?.userId, syncRoutinesWithServer]);
 
-  // 캘린더 등 외부에서 복약 체크 상태 변경 시 메인 홈 실시간 동기화
+  // 캘린더 및 약등록 등 외부에서 복약 및 처방전 변경 시 메인 홈 실시간 동기화
   useEffect(() => {
     const handleIntakeSync = (e) => {
       const eventUserId = e?.detail?.userId;
       const eventDate = e?.detail?.date;
       const curDateStr = formatDateToHyphen(targetDate);
       if (String(eventUserId) === String(user?.userId)) {
+        reloadPrescriptionAndRoutine();
         if (!eventDate || eventDate === curDateStr) {
           syncRoutinesWithServer(curDateStr);
         }
@@ -1269,7 +1064,7 @@ export default function MainPage({ user }) {
     return () => {
       window.removeEventListener('jette-intake-updated', handleIntakeSync);
     };
-  }, [user?.userId, targetDate, syncRoutinesWithServer]);
+  }, [user?.userId, targetDate, syncRoutinesWithServer, reloadPrescriptionAndRoutine]);
 
   // 식사 시간 저장 핸들러
   const handleSaveMealTimes = async (e) => {
@@ -1474,148 +1269,7 @@ export default function MainPage({ user }) {
     setIsSearching(false);
   };
 
-  // 모달 열기/닫기 및 미리보기 메모리 해제
-  const openUploadModal = () => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-    setUploadFile(null);
-    setRotation(0);
-    setIsFlipped(false);
-    setIsUploadModalOpen(true);
-  };
 
-  const closeUploadModal = () => {
-    if (isAnalyzing) return;
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-    setUploadFile(null);
-    setRotation(0);
-    setIsFlipped(false);
-    setIsUploadModalOpen(false);
-  };
-
-  // 파일 선택 및 드롭 시 미리보기 URL 생성
-  const handleFileSelect = (file) => {
-    if (!file) return;
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setUploadFile(file);
-    if (file.type && file.type.startsWith('image/')) {
-      setPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setPreviewUrl(null);
-    }
-    setRotation(0);
-    setIsFlipped(false);
-  };
-
-  // 클라이언트 측 Canvas 이미지 회전/반전 변환 유틸리티
-  const getTransformedFile = async (file, rot, flipped) => {
-    if (!file || !(file instanceof File) || !file.type.startsWith('image/') || (rot === 0 && !flipped)) {
-      return file;
-    }
-
-    return new Promise((resolve) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        const canvas = document.createElement('canvas');
-        const isSideways = rot === 90 || rot === 270;
-
-        canvas.width = isSideways ? img.naturalHeight : img.naturalWidth;
-        canvas.height = isSideways ? img.naturalWidth : img.naturalHeight;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(file);
-          return;
-        }
-
-        // 캔버스 중심점으로 원점 이동 후 회전/반전 수행
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((rot * Math.PI) / 180);
-        if (flipped) {
-          ctx.scale(-1, 1);
-        }
-        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              const baseName = file.name.replace(/\.[^/.]+$/, '');
-              const adjustedFile = new File([blob], `${baseName}_adjusted.jpg`, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(adjustedFile);
-            } else {
-              resolve(file);
-            }
-          },
-          'image/jpeg',
-          0.95
-        );
-      };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(file);
-      };
-
-      img.src = objectUrl;
-    });
-  };
-
-  // 처방전 업로드 및 백엔드 OCR / DB 처리
-  const handleUploadSubmit = async (e) => {
-    e.preventDefault();
-    if (!user?.userId) {
-      alert('처방전 등록은 로그인 후 이용하실 수 있습니다.');
-      return;
-    }
-    if (!uploadFile) {
-      alert('처방전 사진 또는 스캔본 파일을 선택해 주세요.');
-      return;
-    }
-    setIsAnalyzing(true);
-
-    try {
-      // 1. 회전 또는 반전 보정이 적용된 경우 Canvas 변환 파일 생성
-      const finalFile = await getTransformedFile(uploadFile, rotation, isFlipped);
-
-      const formData = new FormData();
-      formData.append('file', finalFile);
-      formData.append('userId', user.userId);
-
-      const res = await fetch('/api/prescriptions/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.prescription) {
-          await reloadPrescriptionAndRoutine();
-          closeUploadModal();
-          alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
-          return;
-        }        throw new Error(data.message || '처방전 처리 응답 오류');
-      }
-      throw new Error('처방전 처리 응답 오류');
-    } catch (err) {
-      console.warn('처방전 분석 오류:', err);
-      alert('처방전 분석 및 저장에 실패했습니다. 사진 파일 상태를 확인하고 다시 시도해 주세요.');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
   const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
@@ -2014,7 +1668,7 @@ export default function MainPage({ user }) {
               <button
                 type="button"
                 className="rx-manage-shortcut-btn"
-                onClick={openManageModal}
+                onClick={() => navigate('/medication/register?tab=prescription')}
                 title="내 처방전 목록/수정/삭제 관리"
               >
                 처방전 관리 &gt;
@@ -2206,7 +1860,7 @@ export default function MainPage({ user }) {
               <button
                 type="button"
                 className="new-prescription-btn"
-                onClick={openUploadModal}
+                onClick={() => navigate('/medication/register?tab=prescription')}
               >
                 + 처방전 · 약봉투 등록
               </button>
@@ -2234,7 +1888,7 @@ export default function MainPage({ user }) {
                 <button
                   type="button"
                   className="card-link-action"
-                  onClick={openManageModal}
+                  onClick={() => navigate('/medication/register?tab=prescription')}
                   title="내 처방전 목록 및 수정/삭제 관리"
                 >
                   처방전 관리 &gt;
@@ -2367,188 +2021,20 @@ export default function MainPage({ user }) {
               <button
                 type="button"
                 className="banner-primary-btn"
-                onClick={() => navigate('/medication/register')}
+                onClick={() => navigate('/medication/register?tab=prescription')}
               >
                 처방전 · 약봉투 등록 →
               </button>
               <button
                 type="button"
                 className="banner-secondary-btn"
-                onClick={openManageModal}
+                onClick={() => navigate('/medication/register?tab=prescription')}
               >
                 내 처방전 목록/관리
               </button>
             </div>
           </div>
         </section>
-      )}
-
-      {/* -------------------------------------------------------------
-         모달 1: 처방전 업로드 & 자동 분석 모달
-         ------------------------------------------------------------- */}
-      {isUploadModalOpen && (
-        <div className="modal-backdrop" onClick={closeUploadModal}>
-          <div className="modal-content-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3 className="modal-title">처방전 · 약봉투 등록 및 AI 분석</h3>
-              <button
-                type="button"
-                className="modal-close"
-                disabled={isAnalyzing}
-                onClick={closeUploadModal}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleUploadSubmit} className="upload-form">
-              {/* 지원 서식 안내 칩 */}
-              <div className="upload-support-chips">
-                <span className="support-chip highlight">병원 처방전</span>
-                <span className="support-chip highlight">약국 약봉투 (조제안내문)</span>
-                <span className="support-chip-hint">둘 중 하나만 촬영하셔도 자동 인식됩니다</span>
-              </div>
-
-              {/* 처방전 / 약봉투 촬영 안내 배너 */}
-              <div className="upload-guide-banner">
-                <div className="guide-banner-header">
-                  <span className="guide-icon">INFO</span>
-                  <strong>처방전 및 약봉투 촬영 안내</strong>
-                </div>
-                <p className="guide-text">
-                  병원 처방전뿐만 아니라 <strong>약국에서 받은 약봉투(복약안내문)</strong>도 그대로 촬영하시면 약품명과 일수를 자동 인식합니다.
-                  글자가 수평(가로)으로 똑바로 읽히도록 평평하게 펴서 촬영해 주세요. 기울어진 사진은 아래 <strong>[회전]</strong> 및 <strong>[반전]</strong> 도구로 교정하실 수 있습니다.
-                </p>
-              </div>
-
-              {/* 업로드 드롭존 */}
-              <div
-                className={`upload-dropzone ${isDragging ? 'dragover' : ''}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleFileSelect(e.dataTransfer.files[0]);
-                  }
-                }}
-              >
-                <svg className="upload-cloud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <strong>처방전 또는 약봉투 사진 업로드</strong>
-                <p>JPG, PNG, PDF 지원 (최대 15MB) · 약봉투 전면 촬영본 지원</p>
-                <input
-                  type="file"
-                  id="prescription-file-input"
-                  className="file-hidden-input"
-                  accept="image/*,.pdf"
-                  onChange={(e) => handleFileSelect(e.target.files && e.target.files[0])}
-                />
-                <label htmlFor="prescription-file-input" className="file-pick-btn">
-                  {uploadFile ? `선택됨: ${uploadFile.name}` : '파일 찾아보기'}
-                </label>
-              </div>
-
-              {/* 실시간 이미지 미리보기 및 회전/반전 툴바 */}
-              {previewUrl && (
-                <div className="preview-container">
-                  <div className="preview-header">
-                    <span className="preview-title">처방전 방향 확인 및 교정</span>
-                    {(rotation !== 0 || isFlipped) && (
-                      <span className="preview-badge">
-                        교정 적용: {rotation}° {isFlipped ? '(좌우반전)' : ''}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="preview-viewport">
-                    <img
-                      src={previewUrl}
-                      alt="처방전 미리보기"
-                      className="preview-image"
-                      style={{
-                        transform: `rotate(${rotation}deg) scaleX(${isFlipped ? -1 : 1})`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="preview-toolbar">
-                    <button
-                      type="button"
-                      className="tool-btn"
-                      onClick={() => setRotation((r) => (r + 270) % 360)}
-                      title="왼쪽으로 90도 회전"
-                    >
-                      <span className="tool-icon">↺</span> 90° 좌회전
-                    </button>
-                    <button
-                      type="button"
-                      className="tool-btn"
-                      onClick={() => setRotation((r) => (r + 90) % 360)}
-                      title="오른쪽으로 90도 회전"
-                    >
-                      <span className="tool-icon">↻</span> 90° 우회전
-                    </button>
-                    <button
-                      type="button"
-                      className={`tool-btn ${isFlipped ? 'active' : ''}`}
-                      onClick={() => setIsFlipped((f) => !f)}
-                      title="셀카 모드 거울상 좌우 반전"
-                    >
-                      <span className="tool-icon">⇄</span> 좌우 반전
-                    </button>
-                    <button
-                      type="button"
-                      className="tool-btn reset-btn"
-                      onClick={() => {
-                        setRotation(0);
-                        setIsFlipped(false);
-                      }}
-                      disabled={rotation === 0 && !isFlipped}
-                      title="원본 방향으로 초기화"
-                    >
-                      <span className="tool-icon">⟲</span> 초기화
-                    </button>
-                  </div>
-
-                  <p className="preview-hint">
-                    글자가 가로 방향으로 똑바로 보이도록 조정한 후 아래 [분석 및 등록 완료]를 눌러주세요.
-                  </p>
-                </div>
-              )}
-
-              {isAnalyzing && (
-                <div className="analyzing-progress">
-                  <div className="progress-spinner" />
-                  <p>처방전 OCR 및 의약품 상호작용 분석 중...</p>
-                </div>
-              )}
-
-              <div className="modal-foot">
-                <button
-                  type="button"
-                  className="btn-cancel modal-cancel-btn"
-                  disabled={isAnalyzing}
-                  onClick={closeUploadModal}
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="btn-confirm modal-confirm-btn"
-                  disabled={isAnalyzing}
-                >
-                  {isAnalyzing ? '분석 중...' : '분석 및 등록 완료'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       {/* -------------------------------------------------------------
@@ -2929,332 +2415,6 @@ export default function MainPage({ user }) {
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* =============================================================
-          [모달 4] 내 처방전 목록/수정/삭제 관리 모달
-          ============================================================= */}
-      {isManageModalOpen && (
-        <div className="manage-rx-modal-overlay" onClick={closeManageModal}>
-          <div className="manage-rx-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="manage-rx-header">
-              <div>
-                <span className="manage-rx-kicker">PRESCRIPTION MANAGEMENT</span>
-                <h3 className="manage-rx-title">
-                  {editingPrescription ? '처방전 정보 수정' : '내 처방전 보관함 및 관리'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="modal-close-btn"
-                onClick={closeManageModal}
-                aria-label="닫기"
-              >
-                ✕
-              </button>
-            </div>
-
-            {manageAlert && (
-              <div className={`manage-alert-banner ${manageAlert.type}`}>
-                {manageAlert.type === 'success' ? '[완료] ' : '[주의] '}
-                {manageAlert.message}
-              </div>
-            )}
-
-            <div className="manage-rx-body">
-              {!editingPrescription ? (
-                /* ----------------- 목록 뷰 ----------------- */
-                <div className="manage-rx-list-view">
-                  <div className="manage-rx-list-intro">
-                    <p className="manage-intro-text">
-                      등록된 처방전 <strong>{prescriptionList.length}</strong>건이 보관되어 있습니다.
-                    </p>
-                    <button
-                      type="button"
-                      className="manage-add-rx-btn"
-                      onClick={() => {
-                        closeManageModal();
-                        openUploadModal();
-                      }}
-                    >
-                      + 처방전 · 약봉투 추가 등록
-                    </button>
-                  </div>
-
-                  {isLoadingList ? (
-                    <div className="manage-loading-box">
-                      <div className="spinner" />
-                      <p>처방전 목록을 불러오는 중입니다...</p>
-                    </div>
-                  ) : prescriptionList.length === 0 ? (
-                    <div className="manage-empty-box">
-                      <span className="manage-empty-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="36" height="36">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                      </span>
-                      <p className="manage-empty-title">등록된 처방전이 없습니다.</p>
-                      <p className="manage-empty-desc">처방전이나 약봉투 사진을 업로드하여 복약 일정 관리를 시작해보세요.</p>
-                      <button
-                        type="button"
-                        className="manage-empty-cta"
-                        onClick={() => {
-                          closeManageModal();
-                          openUploadModal();
-                        }}
-                      >
-                        처방전 · 약봉투 등록하기 →
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="manage-cards-grid">
-                      {prescriptionList.map((rx, index) => {
-                        const isLatest = index === 0;
-                        const dateStr = rx.dispensedDate
-                          ? (typeof rx.dispensedDate === 'string' ? rx.dispensedDate.slice(0, 10).replace(/-/g, '.') : '')
-                          : '날짜 미상';
-                        const itemCount = rx.items ? rx.items.length : 0;
-                        return (
-                          <div key={rx.prescriptionId} className={`manage-card ${isLatest ? 'is-active-rx' : ''}`}>
-                            <div className="manage-card-top">
-                              <div className="manage-card-badge-row">
-                                {isLatest && <span className="rx-status-badge active">현재 복용 중 (최신)</span>}
-                                <span className="rx-dispensed-date">조제일: {dateStr}</span>
-                                <span className="rx-days-badge">{rx.totalDays || 0}일분</span>
-                              </div>
-                              <div className="manage-card-actions">
-                                <button
-                                  type="button"
-                                  className="manage-action-edit-btn"
-                                  onClick={() => startEditPrescription(rx)}
-                                  title="처방전 및 약품 수정"
-                                >
-                                  수정
-                                </button>
-                                <button
-                                  type="button"
-                                  className="manage-action-del-btn"
-                                  onClick={() => handleDeletePrescription(rx.prescriptionId)}
-                                  title="처방전 삭제"
-                                >
-                                  삭제
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="manage-card-middle">
-                              <h4 className="manage-hospital-name">
-                                {rx.hospitalName || '의료기관'}
-                                <span className="manage-doctor-name"> · {rx.doctorName || '처방의'}</span>
-                              </h4>
-                              {rx.hasDiscontinuedDrug === 1 && (
-                                <span className="manage-discontinued-warn">[주의] 판매중단 약품 포함</span>
-                              )}
-                            </div>
-
-                            {(() => {
-                              let purpose = rx.aiGuide?.purpose;
-                              if (!purpose && rx.aiSummaryJson) {
-                                try {
-                                  const parsed = JSON.parse(rx.aiSummaryJson);
-                                  if (parsed.aiGuide?.purpose) purpose = parsed.aiGuide.purpose;
-                                } catch {}
-                              }
-                              if (!purpose) return null;
-                              return (
-                                <div className="manage-card-ai-purpose">
-                                  <span className="ai-badge-sm">이 처방을 받은 이유 (AI)</span>
-                                  <span className="ai-purpose-text">{purpose}</span>
-                                </div>
-                              );
-                            })()}
-
-                            <div className="manage-card-items-preview">
-                              <span className="items-count-label">포함 약품 ({itemCount}종):</span>
-                              <div className="meds-preview-chips">
-                                {rx.items && rx.items.length > 0 ? (
-                                  rx.items.map((it, itIdx) => (
-                                    <span key={itIdx} className="med-preview-chip">
-                                      {it.itemName} ({it.dailyFrequency}회/{it.dailyDose}정)
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="med-preview-chip empty">등록된 약품 없음</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* ----------------- 수정 뷰 ----------------- */
-                <div className="manage-rx-edit-view">
-                  <div className="edit-back-row">
-                    <button
-                      type="button"
-                      className="edit-back-btn"
-                      onClick={() => setEditingPrescription(null)}
-                    >
-                      ← 목록으로 돌아가기
-                    </button>
-                    <span className="edit-rx-id">처방전 ID #{editForm.prescriptionId}</span>
-                  </div>
-
-                  <div className="edit-form-section">
-                    <h4 className="edit-section-title">기본 정보</h4>
-                    <div className="edit-fields-grid">
-                      <div className="edit-field-group">
-                        <label>의료기관명 (병원/의원)</label>
-                        <input
-                          type="text"
-                          value={editForm.hospitalName}
-                          onChange={(e) => setEditForm({ ...editForm, hospitalName: e.target.value })}
-                          placeholder="예: 한내과의원"
-                        />
-                      </div>
-                      <div className="edit-field-group">
-                        <label>처방의 / 담당의사</label>
-                        <input
-                          type="text"
-                          value={editForm.doctorName}
-                          onChange={(e) => setEditForm({ ...editForm, doctorName: e.target.value })}
-                          placeholder="예: 김도현 원장"
-                        />
-                      </div>
-                      <div className="edit-field-group">
-                        <label>처방 / 조제 일자</label>
-                        <input
-                          type="date"
-                          value={editForm.dispensedDate}
-                          onChange={(e) => setEditForm({ ...editForm, dispensedDate: e.target.value })}
-                        />
-                      </div>
-                      <div className="edit-field-group">
-                        <label>총 투약 일수 (일)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="365"
-                          value={editForm.totalDays}
-                          onChange={(e) => setEditForm({ ...editForm, totalDays: parseInt(e.target.value, 10) || 1 })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="edit-form-section">
-                    <div className="edit-items-header">
-                      <h4 className="edit-section-title">처방 약품 및 복용 용법 편집 ({editForm.items.length}종)</h4>
-                      <button
-                        type="button"
-                        className="edit-add-item-btn"
-                        onClick={handleAddMedicineToEdit}
-                      >
-                        + 약품 추가
-                      </button>
-                    </div>
-
-                    <div className="edit-items-table-wrapper">
-                      <table className="edit-items-table">
-                        <thead>
-                          <tr>
-                            <th style={{ width: '30%' }}>약품명</th>
-                            <th style={{ width: '18%' }}>1일 복용 횟수</th>
-                            <th style={{ width: '16%' }}>1회 투약량</th>
-                            <th style={{ width: '28%' }}>복용 시점 / 용법</th>
-                            <th style={{ width: '8%' }}>삭제</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editForm.items.map((item, idx) => (
-                            <tr key={idx}>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="table-input"
-                                  value={item.itemName}
-                                  onChange={(e) => handleEditItemChange(idx, 'itemName', e.target.value)}
-                                  placeholder="약품명 입력"
-                                />
-                              </td>
-                              <td>
-                                <select
-                                  className="table-select"
-                                  value={item.dailyFrequency}
-                                  onChange={(e) => handleEditItemChange(idx, 'dailyFrequency', parseInt(e.target.value, 10))}
-                                >
-                                  <option value={1}>1일 1회</option>
-                                  <option value={2}>1일 2회</option>
-                                  <option value={3}>1일 3회</option>
-                                  <option value={4}>1일 4회</option>
-                                </select>
-                              </td>
-                              <td>
-                                <div className="dose-input-group">
-                                  <input
-                                    type="number"
-                                    step="0.5"
-                                    min="0.5"
-                                    max="10"
-                                    className="table-input number-input"
-                                    value={item.dailyDose}
-                                    onChange={(e) => handleEditItemChange(idx, 'dailyDose', parseFloat(e.target.value) || 1)}
-                                  />
-                                  <span className="dose-unit">정/포</span>
-                                </div>
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="table-input"
-                                  value={item.usageTiming}
-                                  onChange={(e) => handleEditItemChange(idx, 'usageTiming', e.target.value)}
-                                  placeholder="예: 1일 3회 식후 30분"
-                                />
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  type="button"
-                                  className="table-del-btn"
-                                  onClick={() => handleRemoveMedicineFromEdit(idx)}
-                                  title="약품 삭제"
-                                >
-                                  ✕
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="edit-form-footer">
-                    <button
-                      type="button"
-                      className="edit-cancel-btn"
-                      onClick={() => setEditingPrescription(null)}
-                      disabled={isSavingEdit}
-                    >
-                      취소
-                    </button>
-                    <button
-                      type="button"
-                      className="edit-save-btn"
-                      onClick={handleSaveEdit}
-                      disabled={isSavingEdit}
-                    >
-                      {isSavingEdit ? '저장 중...' : '저장 완료'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}
