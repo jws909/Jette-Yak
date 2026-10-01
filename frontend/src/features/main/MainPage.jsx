@@ -1728,15 +1728,17 @@ export default function MainPage({ user }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M24 18v12m-6-6h12" />
               </svg>
             </div>
-            <h2 className="empty-title">처방전을 등록해주세요.</h2>
-            <p className="empty-subtitle">처방전 등록시 복용 일정과 성분을 자동으로 분석해 드립니다.</p>
+            <h2 className="empty-title">처방전 또는 약봉투를 등록해주세요.</h2>
+            <p className="empty-subtitle">
+              병원 처방전뿐만 아니라 <strong>약국 약봉투</strong> 사진도 등록하시면 복용 일정과 약품 정보를 자동으로 분석해 드립니다.
+            </p>
             <div className="empty-actions-row">
               <button
                 type="button"
                 className="prescription-upload-btn"
                 onClick={openUploadModal}
               >
-                처방전 등록 <span className="btn-arrow">→</span>
+                처방전 · 약봉투 등록 <span className="btn-arrow">→</span>
               </button>
               <button
                 type="button"
@@ -1965,7 +1967,7 @@ export default function MainPage({ user }) {
                 className="new-prescription-btn"
                 onClick={openUploadModal}
               >
-                새 처방전 등록
+                + 처방전 · 약봉투 등록
               </button>
               <button
                 type="button"
@@ -2222,7 +2224,7 @@ export default function MainPage({ user }) {
               ) : (
                 <>
                   <p className="routine-empty-text">
-                    처방전을 등록하시면 1일 복용 횟수와 식사 시간에 맞춰 오늘의 복약 루틴이 자동으로 계산되어 등록됩니다.
+                    처방전이나 약봉투를 등록하시면 1일 복용 횟수와 식사 시간에 맞춰 오늘의 복약 루틴이 자동으로 계산되어 등록됩니다.
                   </p>
                   {!hasPrescription && (
                     <button
@@ -2230,7 +2232,7 @@ export default function MainPage({ user }) {
                       className="routine-empty-cta-btn"
                       onClick={openUploadModal}
                     >
-                      처방전 등록하고 시작하기 →
+                      처방전 · 약봉투 등록하고 시작하기 →
                     </button>
                   )}
                 </>
@@ -2355,7 +2357,7 @@ export default function MainPage({ user }) {
         <div className="modal-backdrop" onClick={closeUploadModal}>
           <div className="modal-content-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
-              <h3 className="modal-title">처방전 등록 및 AI 분석</h3>
+              <h3 className="modal-title">처방전 · 약봉투 등록 및 AI 분석</h3>
               <button
                 type="button"
                 className="modal-close"
@@ -2367,14 +2369,22 @@ export default function MainPage({ user }) {
             </div>
 
             <form onSubmit={handleUploadSubmit} className="upload-form">
-              {/* 처방전 촬영 안내 배너 */}
+              {/* 지원 서식 안내 칩 */}
+              <div className="upload-support-chips">
+                <span className="support-chip highlight">병원 처방전</span>
+                <span className="support-chip highlight">약국 약봉투 (조제안내문)</span>
+                <span className="support-chip-hint">둘 중 하나만 촬영하셔도 자동 인식됩니다</span>
+              </div>
+
+              {/* 처방전 / 약봉투 촬영 안내 배너 */}
               <div className="upload-guide-banner">
                 <div className="guide-banner-header">
                   <span className="guide-icon">INFO</span>
-                  <strong>처방전 촬영 및 업로드 안내</strong>
+                  <strong>처방전 및 약봉투 촬영 안내</strong>
                 </div>
                 <p className="guide-text">
-                  글자가 수평(가로)으로 똑바로 읽히도록 촬영해 주세요. 기울어지거나 좌우가 뒤집힌 사진은 아래 <strong>[회전]</strong> 및 <strong>[반전]</strong> 도구로 올바르게 교정하신 후 분석을 진행해 주세요.
+                  병원 처방전뿐만 아니라 <strong>약국에서 받은 약봉투(복약안내문)</strong>도 그대로 촬영하시면 약품명과 일수를 자동 인식합니다.
+                  글자가 수평(가로)으로 똑바로 읽히도록 평평하게 펴서 촬영해 주세요. 기울어진 사진은 아래 <strong>[회전]</strong> 및 <strong>[반전]</strong> 도구로 교정하실 수 있습니다.
                 </p>
               </div>
 
@@ -2397,8 +2407,8 @@ export default function MainPage({ user }) {
                 <svg className="upload-cloud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
-                <strong>처방전 사진 또는 스캔본 업로드</strong>
-                <p>JPG, PNG, PDF 형식 지원 (최대 15MB) · 파일 드래그 & 드롭 가능</p>
+                <strong>처방전 또는 약봉투 사진 업로드</strong>
+                <p>JPG, PNG, PDF 지원 (최대 15MB) · 약봉투 전면 촬영본 지원</p>
                 <input
                   type="file"
                   id="prescription-file-input"
@@ -2936,7 +2946,7 @@ export default function MainPage({ user }) {
                         openUploadModal();
                       }}
                     >
-                      + 새 처방전 추가 등록
+                      + 처방전 · 약봉투 추가 등록
                     </button>
                   </div>
 
@@ -2953,7 +2963,7 @@ export default function MainPage({ user }) {
                         </svg>
                       </span>
                       <p className="manage-empty-title">등록된 처방전이 없습니다.</p>
-                      <p className="manage-empty-desc">처방전 사진을 업로드하여 복약 일정 관리를 시작해보세요.</p>
+                      <p className="manage-empty-desc">처방전이나 약봉투 사진을 업로드하여 복약 일정 관리를 시작해보세요.</p>
                       <button
                         type="button"
                         className="manage-empty-cta"
@@ -2962,7 +2972,7 @@ export default function MainPage({ user }) {
                           openUploadModal();
                         }}
                       >
-                        처방전 등록하기 →
+                        처방전 · 약봉투 등록하기 →
                       </button>
                     </div>
                   ) : (
