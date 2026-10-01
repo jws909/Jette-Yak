@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import MainPage from './features/main/MainPage';
 import CalendarPage from './calendarpage/CalendarPage';
@@ -18,6 +18,32 @@ const getFormattedDate = (targetDate) => {
   const d = String(targetDate.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
 };
+
+/**
+ * 로그인 필수 보호 라우트 (비로그인 시 강제 로그인 이동)
+ */
+function ProtectedRoute({ isLoggedIn, children }) {
+  const location = useLocation();
+
+  if (!isLoggedIn) {
+    const nextPath = location.pathname + location.search;
+    const nextQuery = nextPath && nextPath !== '/' ? `?next=${encodeURIComponent(nextPath)}` : '';
+    return <Navigate to={`/login${nextQuery}`} replace />;
+  }
+
+  return children;
+}
+
+/**
+ * 비로그인 전용 라우트 (이미 로그인 상태면 메인으로 튕겨냄)
+ */
+function PublicOnlyRoute({ isLoggedIn, children }) {
+  if (isLoggedIn) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+}
 
 function App() {
   const navigate = useNavigate();
@@ -273,7 +299,8 @@ function App() {
     setUser(loggedInUser);
     localStorage.setItem('user', JSON.stringify(loggedInUser));
     const next = new URLSearchParams(window.location.search).get('next');
-    navigate(['/guide','/chat','/community','/mypage','/family'].includes(next) ? next : '/');
+    const targetUrl = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+    navigate(targetUrl, { replace: true });
   };
 
   const handleLogout = async () => {
@@ -336,111 +363,149 @@ function App() {
     setIsLoggedIn(true);
     setUser(demoUser);
     localStorage.setItem('user', JSON.stringify(demoUser));
-    navigate('/');
+    const next = new URLSearchParams(window.location.search).get('next');
+    const targetUrl = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
+    navigate(targetUrl, { replace: true });
   };
 
   return (
     <>
       <Routes>
-        <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
-        <Route path="/signup" element={<SignupPage />} />
+        {/* 비로그인 전용 라우트 (이미 로그인된 상태면 메인으로 튕겨냄) */}
+        <Route
+          path="/login"
+          element={
+            <PublicOnlyRoute isLoggedIn={isLoggedIn}>
+              <LoginPage onLoginSuccess={handleLoginSuccess} onLoginDemoToggle={handleLoginDemoToggle} />
+            </PublicOnlyRoute>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <PublicOnlyRoute isLoggedIn={isLoggedIn}>
+              <SignupPage />
+            </PublicOnlyRoute>
+          }
+        />
 
+        {/* 보호된 라우트 (비로그인 상태면 강제로 /login으로 리다이렉트) */}
         <Route
           path="/"
           element={
-            <MainLayout
-              isLoggedIn={isLoggedIn}
-              user={user}
-              onLogout={handleLogout}
-              onLoginDemoToggle={handleLoginDemoToggle}
-            >
-              <MainPage user={user} />
-            </MainLayout>
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <MainPage user={user} />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/calendar"
           element={
-            <MainLayout
-              isLoggedIn={isLoggedIn}
-              user={user}
-              onLogout={handleLogout}
-              onLoginDemoToggle={handleLoginDemoToggle}
-            >
-              <CalendarPage user={user} />
-            </MainLayout>
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <CalendarPage user={user} />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/guide"
           element={
-            <MainLayout
-              isLoggedIn={isLoggedIn}
-              user={user}
-              onLogout={handleLogout}
-              onLoginDemoToggle={handleLoginDemoToggle}
-            >
-              <GuidePage key={user?.userId || "guest"} />
-            </MainLayout>
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <GuidePage key={user?.userId || "guest"} />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/mypage"
           element={
-            <MainLayout
-              isLoggedIn={isLoggedIn}
-              user={user}
-              onLogout={handleLogout}
-              onLoginDemoToggle={handleLoginDemoToggle}
-            >
-              <MyPage user={user} onUserUpdated={handleUserUpdated} onLogout={handleLogout} />
-            </MainLayout>
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <MyPage user={user} onUserUpdated={handleUserUpdated} onLogout={handleLogout} />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/family"
           element={
-            <MainLayout
-              isLoggedIn={isLoggedIn}
-              user={user}
-              onLogout={handleLogout}
-              onLoginDemoToggle={handleLoginDemoToggle}
-            >
-              <FamilyPage user={user} onUserUpdated={handleUserUpdated} />
-            </MainLayout>
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <FamilyPage user={user} onUserUpdated={handleUserUpdated} />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/chat"
           element={
-            <MainLayout
-              isLoggedIn={isLoggedIn}
-              user={user}
-              onLogout={handleLogout}
-              onLoginDemoToggle={handleLoginDemoToggle}
-            >
-              <MedicationChat key={user?.userId || "guest"} />
-            </MainLayout>
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <MedicationChat key={user?.userId || "guest"} />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 
         <Route
           path="/community"
           element={
-            <MainLayout
-              isLoggedIn={isLoggedIn}
-              user={user}
-              onLogout={handleLogout}
-              onLoginDemoToggle={handleLoginDemoToggle}
-            >
-              <CommunityPage user={user} />
-            </MainLayout>
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <CommunityPage user={user} />
+              </MainLayout>
+            </ProtectedRoute>
           }
+        />
+
+        {/* 미등록 경로(404) 와일드카드 처리: 로그인 상태에 따라 메인 또는 로그인창으로 이동 */}
+        <Route
+          path="*"
+          element={<Navigate to={isLoggedIn ? "/" : "/login"} replace />}
         />
       </Routes>
 

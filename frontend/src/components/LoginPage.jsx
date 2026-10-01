@@ -14,11 +14,12 @@ import "./LoginPage.css";
  * 사용 예시:
  *   <LoginPage onLoginSuccess={(token) => { ... }} />
  */
-export default function LoginPage({ onLoginSuccess }) {
+export default function LoginPage({ onLoginSuccess, onLoginDemoToggle }) {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const isExpired = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("expired") === "1";
+  const [error, setError] = useState(isExpired ? "세션이 만료되었습니다. 다시 로그인해 주세요." : "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFindIdOpen, setIsFindIdOpen] = useState(false);
   const [findIdEmail, setFindIdEmail] = useState("");
@@ -291,6 +292,35 @@ export default function LoginPage({ onLoginSuccess }) {
             {isSubmitting ? "로그인 중..." : "로그인"}{" "}
             <span aria-hidden="true">←</span>
           </button>
+
+          {onLoginDemoToggle && (
+            <button
+              type="button"
+              className="login-demo-btn"
+              onClick={onLoginDemoToggle}
+              style={{
+                width: '100%',
+                padding: '11px',
+                marginTop: '10px',
+                backgroundColor: '#f5f3f0',
+                border: '1px solid #e2ddd6',
+                borderRadius: '10px',
+                color: '#554d45',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#eae5de';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#f5f3f0';
+              }}
+            >
+              체험 모드로 바로 둘러보기
+            </button>
+          )}
 
           <div
             className="login-links"
