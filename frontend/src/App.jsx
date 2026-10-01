@@ -10,6 +10,7 @@ import MedicationChat from './features/chatbot/components/MedicationChat';
 import CommunityPage from './features/community/CommunityPage';
 import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
+import MedicationRegisterPage from './features/medication/MedicationRegisterPage';
 import './App.css';
 
 const getFormattedDate = (targetDate) => {
@@ -110,7 +111,7 @@ function App() {
       try {
         const result = await Notification.requestPermission();
         if (result === 'granted') {
-          new Notification('💊 제때약 복약 알림이 활성화되었습니다', {
+          new Notification('제때약 복약 알림이 활성화되었습니다', {
             body: '정해진 복약 시간 30분 전과 정시에 알림을 보내드립니다.',
             icon: '/favicon.ico',
           });
@@ -228,7 +229,7 @@ function App() {
             });
 
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(`💊 [복약 알림] ${combinedNames}`, {
+              new Notification(`[복약 알림] ${combinedNames}`, {
                 body: `현재 복용 시간(${currentTimeStr})입니다. 잊지 말고 복용하세요!`,
                 icon: '/favicon.ico',
                 tag: mainTag,
@@ -423,6 +424,22 @@ function App() {
         />
 
         <Route
+          path="/medication/register"
+          element={
+            <ProtectedRoute isLoggedIn={isLoggedIn}>
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <MedicationRegisterPage user={user} />
+              </MainLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/guide"
           element={
             <ProtectedRoute isLoggedIn={isLoggedIn}>
@@ -532,7 +549,11 @@ function App() {
             width: '90%',
             boxShadow: '0 12px 32px rgba(0, 0, 0, 0.2)',
           }}>
-            <div style={{ fontSize: '38px', marginBottom: '8px' }}>🔔</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px', color: '#682335' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="38" height="38">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
             <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#2b2520', margin: '0 0 8px 0' }}>
               복약 알림을 받아보시겠어요?
             </h4>
@@ -603,7 +624,11 @@ function App() {
             width: '90%',
             boxShadow: '0 12px 32px rgba(0, 0, 0, 0.25)',
           }}>
-            <div style={{ fontSize: '42px', marginBottom: '8px' }}>💊</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px', color: '#682335' }}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="42" height="42">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+              </svg>
+            </div>
             <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#2b2520', margin: '0 0 8px 0' }}>
               복약할 시간입니다!
             </h4>
