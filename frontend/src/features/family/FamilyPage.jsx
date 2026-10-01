@@ -243,20 +243,6 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     }
   };
 
-  // (5) 스케줄 삭제
-  const handleDeleteSchedule = async (scheduleId, e) => {
-    e.stopPropagation();
-    if (!window.confirm('이 복약 일정을 삭제하시겠습니까?')) return;
-    try {
-      const res = await fetch(`/api/calendar/${scheduleId}`, { method: 'DELETE' });
-      if (res.ok) {
-        fetchDailySchedules(selectedDate);
-        fetchMonthSummary();
-      }
-    } catch (err) {
-      console.error('일정 삭제 오류:', err);
-    }
-  };
 
   // (6) [보고서] 버튼 클릭 시: 처방약 / 상시약 / 영양제 3단 분리 종합 취합
   const handleOpenReportModal = async () => {
@@ -669,20 +655,64 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     supplement: { label: '영양제', className: 'supplement', dotClass: 'dot-supplement' },
   };
 
-  // 알람 설정 모달 상태
+  // 알람 설정 모달 상태 (두 번째 변수 기준)
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
   const [targetScheduleForAlarm, setTargetScheduleForAlarm] = useState(null);
   const [newAlarmTime, setNewAlarmTime] = useState('08:00');
   const [alarmEnabled, setAlarmEnabled] = useState(true);
 
-  // 일정 삭제 모달 상태
-  const [scheduleDeleteModalOpen, setScheduleDeleteModalOpen] = useState(false);
-  const [targetScheduleForDelete, setTargetScheduleForDelete] = useState(null);
+  // 휠 피커 내부 제어 상태
+  const [ampm, setAmpm] = useState('오전');
+  const [hour, setHour] = useState('08');
+  const [minute, setMinute] = useState('00');
+
+ // 시/분 증감 헬퍼
+  const stepHour = (val, delta) => {
+    let n = (parseInt(val, 10) || 12) + delta;
+    if (n > 12) n = 1;
+    if (n < 1) n = 12;
+    return String(n).padStart(2, '0');
+  };
+
+  const stepMinute = (val, delta) => {
+    let n = (parseInt(val, 10) || 0) + delta;
+    if (n > 59) n = 0;
+    if (n < 0) n = 59;
+    return String(n).padStart(2, '0');
+  };
+
+  // 마우스 휠 스크롤 제어
+  const handleWheel = (e, type) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 1 : -1;
+    if (type === 'ampm') {
+      setAmpm((prev) => (prev === '오전' ? '오후' : '오전'));
+    } else if (type === 'hour') {
+      setHour((prev) => stepHour(prev, delta));
+    } else if (type === 'minute') {
+      setMinute((prev) => stepMinute(prev, delta));
+    }
+  };
 
   // 1) 알람 모달 열기
-  const handleOpenAlarmModal = (item) => {
+  const handleOpenAlarmModal = (item, e) => {
+    if (e) e.stopPropagation();
     setTargetScheduleForAlarm(item);
-    setNewAlarmTime(item.time ? String(item.time).substring(0, 5) : '08:00');
+
+    // 약품에 설정된 기존 시간 파싱 (HH:mm -> 오전/오후, hour, minute)
+    const timeStr = String(item.time || item.intakeTime || '08:00');
+    const [hStr, mStr] = timeStr.split(':');
+    let h = parseInt(hStr, 10) || 8;
+    const m = parseInt(mStr, 10) || 0;
+
+    const currentAmpm = h >= 12 ? '오후' : '오전';
+    if (h > 12) h -= 12;
+    if (h === 0) h = 12;
+
+    setAmpm(currentAmpm);
+    setHour(String(h).padStart(2, '0'));
+    setMinute(String(m).padStart(2, '0'));
+    setNewAlarmTime(timeStr.substring(0, 5));
     setAlarmEnabled(item.alarmEnabled ?? true);
     setAlarmModalOpen(true);
   };
@@ -690,49 +720,93 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   // 2) 알람 일괄 저장 API 호출
   const handleSaveAlarm = async () => {
     if (!targetScheduleForAlarm) return;
+
+    // 12시간제 입력을 24시간제(HH:mm) 문자열로 변환
+    let numericHour = parseInt(hour, 10) || 12;
+    if (ampm === '오후' && numericHour < 12) numericHour += 12;
+    if (ampm === '오전' && numericHour === 12) numericHour = 0;
+    const formattedMinute = String(Math.min(59, Math.max(0, parseInt(minute, 10) || 0))).padStart(2, '0');
+    const calculatedTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
+
     try {
       const res = await fetch(
-        `/api/calendar/${targetScheduleForAlarm.scheduleId}/alarm?newTime=${encodeURIComponent(newAlarmTime)}&alarmEnabled=${alarmEnabled}&date=${selectedDate}`,
+        `/api/calendar/${targetScheduleForAlarm.scheduleId}/alarm?newTime=${encodeURIComponent(calculatedTime)}&alarmEnabled=${alarmEnabled}&date=${encodeURIComponent(selectedDate)}`,
         { method: 'POST' }
       );
+
       if (res.ok) {
         alert('알람 설정이 변경되었습니다.');
         setAlarmModalOpen(false);
-        // 당일 일정 다시 불러오기 (사용하시는 함수명 확인: fetchDailySchedules 등)
-        if (typeof fetchDailySchedules === 'function') fetchDailySchedules(selectedDate);
+        setTargetScheduleForAlarm(null);
+
+        // 가족 페이지 선택 구성원 상태 유지하며 일정 재조회
+        if (typeof fetchDailySchedules === 'function') {
+          fetchDailySchedules(selectedDate, selectedMemberId);
+        }
       } else {
+        const errText = await res.text();
+        console.error('알람 설정 실패:', res.status, errText);
         alert('알람 설정 변경에 실패했습니다.');
       }
     } catch (err) {
       console.error('알람 변경 오류:', err);
+      alert('알람 변경 중 오류가 발생했습니다.');
     }
   };
 
-  // 3) 삭제 모달 열기
-  const handleOpenScheduleDeleteModal = (item) => {
-    setTargetScheduleForDelete(item);
-    setScheduleDeleteModalOpen(true);
-  };
+  // 복약 일정 삭제 처리
+  const handleOpenScheduleDeleteModal = async (item, e) => {
+    if (e) e.stopPropagation();
 
-  // 4) 삭제 실행 API 호출 (deleteAll: true면 전체 반복 삭제, false면 오늘만 삭제)
-  const handleExecuteScheduleDelete = async (deleteAll) => {
-    if (!targetScheduleForDelete) return;
+    // 1. 단순 확인창
+    if (!window.confirm(`[${item.name || '복약 일정'}]을(를) 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    // 2. 대상 구성원 ID 검증 (400 Bad Request 방어)
+    let targetUid = item.userId || item.memberId;
+    if (!targetUid && selectedMemberId !== 'all') {
+      targetUid = selectedMemberId;
+    }
+    if (!targetUid || targetUid === 'all') {
+      targetUid = currentUserId;
+    }
+
+    if (!targetUid || targetUid === 'all') {
+      alert('삭제할 대상 구성원의 정보를 확인할 수 없습니다.');
+      return;
+    }
+
     try {
-      const targetUid = targetScheduleForDelete.userId || currentUserId;
-      const res = await fetch(
-        `/api/calendar/${targetScheduleForDelete.scheduleId}/delete?deleteAll=${deleteAll}&userId=${targetUid}&date=${selectedDate}`,
-        { method: 'POST' }
-      );
+      // 당일 일정만 삭제 (deleteAll=false)
+      const url = `/api/calendar/${item.scheduleId}/delete?deleteAll=false&userId=${targetUid}&date=${encodeURIComponent(selectedDate)}`;
+      console.log('[삭제 요청 URL]', url);
+
+      const res = await fetch(url, { method: 'POST' });
+
       if (res.ok) {
-        setScheduleDeleteModalOpen(false);
-        setTargetScheduleForDelete(null);
-        if (typeof fetchDailySchedules === 'function') fetchDailySchedules(selectedDate);
-        if (typeof fetchMonthSummary === 'function') fetchMonthSummary();
+        // 목록 및 캘린더 요약 즉시 갱신
+        if (typeof fetchDailySchedules === 'function') {
+          fetchDailySchedules(selectedDate, selectedMemberId);
+        }
+        if (typeof fetchMonthSummary === 'function') {
+          fetchMonthSummary(selectedMemberId);
+        }
+
+        // 전역 진척도 갱신 이벤트 전송
+        window.dispatchEvent(
+          new CustomEvent('jette-intake-updated', {
+            detail: { userId: targetUid, date: selectedDate },
+          })
+        );
       } else {
+        const errText = await res.text();
+        console.error('삭제 실패 응답:', res.status, errText);
         alert('일정 삭제에 실패했습니다.');
       }
     } catch (err) {
-      console.error('일정 삭제 오류:', err);
+      console.error('일정 삭제 통신 오류:', err);
+      alert('삭제 처리 중 오류가 발생했습니다.');
     }
   };
 
@@ -1058,7 +1132,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                       type="button" 
                       className="chk-icon-btn" 
                       title="알림 설정"
-                      onClick={() => handleOpenAlarmModal(item)}
+                      onClick={(e) => handleOpenAlarmModal(item, e)}
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -1071,7 +1145,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                       type="button"
                       className="chk-icon-btn delete"
                       title="일정 삭제"
-                      onClick={() => handleOpenScheduleDeleteModal(item)}
+                      onClick={(e) => handleOpenScheduleDeleteModal(item, e)}
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                         <polyline points="3 6 5 6 21 6" />
@@ -1407,6 +1481,79 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 모달: 알람 시간 설정 */}
+      {alarmModalOpen && ( /* 1. isAlarmModalOpen -> alarmModalOpen */
+        <div className="modal-overlay" onClick={() => setAlarmModalOpen(false)}>
+          <div className="alarm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h4>복약 알림 시간 설정</h4>
+              {/* 2. 닫기 버튼 수정 */}
+              <button type="button" className="btn-close" onClick={() => setAlarmModalOpen(false)}>✕</button>
+            </div>
+
+            <div className="wheel-picker-box">
+              {/* 오전 / 오후 (기존 코드 그대로 유지) */}
+              <div className="picker-column" onWheel={(e) => handleWheel(e, 'ampm')}>
+                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▲</button>
+                <div className="picker-value clickable" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>
+                  {ampm}
+                </div>
+                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▼</button>
+              </div>
+
+              <div className="picker-divider" />
+
+              {/* 시 (Hour) (기존 코드 그대로 유지) */}
+              <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour')}>
+                <button type="button" onClick={() => setHour((prev) => stepHour(prev, 1))}>▲</button>
+                <input
+                  type="text"
+                  className="picker-input"
+                  maxLength={2}
+                  value={hour}
+                  onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, ''))}
+                  onBlur={() => {
+                    let n = parseInt(hour, 10);
+                    if (isNaN(n) || n < 1) n = 1;
+                    if (n > 12) n = 12;
+                    setHour(String(n).padStart(2, '0'));
+                  }}
+                />
+                <button type="button" onClick={() => setHour((prev) => stepHour(prev, -1))}>▼</button>
+              </div>
+
+              <div className="picker-divider" />
+
+              {/* 분 (Minute) (기존 코드 그대로 유지) */}
+              <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute')}>
+                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, 1))}>▲</button>
+                <input
+                  type="text"
+                  className="picker-input"
+                  maxLength={2}
+                  value={minute}
+                  onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, ''))}
+                  onBlur={() => {
+                    let n = parseInt(minute, 10);
+                    if (isNaN(n) || n < 0) n = 0;
+                    if (n > 59) n = 59;
+                    setMinute(String(n).padStart(2, '0'));
+                  }}
+                />
+                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, -1))}>▼</button>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              {/* 3. saveAlarmSetting -> handleSaveAlarm */}
+              <button type="button" className="btn-confirm" onClick={handleSaveAlarm}>
+                확인
+              </button>
+            </div>
           </div>
         </div>
       )}
