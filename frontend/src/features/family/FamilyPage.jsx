@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './FamilyPage.css';
 
 function getFormattedDate(targetDate) {
@@ -32,22 +32,6 @@ export default function FamilyPage(props) {
   const [monthSummary, setMonthSummary] = useState({});
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  const chipsRef = useRef(null);
-
-  // 마우스 휠로도 가로 스크롤 가능하도록 편의 지원
-  useEffect(() => {
-    const el = chipsRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      if (e.deltaY !== 0 && el.scrollWidth > el.clientWidth) {
-        e.preventDefault();
-        el.scrollLeft += e.deltaY;
-      }
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, []);
 
   const [inviteRole, setInviteRole] = useState('BABY'); // 기본값: 자녀
 
@@ -157,29 +141,37 @@ export default function FamilyPage(props) {
   }, [currentYearMonth, currentUserId, selectedMemberId]);
 
   // (3) 선택 일자 복약 스케줄 조회
-  const fetchDailySchedules = useCallback(async (targetDateStr) => {
-    if (!currentUserId) {
+const fetchDailySchedules = useCallback(async (targetDateStr) => {
+  if (!currentUserId) {
+    setSchedules([]);
+    return;
+  }
+  setLoading(true);
+  try {
+    // targetDateStr이 없거나 문자열 'undefined'면 현재 선택된 날짜나 오늘 날짜로 대체
+    const dateParam = (targetDateStr && targetDateStr !== 'undefined') 
+      ? targetDateStr 
+      : (selectedDate || new Date().toISOString().slice(0, 10));
+
+    const queryUser = selectedMemberId === 'all' ? currentUserId : selectedMemberId;
+    const isFamilyParam = selectedMemberId === 'all' ? '&isFamily=true' : '';
+    
+    // date=${targetDateStr} -> date=${dateParam} 으로 수정
+    const res = await fetch(`/api/calendar?userId=${queryUser}&date=${dateParam}${isFamilyParam}`);
+    
+    if (res.ok) {
+      const data = await res.json();
+      setSchedules(Array.isArray(data) ? data : []);
+    } else {
       setSchedules([]);
-      return;
     }
-    setLoading(true);
-    try {
-      const queryUser = selectedMemberId === 'all' ? currentUserId : selectedMemberId;
-      const isFamilyParam = selectedMemberId === 'all' ? '&isFamily=true' : '';
-      const res = await fetch(`/api/calendar?userId=${queryUser}&date=${targetDateStr}${isFamilyParam}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSchedules(Array.isArray(data) ? data : []);
-      } else {
-        setSchedules([]);
-      }
-    } catch (err) {
-      console.error('스케줄 조회 실패:', err);
-      setSchedules([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentUserId, selectedMemberId]);
+  } catch (err) {
+    console.error('스케줄 조회 실패:', err);
+    setSchedules([]);
+  } finally {
+    setLoading(false);
+  }
+}, [currentUserId, selectedMemberId, selectedDate]);
 
   useEffect(() => {
     fetchFamilyMembers();
@@ -644,7 +636,7 @@ const handleRemoveMember = async (member) => {
         <h1 className="family-title">가족 페이지</h1>
 
         <div className="family-controls">
-          <div className="family-chips-group" ref={chipsRef}>
+          <div className="family-chips-group">
             <button
               type="button"
               className={`family-chip ${selectedMemberId === 'all' ? 'selected' : ''}`}
