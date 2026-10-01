@@ -355,15 +355,26 @@ public class FamilyController {
 			if ("ACCEPT".equalsIgnoreCase(action)) {
 				// [승인 시]
 				// 2) USERS 테이블의 FAMILY_ID 갱신
-				String updateUSql =
-					    "UPDATE USERS SET FAMILY_ID = ?, ROLE = ? WHERE USER_ID = ?";
+				// 화면에서 넘어오는 상세 관계 -> DB 제약조건('GUAR', 'PROT')으로 변환
+				String safeRole = "PROT"; // 자녀, 부모님, 배우자 등은 모두 피보호자(PROT)
 
-					try (PreparedStatement pstmt = conn.prepareStatement(updateUSql)) {
-					    pstmt.setLong(1, familyId);
-					    pstmt.setString(2, inviteRole);
-					    pstmt.setLong(3, userId);
-					    pstmt.executeUpdate();
-					}
+				if (inviteRole != null) {
+				    String r = inviteRole.trim();
+				    if ("GUAR".equalsIgnoreCase(r) || "보호자".equals(r)) {
+				        safeRole = "GUAR";
+				    } else {
+				        // "자녀", "부모님", "배우자", "피보호자", "PROT", "CHILD" 등은 모두 PROT로 통일
+				        safeRole = "PROT";
+				    }
+				}
+
+				String updateUSql = "UPDATE USERS SET FAMILY_ID = ?, ROLE = ? WHERE USER_ID = ?";
+				try (PreparedStatement pstmt = conn.prepareStatement(updateUSql)) {
+				    pstmt.setLong(1, familyId);
+				    pstmt.setString(2, safeRole);
+				    pstmt.setLong(3, userId);
+				    pstmt.executeUpdate();
+				}
 
 				// 3) FAMILY_MEMBERS 테이블에 관계 등록 (FAMILY_ID, USER_ID)
 				String insertMemSql = "INSERT INTO FAMILY_MEMBERS (FAMILY_ID, USER_ID) VALUES (?, ?)";
