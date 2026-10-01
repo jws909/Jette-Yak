@@ -475,6 +475,38 @@ export default function FamilyPage(props) {
   }
 };
 
+const handleRemoveMember = async (member) => {
+    const memberName = member.name || member.nickname || '구성원';
+    if (!window.confirm(`'${memberName}' 님을 가족 목록에서 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`http://localhost:8080/api/family/members/${member.userId}/remove`, {
+        method: 'POST',
+        credentials: 'include' // 세션 정보 전달
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(`${memberName} 님이 삭제되었습니다.`);
+        if (String(selectedMemberId) === String(member.userId)) {
+          setSelectedMemberId('all');
+        }
+        if (typeof fetchFamilyMembers === 'function') await fetchFamilyMembers();
+        if (typeof fetchMonthlySummary === 'function') fetchMonthlySummary();
+        if (typeof fetchDailySchedules === 'function') fetchDailySchedules();
+      } else {
+        alert(data.message || '가족 삭제 처리에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('가족 삭제 실패:', err);
+      alert('삭제 처리 중 오류가 발생했습니다.');
+    }
+  };
+
+
   // 3. 캘린더 그리드 계산
   const firstDayIndex = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month + 1, 0).getDate();
@@ -608,18 +640,57 @@ export default function FamilyPage(props) {
               // 현재 로그인한 본인 계정인지 확인
               const isMe = Number(member.userId) === Number(currentUserId);
 
+              // 현재 로그인한 사용자 본인이 보호자(방장)인지 확인
+              const myInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
+              const isManager = myInfo?.role === 'GUAR' || myInfo?.role === '보호자';
+
               return (
-                <button
+                <div
                   key={member.userId}
-                  type="button"
-                  className={`family-chip ${String(selectedMemberId) === String(member.userId) ? 'selected' : ''}`}
-                  onClick={() => setSelectedMemberId(member.userId)}
+                  style={{ display: 'inline-flex', alignItems: 'center', position: 'relative' }}
                 >
-                  {member.name}
-                  <span style={{ fontSize: '0.85em', marginLeft: '4px', opacity: 0.85 }}>
-                    {isMe ? '(본인)' : getRoleLabel(member.role)}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    className={`family-chip ${String(selectedMemberId) === String(member.userId) ? 'selected' : ''}`}
+                    onClick={() => setSelectedMemberId(member.userId)}
+                  >
+                    {member.name}
+                    <span style={{ fontSize: '0.85em', marginLeft: '4px', opacity: 0.85 }}>
+                      {isMe ? '(본인)' : getRoleLabel(member.role)}
+                    </span>
+                  </button>
+
+                  {/* 초대한 보호자 본인만, 타인 구성원 옆에 삭제(×) 버튼 노출 */}
+                  {isManager && !isMe && (
+                    <button
+                      type="button"
+                      title="가족 구성원 삭제"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveMember(member);
+                      }}
+                      style={{
+                        marginLeft: '-8px',
+                        marginRight: '6px',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '18px',
+                        height: '18px',
+                        background: '#fee2e2',
+                        color: '#ef4444',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 'bold',
+                        zIndex: 2
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
