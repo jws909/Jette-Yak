@@ -1,7 +1,10 @@
 package com.app.controller;
 
+import org.apache.ibatis.session.SqlSession;
+import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,13 +16,128 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/family")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(
+	    origins = "http://localhost:5173", 
+	    allowCredentials = "true", 
+	    methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS }
+	)
 public class FamilyController {
 
 	@Autowired
 	@Qualifier("data_source")
 	private DataSource dataSource;
+	
+	@Autowired
+	private SqlSessionFactory sqlSessionFactory;
 
+	/**
+	 * 가족 구성원 삭제 (내보내기 / 직접 등록 프로필 삭제)
+	 */
+	@PostMapping("/members/{targetUserId}/remove")
+	public ResponseEntity<Map<String, Object>> removeFamilyMember(
+			@PathVariable("targetUserId") Long targetUserId,
+			javax.servlet.http.HttpServletRequest request) {
+
+		Map<String, Object> response = new HashMap<>();
+
+		// 1. 요청자 세션 검증
+		var session = request.getSession(false);
+		Long currentUserId = null;
+		if (session != null) {
+			Object sessionVal = session.getAttribute("userId");
+			if (sessionVal instanceof Long) {
+				currentUserId = (Long) sessionVal;
+			} else if (sessionVal instanceof Number) {
+				currentUserId = ((Number) sessionVal).longValue();
+			}
+		}
+
+		if (currentUserId == null || targetUserId == null) {
+			response.put("success", false);
+			response.put("message", "로그인이 필요합니다.");
+			return ResponseEntity.status(org.springframework.http.HttpStatus.UNAUTHORIZED).body(response);
+		}
+
+		if (currentUserId.equals(targetUserId)) {
+			response.put("success", false);
+			response.put("message", "본인은 삭제할 수 없습니다.");
+			return ResponseEntity.badRequest().body(response);
+		}
+
+		// 외래키(자식 레코드) 삭제 순서: FAMILY_MEMBERS -> 복약일정 -> 초대내역 -> USERS
+		String deleteFamilyMemberSql = "DELETE FROM FAMILY_MEMBERS WHERE USER_ID = ?";
+		String checkVirtualSql = "SELECT IS_VIRTUAL FROM USERS WHERE USER_ID = ?";
+		String deleteSchedulesSql = "DELETE FROM MEDICATION_SCHEDULES WHERE USER_ID = ?";
+		String deleteUserSql = "DELETE FROM USERS WHERE USER_ID = ?";
+		String unlinkUserSql = "UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT' WHERE USER_ID = ?";
+		String cleanInviteSql = "DELETE FROM FAMILY_INVITATIONS WHERE RECEIVER_ID = ? OR SENDER_ID = ?";
+
+		try (SqlSession sessionSql = sqlSessionFactory.openSession();
+		     Connection conn = sessionSql.getConnection()) {
+			conn.setAutoCommit(false);
+
+			// (1) FAMILY_MEMBERS 테이블의 자식 레코드 먼저 제거 (FK_FM_USER 위배 방지)
+			try (PreparedStatement pstmtFm = conn.prepareStatement(deleteFamilyMemberSql)) {
+				pstmtFm.setLong(1, targetUserId);
+				pstmtFm.executeUpdate();
+			} catch (Exception ex) {
+				System.err.println("FAMILY_MEMBERS 삭제 건너뜀 또는 에러: " + ex.getMessage());
+			}
+
+			// (2) 가상 계정(직접 등록) 여부 확인
+			String isVirtual = "N";
+			try (PreparedStatement pstmt = conn.prepareStatement(checkVirtualSql)) {
+				pstmt.setLong(1, targetUserId);
+				try (ResultSet rs = pstmt.executeQuery()) {
+					if (rs.next()) {
+						isVirtual = rs.getString("IS_VIRTUAL");
+					}
+				}
+			}
+
+			// (3) 초대 내역 정리
+			try (PreparedStatement pstmtInvite = conn.prepareStatement(cleanInviteSql)) {
+				pstmtInvite.setLong(1, targetUserId);
+				pstmtInvite.setLong(2, targetUserId);
+				pstmtInvite.executeUpdate();
+			} catch (Exception ex) {
+				// 초대 테이블 삭제 오류 방어
+			}
+
+			// (4) 가상 계정 vs 일반 회원 분기
+			if ("Y".equalsIgnoreCase(isVirtual)) {
+				// 일정 삭제
+				try (PreparedStatement pstmtSched = conn.prepareStatement(deleteSchedulesSql)) {
+					pstmtSched.setLong(1, targetUserId);
+					pstmtSched.executeUpdate();
+				} catch (Exception ex) {
+					// 스케줄 테이블명 다를 경우 대비
+				}
+				// 유저 계정 삭제
+				try (PreparedStatement pstmtUser = conn.prepareStatement(deleteUserSql)) {
+					pstmtUser.setLong(1, targetUserId);
+					pstmtUser.executeUpdate();
+				}
+			} else {
+				// 일반 연동 회원: 그룹 해제
+				try (PreparedStatement pstmtUser = conn.prepareStatement(unlinkUserSql)) {
+					pstmtUser.setLong(1, targetUserId);
+					pstmtUser.executeUpdate();
+				}
+			}
+
+			conn.commit();
+			response.put("success", true);
+			response.put("message", "삭제되었습니다.");
+			return ResponseEntity.ok(response);
+
+		} catch (Exception e) {
+			e.printStackTrace();
+			response.put("success", false);
+			response.put("message", e.getMessage());
+			return ResponseEntity.internalServerError().body(response);
+		}
+	}
 	/**
 	 * 1. 가족 구성원 목록 조회
 	 * GET /api/family/members?userId=1

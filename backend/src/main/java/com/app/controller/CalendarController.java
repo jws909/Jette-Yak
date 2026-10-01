@@ -88,9 +88,15 @@ public class CalendarController {
 	@GetMapping
 	public ResponseEntity<List<ScheduleDTO>> getDailySchedules(
 			@RequestParam(value = "userId", required = false) Long userId, 
-			@RequestParam("date") String date,
+			@RequestParam(value = "date", required = false) String date,
 			@RequestParam(value = "isFamily", required = false, defaultValue = "false") boolean isFamily,
 			javax.servlet.http.HttpServletRequest request) {
+
+		// ★ [날짜 방어 로직] date가 비어있거나 "undefined", "null"이면 오늘 날짜(YYYY-MM-DD)로 강제 치환
+		if (date == null || date.trim().isEmpty() || "undefined".equalsIgnoreCase(date) || "null".equalsIgnoreCase(date)) {
+			date = java.time.LocalDate.now().toString();
+		}
+
 		if (userId == null || userId <= 0L) {
 			var session = request.getSession(false);
 			Object sessionVal = session != null ? session.getAttribute("userId") : null;
