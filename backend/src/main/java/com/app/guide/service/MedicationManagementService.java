@@ -128,7 +128,7 @@ public class MedicationManagementService {
         if (activeMeds == null || activeMeds.isEmpty()) {
             return "";
         }
-        return activeMeds.stream()
+        return "v2-ai-evidence|" + activeMeds.stream()
             .map(m -> String.format("%s|%s|%s|%s",
                 Objects.toString(m.getRegistrationId(), ""),
                 Objects.toString(m.getMedicationId(), ""),

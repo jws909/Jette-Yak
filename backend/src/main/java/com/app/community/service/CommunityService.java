@@ -32,8 +32,9 @@ public class CommunityService {
         Map<String,Object> p=new HashMap<>();p.put("keyword",clean(q,100));p.put("category",cat);p.put("medicationId",clean(medicationId,30));p.put("sort",order);p.put("offset",(page-1)*12);p.put("limit",12);p.put("viewerId",viewerId==null?-1L:viewerId);
         int total=dao.countPosts(p);return Map.of("items",dao.posts(p),"total",total,"page",page,"hasMore",page*12<total);
     }
-    public Map<String,Object> post(long id,Long viewerId) {
-        Map<String,Object> post=dao.post(id,viewerId);if(post==null) throw new NoSuchElementException("게시글을 찾을 수 없습니다.");
+    public Map<String,Object> post(long id,Long viewerId) { return post(id,viewerId,false); }
+    public Map<String,Object> post(long id,Long viewerId,boolean admin) {
+        Map<String,Object> post=dao.post(id,viewerId,admin);if(post==null) throw new NoSuchElementException("게시글을 찾을 수 없습니다.");
         Map<String,Object> result=new LinkedHashMap<>(post);result.put("comments",dao.comments(id));result.put("attachments",dao.attachments(id));return result;
     }
     // 작성자 ID는 컨트롤러가 로그인 세션에서 꺼내 전달한다. 요청 DTO의 사용자 정보는 사용하지 않는다.
@@ -62,7 +63,9 @@ public class CommunityService {
     }
     public List<Map<String,Object>> reports(){return dao.reports();}
     public List<Map<String,Object>> pendingInfoReports(){return dao.pendingInfoReports();}
+    public List<Map<String,Object>> moderatedContent(){return dao.moderatedContent();}
     @Transactional public void moderatePost(long id,String status,long adminId){if(!Set.of("VISIBLE","HIDDEN","DELETED").contains(status)||dao.moderatePost(Map.of("postId",id,"status",status,"adminId",adminId))==0)throw new IllegalArgumentException("처리할 게시글을 확인해주세요.");}
+    @Transactional public void moderateComment(long id,String status,long adminId){if(!Set.of("VISIBLE","HIDDEN").contains(status)||dao.moderateComment(Map.of("commentId",id,"status",status,"adminId",adminId))==0)throw new IllegalArgumentException("처리할 댓글을 확인해주세요.");}
     @Transactional public void reviewInfoPost(long id,String status,long adminId){if(!Set.of("APPROVED","REJECTED").contains(status)||dao.reviewInfoPost(Map.of("postId",id,"status",status,"adminId",adminId))==0)throw new IllegalArgumentException("검토할 정보 제보를 확인해주세요.");}
     @Transactional public void resolveReport(long id,CommunityModerationRequest r,long adminId){if(r==null||!Set.of("RESOLVED","DISMISSED").contains(r.getStatus())||dao.resolveReport(Map.of("reportId",id,"status",r.getStatus(),"note",clean(r.getResolutionNote(),500),"adminId",adminId))==0)throw new IllegalArgumentException("신고 처리 내용을 확인해주세요.");}
     public List<Map<String,Object>> medications(String q){String keyword=clean(q,80);return keyword.length()<1?List.of():dao.medications(keyword);}

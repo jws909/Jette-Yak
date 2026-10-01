@@ -14,12 +14,15 @@ public class MedicationChatRequest {
     public List<ChatTurn> getConversation() { return conversation; }
     public void setConversation(List<ChatTurn> value) { conversation = value == null ? List.of() : value; }
     private String itemSeq;
+    private boolean selectionConfirmed;
     private String question;
     private Map<String, String> selections = Map.of();
     public Long getConversationId() { return conversationId; }
     public void setConversationId(Long value) { conversationId = value; }
     public String getItemSeq() { return itemSeq; }
     public void setItemSeq(String value) { itemSeq = value; }
+    public boolean isSelectionConfirmed() { return selectionConfirmed; }
+    public void setSelectionConfirmed(boolean value) { selectionConfirmed = value; }
     public String getQuestion() { return question; }
     public void setQuestion(String value) { question = value; }
     public Map<String, String> getSelections() { return selections; }

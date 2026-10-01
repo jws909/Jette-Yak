@@ -1,6 +1,6 @@
 /**
  * 파일 역할: 질문 분류, DB 조회, 안전 응답, Gemini 상담을 순서대로 조정하는 챗봇 핵심 서비스입니다.
- * 핵심 규칙: 응급·과다복용 질문은 AI 호출 전에 우선 처리하고, 약 정보 답변은 조회된 DB 자료만 근거로 사용합니다.
+ * 핵심 규칙: 응급·과다복용 질문은 AI 호출 전에 우선 처리하고, DB에 근거가 없을 때의 AI 보완 정보는 출처 경고와 함께 구분합니다.
  */
 package com.app.chatbot.service;
 
@@ -59,6 +59,7 @@ public class MedicationChatService {
         // 제품 선택 목록에서 방금 고른 품목코드는 질문을 다시 분석하기 전에 확정한다.
         // 이전에 대화하던 약보다 새 선택을 우선해야 선택 직후 같은 약 이름을 되묻지 않는다.
         LinkedHashMap<String,MedicationChatDto> explicitSelections=resolveSelections(request,question);
+        boolean confirmedChoice=request.isSelectionConfirmed()&&selectedByItem!=null;
         MedicationChatDto selected=explicitSelections.size()==1
             ? explicitSelections.values().iterator().next() : selectedByItem;
 
@@ -87,8 +88,10 @@ public class MedicationChatService {
             || analysis.intent() == QuestionAnalysis.Intent.GENERAL_HEALTH
             || analysis.intent() == QuestionAnalysis.Intent.SITE_HELP
             || QuestionAnalysis.shouldPreferCounseling(question, userHistory);
-        boolean productSelectionResolved=!explicitSelections.isEmpty()
-            && analysis.intent()==QuestionAnalysis.Intent.MEDICATION_INFO;
+        boolean explicitProductChosen=confirmedChoice||!explicitSelections.isEmpty();
+        boolean productSelectionResolved=explicitProductChosen
+            && (analysis.intent()==QuestionAnalysis.Intent.MEDICATION_INFO
+                || analysis.intent()==QuestionAnalysis.Intent.DB_SEARCH);
         if (analysis.needsClarification()&&!productSelectionResolved) {
             List<MedicationChatDto> context = analysis.useSelectedMedication() && selected != null
                 ? List.of(selected) : registeredContext(question, userId);
@@ -100,9 +103,28 @@ public class MedicationChatService {
         //    요청 본문의 품목코드와 달리 사용자 소유 데이터이므로 인증 여부를 반드시 확인해야 한다.
         if (analysis.intent() == QuestionAnalysis.Intent.MY_MEDICATIONS || analysis.intent() == QuestionAnalysis.Intent.MY_DUR) {
             if(userId==null || userId<=0) { var response=reply("내 약 조회는 로그인이 필요합니다.",List.of(),List.of());response.put("loginRequired",true);return response; }
-            var response=reply(analysis.intent()==QuestionAnalysis.Intent.MY_DUR ? "복용 중 상태인 약 사이의 DUR 기록입니다." : "현재 복용 중인 약 목록입니다. 제품을 선택해 질문을 이어가세요.",List.of(),List.of());
-            if(analysis.intent()==QuestionAnalysis.Intent.MY_DUR) response.put("comparison",management.myComparison(userId));
-            else response.put("registeredMedications",activeRegistrations(management.collection(userId)));
+            var registrations=activeRegistrations(management.collection(userId));
+            if(analysis.intent()==QuestionAnalysis.Intent.MY_DUR) {
+                if(registrations.isEmpty())
+                    return reply("현재 복용 중으로 등록된 약이 없어요. 내 약 관리에서 복용 중인 약을 등록하면 함께 먹을 때 확인할 내용을 정리해드릴게요.",List.of(),List.of());
+                if(registrations.size()==1)
+                    return reply("현재 복용 중으로 등록된 약이 한 가지라서 약 사이의 주의정보를 비교할 수 없어요. 다른 약을 함께 복용 중이라면 내 약 관리에 추가하거나 약 이름을 질문에 적어주세요.",activeMedicationSources(registrations),List.of());
+                var comparison=management.myComparison(userId);
+                List<MedicationChatDto> sources=activeMedicationSources(registrations);
+                if(!hasInteractionEvidence(comparison)) {
+                    String activeNames=registrations.stream().map(com.app.guide.dto.RegisteredMedicationDto::getItemName)
+                        .filter(Objects::nonNull).distinct().collect(java.util.stream.Collectors.joining(", "));
+                    var response=generalKnowledgeReply(question,sources,request,
+                        "현재 복용 중인 약(" + activeNames + ") 조합을 상호작용 DB에서 조회했지만 직접 일치하는 병용금기 또는 중복성분 기록이 0건임.");
+                    response.put("comparison",comparison);
+                    return response;
+                }
+                var response=reply("현재 복용 중인 약 사이에서 확인이 필요한 주의정보를 찾았어요. 아래 내용을 먼저 확인하고, 복용 여부가 불확실하면 의사나 약사에게 문의해주세요.",sources,List.of());
+                response.put("comparison",comparison);
+                return response;
+            }
+            var response=reply("현재 복용 중인 약 목록입니다. 제품을 선택해 질문을 이어가세요.",List.of(),List.of());
+            response.put("registeredMedications",registrations);
             return response;
         }
         if (analysis.intent() == QuestionAnalysis.Intent.OTHER)
@@ -110,7 +132,7 @@ public class MedicationChatService {
                 (selected != null && analysis.useSelectedMedication() ? List.of(selected) : List.of()), request,
                 "서비스 범위와의 관련성이 불명확함. 사용자의 말을 무시하지 말고 필요한 도움을 한 번 확인할 것.");
         // 4. 목록을 요구한 질문은 자연어 답변보다 구조화 DB 검색 결과를 우선 반환한다.
-        if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH && !conversational) {
+        if (analysis.intent() == QuestionAnalysis.Intent.DB_SEARCH && !conversational && !explicitProductChosen) {
             var data = catalog.search(analysis.query(), 1);
             if (((Number)data.getOrDefault("total", 0)).longValue() == 0)
                 return counselReply(question, List.of(), request,
@@ -120,10 +142,14 @@ public class MedicationChatService {
         }
         // 5. 질문에서 추출한 약 이름을 실제 DB 품목과 연결한다.
         //    후보가 여러 개면 임의로 하나를 고르지 않고 사용자에게 제품 선택 목록을 돌려준다.
-        List<String> hints = analysis.medications();
+        // 후보 목록에서 사용자가 제품을 직접 골랐다면 그 선택이 약 이름 분석보다 우선한다.
+        // 최초 질문의 짧은 검색어를 다시 조회하면 같은 후보 목록이 반복되므로, 선택 직후에는
+        // 이름 검색을 생략하고 확정된 품목코드로 원래 질문에 바로 답한다.
+        List<String> hints = explicitProductChosen ? List.of() : analysis.medications();
         if (hints.size() > 8) return reply("약 이름을 짧게 적거나, 왼쪽 검색에서 약을 선택해주세요.", List.of(), List.of());
         LinkedHashMap<String, MedicationChatDto> targets = new LinkedHashMap<>();
         explicitSelections.values().forEach(value->targets.put(value.getItemSeq(),value));
+        if(confirmedChoice) targets.put(selectedByItem.getItemSeq(),selectedByItem);
         List<String> missing = new ArrayList<>();
         if (analysis.useSelectedMedication()) {
             if (selected == null && conversational)
@@ -181,13 +207,16 @@ public class MedicationChatService {
             return counselReply(question, sources, request);
         String names = String.join(", ", sources.stream().map(MedicationChatDto::getItemName).toList());
         if (analysis.intent() == QuestionAnalysis.Intent.FOOD_INTERACTION)
-            return reply("현재 조회한 " + names + " 자료에는 " + String.join(", ", analysis.foods())
-                + "와 함께 섭취할 때의 정보가 없어 함께 복용해도 되는지 판단할 수 없습니다.", sources, List.of());
+            return generalKnowledgeReply(question,sources,request,"우리 DB에는 " + names + "과(와) "
+                + String.join(", ", analysis.foods()) + "의 섭취 관련 직접 기록이 없음.");
         if (analysis.intent() == QuestionAnalysis.Intent.LIFESTYLE)
-            return reply("현재 조회한 " + names + " 자료에는 " + String.join(", ", analysis.topics())
-                + " 관련 주의사항이 없어 해당 활동의 안전 여부를 판단할 수 없습니다.", sources, List.of());
+            return generalKnowledgeReply(question,sources,request,"우리 DB에는 " + names + "의 "
+                + String.join(", ", analysis.topics()) + " 관련 직접 기록이 없음.");
         if (analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION || analysis.intent() == QuestionAnalysis.Intent.DUR_INFO)
-            return durReply(sources, analysis);
+            return durReply(question,sources,analysis,request);
+        if(shouldUseGeneralKnowledge(question,sources))
+            return generalKnowledgeReply(question,sources,request,
+                "사용자가 선택한 제품은 확인했지만 질문한 항목이 우리 DB에서 비어 있음. 선택 제품을 바꾸거나 목록을 다시 보여주지 말고 해당 제품을 기준으로 일반 의약 지식을 보완할 것.");
         String references = referenceJson(sources);
         String answer = geminiService.ask(question, references, request.getConversation());
         return reply(answer, sources, List.of());
@@ -226,6 +255,27 @@ public class MedicationChatService {
         return response;
     }
 
+    private Map<String,Object> generalKnowledgeReply(String question,List<MedicationChatDto> sources,
+            MedicationChatRequest request,String serverContext) {
+        ConversationAnswer counsel;
+        try {
+            counsel=geminiService.counselWithGeneralKnowledge(question,referenceJson(sources),
+                request.getConversation(),serverContext);
+        } catch(com.app.chatbot.client.GeminiException unavailable) {
+            Map<String,Object> response=reply("우리 의약품 DB에서는 질문과 직접 일치하는 주의정보를 확인하지 못했어요. 기록이 없다는 사실만으로 함께 복용해도 안전하다고 판단할 수는 없습니다. 현재 AI 보완 안내도 연결되지 않아, 복용 전 약 봉투나 설명서를 확인하고 의사 또는 약사에게 함께 복용 중인 제품명을 보여주세요.",sources,List.of());
+            response.put("evidenceLimited",true);
+            response.put("evidenceWarning","DB에서 직접 확인된 기록이 없고 AI 보완 안내도 이용할 수 없는 상태입니다.");
+            return response;
+        }
+        Map<String,Object> response=reply(counsel.answer(),sources,List.of());
+        response.put("conversationMode",true);
+        response.put("followUpQuestions",counsel.followUpQuestions());
+        response.put("urgency",counsel.urgency());
+        response.put("aiSupplemented",true);
+        response.put("evidenceWarning","우리 의약품 DB에서 직접 확인되지 않은 내용은 Gemini의 일반 의약 지식으로 보완했습니다.\n\n복용을 결정하기 전 의사나 약사에게 확인해주세요.");
+        return response;
+    }
+
     private String referenceJson(List<MedicationChatDto> sources) {
         try {
             String full = objectMapper.writeValueAsString(sources);
@@ -251,6 +301,21 @@ public class MedicationChatService {
     private static String clip(String value, int max) {
         return value == null || value.length() <= max ? value : value.substring(0, max) + "…";
     }
+
+    private static boolean shouldUseGeneralKnowledge(String question,List<MedicationChatDto> sources) {
+        if(sources==null||sources.isEmpty()) return false;
+        String text=normalize(question);
+        if(text.contains("효능")||text.contains("효과")||text.contains("어디에쓰")||text.contains("무슨약"))
+            return sources.stream().allMatch(source->blank(source.getEfficacy()));
+        if(text.contains("복용법")||text.contains("용법")||text.contains("어떻게먹")||text.contains("먹는방법"))
+            return sources.stream().allMatch(source->blank(source.getUsageDosage()));
+        if(text.contains("성분"))
+            return sources.stream().allMatch(source->blank(source.getMaterialName()));
+        if(text.contains("부작용")||text.contains("이상반응")) return true;
+        return false;
+    }
+
+    private static boolean blank(String value) { return value==null||value.isBlank(); }
 
     private List<MedicationChatDto> registeredContext(String question, Long userId) {
         // 사용자가 "내가 먹는 약"을 명시한 경우에만 활성 등록 약을 자동 문맥으로 붙인다.
@@ -279,6 +344,27 @@ public class MedicationChatService {
             && !"UPCOMING".equals(registration.getPeriodState())).toList();
     }
 
+    private List<MedicationChatDto> activeMedicationSources(
+            List<com.app.guide.dto.RegisteredMedicationDto> registrations) {
+        LinkedHashMap<String,MedicationChatDto> result=new LinkedHashMap<>();
+        for(var registration:registrations) {
+            if(registration.getMedicationId()==null) continue;
+            MedicationChatDto medication=medicationDao.findChatMedicationByItemSeq(registration.getMedicationId());
+            if(medication!=null) result.put(medication.getItemSeq(),medication);
+            if(result.size()==8) break;
+        }
+        return List.copyOf(result.values());
+    }
+
+    private static boolean hasInteractionEvidence(Map<String,Object> comparison) {
+        return nonEmptyList(comparison.get("pairs")) || nonEmptyList(comparison.get("duplicates"))
+            || nonEmptyList(comparison.get("singleDurAlerts"));
+    }
+
+    private static boolean nonEmptyList(Object value) {
+        return value instanceof Collection<?> collection && !collection.isEmpty();
+    }
+
     private static Map<String,Object> emergencyReply(MedicationChatDto selected) {
         Map<String,Object> response = reply("지금 적어주신 내용은 즉시 확인이 필요한 응급 신호일 수 있어요. "
             + "추가 답변을 기다리지 말고 119에 연락하거나 가까운 응급실로 가세요. 혼자라면 주변 사람에게 바로 도움을 요청하세요.",
@@ -303,7 +389,8 @@ public class MedicationChatService {
             context, List.of());
     }
 
-    private Map<String,Object> durReply(List<MedicationChatDto> sources, QuestionAnalysis analysis) {
+    private Map<String,Object> durReply(String question,List<MedicationChatDto> sources, QuestionAnalysis analysis,
+            MedicationChatRequest request) {
         // 병용 질문이면 A약 성분과 B약 성분이 DUR 행의 양쪽 성분을 실제로 연결하는지 대조한다.
         // 단일 약 DUR 조회에서는 임부·노인·연령·병용 유형과 등급 조건만 필터링한다.
         boolean pair = analysis.intent() == QuestionAnalysis.Intent.DRUG_INTERACTION && sources.size() > 1;
@@ -332,7 +419,21 @@ public class MedicationChatService {
         }
         if (pair) reports.add(Map.of("label","선택한 약 사이의 병용금기", "items",pairs.values().stream().limit(100).toList(),"total",pairs.size(),
             "unmatchedIngredients",unmatched.stream().distinct().toList(),"status",pairs.isEmpty()?"NO_MATCH":"MATCHED"));
-        var response = reply(pair ? "선택한 약들의 성분을 서로 대조한 병용금기 조회 결과입니다."
+        if(pair && pairs.isEmpty()) {
+            var response=generalKnowledgeReply(question,sources,request,
+                "선택한 제품들의 성분을 상호작용 DB에서 대조했지만 직접 일치하는 병용금기 기록이 0건임.");
+            response.put("durReports",reports);
+            return response;
+        }
+        boolean hasRows=reports.stream().anyMatch(report->report.get("total") instanceof Number count
+            && count.longValue()>0);
+        if(!pair && !hasRows) {
+            var response=generalKnowledgeReply(question,sources,request,
+                "선택한 제품의 성분을 복용 주의정보 DB에서 조회했지만 질문과 직접 일치하는 기록이 0건임.");
+            response.put("durReports",reports);
+            return response;
+        }
+        var response = reply(pair ? "선택한 약 사이에서 확인이 필요한 주의정보를 찾았어요."
             : "선택한 약의 성분에 연결된 DUR 조회 결과입니다.",sources,List.of());
         response.put("durReports",reports);
         response.put("durNotice","제품 성분과 검증된 별칭을 표준 성분으로 연결해 조회한 DUR 원문입니다. 아직 검증되지 않은 별칭은 누락될 수 있습니다. 조회 기록이 없다고 안전하다고 판단할 수 없습니다. 개인별 복용 가능 여부를 판정한 결과가 아닙니다. 기록은 항목별 최대 100건까지 표시합니다.");

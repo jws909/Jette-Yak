@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.nio.charset.StandardCharsets;
 import com.app.community.dto.*;
 import com.app.community.service.CommunityService;
+import com.app.util.AdminSession;
 
 @RestController
 @RequestMapping("/api/community")
@@ -21,7 +22,7 @@ public class CommunityController {
     @Autowired public CommunityController(CommunityService service){this.service=service;}
 
     @GetMapping("/posts") public Map<String,Object> posts(@RequestParam(value="q",required=false)String q,@RequestParam(value="category",required=false)String category,@RequestParam(value="medicationId",required=false)String medicationId,@RequestParam(value="sort",defaultValue="LATEST")String sort,@RequestParam(value="page",defaultValue="1")int page,HttpServletRequest req){return service.posts(q,category,medicationId,sort,page,userId(req,false));}
-    @GetMapping("/posts/{id}") public Map<String,Object> post(@PathVariable long id,HttpServletRequest req){return service.post(id,userId(req,false));}
+    @GetMapping("/posts/{id}") public Map<String,Object> post(@PathVariable long id,HttpServletRequest req){return service.post(id,userId(req,false),AdminSession.isAdmin(req));}
     @PostMapping("/posts") public ResponseEntity<?> create(@RequestBody CommunityPostRequest body,HttpServletRequest req){return ResponseEntity.status(201).body(service.create(userId(req,true),body));}
     @PatchMapping("/posts/{id}") public Map<String,Object> update(@PathVariable long id,@RequestBody CommunityPostRequest body,HttpServletRequest req){return service.update(id,userId(req,true),body);}
     @DeleteMapping("/posts/{id}") public ResponseEntity<Void> delete(@PathVariable long id,HttpServletRequest req){service.delete(id,userId(req,true));return ResponseEntity.noContent().build();}
@@ -32,11 +33,13 @@ public class CommunityController {
     @GetMapping("/medications") public List<Map<String,Object>> medications(@RequestParam("q")String q){return service.medications(q);}
     @PostMapping(value="/posts/{id}/attachments",consumes=MediaType.MULTIPART_FORM_DATA_VALUE) public ResponseEntity<?> attachments(@PathVariable long id,@RequestParam("type")String type,@RequestParam("files")List<MultipartFile> files,HttpServletRequest req){return ResponseEntity.status(201).body(service.addAttachments(id,userId(req,true),type,files));}
     @GetMapping("/attachments/{id}") public ResponseEntity<byte[]> attachment(@PathVariable long id){CommunityAttachmentFile file=service.downloadAttachment(id);MediaType media;try{media=MediaType.parseMediaType(file.contentType());}catch(Exception e){media=MediaType.APPLICATION_OCTET_STREAM;}ContentDisposition disposition=(file.image()?ContentDisposition.inline():ContentDisposition.attachment()).filename(file.originalName(),StandardCharsets.UTF_8).build();return ResponseEntity.ok().contentType(media).header(HttpHeaders.CONTENT_DISPOSITION,disposition.toString()).header("X-Content-Type-Options","nosniff").body(file.bytes());}
-    @DeleteMapping("/attachments/{id}") public ResponseEntity<Void> deleteAttachment(@PathVariable long id,HttpServletRequest req){long user=userId(req,true);HttpSession s=req.getSession(false);service.deleteAttachment(id,user,"ADMIN".equals(String.valueOf(s==null?null:s.getAttribute("role"))));return ResponseEntity.noContent().build();}
+    @DeleteMapping("/attachments/{id}") public ResponseEntity<Void> deleteAttachment(@PathVariable long id,HttpServletRequest req){long user=userId(req,true);service.deleteAttachment(id,user,AdminSession.isAdmin(req));return ResponseEntity.noContent().build();}
 
     @GetMapping("/admin/reports") public List<Map<String,Object>> reports(HttpServletRequest req){admin(req);return service.reports();}
     @GetMapping("/admin/info-reports") public List<Map<String,Object>> infoReports(HttpServletRequest req){admin(req);return service.pendingInfoReports();}
+    @GetMapping("/admin/moderated-content") public List<Map<String,Object>> moderatedContent(HttpServletRequest req){admin(req);return service.moderatedContent();}
     @PatchMapping("/admin/posts/{id}/status") public Map<String,String> moderatePost(@PathVariable long id,@RequestBody CommunityModerationRequest body,HttpServletRequest req){long admin=admin(req);service.moderatePost(id,body.getStatus(),admin);return Map.of("message","게시글 상태를 변경했습니다.");}
+    @PatchMapping("/admin/comments/{id}/status") public Map<String,String> moderateComment(@PathVariable long id,@RequestBody CommunityModerationRequest body,HttpServletRequest req){long admin=admin(req);service.moderateComment(id,body.getStatus(),admin);return Map.of("message","댓글 상태를 변경했습니다.");}
     @PatchMapping("/admin/posts/{id}/review") public Map<String,String> reviewPost(@PathVariable long id,@RequestBody CommunityModerationRequest body,HttpServletRequest req){long admin=admin(req);service.reviewInfoPost(id,body.getStatus(),admin);return Map.of("message","정보 제보를 검토했습니다.");}
     @PatchMapping("/admin/reports/{id}") public Map<String,String> resolve(@PathVariable long id,@RequestBody CommunityModerationRequest body,HttpServletRequest req){service.resolveReport(id,body,admin(req));return Map.of("message","신고를 처리했습니다.");}
 
@@ -46,5 +49,5 @@ public class CommunityController {
     @ExceptionHandler(IllegalStateException.class) public ResponseEntity<?> serverError(IllegalStateException e){return ResponseEntity.status(500).body(Map.of("message",e.getMessage()));}
 
     private static Long userId(HttpServletRequest req,boolean required){HttpSession s=req.getSession(false);Object v=s==null?null:s.getAttribute("userId");Long id=v instanceof Number?((Number)v).longValue():null;if(required&&id==null)throw new SecurityException("로그인이 필요한 기능입니다.");return id;}
-    private static long admin(HttpServletRequest req){HttpSession s=req.getSession(false);Object role=s==null?null:s.getAttribute("role");if(!"ADMIN".equals(String.valueOf(role)))throw new SecurityException("관리자만 사용할 수 있습니다.");return userId(req,true);}
+    private static long admin(HttpServletRequest req){if(!AdminSession.isAdmin(req))throw new SecurityException("관리자만 사용할 수 있습니다.");return userId(req,true);}
 }

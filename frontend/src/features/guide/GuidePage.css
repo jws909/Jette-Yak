@@ -115,7 +115,7 @@
   border: 1px solid #e2dbd0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
   display: grid;
-  grid-template-columns: 260px 1fr 1fr 1fr;
+  grid-template-columns: minmax(230px,260px) repeat(var(--detail-columns,3),minmax(0,1fr));
   min-height: 380px;
 }
 
@@ -232,6 +232,8 @@
   line-height: 1.5;
 }
 
+.guide-feedback{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0;padding:13px 15px;border:1px solid #d9e4d8;border-radius:9px;background:#f1f7f0;color:#416044;font-size:13px;line-height:1.6}.guide-feedback.error{border-color:#ead1cf;background:#fff4f2;color:#963737}.guide-feedback .my-med-action{flex:0 0 auto;background:#fff}@media(max-width:560px){.guide-feedback{align-items:flex-start;flex-direction:column}}
+
 /* 03: 음식 궁합 */
 .food-match-boxes {
   display: grid;
@@ -284,7 +286,7 @@
 
 @media (max-width: 1024px) {
   .guide-detail-card {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
   .guide-med-intro,
   .guide-col {
@@ -392,8 +394,8 @@
   border-color: #7d2638;
   color: #7d2638;
 }
-.my-med-tabs { display: flex; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #ded5c8; padding-bottom: 20px; }
-.my-med-tabs .med-pill-tab { text-align: left; overflow-wrap: anywhere; max-width: 100%; }
+.my-med-tabs { display: flex; gap: 10px; flex-wrap: nowrap; overflow-x:auto;scrollbar-width:thin;border-bottom: 1px solid #ded5c8; padding:0 0 16px;scroll-snap-type:x proximity }
+.my-med-tabs .med-pill-tab { flex:0 0 auto;text-align: left;white-space:nowrap;scroll-snap-align:start }
 .my-med-tabs .med-pill-tab:hover { background: #f6f1ea; border-color: #7d2638; color: #7d2638; }
 .my-med-tabs .med-pill-tab.active { background: #7d2638; border-color: #7d2638; color: #ffffff; }
 .my-med-tabs .med-pill-tab.active:hover { background: #6a1f2e; border-color: #6a1f2e; color: #ffffff; }
@@ -414,10 +416,12 @@
 
 .my-med-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x:auto;
   gap: 8px;
   margin: 16px 0;
 }
+.my-med-filters button{flex:0 0 auto;white-space:nowrap}
 .my-med-filters button[aria-pressed="true"] {
   background: #7d2638;
   border-color: #7d2638;
@@ -437,11 +441,15 @@
 .my-med-registrations select{max-width:100%;border:1px solid #ded5c8;border-radius:6px;padding:6px;background:white;color:#443b36}
 .medication-thumbnail{display:block;width:120px;height:85px;object-fit:contain;margin:12px 0;border-radius:8px;background:#faf8f4}
 .medication-image-empty{display:block;color:#82766b;font-size:12px;margin:10px 0}
-.interaction-summary{background:#fffaf5;border:1px solid #dfd3c4;border-radius:12px;padding:20px;margin:20px 0;overflow-wrap:anywhere}
-.interaction-summary details{margin:12px 0;padding:12px;border:1px solid #e6ddd3;border-radius:8px}
-.interaction-summary summary{cursor:pointer;font-weight:600}
+.interaction-summary{background:#fff9f5;border:1px solid #e2c7c2;border-left:5px solid #9e3538;border-radius:12px;padding:20px;margin:20px 0;overflow-wrap:anywhere;animation:guide-rise .32s ease-out}
+.interaction-heading{display:flex;align-items:center;gap:12px}.interaction-heading>span{display:grid;place-items:center;flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#9e3538;color:#fff;font-weight:800}.interaction-heading h3,.interaction-heading p{margin:0}.interaction-heading p{margin-top:4px;color:#786760;font-size:13px}.interaction-summary details{margin:12px 0;padding:12px;border:1px solid #e6d4cf;border-radius:8px;background:#fff}
+.interaction-summary summary{display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none}.interaction-summary summary::-webkit-details-marker{display:none}.interaction-summary summary em{margin-left:auto;padding:3px 7px;border-radius:10px;background:#f4e4e2;color:#8d3033;font-size:11px;font-style:normal}.interaction-detail{padding-top:12px;animation:guide-reveal .25s ease-out}.interaction-detail p{display:grid;gap:4px}.interaction-detail p span{color:#746861;font-size:12px}
 .interaction-summary p{line-height:1.7}
 .interaction-summary .my-med-action{display:inline-block;text-decoration:none}
+.guide-warning-col{background:#fffaf7}.my-med-warning-link{display:inline-flex;margin:5px 0 0;padding:7px 10px;border-radius:6px;background:#f7e8e6;color:#913438;font-size:12px;font-weight:700}.guide-warning-preview{display:grid;gap:7px;margin-top:16px}.guide-warning-preview p{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;align-items:center;gap:7px;margin:0;padding:10px;border-radius:7px;background:#fff6f3;font-size:12px}.guide-warning-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.guide-warning-preview em{color:#96373a;font-style:normal}.guide-loading{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:9px;background:#f6f1ea;color:#665b53;font-size:13px}.guide-loading>span{width:18px;height:18px;border:2px solid #ddcec2;border-top-color:#7d2638;border-radius:50%;animation:guide-spin .75s linear infinite}@keyframes guide-spin{to{transform:rotate(360deg)}}@keyframes guide-rise{from{opacity:0;transform:translateY(8px)}}@keyframes guide-reveal{from{opacity:0;transform:translateY(-4px)}}
+@media(max-width:760px){.guide-page-wrapper{gap:18px}.guide-page-header{align-items:flex-start}.my-med-header-actions{width:100%;flex-wrap:nowrap;overflow-x:auto}.my-med-header-actions>*{flex:0 0 auto;white-space:nowrap}.my-med-tabs,.my-med-filters{margin-left:-4px;margin-right:-4px;padding-left:4px;padding-right:4px}.my-med-row{padding:18px;border-radius:10px}.my-med-registrations li{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center}.my-med-registrations li label{grid-column:1/-1;display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;gap:8px}.guide-warning-preview p{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}.guide-warning-preview em{grid-column:1/-1}.interaction-summary{padding:16px}.interaction-summary summary strong{max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media(prefers-reduced-motion:reduce){.interaction-summary,.interaction-detail,.guide-loading>span{animation:none}}
+.my-med-panel{animation:guide-rise .24s ease-out}@media(prefers-reduced-motion:reduce){.my-med-panel{animation:none}}
 .my-med-row-description>.my-med-action{display:inline-block;margin-bottom:14px;text-decoration:none}
 .guide-med-intro>.my-med-action{display:block;margin:12px 0;text-decoration:none}
 
@@ -487,5 +495,20 @@
 }
 .guide-ai-precautions strong:first-child {
   margin-top: 0;
+}
+
+/* 공통 경고 모달 안의 긴 제품명도 생략하지 않고 전체를 보여준다. */
+.ui-dialog .guide-warning-preview strong {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.ui-dialog .guide-warning-preview p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
 }
 

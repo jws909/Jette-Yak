@@ -2,7 +2,7 @@
  * 파일 역할: 활성 복용약 전체를 기준으로 만든 AI 통합 가이드를 조회·재분석하여 표시합니다.
  * 핵심 규칙: 서버 캐시와 약 목록 버전을 사용하므로 사용자가 요청할 때만 강제 재분석합니다.
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './OverallAiGuideCard.css';
 
 function formatAnalysisTime(timeStr) {
@@ -58,13 +58,16 @@ export default function OverallAiGuideCard({ revision }) {
   }, []);
 
   useEffect(() => {
+    // 가이드 목록 버전이 바뀌면 서버 캐시를 다시 확인한다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGuide();
   }, [fetchGuide, revision]);
 
   if (loading) {
     return (
       <div className="overall-guide-loading-box">
-        <p>AI가 현재 복용 중인 모든 약과 DUR 상호작용을 종합 분석하고 있습니다...</p>
+        <span className="overall-loading-spinner" aria-hidden="true" />
+        <div><strong>내 약을 함께 확인하고 있어요</strong><p>복용 시간과 함께 먹을 때 주의할 내용을 정리 중입니다.</p></div>
       </div>
     );
   }
@@ -130,6 +133,13 @@ export default function OverallAiGuideCard({ revision }) {
         </div>
       )}
 
+      {guide.evidenceNotice && (
+        <aside className="overall-evidence-warning" role="note">
+          <strong>AI 참고정보가 포함됐어요</strong>
+          <p>{guide.evidenceNotice}</p>
+        </aside>
+      )}
+
       <div className="overall-advice-grid">
         {/* 1. 시간대별 복약 요령 */}
         {guide.scheduleTips && guide.scheduleTips.length > 0 && (
@@ -143,10 +153,10 @@ export default function OverallAiGuideCard({ revision }) {
           </div>
         )}
 
-        {/* 2. DUR 상호작용 및 금기 주의 */}
+        {/* 함께 복용할 때 확인할 주의사항 */}
         {guide.durAlerts && guide.durAlerts.length > 0 && (
           <div className="advice-column dur-col">
-            <h4 className="advice-col-title">상호작용 &amp; 금기 주의</h4>
+            <h4 className="advice-col-title">함께 복용할 때 주의</h4>
             <ul className="advice-list">
               {guide.durAlerts.map((alert, idx) => (
                 <li key={idx} className="advice-item alert-item">{alert}</li>

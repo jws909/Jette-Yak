@@ -13,6 +13,7 @@ public class LoginResponse {
     private String nickname;
     private String email;
     private String role;
+    private boolean isAdmin;
     private String message;
 
     public LoginResponse(String token, String username, String message) {
@@ -28,12 +29,17 @@ public class LoginResponse {
     }
 
     public LoginResponse(String token, Long userId, String username, String nickname, String email, String role, String message) {
+        this(token, userId, username, nickname, email, role, false, message);
+    }
+
+    public LoginResponse(String token, Long userId, String username, String nickname, String email, String role, boolean isAdmin, String message) {
         this.token = token;
         this.userId = userId;
         this.username = username;
         this.nickname = nickname;
         this.email = email;
         this.role = role;
+        this.isAdmin = isAdmin;
         this.message = message;
     }
 
@@ -58,6 +64,8 @@ public class LoginResponse {
     }
 
     public String getRole() { return role; }
+
+    public boolean getIsAdmin() { return isAdmin; }
 
     public String getMessage() {
         return message;

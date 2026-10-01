@@ -213,6 +213,8 @@
   font-weight: 600;
   color: #b36314;
 }
+.overall-guide-loading-box strong{display:block;margin-bottom:4px;color:#7d3a26;font-size:14px}.overall-loading-spinner{width:22px;height:22px;flex:0 0 auto;border:2px solid #ead8c7;border-top-color:#8b3e4b;border-radius:50%;animation:overall-spin .8s linear infinite}@keyframes overall-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.overall-loading-spinner{animation:none}}
+.overall-evidence-warning{margin:14px 0;padding:13px 15px;border:1px solid #e5c988;border-left:4px solid #b97819;border-radius:8px;background:#fff9e9;color:#5f481f}.overall-evidence-warning strong{font-size:12px}.overall-evidence-warning p{margin:5px 0 0;font-size:12px;line-height:1.7}
 
 .overall-guide-error-box {
   background: #fff8f8;

@@ -52,17 +52,17 @@ export default function MedicationSearch({ onSelect, disabled }) {
   return <div className="medication-search">
     <label htmlFor={searchId}>약 이름 검색</label>
     <input id={searchId} type="search" value={query} onChange={changeQuery} onKeyDown={searchOnEnter}
-      placeholder="ex)텐텐" maxLength={100} />
+      placeholder="예: 텐텐, 타이레놀" maxLength={100} />
     <p className="field-help">이름에 검색어가 들어간 약을 모두 찾아요.</p>
     {state.error && <div><p className="error-message" role="alert">{state.error}</p><button type="button" className="load-more" disabled={state.loading} onClick={() => setRetry(value => value + 1)}>검색 다시 시도</button></div>}
     {query.trim() && !state.loading && !state.error && <p className="search-count" role="status">{state.total}개 약품 · {state.items.length}개 표시</p>}
     <div className="search-results">
       {state.items.map(item => <button className="drug-option" key={item.itemSeq} type="button"
         disabled={disabled} onClick={() => onSelect(item)}>
-        <strong>{item.itemName}</strong><small>{item.entpName || '업체 정보 없음'}</small>
+        <strong>{item.itemName}</strong>{item.entpName&&<small>{item.entpName}</small>}
       </button>)}
     </div>
-    {state.loading && <p role="status" className="field-help">약을 찾고 있어요…</p>}
+    {state.loading && <div role="status" className="search-loading"><span aria-hidden="true"/>약 이름을 확인하고 있어요…</div>}
     {query.trim() && !state.loading && !state.error && state.items.length === 0 && <p className="field-help">일치하는 약이 없어요. 더 짧은 이름으로 검색해보세요.</p>}
     {state.hasMore && !state.error && <button type="button" className="load-more" disabled={state.loading}
       onClick={() => setPage(previous => previous + 1)}>검색 결과 더 보기</button>}

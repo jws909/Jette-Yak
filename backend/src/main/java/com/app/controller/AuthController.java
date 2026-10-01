@@ -62,6 +62,8 @@ public class AuthController {
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getLoginId());
             session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
+            session.setAttribute("isAdmin", Integer.valueOf(1).equals(user.getIsAdmin()));
+            session.setAttribute("authenticated", true);
         }
 
         LoginResponse successResponse = new LoginResponse(
@@ -71,6 +73,7 @@ public class AuthController {
                 user.getNickname(),
                 user.getEmail(),
                 user.getRole() == null ? "USER" : user.getRole(),
+                Integer.valueOf(1).equals(user.getIsAdmin()),
                 "로그인 성공"
         );
         return ResponseEntity.ok(successResponse);
