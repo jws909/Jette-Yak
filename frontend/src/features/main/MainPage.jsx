@@ -197,16 +197,6 @@ function getPrescriptionStatus(dispensedDateStr, totalDays, targetDate) {
   }
 }
 
-const FALLBACK_SEARCH_LIST = [
-  { itemName: '타이레놀정 500mg', entpName: '한국존슨앤드존슨', efficacy: '해열 및 감기로 인한 통증 완화', desc: '해열 진통제' },
-  { itemName: '아스피린프로텍트정 100mg', entpName: '바이엘코리아', efficacy: '혈전 생성 억제', desc: '혈전 예방' },
-  { itemName: '비타민D 1000IU', entpName: '종근당', efficacy: '뼈의 형성과 유지', desc: '면역력 및 뼈 건강' },
-];
-
-function fallbackSearch(keyword) {
-  return FALLBACK_SEARCH_LIST.filter(i => i.itemName.includes(keyword));
-}
-
 const DOT_COLORS = ['#c04b4b', '#e09f3e', '#5c9e76', '#4a69bd', '#8b3e4b', '#2e86de'];
 
 function mapPrescriptionToState(prescription) {
@@ -1400,10 +1390,10 @@ export default function MainPage({ user }) {
           const data = await res.json();
           if (active) setSearchResults(data.items || []);
         } else {
-          if (active) setSearchResults(fallbackSearch(trimmed));
+          if (active) setSearchResults([]);
         }
       } catch {
-        if (active) setSearchResults(fallbackSearch(trimmed));
+        if (active) setSearchResults([]);
       } finally {
         if (active) setIsSearching(false);
       }
