@@ -118,6 +118,7 @@ public class UserController {
         response.put("userId", user.getUserId());
         response.put("username", user.getLoginId());
         response.put("nickname", user.getNickname());
+        response.put("email", user.getEmail() != null ? user.getEmail() : "");
         response.put("profileImageUrl", profileImagePath(user));
         response.put("pushEnabled", user.getPushEnabled() == null ? 1 : user.getPushEnabled());
         response.put("role", user.getRole() == null ? "USER" : user.getRole());
@@ -128,40 +129,157 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * 마이페이지 비밀번호 변경 API
+     * POST /api/users/change-password
+     */
+    @PostMapping(value = "/change-password", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> changePassword(
+            @RequestBody Map<String, String> body,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+        String currentPassword = body.get("currentPassword");
+        String newPassword = body.get("newPassword");
+        String confirmPassword = body.get("confirmPassword");
+        String username = body.get("username");
+        String userIdStr = body.get("userId");
+
+        Long userId = null;
+        if (userIdStr != null && !userIdStr.isBlank()) {
+            try {
+                userId = Long.valueOf(userIdStr.trim());
+            } catch (Exception ignored) {}
+        }
+
+        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        User user = null;
+        if (resolvedUserId != null && resolvedUserId > 0L) {
+            user = userMapper.findById(resolvedUserId);
+        } else if (username != null && !username.isBlank()) {
+            user = userMapper.findByLoginId(username.trim());
+        }
+
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("success", false, "message", "로그인이 필요하거나 사용자를 찾을 수 없습니다."));
+        }
+
+        if ("demo".equalsIgnoreCase(user.getLoginId()) || "test12".equalsIgnoreCase(user.getLoginId())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "체험용 계정은 비밀번호를 변경할 수 없습니다."));
+        }
+
+        if (currentPassword == null || currentPassword.isBlank() ||
+            newPassword == null || newPassword.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "현재 비밀번호와 새 비밀번호를 모두 입력해 주세요."));
+        }
+
+        if (confirmPassword != null && !confirmPassword.isBlank() && !newPassword.equals(confirmPassword)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "새 비밀번호가 일치하지 않습니다."));
+        }
+
+        if (newPassword.length() < 8) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "새 비밀번호는 8자 이상이어야 합니다."));
+        }
+
+        String currentHash = com.app.util.PasswordUtil.sha256(currentPassword);
+        if (!currentHash.equals(user.getPasswordHash())) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "현재 비밀번호가 일치하지 않습니다."));
+        }
+
+        if (currentPassword.equals(newPassword)) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "message", "새 비밀번호는 현재 비밀번호와 다르게 설정해 주세요."));
+        }
+
+        String newHash = com.app.util.PasswordUtil.sha256(newPassword);
+        userMapper.updatePasswordHash(user.getLoginId(), newHash);
+
+        return ResponseEntity.ok(Map.of("success", true, "message", "비밀번호가 성공적으로 변경되었습니다."));
+    }
+
+    /**
+     * 알림 설정 조회 API
+     * GET /api/users/push-settings
+     */
+    @GetMapping(value = "/push-settings", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<?> getPushSettings(
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "username", required = false) String username,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        User user = null;
+        if (resolvedUserId != null && resolvedUserId > 0L) {
+            user = userMapper.findById(resolvedUserId);
+        } else if (username != null && !username.isBlank()) {
+            String target = "demo".equalsIgnoreCase(username.trim()) ? "test12" : username.trim();
+            user = userMapper.findByLoginId(target);
+        }
+        int pushEnabled = (user != null && user.getPushEnabled() != null) ? user.getPushEnabled() : 1;
+        return ResponseEntity.ok(Map.of("success", true, "pushEnabled", pushEnabled));
+    }
+
+    /**
+     * 알림 설정 저장 API
+     * POST /api/users/push-settings
+     */
     @PostMapping(value = "/push-settings", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> updatePushSettings(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") == null ? null : Long.valueOf(body.get("userId").toString());
+    public ResponseEntity<?> updatePushSettings(
+            @RequestBody Map<String, Object> body,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+        Long userId = null;
+        if (body.get("userId") != null) {
+            try {
+                String s = body.get("userId").toString().trim();
+                if (!s.isEmpty()) {
+                    userId = Long.valueOf(s);
+                }
+            } catch (NumberFormatException ignored) {}
+        }
         String username = body.get("username") == null ? null : body.get("username").toString().trim();
         Object enabledValue = body.get("pushEnabled");
-        if (((userId == null || userId <= 0L) && (username == null || username.isBlank())) || enabledValue == null) {
+        if (enabledValue == null) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "알림 설정 정보를 확인해 주세요."));
+        }
+
+        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        String resolvedLoginId = null;
+        if (username != null && !username.isBlank()) {
+            resolvedLoginId = "demo".equalsIgnoreCase(username) ? "test12" : username;
+        }
+
+        if ((resolvedUserId == null || resolvedUserId <= 0L) && (resolvedLoginId == null || resolvedLoginId.isBlank())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
         }
 
         boolean enabled = enabledValue instanceof Boolean
                 ? (Boolean) enabledValue
                 : "true".equalsIgnoreCase(enabledValue.toString()) || "1".equals(enabledValue.toString());
+        int pushVal = enabled ? 1 : 0;
+
         try {
-            int updated;
-            if (userId != null && userId > 0L) {
-                try (java.sql.Connection connection = dataSource.getConnection();
-                     java.sql.PreparedStatement statement = connection.prepareStatement(
-                             "UPDATE users SET push_enabled = ?, updated_at = SYSDATE WHERE user_id = ?")) {
-                    statement.setInt(1, enabled ? 1 : 0);
-                    statement.setLong(2, userId);
-                    updated = statement.executeUpdate();
-                }
-            } else {
-                try (java.sql.Connection connection = dataSource.getConnection();
-                     java.sql.PreparedStatement statement = connection.prepareStatement(
-                             "UPDATE users SET push_enabled = ?, updated_at = SYSDATE WHERE login_id = ?")) {
-                    statement.setInt(1, enabled ? 1 : 0);
-                    statement.setString(2, username);
-                    updated = statement.executeUpdate();
+            int updated = userMapper.updatePushEnabled(resolvedUserId, resolvedLoginId, pushVal);
+            if (updated == 0) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("success", false, "message", "사용자를 찾을 수 없습니다."));
+            }
+
+            if (httpRequest != null) {
+                var session = httpRequest.getSession(false);
+                if (session != null) {
+                    session.setAttribute("pushEnabled", pushVal);
                 }
             }
-            if (updated == 0) return ResponseEntity.notFound().build();
-            return ResponseEntity.ok(Map.of("success", true, "pushEnabled", enabled ? 1 : 0));
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "pushEnabled", pushVal,
+                    "message", "알림 설정이 저장되었습니다."
+            ));
         } catch (Exception e) {
+            org.apache.logging.log4j.LogManager.getLogger(getClass()).error("알림 설정 저장 실패: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("success", false, "message", "알림 설정 저장 중 DB 오류가 발생했습니다."));
         }
