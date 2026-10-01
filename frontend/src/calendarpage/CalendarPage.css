@@ -1352,3 +1352,126 @@ input:checked + .slider:before { transform: translateX(18px); }
   background: #f8f4ed;
   border-color: #8c827a;
 }
+
+/* ==========================================================================
+   7. 반응형 모바일 레이아웃: SELECTED DATE 패널을 하단으로 배치
+   ========================================================================== */
+@media (max-width: 900px) {
+  .calendar-main-card {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .calendar-left {
+    flex: none;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #f0e9df;
+    position: static;
+    top: auto;
+    align-self: stretch;
+    padding: 24px 20px 20px;
+  }
+
+  .calendar-right {
+    flex: none;
+    width: 100%;
+    padding: 24px 20px 32px;
+  }
+
+  .dose-info strong.name {
+    max-width: none;
+  }
+
+  .dose-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .calendar-page-wrap {
+    gap: 14px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+
+  .calendar-left {
+    padding: 16px 12px 14px;
+  }
+
+  .cal-nav {
+    margin-bottom: 14px;
+  }
+
+  .month-controls h2 {
+    font-size: 16px;
+  }
+
+  .month-controls button {
+    padding: 3px 8px;
+    font-size: 13px;
+  }
+
+  .btn-today {
+    padding: 3px 10px;
+    font-size: 11px;
+  }
+
+  .cal-week-header {
+    font-size: 10px;
+    padding: 8px 0;
+  }
+
+  .cal-cell {
+    min-height: 52px;
+    height: 52px;
+    padding: 4px 4px 5px;
+  }
+
+  .day-number {
+    font-size: 12px;
+  }
+
+  .cal-legend {
+    gap: 12px;
+    font-size: 11px;
+    padding-top: 10px;
+  }
+
+  .calendar-right {
+    padding: 20px 12px 28px;
+  }
+
+  .panel-header {
+    margin-bottom: 14px;
+  }
+
+  .panel-header h3 {
+    font-size: 18px;
+  }
+
+  .calendar-slot-tabs {
+    margin: 8px 0 14px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .calendar-slot-tab {
+    padding: 6px 2px;
+  }
+
+  .cal-tab-label {
+    font-size: 11px;
+  }
+
+  .cal-tab-badge {
+    font-size: 9.5px;
+  }
+
+  .btn-add-dose {
+    margin-top: 18px;
+    padding: 10px;
+  }
+}
