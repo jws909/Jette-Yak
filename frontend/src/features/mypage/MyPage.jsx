@@ -449,23 +449,6 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               </button>
             </form>
           </section>
-
-          {/* 약 등록 및 관리 안내 바로가기 카드 */}
-          <section className="mypage-subcard mypage-shortcut-card">
-            <span className="meta-kicker">MEDICATION MANAGEMENT</span>
-            <h2 className="subcard-title">내 약 등록 및 관리</h2>
-            <p className="shortcut-desc">
-              처방전 사진 AI 분석, 상비약 검색, 영양제 루틴 등록은 <strong>약 등록</strong> 메뉴에서 편리하게 이용하실 수 있습니다.
-            </p>
-            <div className="shortcut-links">
-              <Link to="/medication/register" className="shortcut-primary-link">
-                약 등록 바로가기 →
-              </Link>
-              <Link to="/guide" className="shortcut-secondary-link">
-                내 약 관리 (보관함) →
-              </Link>
-            </div>
-          </section>
         </div>
 
         {/* 우측 열: 서비스 환경설정 & 회원 탈퇴 */}
