@@ -4,9 +4,9 @@ import './MyPage.css';
 import defaultProfileImg from '../../assets/Default_profile.png';
 
 export default function MyPage({ user, onUserUpdated, onLogout }) {
-  const [nickname, setNickname] = useState(user?.name || '김메디');
+  const [nickname, setNickname] = useState(user?.nickname || user?.name || user?.username || '');
   const [isEditingNick, setIsEditingNick] = useState(false);
-  const [email] = useState(user?.email || 'jetteyak_2026 · hello@jetteyak.kr');
+  const [email, setEmail] = useState(user?.email || '');
   const [profileImage, setProfileImage] = useState(user?.profileImageUrl || '');
   const [imgError, setImgError] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
@@ -14,24 +14,34 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (!user?.username || user.username === 'demo') return;
-    fetch(`/api/users/profile?username=${encodeURIComponent(user.username)}`)
+    if (!user?.username) return;
+    const targetUser = user.username === 'demo' ? 'test12' : user.username;
+    fetch(`/api/users/profile?username=${encodeURIComponent(targetUser)}`)
       .then((response) => response.ok ? response.json() : null)
       .then((profile) => {
         if (!profile) return;
         setNickname(profile.nickname || user.name);
+        if (profile.email) setEmail(profile.email);
         setProfileImage(profile.profileImageUrl || '');
         setImgError(false);
-        setPushEnabled(profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0');
+        const isPush = profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0';
+        setPushEnabled(isPush);
         onUserUpdated?.({
           name: profile.nickname || user.name,
+          email: profile.email || user?.email || '',
           profileImageUrl: profile.profileImageUrl || '',
           userId: profile.userId || user?.userId,
-          pushEnabled: profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0',
+          pushEnabled: isPush,
         });
       })
       .catch(() => {});
   }, [user?.username]);
+
+  useEffect(() => {
+    if (user?.pushEnabled !== undefined) {
+      setPushEnabled(user.pushEnabled !== false && user.pushEnabled !== 0 && user.pushEnabled !== '0');
+    }
+  }, [user?.pushEnabled]);
 
   const updateProfile = async ({ nextNickname, file } = {}) => {
     if (!user?.username || user.username === 'demo') {
@@ -78,6 +88,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [newPw, setNewPw] = useState('');
   const [confirmPw, setConfirmPw] = useState('');
   const [pwMessage, setPwMessage] = useState('');
+  const [isChangingPw, setIsChangingPw] = useState(false);
 
   // 평소 복용 관리 (상비약 & 영양제 DB 연동)
   const [everydayMeds, setEverydayMeds] = useState([]);
@@ -92,6 +103,31 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [pushEnabled, setPushEnabled] = useState(user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
+  const [browserPerm, setBrowserPerm] = useState(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'unsupported';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    const updatePerm = () => {
+      setBrowserPerm(Notification.permission);
+    };
+    updatePerm();
+
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions.query({ name: 'notifications' }).then((status) => {
+        status.onchange = () => {
+          updatePerm();
+        };
+      }).catch(() => {});
+    }
+
+    window.addEventListener('focus', updatePerm);
+    return () => window.removeEventListener('focus', updatePerm);
+  }, []);
 
   // 캘린더 복약 일정 등록 모달 state
   const [scheduleModalMed, setScheduleModalMed] = useState(null);
@@ -331,44 +367,166 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     }
   };
 
-  const handlePwChange = (e) => {
+  const handlePwChange = async (e) => {
     e.preventDefault();
     if (!currentPw || !newPw || !confirmPw) {
       setPwMessage('모든 비밀번호 항목을 입력해주세요.');
+      return;
+    }
+    if (newPw.length < 8) {
+      setPwMessage('새 비밀번호는 8자 이상이어야 합니다.');
       return;
     }
     if (newPw !== confirmPw) {
       setPwMessage('새 비밀번호가 일치하지 않습니다.');
       return;
     }
-    setPwMessage('비밀번호가 성공적으로 변경되었습니다.');
-    setCurrentPw('');
-    setNewPw('');
-    setConfirmPw('');
-    setTimeout(() => setPwMessage(''), 3000);
+    if (currentPw === newPw) {
+      setPwMessage('새 비밀번호는 현재 비밀번호와 다르게 설정해 주세요.');
+      return;
+    }
+
+    setIsChangingPw(true);
+    setPwMessage('');
+
+    try {
+      const res = await fetch('/api/users/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.userId,
+          username: user?.username,
+          currentPassword: currentPw,
+          newPassword: newPw,
+          confirmPassword: confirmPw,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setPwMessage(data.message || '비밀번호가 성공적으로 변경되었습니다.');
+        setCurrentPw('');
+        setNewPw('');
+        setConfirmPw('');
+        setTimeout(() => setPwMessage(''), 3000);
+      } else {
+        setPwMessage(data.message || '비밀번호 변경에 실패했습니다.');
+      }
+    } catch (err) {
+      setPwMessage('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsChangingPw(false);
+    }
   };
 
-  const handleSaveSettings = async () => {
-    if (!user?.userId && !user?.username) return;
+  const savePushSetting = async (targetVal) => {
+    const uname = user?.username || '';
+    const uid = user?.userId || '';
+    if (!uid && !uname) return false;
+
     setIsSavingSettings(true);
     try {
       const response = await fetch('/api/users/push-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user?.userId, username: user?.username, pushEnabled }),
+        body: JSON.stringify({
+          userId: uid,
+          username: uname,
+          pushEnabled: targetVal,
+        }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.success) throw new Error(data.message || '알림 설정 저장에 실패했습니다.');
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || '알림 설정 저장에 실패했습니다.');
+      }
       const savedPushEnabled = data.pushEnabled !== false && data.pushEnabled !== 0 && data.pushEnabled !== '0';
       setPushEnabled(savedPushEnabled);
       onUserUpdated?.({ pushEnabled: savedPushEnabled });
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 3000);
+      return true;
     } catch (error) {
       alert(error.message || '알림 설정 저장에 실패했습니다.');
+      return false;
     } finally {
       setIsSavingSettings(false);
     }
+  };
+
+  const handleTogglePush = async (e) => {
+    const nextVal = e.target.checked;
+
+    if (!('Notification' in window)) {
+      alert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.');
+      return;
+    }
+
+    if (nextVal) {
+      if (Notification.permission === 'denied') {
+        alert(
+          '브라우저 알림 권한이 차단되어 있어 알림을 켤 수 없습니다.\n\n' +
+          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.'
+        );
+        return;
+      }
+
+      if (Notification.permission === 'default') {
+        try {
+          const result = await Notification.requestPermission();
+          setBrowserPerm(result);
+          if (result !== 'granted') {
+            alert('브라우저 알림 권한이 허용되지 않아 알림이 활성화되지 않았습니다.');
+            return;
+          }
+          try {
+            new Notification('제때약 복약 알림이 활성화되었습니다', {
+              body: '정해진 복약 시간 30분 전과 정시에 알림을 보내드립니다.',
+              icon: '/favicon.ico',
+            });
+          } catch (ignored) {}
+        } catch (err) {
+          console.warn('알림 권한 요청 실패:', err);
+          alert('알림 권한 요청 중 오류가 발생했습니다.');
+          return;
+        }
+      }
+    }
+
+    setPushEnabled(nextVal);
+    const ok = await savePushSetting(nextVal);
+    if (!ok) {
+      setPushEnabled(!nextVal);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (pushEnabled) {
+      if (!('Notification' in window)) {
+        alert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.');
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        alert(
+          '브라우저 알림 권한이 차단되어 있어 알림을 켤 수 없습니다.\n\n' +
+          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.'
+        );
+        return;
+      }
+      if (Notification.permission === 'default') {
+        try {
+          const result = await Notification.requestPermission();
+          setBrowserPerm(result);
+          if (result !== 'granted') {
+            alert('브라우저 알림 권한이 허용되지 않아 알림 설정을 저장할 수 없습니다.');
+            return;
+          }
+        } catch (err) {
+          console.warn('알림 권한 요청 실패:', err);
+          return;
+        }
+      }
+    }
+    await savePushSetting(pushEnabled);
   };
 
   const handleWithdraw = async () => {
@@ -489,7 +647,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               ✎
             </button>
           </div>
-          <span className="email-display">{email}</span>
+          <span className="email-display">{email || user?.email || (user?.username ? `${user.username}@jetteyak.kr` : '')}</span>
           {profileMessage && <span className="profile-message">{profileMessage}</span>}
         </div>
       </section>
@@ -663,8 +821,8 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
                 </div>
               )}
 
-              <button type="submit" className="action-outline-btn">
-                비밀번호 변경
+              <button type="submit" className="action-outline-btn" disabled={isChangingPw}>
+                {isChangingPw ? '변경 중...' : '비밀번호 변경'}
               </button>
             </form>
           </section>
@@ -678,16 +836,37 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               <div className="setting-info">
                 <strong>복용 알림 전체 Push</strong>
                 <p>모든 복약 알림을 받아볼게요.</p>
+                <div className="browser-perm-status">
+                  <span className="perm-label">브라우저 알림 권한:</span>
+                  {browserPerm === 'granted' && (
+                    <span className="perm-badge perm-granted">허용됨</span>
+                  )}
+                  {browserPerm === 'denied' && (
+                    <span className="perm-badge perm-denied">차단됨 (주소창 설정 필요)</span>
+                  )}
+                  {browserPerm === 'default' && (
+                    <span className="perm-badge perm-default">미설정 (토글 시 요청)</span>
+                  )}
+                  {browserPerm === 'unsupported' && (
+                    <span className="perm-badge perm-unsupported">미지원 브라우저</span>
+                  )}
+                </div>
               </div>
               <label className="toggle-switch">
                 <input
                   type="checkbox"
-                  checked={pushEnabled}
-                  onChange={(e) => setPushEnabled(e.target.checked)}
+                  checked={pushEnabled && browserPerm !== 'denied'}
+                  onChange={handleTogglePush}
                 />
                 <span className="toggle-slider" />
               </label>
             </div>
+
+            {browserPerm === 'denied' && (
+              <div className="browser-perm-alert">
+                현재 브라우저에서 알림이 차단되어 있습니다. 알림을 받으시려면 브라우저 주소창 좌측의 설정(자물쇠) 아이콘을 눌러 알림 권한을 '허용'으로 변경해주세요.
+              </div>
+            )}
 
             <button
               type="button"
@@ -695,7 +874,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               onClick={handleSaveSettings}
               disabled={isSavingSettings}
             >
-              변경 사항 저장
+              {isSavingSettings ? '저장 중...' : '변경 사항 저장'}
             </button>
 
             <div className="withdraw-row">
