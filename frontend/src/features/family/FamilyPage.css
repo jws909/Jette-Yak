@@ -32,6 +32,44 @@
   color: #631c2b;
 }
 
+.family-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.family-name-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fdf5f5;
+  border: 1px solid #ebd3d7;
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #7d2638;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.family-name-badge:hover {
+  background: #fae8eb;
+  border-color: #7d2638;
+  box-shadow: 0 1px 4px rgba(125, 38, 56, 0.12);
+}
+
+.family-name-edit-icon {
+  opacity: 0.65;
+  transition: opacity 0.15s ease;
+}
+
+.family-name-badge:hover .family-name-edit-icon {
+  opacity: 1;
+}
+
 .family-controls {
   display: flex;
   justify-content: space-between;
@@ -84,6 +122,13 @@
   border-color: #631c2b;
   color: #ffffff;
   font-weight: 600;
+}
+
+.family-chips-empty-hint {
+  font-size: 13px;
+  color: #8c827a;
+  white-space: nowrap;
+  padding: 0 8px;
 }
 
 .family-action-buttons {
@@ -951,6 +996,15 @@
 
 /* 모바일 화면 컨트롤 배치 최적화 */
 @media (max-width: 640px) {
+  .family-title-wrap {
+    gap: 8px;
+  }
+
+  .family-name-badge {
+    font-size: 12px;
+    padding: 3px 10px;
+  }
+
   .family-controls {
     flex-direction: column;
     align-items: stretch;

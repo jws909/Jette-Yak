@@ -83,6 +83,17 @@ export default function FamilyPage(props) {
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('PROT');
 
+  // 가족 만들기 모달 상태
+  const [isCreateFamilyModalOpen, setIsCreateFamilyModalOpen] = useState(false);
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const [isCreatingFamily, setIsCreatingFamily] = useState(false);
+
+  // 가족 이름 및 변경 모달 상태
+  const [familyName, setFamilyName] = useState('');
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [editFamilyName, setEditFamilyName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
   // 기존 State들 부근에 추가
   const [familyAddTab, setFamilyAddTab] = useState('direct'); // 'direct' 또는 'invite'
   const [newMemberSex, setNewMemberSex] = useState('M');      // 남아 'M', 여아 'F'
@@ -104,7 +115,13 @@ export default function FamilyPage(props) {
       const res = await fetch(`/api/family/members?userId=${currentUserId}`);
       if (res.ok) {
         const data = await res.json();
-        setFamilyMembers(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setFamilyMembers(list);
+        if (list.length > 0 && list[0].familyName) {
+          setFamilyName(list[0].familyName);
+        } else {
+          setFamilyName('');
+        }
       }
     } catch (err) {
       console.error('가족 구성원 조회 오류:', err);
@@ -411,6 +428,90 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     }
   };
 
+  // 신규 가족 그룹 생성
+  const handleCreateFamily = async (e) => {
+    if (e) e.preventDefault();
+    if (!currentUserId) {
+      alert('로그인이 필요한 서비스입니다.');
+      return;
+    }
+    setIsCreatingFamily(true);
+    try {
+      const res = await fetch('/api/family/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: currentUserId,
+          familyName: newFamilyName.trim() || undefined,
+        }),
+      });
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        throw new Error('서버 응답 오류가 발생했습니다. (HTTP ' + res.status + ')');
+      }
+      if (res.ok && data.success) {
+        alert(data.message || '가족 그룹이 성공적으로 생성되었습니다.');
+        setIsCreateFamilyModalOpen(false);
+        setNewFamilyName('');
+        if (data.familyName) {
+          setFamilyName(data.familyName);
+        }
+        if (props.onUserUpdated) {
+          props.onUserUpdated({
+            familyId: data.familyId,
+            role: 'GUAR',
+          });
+        }
+        await fetchFamilyMembers();
+        fetchDailySchedules(selectedDate);
+        fetchMonthSummary();
+      } else {
+        alert(data.message || '가족 생성에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('가족 생성 통신 오류:', err);
+      alert(err.message || '서버 통신 중 오류가 발생했습니다.');
+    } finally {
+      setIsCreatingFamily(false);
+    }
+  };
+
+  // 가족 이름 변경
+  const handleRenameFamily = async (e) => {
+    if (e) e.preventDefault();
+    if (!editFamilyName.trim()) {
+      alert('가족 이름을 입력해주세요.');
+      return;
+    }
+    setIsRenaming(true);
+    try {
+      const res = await fetch('/api/family/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          familyName: editFamilyName.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setFamilyName(editFamilyName.trim());
+        setIsRenameModalOpen(false);
+        fetchFamilyMembers();
+      } else {
+        alert(data.message || '가족 이름 변경에 실패했습니다.');
+      }
+    } catch (err) {
+      console.error('가족 이름 변경 오류:', err);
+      alert('서버 통신 중 오류가 발생했습니다.');
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
   // 가족 등록
   const handleAddFamilyMember = async (e) => {
     e.preventDefault();
@@ -426,11 +527,15 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
           guardianId: currentUserId,
           name: newMemberName.trim(),
           role: newMemberRole,
+          sex: newMemberSex,
+          birthdate: newMemberBirth,
         }),
       });
       if (res.ok) {
         alert('가족이 성공적으로 등록되었습니다.');
         setNewMemberName('');
+        setNewMemberSex('M');
+        setNewMemberBirth('');
         setIsAddFamilyModalOpen(false);
         fetchFamilyMembers();
       } else {
@@ -443,29 +548,30 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
 
   // 회원 연동(초대) 처리 함수
   const handleInviteFamilyMember = async (e) => {
-  if (e) e.preventDefault(); // 1. 기본 submit 폼 새로고침 방지 (필수!)
+    if (e) e.preventDefault();
 
-  if (!inviteLoginId.trim()) {
-    alert("초대할 가족의 아이디를 입력해주세요.");
-    return;
-  }
+    if (!currentUserId) {
+      alert("로그인이 필요한 서비스입니다.");
+      return;
+    }
 
-  // 로그인된 내 USER_ID 가져오기 (현재 프로젝트에서 쓰시는 상태나 변수명으로 확인)
-  // 예: user?.userId, currentUser?.userId, loginUser?.userId, user?.id 등
-  const myUserId = user?.userId || user?.id || 1; 
+    if (!inviteLoginId.trim()) {
+      alert("초대할 가족의 아이디를 입력해주세요.");
+      return;
+    }
 
-  try {
-    const response = await fetch('/api/family/invite', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        senderId: myUserId,                 // 백엔드가 요구하는 키: senderId
-        targetLoginId: inviteLoginId.trim(), // 백엔드가 요구하는 키: targetLoginId
-        role: inviteRole,
-      }),
-    });
+    try {
+      const response = await fetch('/api/family/invite', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          senderId: currentUserId,
+          targetLoginId: inviteLoginId.trim(),
+          role: inviteRole,
+        }),
+      });
 
     const data = await response.json();
 
@@ -483,16 +589,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   }
 };
 
-const handleRemoveMember = async (member) => {
+  const handleRemoveMember = async (member) => {
     const memberName = member.name || member.nickname || '구성원';
     if (!window.confirm(`'${memberName}' 님을 가족 목록에서 삭제하시겠습니까?`)) {
       return;
     }
 
     try {
-      const response = await fetch(`http://localhost:8080/api/family/members/${member.userId}/remove`, {
+      const response = await fetch(`/api/family/members/${member.userId}/remove`, {
         method: 'POST',
-        credentials: 'include' // 세션 정보 전달
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ userId: currentUserId }),
       });
 
       const data = await response.json();
@@ -502,9 +610,9 @@ const handleRemoveMember = async (member) => {
         if (String(selectedMemberId) === String(member.userId)) {
           setSelectedMemberId('all');
         }
-        if (typeof fetchFamilyMembers === 'function') await fetchFamilyMembers();
-        if (typeof fetchMonthlySummary === 'function') fetchMonthlySummary();
-        if (typeof fetchDailySchedules === 'function') fetchDailySchedules();
+        await fetchFamilyMembers();
+        fetchMonthSummary();
+        fetchDailySchedules(selectedDate);
       } else {
         alert(data.message || '가족 삭제 처리에 실패했습니다.');
       }
@@ -633,7 +741,36 @@ const handleRemoveMember = async (member) => {
       {/* 1. 상단 타이틀 & 필터 칩 */}
       <div className="family-header">
         <span className="family-subtitle">FAMILY MEDICATION</span>
-        <h1 className="family-title">가족 페이지</h1>
+        <div className="family-title-wrap">
+          <h1 className="family-title">가족 페이지</h1>
+          {familyName && (
+            <button
+              type="button"
+              className="family-name-badge"
+              onClick={() => {
+                setEditFamilyName(familyName);
+                setIsRenameModalOpen(true);
+              }}
+              title="가족 이름 변경"
+            >
+              <span className="family-name-text">{familyName}</span>
+              <svg
+                className="family-name-edit-icon"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         <div className="family-controls">
           <div className="family-chips-group">
@@ -644,80 +781,101 @@ const handleRemoveMember = async (member) => {
             >
               전체
             </button>
-            {familyMembers.map((member) => {
-              // 현재 로그인한 본인 계정인지 확인
-              const isMe = Number(member.userId) === Number(currentUserId);
+            {familyMembers.length === 0 ? (
+              <span className="family-chips-empty-hint">
+                가족 그룹을 생성하면 본인 및 구성원이 여기에 표시됩니다.
+              </span>
+            ) : (
+              familyMembers.map((member) => {
+                // 현재 로그인한 본인 계정인지 확인
+                const isMe = Number(member.userId) === Number(currentUserId);
 
-              // 현재 로그인한 사용자 본인이 보호자(방장)인지 확인
-              const myInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
-              const isManager = myInfo?.role === 'GUAR' || myInfo?.role === '보호자';
+                // 현재 로그인한 사용자 본인이 보호자(방장)인지 확인
+                const myInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
+                const isManager = myInfo?.role === 'GUAR' || myInfo?.role === '보호자';
 
-              return (
-                <div
-                  key={member.userId}
-                  style={{ display: 'inline-flex', alignItems: 'center', position: 'relative' }}
-                >
-                  <button
-                    type="button"
-                    className={`family-chip ${String(selectedMemberId) === String(member.userId) ? 'selected' : ''}`}
-                    onClick={() => setSelectedMemberId(member.userId)}
+                return (
+                  <div
+                    key={member.userId}
+                    style={{ display: 'inline-flex', alignItems: 'center', position: 'relative' }}
                   >
-                    {member.name}
-                    <span style={{ fontSize: '0.85em', marginLeft: '4px', opacity: 0.85 }}>
-                      {isMe ? '(본인)' : getRoleLabel(member.role)}
-                    </span>
-                  </button>
-
-                  {/* 초대한 보호자 본인만, 타인 구성원 옆에 삭제(×) 버튼 노출 */}
-                  {isManager && !isMe && (
                     <button
                       type="button"
-                      title="가족 구성원 삭제"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveMember(member);
-                      }}
-                      style={{
-                        marginLeft: '-8px',
-                        marginRight: '6px',
-                        border: 'none',
-                        borderRadius: '50%',
-                        width: '18px',
-                        height: '18px',
-                        background: '#fee2e2',
-                        color: '#ef4444',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 'bold',
-                        zIndex: 2
-                      }}
+                      className={`family-chip ${String(selectedMemberId) === String(member.userId) ? 'selected' : ''}`}
+                      onClick={() => setSelectedMemberId(member.userId)}
                     >
-                      ×
+                      {member.name}
+                      <span style={{ fontSize: '0.85em', marginLeft: '4px', opacity: 0.85 }}>
+                        {isMe ? '(본인)' : getRoleLabel(member.role)}
+                      </span>
                     </button>
-                  )}
-                </div>
-              );
-            })}
+
+                    {/* 초대한 보호자 본인만, 타인 구성원 옆에 삭제(×) 버튼 노출 */}
+                    {isManager && !isMe && (
+                      <button
+                        type="button"
+                        title="가족 구성원 삭제"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveMember(member);
+                        }}
+                        style={{
+                          marginLeft: '-8px',
+                          marginRight: '6px',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '18px',
+                          height: '18px',
+                          background: '#fee2e2',
+                          color: '#ef4444',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 'bold',
+                          zIndex: 2
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </div>
 
           <div className="family-action-buttons">
-            <button
-              type="button"
-              className="family-btn-outline"
-              onClick={() => setIsAddFamilyModalOpen(true)}
-            >
-              가족등록
-            </button>
-            <button
-              type="button"
-              className="family-btn-primary"
-              onClick={handleOpenReportModal}
-            >
-              보고서
-            </button>
+            {familyMembers.length === 0 ? (
+              <button
+                type="button"
+                className="family-btn-primary"
+                onClick={() => {
+                  setNewFamilyName(user?.name ? `${user.name} 가족` : '우리 가족');
+                  setIsCreateFamilyModalOpen(true);
+                }}
+              >
+                가족 만들기
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="family-btn-outline"
+                  onClick={() => setIsAddFamilyModalOpen(true)}
+                >
+                  가족등록
+                </button>
+                <button
+                  type="button"
+                  className="family-btn-primary"
+                  onClick={handleOpenReportModal}
+                >
+                  보고서
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1253,8 +1411,123 @@ const handleRemoveMember = async (member) => {
         </div>
       )}
 
-      
+      {/* 가족 그룹 만들기 모달 */}
+      {isCreateFamilyModalOpen && (
+        <div className="modal-overlay" onClick={() => !isCreatingFamily && setIsCreateFamilyModalOpen(false)}>
+          <div className="modal-content family-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">가족 그룹 만들기</h2>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsCreateFamilyModalOpen(false)}
+                disabled={isCreatingFamily}
+              >
+                ×
+              </button>
+            </div>
 
+            <form onSubmit={handleCreateFamily}>
+              <div className="family-add-notice">
+                가족 그룹을 생성하면 회원님이 보호자(관리자)로 설정되며, 가족 목록에 본인이 등록됩니다. 이후 다른 가족 구성원을 추가하거나 초대할 수 있습니다.
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '16px' }}>
+                <div>
+                  <label className="family-form-label">
+                    가족 그룹 이름 <span style={{ color: '#c94040' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="family-form-input"
+                    placeholder="예: 우리 가족"
+                    value={newFamilyName}
+                    onChange={(e) => setNewFamilyName(e.target.value)}
+                    autoFocus
+                    required
+                    disabled={isCreatingFamily}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer-actions">
+                <button
+                  type="button"
+                  className="family-btn-outline"
+                  onClick={() => setIsCreateFamilyModalOpen(false)}
+                  disabled={isCreatingFamily}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="family-btn-primary"
+                  disabled={isCreatingFamily}
+                >
+                  {isCreatingFamily ? '생성 중...' : '가족 그룹 만들기'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 가족 이름 변경 모달 */}
+      {isRenameModalOpen && (
+        <div className="modal-overlay" onClick={() => !isRenaming && setIsRenameModalOpen(false)}>
+          <div className="modal-content family-add-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">가족 이름 변경</h2>
+              <button
+                type="button"
+                className="modal-close-btn"
+                onClick={() => setIsRenameModalOpen(false)}
+                disabled={isRenaming}
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleRenameFamily}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', margin: '14px 0' }}>
+                <div>
+                  <label className="family-form-label">
+                    가족 이름 <span style={{ color: '#c94040' }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="family-form-input"
+                    placeholder="예: 우리 가족"
+                    value={editFamilyName}
+                    onChange={(e) => setEditFamilyName(e.target.value)}
+                    autoFocus
+                    required
+                    disabled={isRenaming}
+                  />
+                </div>
+              </div>
+
+              <div className="modal-footer-actions">
+                <button
+                  type="button"
+                  className="family-btn-outline"
+                  onClick={() => setIsRenameModalOpen(false)}
+                  disabled={isRenaming}
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  className="family-btn-primary"
+                  disabled={isRenaming}
+                >
+                  {isRenaming ? '저장 중...' : '저장'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
