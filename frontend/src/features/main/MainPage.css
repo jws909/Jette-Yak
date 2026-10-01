@@ -380,6 +380,97 @@
   transition: transform 0.2s ease;
 }
 
+/* 컴팩트 처방전 등록 안내 배너 카드 (루틴 하단 배치) */
+.prescription-banner-card {
+  background: #ffffff;
+  border: 1.5px dashed #dcd4c8;
+  border-radius: 10px;
+  padding: 22px 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.prescription-banner-card .banner-card-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.prescription-banner-card .banner-card-text {
+  flex: 1;
+  min-width: 260px;
+}
+
+.prescription-banner-card .banner-kicker {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+  color: #8c8278;
+  text-transform: uppercase;
+  display: block;
+}
+
+.prescription-banner-card .banner-title {
+  margin: 4px 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.prescription-banner-card .banner-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #6d645a;
+  line-height: 1.5;
+}
+
+.prescription-banner-card .banner-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.prescription-banner-card .banner-primary-btn {
+  background-color: #8b3e4b;
+  color: #ffffff;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prescription-banner-card .banner-primary-btn:hover {
+  background-color: #732f3c;
+  border-color: #732f3c;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.25);
+}
+
+.prescription-banner-card .banner-secondary-btn {
+  background-color: #ffffff;
+  color: #4a413a;
+  border: 1.5px solid #dcd4c8;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.prescription-banner-card .banner-secondary-btn:hover {
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+}
+
 .prescription-upload-btn:hover .btn-arrow,
 .guide-register-btn:hover .btn-arrow {
   transform: translateX(4px);
@@ -967,6 +1058,29 @@
   background: #eedddb;
   padding: 3px 10px;
   border-radius: 12px;
+}
+
+.med-register-quick-btn {
+  background-color: #8b3e4b;
+  color: #ffffff;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.2);
+}
+
+.med-register-quick-btn:hover {
+  background-color: #732f3c;
+  border-color: #732f3c;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.35);
 }
 
 .meal-setting-btn {

@@ -169,7 +169,7 @@
 /* 2단 그리드 */
 .mypage-two-cols {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 20px;
 }
 
