@@ -412,7 +412,7 @@ function App() {
               onLogout={handleLogout}
               onLoginDemoToggle={handleLoginDemoToggle}
             >
-              <FamilyPage user={user} />
+              <FamilyPage user={user} onUserUpdated={handleUserUpdated} />
             </MainLayout>
           }
         />
