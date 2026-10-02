@@ -37,7 +37,8 @@
     <select id="searchMedications" parameterType="string" resultType="map">
         SELECT 
             medication_id AS "medicationId",
-            item_name     AS "itemName"
+            item_name     AS "itemName",
+            entp_name     AS "entpName"
         FROM medications
         WHERE item_name LIKE '%' || #{keyword} || '%'
         <![CDATA[

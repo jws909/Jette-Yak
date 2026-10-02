@@ -51,8 +51,22 @@ export default function MedicationRegisterPage({ user }) {
   const [medSearchText, setMedSearchText] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(0);
+  const searchBoxRef = useRef(null);
   const [everydayMeds, setEverydayMeds] = useState([]);
   const [isLoadingEverydayMeds, setIsLoadingEverydayMeds] = useState(false);
+
+  // 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // 영양제 직접 입력 전용 상태
   const [customSupplementName, setCustomSupplementName] = useState('');
@@ -387,20 +401,28 @@ export default function MedicationRegisterPage({ user }) {
   // [2-1] 의약품 검색 (상비약 및 영양제)
   // ==========================================
   useEffect(() => {
-    if (!medSearchText.trim()) {
+    const keyword = medSearchText.trim();
+    if (!keyword) {
       setSearchResults([]);
+      setIsDropdownOpen(false);
       return;
     }
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await fetch(`/api/medications/search?query=${encodeURIComponent(medSearchText.trim())}`);
+        const res = await fetch(`/api/calendar/search-medications?keyword=${encodeURIComponent(keyword)}`);
         if (res.ok) {
           const list = await res.json();
           setSearchResults(Array.isArray(list) ? list : []);
+          setHighlightIndex(0);
+          setIsDropdownOpen(true);
+        } else {
+          setSearchResults([]);
+          setHighlightIndex(0);
         }
       } catch (err) {
         console.warn('약품 검색 오류:', err);
+        setSearchResults([]);
       } finally {
         setIsSearching(false);
       }
@@ -422,20 +444,23 @@ export default function MedicationRegisterPage({ user }) {
           userId: user?.userId,
           username: user?.username,
           type: 'CABINET',
-          medicationId: medId,
+          medicationId: String(medId),
         }),
       });
 
       if (res.ok) {
         alert(`'${item.itemName}' 이(가) 상비약으로 등록되었습니다.`);
         setMedSearchText('');
+        setIsDropdownOpen(false);
         fetchEverydayMeds();
+        window.dispatchEvent(new CustomEvent('jette-intake-updated'));
       } else {
         const data = await res.json().catch(() => ({}));
         alert(data.message || '상비약 등록에 실패했습니다.');
       }
     } catch (err) {
       console.error('상비약 등록 오류:', err);
+      alert('상비약 등록 처리 중 오류가 발생했습니다.');
     }
   };
 
@@ -479,16 +504,20 @@ export default function MedicationRegisterPage({ user }) {
   const handleRemoveEverydayMed = async (med) => {
     if (!window.confirm(`'${med.name}' 을(를) 목록에서 삭제하시겠습니까?`)) return;
     try {
-      const res = await fetch(`/api/users/everyday-meds/${med.id}?userId=${user?.userId}`, {
+      const source = med.source ? med.source.toLowerCase() : 'cabinet';
+      const rawId = med.rawId || (med.id ? String(med.id).replace(/^[A-Za-z]:/, '') : '');
+      const res = await fetch(`/api/users/everyday-meds/${source}/${rawId}?userId=${user?.userId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
         fetchEverydayMeds();
+        window.dispatchEvent(new CustomEvent('jette-intake-updated'));
       } else {
         alert('삭제에 실패했습니다.');
       }
     } catch (err) {
       console.error('삭제 오류:', err);
+      alert('삭제 중 오류가 발생했습니다.');
     }
   };
 
@@ -513,42 +542,40 @@ export default function MedicationRegisterPage({ user }) {
 
     setIsSavingSchedule(true);
     try {
-      const startDate = new Date();
-      const schedules = [];
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      for (let day = 0; day < schedDays; day++) {
-        const d = new Date(startDate);
-        d.setDate(d.getDate() + day);
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const dt = String(d.getDate()).padStart(2, '0');
-        const dateStr = `${y}-${m}-${dt}`;
+      let allSuccess = true;
+      for (const slot of selectedSlots) {
+        const time = schedTimes[slot];
+        const payload = {
+          userId: user?.userId,
+          name: scheduleModalMed.name,
+          type: scheduleModalMed.source === 'CABINET' ? 'regular' : 'supplement',
+          medicationId: scheduleModalMed.medicationId ? String(scheduleModalMed.medicationId) : null,
+          scheduledDate: todayStr,
+          scheduledTime: time,
+          repeatDays: Number(schedDays) || 30,
+          alarmEnabled: 1,
+        };
 
-        selectedSlots.forEach((slot) => {
-          const time = schedTimes[slot];
-          schedules.push({
-            userId: user?.userId,
-            scheduleDate: dateStr,
-            time: time,
-            type: scheduleModalMed.source === 'CABINET' ? 'regular' : 'supplement',
-            name: scheduleModalMed.name,
-            memo: `${slot === 'morning' ? '아침' : slot === 'lunch' ? '점심' : slot === 'evening' ? '저녁' : '취침전'} 복용`,
-            medicationId: scheduleModalMed.medicationId || null,
-          });
+        const res = await fetch('/api/calendar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         });
+
+        if (!res.ok) {
+          allSuccess = false;
+        }
       }
 
-      const res = await fetch('/api/medications/schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(schedules),
-      });
-
-      if (res.ok) {
+      if (allSuccess) {
         alert(`${scheduleModalMed.name}의 ${schedDays}일 복약 일정이 캘린더에 성공적으로 등록되었습니다!`);
         setScheduleModalMed(null);
+        window.dispatchEvent(new CustomEvent('jette-intake-updated'));
       } else {
-        alert('일정 등록에 실패했습니다.');
+        alert('일부 일정 등록에 실패했습니다.');
       }
     } catch (err) {
       console.error('일정 저장 오류:', err);
@@ -900,20 +927,87 @@ export default function MedicationRegisterPage({ user }) {
               </p>
             </div>
 
-            <div className="cabinet-search-box">
-              <div className="search-input-row">
-                <svg className="search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 19l-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-                </svg>
-                <input
-                  type="text"
-                  className="cabinet-search-input"
-                  placeholder="예: 타이레놀, 게보린, 훼스탈, 베아제, 이부프로펜..."
-                  value={medSearchText}
-                  onChange={(e) => setMedSearchText(e.target.value)}
-                  autoFocus
-                />
-                {isSearching && <span className="searching-spinner" />}
+            <div className="cabinet-search-box" ref={searchBoxRef}>
+              <div className="search-input-wrapper">
+                <div className="search-input-row">
+                  <svg className="search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 19l-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
+                  </svg>
+                  <input
+                    type="text"
+                    className="cabinet-search-input"
+                    placeholder="식약처 등록 상비약 검색 (예: 타이레놀, 게보린, 훼스탈, 베아제, 이부프로펜...)"
+                    value={medSearchText}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setMedSearchText(val);
+                      if (!val.trim()) {
+                        setSearchResults([]);
+                        setIsDropdownOpen(false);
+                      }
+                    }}
+                    onFocus={() => {
+                      if (medSearchText.trim()) setIsDropdownOpen(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (!isDropdownOpen || searchResults.length === 0) return;
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setHighlightIndex((prev) => (prev + 1 < searchResults.length ? prev + 1 : prev));
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setHighlightIndex((prev) => (prev - 1 >= 0 ? prev - 1 : 0));
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const target = searchResults[highlightIndex] || searchResults[0];
+                        if (target) {
+                          handleAddCabinetMed(target);
+                        }
+                      } else if (e.key === 'Escape') {
+                        setIsDropdownOpen(false);
+                      }
+                    }}
+                    autoFocus
+                  />
+                  {isSearching && <span className="searching-spinner" />}
+                </div>
+
+                {/* 검색 자동완성 드롭다운 (식약처 DB 약품 등록) */}
+                {isDropdownOpen && medSearchText.trim() && (
+                  <div className="search-autocomplete-dropdown">
+                    {searchResults.length > 0 ? (
+                      <div className="dropdown-section">
+                        <div className="dropdown-header">식약처 의약품 DB 검색 결과 ({searchResults.length}건) · 클릭 또는 Enter로 바로 등록</div>
+                        <div className="dropdown-med-list">
+                          {searchResults.map((item, idx) => (
+                            <div
+                              key={item.medicationId || item.itemSeq || idx}
+                              className={`dropdown-med-item ${highlightIndex === idx ? 'highlighted' : ''}`}
+                              onClick={() => handleAddCabinetMed(item)}
+                              onMouseEnter={() => setHighlightIndex(idx)}
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <div className="med-info">
+                                <strong className="med-title">{item.itemName}</strong>
+                                {item.entpName && <span className="med-corp">{item.entpName}</span>}
+                              </div>
+                              <div className="med-add-actions">
+                                <span className="med-add-badge badge-cabinet">
+                                  + 상비약 등록
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : !isSearching ? (
+                      <div className="dropdown-empty-hint">
+                        검색된 의약품이 없습니다. 정확한 약품명을 입력해 주세요.
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
               {/* 검색 추천 태그 */}
@@ -924,39 +1018,15 @@ export default function MedicationRegisterPage({ user }) {
                     key={tag}
                     type="button"
                     className="tag-chip"
-                    onClick={() => setMedSearchText(tag)}
+                    onClick={() => {
+                      setMedSearchText(tag);
+                      setIsDropdownOpen(true);
+                    }}
                   >
                     {tag}
                   </button>
                 ))}
               </div>
-
-              {/* 검색 결과 목록 */}
-              {searchResults.length > 0 && (
-                <div className="search-results-container">
-                  <h3 className="results-header">검색 결과 ({searchResults.length}건)</h3>
-                  <div className="results-grid">
-                    {searchResults.map((item, idx) => (
-                      <div key={item.medicationId || item.itemSeq || idx} className="result-card">
-                        <div className="result-info">
-                          <strong className="result-name">{item.itemName}</strong>
-                          <span className="result-corp">{item.entpName || '제조사 미상'}</span>
-                          {item.efficacy && <p className="result-efficacy">{item.efficacy}</p>}
-                        </div>
-                        <div className="result-actions">
-                          <button
-                            type="button"
-                            className="btn-add-cabinet"
-                            onClick={() => handleAddCabinetMed(item)}
-                          >
-                            + 상비약함에 등록
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* 현재 등록된 상비약 목록 */}
