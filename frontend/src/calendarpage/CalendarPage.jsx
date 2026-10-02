@@ -823,8 +823,28 @@ const CalendarPage = (props) => {
         <div className="calendar-right">
           <div>
             <div className="panel-header">
-              <span className="panel-sub">SELECTED DATE</span>
-              <h3>{selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일</h3>
+              <div className="panel-header-top">
+                <span className="panel-sub">SELECTED DATE</span>
+                {(() => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  return selectedDate === todayStr ? (
+                    <span className="panel-today-badge">오늘</span>
+                  ) : null;
+                })()}
+              </div>
+              <div className="panel-header-bottom">
+                <h3>
+                  {selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일
+                  <span className="panel-day-of-week">
+                    ({['일', '월', '화', '수', '목', '금', '토'][new Date(selectedDate + 'T00:00:00').getDay()]})
+                  </span>
+                </h3>
+                {totalCount > 0 && (
+                  <span className={`panel-completion-badge ${takenCount === totalCount ? 'all-done' : ''}`}>
+                    {takenCount} / {totalCount} 완료
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* 메인 페이지와 동일한 아침 / 점심 / 저녁 시간대별 탭 (1줄 균등 세그먼트 UI) */}
@@ -863,14 +883,17 @@ const CalendarPage = (props) => {
                     const isTaken = unit.items.every((i) => Boolean(i.takenAt));
                     const isExpanded = Boolean(expandedPouches[unit.pouchKey]);
                     const currentSlotLabel = unit.slotLabel || getSlotFromTime(unit.time).slotLabel;
-                    const takenCount = unit.items.filter((i) => Boolean(i.takenAt)).length;
+
+                    // 간결하고 또렷한 제목 (별칭 최우선, 없으면 병원명 기반 처방약)
                     const title = unit.nickname
                       ? unit.nickname
-                      : unit.purpose
-                      ? (unit.purpose.length > 25 ? unit.purpose.slice(0, 23) + '…' : unit.purpose)
                       : `${unit.hospitalName || '처방'}약`;
-                    const hospitalDate = `${unit.hospitalName || '의료기관'}${unit.dispensedDate ? ` · ${unit.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제` : ''}`;
-                    const pillsSummary = `${unit.items[0]?.name || '처방약'}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}종 (총 ${unit.items.length}알)` : ' (1알)'}`;
+
+                    // 간결한 서브 텍스트 (예: 서울아산병원 · 아모잘탄 외 3알)
+                    const firstMedFullName = unit.items[0]?.name || '처방약';
+                    const firstMedShort = firstMedFullName.length > 8 ? firstMedFullName.slice(0, 7) + '…' : firstMedFullName;
+                    const summaryLine = `${unit.hospitalName || '의료기관'} · ${firstMedShort}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}알` : ''}`;
+                    const fullTooltip = `${unit.hospitalName || '의료기관'}${unit.dispensedDate ? ` (${unit.dispensedDate.slice(0, 10)} 조제)` : ''}\n${unit.items.map((m) => m.name).join(', ')}`;
 
                     return (
                       <div key={unit.pouchKey} className={`cal-pouch-card ${isTaken ? 'done' : ''}`}>
@@ -886,23 +909,26 @@ const CalendarPage = (props) => {
                           <div className="dose-info">
                             <div className="time-row">
                               <span className="type-dot prescription" />
-                              <span className="cal-slot-badge">{currentSlotLabel}</span>
                               <span className="time">{unit.time}</span>
-                              <span className="cal-pouch-tag">1포 봉지약</span>
+                              <span className="cal-slot-badge">{currentSlotLabel}</span>
+                              <span className="cal-pouch-tag">1포 ({unit.items.length}알)</span>
                             </div>
                             <div className="name-row">
                               <strong
                                 className="name"
+                                title={unit.purpose ? `${title} - ${unit.purpose}` : title}
                                 style={{ textDecoration: isTaken ? 'line-through' : 'none' }}
                               >
-                                [{currentSlotLabel} 1포] {title}
+                                {title}
                               </strong>
-                              <span className="category-tag cat-prescription">처방약</span>
+                              {unit.purpose && (
+                                <span className="cal-pouch-purpose-chip" title={unit.purpose}>
+                                  {unit.purpose.length > 9 ? unit.purpose.slice(0, 8) + '…' : unit.purpose}
+                                </span>
+                              )}
                             </div>
-                            <div className="cal-pouch-meta-sub">
-                              <span className="cal-pouch-hospital">{hospitalDate}</span>
-                              <span className="cal-pouch-sep">·</span>
-                              <span className="cal-pouch-pills">{pillsSummary}</span>
+                            <div className="cal-pouch-meta-sub" title={fullTooltip}>
+                              {summaryLine}
                             </div>
                           </div>
 
@@ -913,7 +939,7 @@ const CalendarPage = (props) => {
                               onClick={(e) => togglePouchExpand(unit.pouchKey, e)}
                               title={isExpanded ? '알약 접기' : '포함된 알약 보기'}
                             >
-                              {isExpanded ? '접기 ▲' : `약 ${unit.items.length}알 ▼`}
+                              {isExpanded ? '접기 ▲' : `${unit.items.length}알 ▼`}
                             </button>
                             <button
                               type="button"
@@ -1005,8 +1031,8 @@ const CalendarPage = (props) => {
                       <div className="dose-info">
                         <div className="time-row">
                           <span className={`type-dot ${unit.type || 'regular'}`} />
-                          <span className="cal-slot-badge">{currentSlotLabel}</span>
                           <span className="time">{unit.time}</span>
+                          <span className="cal-slot-badge">{currentSlotLabel}</span>
                         </div>
                         <div className="name-row">
                           <strong
