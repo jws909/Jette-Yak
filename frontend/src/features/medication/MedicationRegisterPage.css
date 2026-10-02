@@ -519,6 +519,12 @@
   margin: 0;
 }
 
+.rx-nickname-badge {
+  color: #682335;
+  font-weight: 700;
+  margin-right: 4px;
+}
+
 .rx-tag-current {
   font-size: 11px;
   font-weight: 700;

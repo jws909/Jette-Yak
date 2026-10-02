@@ -20,6 +20,11 @@ public class ScheduleDTO {
     private String slot;           // breakfast, lunch, dinner, bedtime
     private String slotLabel;      // 아침, 점심, 저녁, 취침전
 
+    private String hospitalName;
+    private String dispensedDate;
+    private String prescriptionPurpose;
+    private String prescriptionNickname;
+
     public Long getScheduleId() { return scheduleId; }
     public void setScheduleId(Long scheduleId) { this.scheduleId = scheduleId; }
 

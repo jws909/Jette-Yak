@@ -446,6 +446,9 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 if ((p.getDoctorName() == null || p.getDoctorName().isBlank()) && parsedNode.has("doctorName") && !parsedNode.get("doctorName").isNull()) {
                     p.setDoctorName(parsedNode.get("doctorName").asText());
                 }
+                if ((p.getNickname() == null || p.getNickname().isBlank()) && parsedNode.has("nickname") && !parsedNode.get("nickname").isNull()) {
+                    p.setNickname(parsedNode.get("nickname").asText());
+                }
                 if (parsedNode.has("aiGuide") && !parsedNode.get("aiGuide").isNull()) {
                     p.setAiGuide(parsedNode.get("aiGuide"));
                 }
@@ -551,6 +554,9 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         }
         if (prescription.getDoctorName() != null) {
             root.put("doctorName", prescription.getDoctorName().trim());
+        }
+        if (prescription.getNickname() != null) {
+            root.put("nickname", prescription.getNickname().trim());
         }
         prescription.setAiSummaryJson(root.toString());
 

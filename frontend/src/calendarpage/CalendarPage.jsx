@@ -163,6 +163,7 @@ const CalendarPage = (props) => {
   // 메인 홈 등 외부에서 복약 체크 상태 변경 시 캘린더 실시간 동기화
   useEffect(() => {
     const handleIntakeSync = (e) => {
+      if (e?.detail?.origin === 'calendar') return;
       const eventUserId = e?.detail?.userId;
       const eventDate = e?.detail?.date;
       if (String(eventUserId) === String(currentUserId)) {
@@ -332,7 +333,72 @@ const CalendarPage = (props) => {
 
     // 3. 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
     window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-      detail: { userId: currentUserId, date: selectedDate }
+      detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' }
+    }));
+  };
+
+  // 처방약 봉지 펼침/접힘 상태
+  const [expandedPouches, setExpandedPouches] = useState({});
+
+  const togglePouchExpand = (pouchKey, e) => {
+    if (e) e.stopPropagation();
+    setExpandedPouches((prev) => ({
+      ...prev,
+      [pouchKey]: !prev[pouchKey],
+    }));
+  };
+
+  // 처방약 봉지 전체 일괄 복용 체크/해제
+  const togglePouchTaken = async (pouch, e) => {
+    if (e) e.stopPropagation();
+    if (!currentUserId) {
+      alert('로그인 후 복약 체크 기능을 이용할 수 있습니다.');
+      return;
+    }
+    const allTaken = pouch.items.every((i) => Boolean(i.takenAt));
+    const nextTaken = !allTaken;
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const nowIso = nextTaken ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : null;
+    const scheduleIds = pouch.items.map((i) => i.scheduleId).filter(Boolean);
+    const itemIds = new Set(pouch.items.map((i) => i.scheduleId));
+
+    // 1. UI 즉시 낙관적 업데이트
+    setSchedules((prev) =>
+      prev.map((s) =>
+        itemIds.has(s.scheduleId)
+          ? { ...s, takenAt: nowIso }
+          : s
+      )
+    );
+
+    // 2. 서버 DB 반영
+    try {
+      const res = await fetch('/api/calendar/toggle-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduleIds, taken: nextTaken, date: selectedDate }),
+      });
+      if (!res.ok) {
+        await Promise.all(
+          scheduleIds.map((sid) =>
+            fetch(`/api/calendar/${sid}/toggle`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ taken: nextTaken, date: selectedDate }),
+            })
+          )
+        );
+      }
+      fetchDailySchedules(selectedDate);
+      fetchMonthSummary();
+    } catch (err) {
+      console.error("봉지 체크 서버 토글 통신 실패:", err);
+    }
+
+    // 3. 전역 UI 이벤트 발송
+    window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+      detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' }
     }));
   };
 
@@ -595,8 +661,46 @@ const CalendarPage = (props) => {
     { key: 'bedtime', label: '취침전' },
   ];
 
-  const totalCount = schedules.length;
-  const takenCount = schedules.filter((s) => Boolean(s.takenAt)).length;
+  function groupCalendarItemsByPouch(items) {
+    if (!items || items.length === 0) return [];
+    const result = [];
+    const pouchMap = new Map();
+
+    items.forEach((item) => {
+      if (item.prescriptionId) {
+        const slotKey = item.slot || getSlotFromTime(item.time).slot;
+        const key = `${item.prescriptionId}_${slotKey}`;
+        if (!pouchMap.has(key)) {
+          const pouchObj = {
+            isPouch: true,
+            pouchKey: key,
+            prescriptionId: item.prescriptionId,
+            scheduleId: item.scheduleId,
+            slot: slotKey,
+            slotLabel: item.slotLabel || getSlotFromTime(item.time).slotLabel,
+            time: item.time,
+            hospitalName: item.hospitalName || '의료기관',
+            dispensedDate: item.dispensedDate || '',
+            nickname: item.prescriptionNickname,
+            purpose: item.prescriptionPurpose,
+            type: 'prescription',
+            items: [],
+          };
+          pouchMap.set(key, pouchObj);
+          result.push(pouchObj);
+        }
+        pouchMap.get(key).items.push(item);
+      } else {
+        result.push(item);
+      }
+    });
+
+    return result;
+  }
+
+  const allCalendarUnits = groupCalendarItemsByPouch(schedules);
+  const totalCount = allCalendarUnits.length;
+  const takenCount = allCalendarUnits.filter((u) => u.isPouch ? u.items.every((i) => Boolean(i.takenAt)) : Boolean(u.takenAt)).length;
 
   const slotTabs = [
     {
@@ -610,15 +714,16 @@ const CalendarPage = (props) => {
     ...slotKeys
       .map((sk) => {
         const items = schedules.filter((s) => (s.slot || getSlotFromTime(s.time).slot) === sk.key);
-        const tCount = items.filter((s) => Boolean(s.takenAt)).length;
+        const units = groupCalendarItemsByPouch(items);
+        const tCount = units.filter((u) => u.isPouch ? u.items.every((s) => Boolean(s.takenAt)) : Boolean(u.takenAt)).length;
         const firstTime = items[0]?.time || '';
         return {
           key: sk.key,
           label: sk.label,
           timeHint: firstTime,
           taken: tCount,
-          total: items.length,
-          isAllDone: items.length > 0 && tCount === items.length,
+          total: units.length,
+          isAllDone: units.length > 0 && tCount === units.length,
         };
       })
       .filter((tab) => tab.total > 0),
@@ -643,6 +748,8 @@ const CalendarPage = (props) => {
     if (sa !== sb) return sa - sb;
     return (a.time || '').localeCompare(b.time || '');
   });
+
+  const sortedUnits = groupCalendarItemsByPouch(sortedList);
 
   const categoryMap = {
     prescription: { label: '처방약', className: 'cat-prescription' },
@@ -748,36 +855,166 @@ const CalendarPage = (props) => {
             <div className="dose-list">
               {loading ? (
                 <div style={{ color: '#7a7066', padding: '20px 0' }}>일정을 불러오는 중입니다...</div>
-              ) : sortedList.length === 0 ? (
+              ) : sortedUnits.length === 0 ? (
                 <div style={{ color: '#7a7066', padding: '20px 0' }}>복약 일정이 없습니다.</div>
               ) : (
-                sortedList.map((item) => {
-                  const isTaken = !!item.takenAt;
-                  const currentCat = categoryMap[item.type] || { label: '상시약', className: 'cat-regular' };
-                  const currentSlotLabel = item.slotLabel || getSlotFromTime(item.time).slotLabel;
+                sortedUnits.map((unit) => {
+                  if (unit.isPouch) {
+                    const isTaken = unit.items.every((i) => Boolean(i.takenAt));
+                    const isExpanded = Boolean(expandedPouches[unit.pouchKey]);
+                    const currentSlotLabel = unit.slotLabel || getSlotFromTime(unit.time).slotLabel;
+                    const takenCount = unit.items.filter((i) => Boolean(i.takenAt)).length;
+                    const title = unit.nickname
+                      ? unit.nickname
+                      : unit.purpose
+                      ? (unit.purpose.length > 25 ? unit.purpose.slice(0, 23) + '…' : unit.purpose)
+                      : `${unit.hospitalName || '처방'}약`;
+                    const hospitalDate = `${unit.hospitalName || '의료기관'}${unit.dispensedDate ? ` · ${unit.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제` : ''}`;
+                    const pillsSummary = `${unit.items[0]?.name || '처방약'}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}종 (총 ${unit.items.length}알)` : ' (1알)'}`;
+
+                    return (
+                      <div key={unit.pouchKey} className={`cal-pouch-card ${isTaken ? 'done' : ''}`}>
+                        <div className="cal-pouch-main-row" onClick={(e) => togglePouchTaken(unit, e)}>
+                          <input
+                            type="checkbox"
+                            className="check-box"
+                            checked={isTaken}
+                            onChange={(e) => togglePouchTaken(unit, e)}
+                            title={isTaken ? '봉지 복용 취소' : '봉지 전체 복용 완료'}
+                          />
+
+                          <div className="dose-info">
+                            <div className="time-row">
+                              <span className="type-dot prescription" />
+                              <span className="cal-slot-badge">{currentSlotLabel}</span>
+                              <span className="time">{unit.time}</span>
+                              <span className="cal-pouch-tag">1포 봉지약</span>
+                            </div>
+                            <div className="name-row">
+                              <strong
+                                className="name"
+                                style={{ textDecoration: isTaken ? 'line-through' : 'none' }}
+                              >
+                                [{currentSlotLabel} 1포] {title}
+                              </strong>
+                              <span className="category-tag cat-prescription">처방약</span>
+                            </div>
+                            <div className="cal-pouch-meta-sub">
+                              <span className="cal-pouch-hospital">{hospitalDate}</span>
+                              <span className="cal-pouch-sep">·</span>
+                              <span className="cal-pouch-pills">{pillsSummary}</span>
+                            </div>
+                          </div>
+
+                          <div className="dose-item-actions" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className="btn-pouch-expand-cal"
+                              onClick={(e) => togglePouchExpand(unit.pouchKey, e)}
+                              title={isExpanded ? '알약 접기' : '포함된 알약 보기'}
+                            >
+                              {isExpanded ? '접기 ▲' : `약 ${unit.items.length}알 ▼`}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-alarm"
+                              onClick={(e) => openAlarmModal(unit.items[0], e)}
+                              title="알람 시간 설정"
+                            >
+                              <svg
+                                className="bell-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                              </svg>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn-delete-schedule"
+                              onClick={(e) => openDeleteModal(unit.items[0], e)}
+                              title="일정 삭제"
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 펼쳤을 때 알약 목록 */}
+                        {isExpanded && (
+                          <div className="cal-pouch-expanded-list">
+                            <div className="cal-pouch-expanded-title">봉지에 포함된 개별 알약 ({unit.items.length}알)</div>
+                            {unit.items.map((subItem) => {
+                              const subTaken = Boolean(subItem.takenAt);
+                              return (
+                                <div
+                                  key={subItem.scheduleId}
+                                  className={`cal-pouch-sub-item ${subTaken ? 'done' : ''}`}
+                                  onClick={() => toggleTaken(subItem)}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="check-box sub-check"
+                                    checked={subTaken}
+                                    onChange={() => toggleTaken(subItem)}
+                                  />
+                                  <span
+                                    className="cal-pouch-sub-name"
+                                    style={{ textDecoration: subTaken ? 'line-through' : 'none' }}
+                                  >
+                                    {subItem.name}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const isTaken = !!unit.takenAt;
+                  const currentCat = categoryMap[unit.type] || { label: '상시약', className: 'cat-regular' };
+                  const currentSlotLabel = unit.slotLabel || getSlotFromTime(unit.time).slotLabel;
 
                   return (
-                    <div key={item.scheduleId} className={`dose-item ${isTaken ? 'done' : ''}`}>
+                    <div key={unit.scheduleId} className={`dose-item ${isTaken ? 'done' : ''}`}>
                       <input
                         type="checkbox"
                         className="check-box"
                         checked={isTaken}
-                        onChange={() => toggleTaken(item)}
+                        onChange={() => toggleTaken(unit)}
                       />
 
                       <div className="dose-info">
                         <div className="time-row">
-                          <span className={`type-dot ${item.type || 'regular'}`} />
+                          <span className={`type-dot ${unit.type || 'regular'}`} />
                           <span className="cal-slot-badge">{currentSlotLabel}</span>
-                          <span className="time">{item.time}</span>
+                          <span className="time">{unit.time}</span>
                         </div>
                         <div className="name-row">
                           <strong
                             className="name"
-                            title={item.name}
+                            title={unit.name}
                             style={{ textDecoration: isTaken ? 'line-through' : 'none' }}
                           >
-                            {item.name}
+                            {unit.name}
                           </strong>
                           <span className={`category-tag ${currentCat.className}`}>
                             {currentCat.label}
@@ -789,7 +1026,7 @@ const CalendarPage = (props) => {
                         <button
                           type="button"
                           className="btn-alarm"
-                          onClick={(e) => openAlarmModal(item, e)}
+                          onClick={(e) => openAlarmModal(unit, e)}
                           title="알람 시간 설정"
                         >
                           <svg
@@ -809,7 +1046,7 @@ const CalendarPage = (props) => {
                         <button
                           type="button"
                           className="btn-delete-schedule"
-                          onClick={(e) => openDeleteModal(item, e)}
+                          onClick={(e) => openDeleteModal(unit, e)}
                           title="일정 삭제"
                         >
                           <svg
