@@ -5,7 +5,9 @@ import defaultProfileImg from '../../assets/Default_profile.png';
 
 export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [nickname, setNickname] = useState(user?.nickname || user?.name || user?.username || '');
-  const [isEditingNick, setIsEditingNick] = useState(false);
+  const [nicknameDraft, setNicknameDraft] = useState('');
+  const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
+  const [isNicknameSaving, setIsNicknameSaving] = useState(false);
   const [email, setEmail] = useState(user?.email || '');
   const [profileImage, setProfileImage] = useState(user?.profileImageUrl || '');
   const [imgError, setImgError] = useState(false);
@@ -65,11 +67,25 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     return true;
   };
 
-  const handleNicknameSave = async () => {
-    const trimmedNickname = nickname.trim();
-    if (!trimmedNickname) return;
-    setIsEditingNick(false);
-    await updateProfile({ nextNickname: trimmedNickname });
+  const openNicknameModal = () => {
+    setNicknameDraft(nickname);
+    setProfileMessage('');
+    setIsNicknameModalOpen(true);
+  };
+
+  const handleNicknameSave = async (e) => {
+    e.preventDefault();
+    const trimmedNickname = nicknameDraft.trim();
+    if (!trimmedNickname) {
+      setProfileMessage('닉네임을 입력해 주세요.');
+      return;
+    }
+    setIsNicknameSaving(true);
+    const saved = await updateProfile({ nextNickname: trimmedNickname });
+    setIsNicknameSaving(false);
+    if (saved) {
+      setIsNicknameModalOpen(false);
+    }
   };
 
   const handleProfilePhotoChange = async (e) => {
@@ -89,6 +105,21 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [confirmPw, setConfirmPw] = useState('');
   const [pwMessage, setPwMessage] = useState('');
   const [isChangingPw, setIsChangingPw] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+
+  const openPasswordModal = () => {
+    setCurrentPw('');
+    setNewPw('');
+    setConfirmPw('');
+    setPwMessage('');
+    setIsPasswordModalOpen(true);
+  };
+
+  const closePasswordModal = () => {
+    if (isChangingPw) return;
+    setIsPasswordModalOpen(false);
+    setPwMessage('');
+  };
 
   // 알림 환경 설정
   const [pushEnabled, setPushEnabled] = useState(user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0');
@@ -162,7 +193,9 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
         setCurrentPw('');
         setNewPw('');
         setConfirmPw('');
-        setTimeout(() => setPwMessage(''), 3000);
+        setIsPasswordModalOpen(false);
+        setSaveToast(true);
+        setTimeout(() => setSaveToast(false), 3000);
       } else {
         setPwMessage(data.message || '비밀번호 변경에 실패했습니다.');
       }
@@ -380,22 +413,11 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
         <div className="profile-main-meta">
           <span className="meta-kicker">PROFILE</span>
           <div className="meta-name-editor">
-            {isEditingNick ? (
-              <input
-                type="text"
-                className="nickname-input"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                onBlur={handleNicknameSave}
-                autoFocus
-              />
-            ) : (
-              <strong className="nickname-display">{nickname}</strong>
-            )}
+            <strong className="nickname-display">{nickname}</strong>
             <button
               type="button"
               className="nickname-edit-icon"
-              onClick={() => isEditingNick ? handleNicknameSave() : setIsEditingNick(true)}
+              onClick={openNicknameModal}
               title="닉네임 수정"
             >
               ✎
@@ -415,7 +437,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
             <span className="meta-kicker">PASSWORD</span>
             <h2 className="subcard-title">비밀번호 변경</h2>
 
-            <form onSubmit={handlePwChange} className="password-form">
+            <form onSubmit={handlePwChange} className="password-form" hidden>
               <input
                 type="password"
                 placeholder="현재 비밀번호"
@@ -448,6 +470,9 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
                 {isChangingPw ? '변경 중...' : '비밀번호 변경'}
               </button>
             </form>
+            <button type="button" className="action-outline-btn password-modal-open-btn" onClick={openPasswordModal}>
+              비밀번호 변경
+            </button>
           </section>
         </div>
 
@@ -494,15 +519,6 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               </div>
             )}
 
-            <button
-              type="button"
-              className="action-solid-btn"
-              onClick={handleSaveSettings}
-              disabled={isSavingSettings}
-            >
-              {isSavingSettings ? '저장 중...' : '변경 사항 저장'}
-            </button>
-
             <div className="withdraw-row">
               <button
                 type="button"
@@ -516,6 +532,51 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
           </section>
         </div>
       </div>
+
+      {isNicknameModalOpen && (
+        <div className="mypage-modal-backdrop" role="presentation" onMouseDown={() => !isNicknameSaving && setIsNicknameModalOpen(false)}>
+          <section className="mypage-account-modal" role="dialog" aria-modal="true" aria-labelledby="nickname-modal-title" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="account-modal-header">
+              <div><span className="meta-kicker">PROFILE</span><h2 id="nickname-modal-title">닉네임 변경</h2></div>
+              <button type="button" className="account-modal-close" aria-label="닫기" onClick={() => setIsNicknameModalOpen(false)} disabled={isNicknameSaving}>×</button>
+            </div>
+            <form onSubmit={handleNicknameSave} className="password-modal-form">
+              <label htmlFor="nickname-draft">새 닉네임</label>
+              <input id="nickname-draft" type="text" className="styled-input" value={nicknameDraft} onChange={(e) => setNicknameDraft(e.target.value)} minLength="2" maxLength="6" autoFocus />
+              <p className="account-modal-help">2~6자로 입력해 주세요.</p>
+              {profileMessage && <div className="form-feedback error">{profileMessage}</div>}
+              <div className="account-modal-actions">
+                <button type="button" className="account-modal-cancel" onClick={() => setIsNicknameModalOpen(false)} disabled={isNicknameSaving}>취소</button>
+                <button type="submit" className="action-solid-btn" disabled={isNicknameSaving}>{isNicknameSaving ? '저장 중...' : '저장'}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {isPasswordModalOpen && (
+        <div className="mypage-modal-backdrop" role="presentation" onMouseDown={closePasswordModal}>
+          <section className="mypage-account-modal" role="dialog" aria-modal="true" aria-labelledby="password-modal-title" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="account-modal-header">
+              <div><span className="meta-kicker">PASSWORD</span><h2 id="password-modal-title">비밀번호 변경</h2></div>
+              <button type="button" className="account-modal-close" aria-label="닫기" onClick={closePasswordModal} disabled={isChangingPw}>×</button>
+            </div>
+            <form onSubmit={handlePwChange} className="password-modal-form">
+              <label htmlFor="current-password">현재 비밀번호</label>
+              <input id="current-password" type="password" className="styled-input" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} autoComplete="current-password" autoFocus />
+              <label htmlFor="new-password">새 비밀번호</label>
+              <input id="new-password" type="password" className="styled-input" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
+              <label htmlFor="confirm-password">새 비밀번호 확인</label>
+              <input id="confirm-password" type="password" className="styled-input" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} autoComplete="new-password" />
+              {pwMessage && <div className="form-feedback error">{pwMessage}</div>}
+              <div className="account-modal-actions">
+                <button type="button" className="account-modal-cancel" onClick={closePasswordModal} disabled={isChangingPw}>취소</button>
+                <button type="submit" className="action-solid-btn" disabled={isChangingPw}>{isChangingPw ? '변경 중...' : '저장'}</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
