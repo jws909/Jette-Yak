@@ -183,10 +183,30 @@ public class CalendarController {
 	}
 
 	@PostMapping
-	public ResponseEntity<Void> addSchedule(@RequestBody ScheduleAddDTO dto) {
-		boolean success = scheduleService.addSchedule(dto);
-		return success ? ResponseEntity.status(HttpStatus.CREATED).build()
-				: ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+	public ResponseEntity<?> addSchedule(@RequestBody ScheduleAddDTO dto, javax.servlet.http.HttpServletRequest request) {
+		if (dto.getUserId() == null || dto.getUserId() <= 0L) {
+			var session = request.getSession(false);
+			Object sessionVal = session != null ? session.getAttribute("userId") : null;
+			if (sessionVal instanceof Long) {
+				dto.setUserId((Long) sessionVal);
+			} else if (sessionVal instanceof Number) {
+				dto.setUserId(((Number) sessionVal).longValue());
+			}
+		}
+		if (dto.getUserId() == null || dto.getUserId() <= 0L) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "로그인이 필요합니다."));
+		}
+
+		try {
+			boolean success = scheduleService.addSchedule(dto);
+			return success ? ResponseEntity.status(HttpStatus.CREATED).build()
+					: ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "일정 등록 처리에 실패했습니다."));
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+		} catch (Exception e) {
+			org.apache.logging.log4j.LogManager.getLogger(getClass()).error("일정 등록 처리 오류: {}", e.getMessage(), e);
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "서버 오류: " + e.getMessage()));
+		}
 	}
 
 	@PostMapping("/{scheduleId}/delete")

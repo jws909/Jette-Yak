@@ -1439,6 +1439,75 @@
   gap: 12px;
 }
 
+/* 영양제 일정 동시 등록 옵션 */
+.schedule-sync-options {
+  background: #fdfbf7;
+  border: 1px solid #ebdccb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 14px 0 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sync-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #a36800;
+  cursor: pointer;
+}
+
+.sync-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #3f362c;
+}
+
+.days-picker-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 24px;
+}
+
+.days-label {
+  font-size: 12px;
+  color: #7d7265;
+  font-weight: 600;
+}
+
+.day-btn-mini {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #dcd1c1;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a4034;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.day-btn-mini:hover {
+  border-color: #a36800;
+  color: #a36800;
+}
+
+.day-btn-mini.active {
+  background: #a36800;
+  color: #ffffff;
+  border-color: #a36800;
+}
+
 .supplement-submit-btn {
   width: 100%;
   padding: 13px;
