@@ -242,6 +242,7 @@ export default function MedicationRegisterPage({ user }) {
     }
     setEditForm({
       prescriptionId: rx.prescriptionId,
+      nickname: rx.nickname || '',
       hospitalName: rx.hospitalName || '',
       doctorName: rx.doctorName || '',
       dispensedDate: dateStr,
@@ -790,7 +791,10 @@ export default function MedicationRegisterPage({ user }) {
                           <div className="rx-card-top-bar">
                             <div className="rx-hospital-meta">
                               <div className="rx-hospital-header-line">
-                                <h4 className="rx-hospital-name">{rx.hospitalName || '의료기관'}</h4>
+                                <h4 className="rx-hospital-name">
+                                  {rx.nickname && <span className="rx-nickname-badge">[{rx.nickname}] </span>}
+                                  {rx.hospitalName || '의료기관'}
+                                </h4>
                                 {isLatest ? (
                                   <span className="rx-tag-current">현재 복용</span>
                                 ) : (
@@ -1236,6 +1240,15 @@ export default function MedicationRegisterPage({ user }) {
               <div className="edit-form-section">
                 <h4 className="edit-section-title">기본 정보</h4>
                 <div className="edit-fields-grid">
+                  <div className="edit-field-group">
+                    <label>처방전 별칭 (예: 감기약, 비염약)</label>
+                    <input
+                      type="text"
+                      value={editForm.nickname || ''}
+                      onChange={(e) => setEditForm({ ...editForm, nickname: e.target.value })}
+                      placeholder="예: 감기약 (비어있으면 처방 목적 자동 적용)"
+                    />
+                  </div>
                   <div className="edit-field-group">
                     <label>의료기관명 (병원/의원)</label>
                     <input

@@ -153,6 +153,27 @@ public class CalendarController {
 		return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 	}
 
+	@PostMapping("/toggle-batch")
+	public ResponseEntity<Void> toggleTakenBatch(@RequestBody Map<String, Object> body) {
+		Object idsVal = body.get("scheduleIds");
+		Object takenVal = body.get("taken");
+		boolean taken = Boolean.TRUE.equals(takenVal);
+		String date = body.get("date") != null ? String.valueOf(body.get("date")) : null;
+
+		if (idsVal instanceof List<?>) {
+			List<?> list = (List<?>) idsVal;
+			for (Object idObj : list) {
+				try {
+					Long id = Long.valueOf(idObj.toString());
+					scheduleService.toggleTaken(id, taken, date);
+				} catch (Exception ignored) {
+				}
+			}
+			return ResponseEntity.ok().build();
+		}
+		return ResponseEntity.badRequest().build();
+	}
+
 	@PostMapping("/{scheduleId}/alarm")
 	public ResponseEntity<Void> updateAlarm(@PathVariable("scheduleId") Long scheduleId,
 			@RequestParam("newTime") String newTime, @RequestParam("alarmEnabled") boolean alarmEnabled,

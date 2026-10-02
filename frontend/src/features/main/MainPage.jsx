@@ -606,6 +606,9 @@ function buildRoutineItems(prescribedMeds, mealTimes = DEFAULT_MEAL_TIMES) {
         medicationId: med.medicationId || (med.id ? String(med.id).replace(/^rx-/, '') : ''),
         prescriptionId: med.prescriptionId,
         originHospital: med.originHospital,
+        originDispensedDate: med.originDispensedDate,
+        prescriptionNickname: med.prescriptionNickname,
+        prescriptionPurpose: med.prescriptionPurpose,
       });
     });
   });
@@ -620,6 +623,44 @@ function buildRoutineItems(prescribedMeds, mealTimes = DEFAULT_MEAL_TIMES) {
   });
 
   return rxRoutines;
+}
+
+// 처방약 봉지(Pouch) 및 단일 약품(영양제/상비약) 단위로 그룹핑하는 헬퍼 함수
+function groupRoutineItemsByPouch(items) {
+  if (!items || items.length === 0) return [];
+  const result = [];
+  const pouchMap = new Map();
+
+  items.forEach((item) => {
+    // 처방전 ID가 있는 처방약의 경우 같은 prescriptionId + slot 단위로 1개의 봉지로 그룹핑
+    if (item.prescriptionId) {
+      const key = `${item.prescriptionId}_${item.slot || item.time || 'default'}`;
+      if (!pouchMap.has(key)) {
+        const pouchObj = {
+          isPouch: true,
+          pouchKey: key,
+          id: `pouch-${key}`,
+          prescriptionId: item.prescriptionId,
+          slot: item.slot,
+          slotLabel: item.slotLabel,
+          time: item.time,
+          originHospital: item.originHospital || item.hospitalName || '의료기관',
+          dispensedDate: item.originDispensedDate || item.dispensedDate || '',
+          nickname: item.prescriptionNickname,
+          purpose: item.prescriptionPurpose,
+          items: [],
+        };
+        pouchMap.set(key, pouchObj);
+        result.push(pouchObj);
+      }
+      pouchMap.get(key).items.push(item);
+    } else {
+      // 영양제 및 상비약 등은 개별 항목 유지
+      result.push(item);
+    }
+  });
+
+  return result;
 }
 
 export default function MainPage({ user }) {
@@ -765,6 +806,8 @@ export default function MainPage({ user }) {
               originHospital: rx.hospitalName || '의료기관',
               originDispensedDate: rx.dispensedDate || '',
               prescriptionId: rx.prescriptionId,
+              prescriptionNickname: rx.nickname,
+              prescriptionPurpose: rx.aiGuide?.purpose,
             });
           });
         }
@@ -780,6 +823,8 @@ export default function MainPage({ user }) {
           originHospital: rx.hospitalName || '의료기관',
           originDispensedDate: rx.dispensedDate || '',
           prescriptionId: rx.prescriptionId,
+          prescriptionNickname: rx.nickname,
+          prescriptionPurpose: rx.aiGuide?.purpose,
         }));
       }
       return [];
@@ -947,6 +992,7 @@ export default function MainPage({ user }) {
       if (!Array.isArray(schedules)) return;
 
       setRoutineItems((currentItems) => {
+        let hasChanges = false;
         // 1. 기존 루틴 항목에 매칭되는 서버 스케줄 상태 반영
         const updated = currentItems.map((item) => {
           const matchedSchedule = schedules.find((s) => {
@@ -961,12 +1007,25 @@ export default function MainPage({ user }) {
 
           if (matchedSchedule) {
             const scheduleTaken = Boolean(matchedSchedule.takenAt);
-            return {
-              ...item,
-              scheduleId: matchedSchedule.scheduleId,
-              taken: scheduleTaken, // DB 기준 단일 진실 공급원
-              takenAt: matchedSchedule.takenAt || null,
-            };
+            if (
+              item.scheduleId !== matchedSchedule.scheduleId ||
+              item.taken !== scheduleTaken ||
+              item.takenAt !== (matchedSchedule.takenAt || null) ||
+              item.originHospital !== (matchedSchedule.hospitalName || item.originHospital) ||
+              item.originDispensedDate !== (matchedSchedule.dispensedDate || item.originDispensedDate)
+            ) {
+              hasChanges = true;
+              return {
+                ...item,
+                scheduleId: matchedSchedule.scheduleId,
+                taken: scheduleTaken, // DB 기준 단일 진실 공급원
+                takenAt: matchedSchedule.takenAt || null,
+                originHospital: matchedSchedule.hospitalName || item.originHospital,
+                originDispensedDate: matchedSchedule.dispensedDate || item.originDispensedDate,
+                prescriptionNickname: matchedSchedule.prescriptionNickname || item.prescriptionNickname,
+                prescriptionPurpose: matchedSchedule.prescriptionPurpose || item.prescriptionPurpose,
+              };
+            }
           }
           return item;
         });
@@ -985,6 +1044,7 @@ export default function MainPage({ user }) {
         });
 
         if (unmatchedSchedules.length > 0) {
+          hasChanges = true;
           const extraItems = unmatchedSchedules.map((s, idx) => {
             const timeStr = s.time || s.scheduledTime || '09:00';
             let slot = s.slot;
@@ -1011,6 +1071,11 @@ export default function MainPage({ user }) {
               type: s.type === 'supplement' ? '영양제' : s.type === 'regular' ? '상비약' : '일반',
               orderIndex: 100 + idx,
               medicationId: s.medicationId || '',
+              prescriptionId: s.prescriptionId,
+              originHospital: s.hospitalName,
+              originDispensedDate: s.dispensedDate,
+              prescriptionNickname: s.prescriptionNickname,
+              prescriptionPurpose: s.prescriptionPurpose,
             };
           });
           const slotOrder = { breakfast: 1, lunch: 2, dinner: 3, bedtime: 4 };
@@ -1021,7 +1086,8 @@ export default function MainPage({ user }) {
           });
         }
 
-        return updated;
+        // 실질적인 변경점이 없는 경우 기존 배열을 그대로 반환하여 불필요한 깜빡임 렌더링 방지
+        return hasChanges ? updated : currentItems;
       });
     } catch (err) {
       console.warn('스케줄 DB 동기화 실패:', err);
@@ -1039,7 +1105,36 @@ export default function MainPage({ user }) {
     const dateStr = formatDateToHyphen(targetDate);
     if (activeMedsForTargetDate && activeMedsForTargetDate.length > 0) {
       const baseList = buildRoutineItems(activeMedsForTargetDate, mealTimes);
-      setRoutineItems(baseList);
+      // 기존에 체크되어 있던 상태(taken, takenAt, scheduleId)를 보존하여 화면 깜빡임(체크 해제 후 재체크) 원천 차단
+      setRoutineItems((prev) => {
+        if (!prev || prev.length === 0) return baseList;
+        const prevMap = new Map();
+        prev.forEach((p) => {
+          if (p.id) prevMap.set(p.id, p);
+          if (p.scheduleId) prevMap.set(`sid_${p.scheduleId}`, p);
+          if (p.medicationId && p.slot) prevMap.set(`${p.medicationId}_${p.slot}`, p);
+        });
+
+        return baseList.map((item) => {
+          const existing =
+            prevMap.get(item.id) ||
+            (item.scheduleId ? prevMap.get(`sid_${item.scheduleId}`) : null) ||
+            prevMap.get(`${item.medicationId}_${item.slot}`);
+          if (existing) {
+            return {
+              ...item,
+              scheduleId: existing.scheduleId || item.scheduleId,
+              taken: existing.taken ?? false,
+              takenAt: existing.takenAt ?? null,
+              originHospital: existing.originHospital || item.originHospital,
+              originDispensedDate: existing.originDispensedDate || item.originDispensedDate,
+              prescriptionNickname: existing.prescriptionNickname || item.prescriptionNickname,
+              prescriptionPurpose: existing.prescriptionPurpose || item.prescriptionPurpose,
+            };
+          }
+          return item;
+        });
+      });
       syncRoutinesWithServer(dateStr);
     } else {
       setRoutineItems([]);
@@ -1050,11 +1145,20 @@ export default function MainPage({ user }) {
   // 캘린더 및 약등록 등 외부에서 복약 및 처방전 변경 시 메인 홈 실시간 동기화
   useEffect(() => {
     const handleIntakeSync = (e) => {
+      // 1. 메인 홈 화면 자체에서 발생시킨 복약 토글은 재로드 스킵 (깜빡임 방지)
+      if (e?.detail?.origin === 'main') return;
+
       const eventUserId = e?.detail?.userId;
       const eventDate = e?.detail?.date;
+      const isPrescriptionChange = e?.detail?.isPrescriptionChange;
       const curDateStr = formatDateToHyphen(targetDate);
+
       if (String(eventUserId) === String(user?.userId)) {
-        reloadPrescriptionAndRoutine();
+        // 처방전 등록/삭제/수정 등의 구조적 변경일 때만 전체 목록 재조회
+        if (isPrescriptionChange) {
+          reloadPrescriptionAndRoutine();
+        }
+        // 단순 복약 완료/취소 체크는 스케줄만 조용히 갱신
         if (!eventDate || eventDate === curDateStr) {
           syncRoutinesWithServer(curDateStr);
         }
@@ -1150,8 +1254,81 @@ export default function MainPage({ user }) {
 
     // 3. 사이드바 및 캘린더 등 전역 UI에 복약 진척도 즉시 갱신 알림
     window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-      detail: { userId, date: dateStr }
+      detail: { userId, date: dateStr, origin: 'main' }
     }));
+
+    // 4. DB 최신 상태 재조회
+    syncRoutinesWithServer(dateStr);
+  };
+
+  // 처방약 봉지 펼침/접힘 상태
+  const [expandedPouches, setExpandedPouches] = useState({});
+
+  const togglePouchExpand = (pouchKey, e) => {
+    if (e) e.stopPropagation();
+    setExpandedPouches((prev) => ({
+      ...prev,
+      [pouchKey]: !prev[pouchKey],
+    }));
+  };
+
+  // 처방약 봉지 전체 일괄 복용 체크/해제
+  const togglePouch = async (pouch, e) => {
+    if (e) e.stopPropagation();
+    const userId = user?.userId;
+    if (!userId) {
+      alert('로그인 후 복약 체크를 이용하실 수 있습니다.');
+      return;
+    }
+    const dateStr = formatDateToHyphen(targetDate);
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const nowIso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+    const allTaken = pouch.items.every((i) => i.taken);
+    const nextTaken = !allTaken;
+    const pouchItemIds = new Set(pouch.items.map((i) => i.id));
+    const scheduleIds = pouch.items.map((i) => i.scheduleId).filter(Boolean);
+
+    // 1. UI 즉시 낙관적 업데이트
+    setRoutineItems((prev) =>
+      prev.map((item) =>
+        pouchItemIds.has(item.id)
+          ? { ...item, taken: nextTaken, takenAt: nextTaken ? nowIso : null }
+          : item
+      )
+    );
+
+    // 2. 서버 DB 반영
+    if (scheduleIds.length > 0) {
+      try {
+        const res = await fetch('/api/calendar/toggle-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scheduleIds, taken: nextTaken, date: dateStr }),
+        });
+        if (!res.ok) {
+          await Promise.all(
+            scheduleIds.map((sid) =>
+              fetch(`/api/calendar/${sid}/toggle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taken: nextTaken, date: dateStr }),
+              })
+            )
+          );
+        }
+      } catch (err) {
+        console.warn('봉지 복약 서버 동기화 실패:', err);
+      }
+    }
+
+    // 3. 전역 UI 이벤트 발송
+    window.dispatchEvent(
+      new CustomEvent('jette-intake-updated', {
+        detail: { userId, date: dateStr, origin: 'main' },
+      })
+    );
 
     // 4. DB 최신 상태 재조회
     syncRoutinesWithServer(dateStr);
@@ -1159,8 +1336,11 @@ export default function MainPage({ user }) {
 
   // DB에 등록된 활성 복약 루틴 리스트
   const activeRoutineList = routineItems;
-  const takenCount = activeRoutineList.filter((i) => i.taken).length;
-  const totalCount = activeRoutineList.length;
+  const allRoutineUnits = useMemo(() => groupRoutineItemsByPouch(activeRoutineList), [activeRoutineList]);
+  const takenUnitsCount = allRoutineUnits.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length;
+  const totalUnitsCount = allRoutineUnits.length;
+  const takenCount = takenUnitsCount;
+  const totalCount = totalUnitsCount;
 
   // 복약 루틴 시간대 탭 선택 상태 ('all' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime')
   const [selectedRoutineSlot, setSelectedRoutineSlot] = useState(() => {
@@ -1180,12 +1360,14 @@ export default function MainPage({ user }) {
   const groupedSlots = slotMeta
     .map((meta) => {
       const items = activeRoutineList.filter((i) => i.slot === meta.key);
+      const units = groupRoutineItemsByPouch(items);
       const firstTime = items[0]?.time || addMinutes(meta.defaultTime, 30);
       return {
         slot: meta.key,
         label: meta.label,
         time: firstTime,
         items,
+        units,
       };
     })
     .filter((g) => g.items.length > 0);
@@ -1200,27 +1382,27 @@ export default function MainPage({ user }) {
       key: 'all',
       label: '전체',
       timeHint: '',
-      taken: takenCount,
-      total: totalCount,
-      isAllDone: totalCount > 0 && takenCount === totalCount,
+      taken: takenUnitsCount,
+      total: totalUnitsCount,
+      isAllDone: totalUnitsCount > 0 && takenUnitsCount === totalUnitsCount,
     },
     ...groupedSlots.map((g) => {
-      const tCount = g.items.filter((i) => i.taken).length;
+      const tCount = g.units.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length;
       return {
         key: g.slot,
         label: g.label,
         timeHint: g.time,
         taken: tCount,
-        total: g.items.length,
-        isAllDone: g.items.length > 0 && tCount === g.items.length,
+        total: g.units.length,
+        isAllDone: g.units.length > 0 && tCount === g.units.length,
       };
     }),
   ];
 
-  const displayedRoutineList =
+  const displayedRoutineUnits =
     activeSlotKey === 'all'
-      ? activeRoutineList
-      : activeRoutineList.filter((i) => i.slot === activeSlotKey);
+      ? allRoutineUnits
+      : groupRoutineItemsByPouch(activeRoutineList.filter((i) => i.slot === activeSlotKey));
 
   // 메인 검색 핸들러
   useEffect(() => {
@@ -1269,7 +1451,157 @@ export default function MainPage({ user }) {
     setIsSearching(false);
   };
 
+  const renderRoutineEntry = (entry) => {
+    if (entry.isPouch) {
+      const allTaken = entry.items.every((i) => i.taken);
+      const isExpanded = Boolean(expandedPouches[entry.pouchKey]);
+      const takenCount = entry.items.filter((i) => i.taken).length;
+      const latestTaken = entry.items.find((i) => i.taken && i.takenAt)?.takenAt;
 
+      const pouchTitle = entry.nickname
+        ? entry.nickname
+        : entry.purpose
+        ? (entry.purpose.length > 25 ? entry.purpose.slice(0, 23) + '…' : entry.purpose)
+        : `${entry.originHospital || '처방'}약`;
+
+      const hospitalDateText = `${entry.originHospital || '의료기관'}${entry.dispensedDate ? ` · ${entry.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제` : ''}`;
+      const pillsSummary = `${entry.items[0]?.name || '처방약'}${entry.items.length > 1 ? ` 외 ${entry.items.length - 1}종 (총 ${entry.items.length}알)` : ' (1알)'}`;
+
+      return (
+        <div
+          key={entry.pouchKey}
+          className={`routine-pouch-card ${allTaken ? 'is-taken' : ''}`}
+        >
+          <div
+            className="routine-pouch-header"
+            onClick={(e) => togglePouch(entry, e)}
+          >
+            <div className="routine-item-left">
+              <div
+                className={`custom-checkbox ${allTaken ? 'checked' : ''}`}
+                onClick={(e) => togglePouch(entry, e)}
+                title={allTaken ? '복용 취소' : '봉지 전체 복용 완료'}
+              >
+                {allTaken && (
+                  <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
+                  </svg>
+                )}
+              </div>
+
+              <div className="pouch-icon-badge" title="약봉지 (1포 처방약)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+
+              <div className="pouch-info-col">
+                <div className="pouch-title-row">
+                  <span className="pouch-name">
+                    [{entry.slotLabel || '정시'} 1포] {pouchTitle}
+                  </span>
+                  <span className={`pouch-count-badge ${allTaken ? 'done' : ''}`}>
+                    {allTaken ? '전체 복용 완료' : `${takenCount}/${entry.items.length}알`}
+                  </span>
+                </div>
+                <div className="pouch-meta-row">
+                  <span className="pouch-hospital-date">{hospitalDateText}</span>
+                  <span className="pouch-summary-text">{pillsSummary}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="routine-item-right" onClick={(e) => e.stopPropagation()}>
+              {allTaken && latestTaken && (
+                <span className="routine-taken-time">
+                  {formatTimeOnly(latestTaken)} 복용
+                </span>
+              )}
+              <button
+                type="button"
+                className="btn-pouch-toggle"
+                onClick={(e) => togglePouchExpand(entry.pouchKey, e)}
+                title={isExpanded ? '알약 목록 접기' : '포함된 알약 보기'}
+              >
+                {isExpanded ? '접기 ▲' : `약 목록 (${entry.items.length}알) ▼`}
+              </button>
+            </div>
+          </div>
+
+          {/* 펼침 영역: 개별 알약 목록 */}
+          {isExpanded && (
+            <div className="pouch-expanded-items">
+              <div className="pouch-expanded-header">
+                <span>봉지에 포함된 개별 알약 목록 (개별 복용 체크 가능)</span>
+              </div>
+              {entry.items.map((subItem) => (
+                <div
+                  key={subItem.id}
+                  className={`pouch-subitem-row ${subItem.taken ? 'is-taken' : ''}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleRoutine(subItem.id);
+                  }}
+                >
+                  <div className="routine-item-left">
+                    <div className={`custom-checkbox sub-checkbox ${subItem.taken ? 'checked' : ''}`}>
+                      {subItem.taken && (
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="pouch-subitem-name">{subItem.name}</span>
+                  </div>
+                  <div className="routine-item-right">
+                    {subItem.taken && subItem.takenAt && (
+                      <span className="routine-taken-time">
+                        {formatTimeOnly(subItem.takenAt)}
+                      </span>
+                    )}
+                    <span className="routine-dot" style={{ backgroundColor: subItem.dotColor }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // 단일 항목 (영양제, 상비약 등)
+    return (
+      <div
+        key={entry.id}
+        className={`routine-item-row ${entry.taken ? 'is-taken' : ''}`}
+        onClick={() => toggleRoutine(entry.id)}
+      >
+        <div className="routine-item-left">
+          <div className={`custom-checkbox ${entry.taken ? 'checked' : ''}`}>
+            {entry.taken && (
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
+              </svg>
+            )}
+          </div>
+          <span className="routine-name">{entry.name}</span>
+          {entry.type && <span className="routine-type-chip">{entry.type}</span>}
+          {selectedRxId === 'all' && entry.originHospital && (
+            <span className="routine-origin-hospital-chip">{entry.originHospital}</span>
+          )}
+        </div>
+
+        <div className="routine-item-right">
+          {entry.taken && entry.takenAt && (
+            <span className="routine-taken-time">
+              {formatTimeOnly(entry.takenAt)} 복용
+            </span>
+          )}
+          <span className="routine-dot" style={{ backgroundColor: entry.dotColor }} />
+        </div>
+      </div>
+    );
+  };
 
   const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
@@ -1546,8 +1878,8 @@ export default function MainPage({ user }) {
             /* 전체 보기 모드: 시간대별 섹션으로 그룹화 표시 */
             <div className="routine-grouped-container">
               {groupedSlots.map((group) => {
-                const groupTaken = group.items.filter((i) => i.taken).length;
-                const groupAllDone = group.items.length > 0 && groupTaken === group.items.length;
+                const groupTaken = group.units.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length;
+                const groupAllDone = group.units.length > 0 && groupTaken === group.units.length;
                 return (
                   <div key={group.slot} className="routine-slot-section">
                     <div className="slot-section-header">
@@ -1556,41 +1888,12 @@ export default function MainPage({ user }) {
                         <span className="slot-section-time">{group.time} 복용 예정</span>
                       </div>
                       <span className={`slot-section-counter ${groupAllDone ? 'done' : ''}`}>
-                        {groupAllDone ? '복용 완료' : `${groupTaken} / ${group.items.length} 완료`}
+                        {groupAllDone ? '복용 완료' : `${groupTaken} / ${group.units.length} 완료`}
                       </span>
                     </div>
 
                     <div className="slot-section-items">
-                      {group.items.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
-                          onClick={() => toggleRoutine(item.id)}
-                        >
-                          <div className="routine-item-left">
-                            <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
-                              {item.taken && (
-                                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="routine-name">{item.name}</span>
-                            {selectedRxId === 'all' && item.originHospital && (
-                              <span className="routine-origin-hospital-chip">{item.originHospital}</span>
-                            )}
-                          </div>
-
-                          <div className="routine-item-right">
-                            {item.taken && item.takenAt && (
-                              <span className="routine-taken-time">
-                                {formatTimeOnly(item.takenAt)} 복용
-                              </span>
-                            )}
-                            <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
-                          </div>
-                        </div>
-                      ))}
+                      {group.units.map((entry) => renderRoutineEntry(entry))}
                     </div>
                   </div>
                 );
@@ -1604,40 +1907,11 @@ export default function MainPage({ user }) {
                   {routineSlotTabs.find((t) => t.key === activeSlotKey)?.label} 복약 리스트
                 </span>
                 <span className="slot-single-count">
-                  {displayedRoutineList.filter((i) => i.taken).length} / {displayedRoutineList.length} 완료
+                  {displayedRoutineUnits.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length} / {displayedRoutineUnits.length} 완료
                 </span>
               </div>
 
-              {displayedRoutineList.map((item) => (
-                <div
-                  key={item.id}
-                  className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
-                  onClick={() => toggleRoutine(item.id)}
-                >
-                  <div className="routine-item-left">
-                    <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
-                      {item.taken && (
-                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="routine-name">{item.name}</span>
-                    {selectedRxId === 'all' && item.originHospital && (
-                      <span className="routine-origin-hospital-chip">{item.originHospital}</span>
-                    )}
-                  </div>
-
-                  <div className="routine-item-right">
-                    {item.taken && item.takenAt && (
-                      <span className="routine-taken-time">
-                        {formatTimeOnly(item.takenAt)} 복용
-                      </span>
-                    )}
-                    <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
-                  </div>
-                </div>
-              ))}
+              {displayedRoutineUnits.map((entry) => renderRoutineEntry(entry))}
             </div>
           )}
         </div>

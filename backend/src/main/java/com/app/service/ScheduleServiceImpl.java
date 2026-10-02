@@ -21,8 +21,33 @@ import com.app.prescription.dao.PrescriptionDAO;
 import com.app.prescription.dto.PrescriptionDTO;
 import com.app.prescription.dto.PrescriptionItemDTO;
 
+import java.text.SimpleDateFormat;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 @Service
 public class ScheduleServiceImpl implements ScheduleService {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private void parsePrescriptionMeta(PrescriptionDTO p) {
+        if (p == null) return;
+        if (p.getAiSummaryJson() != null && !p.getAiSummaryJson().isBlank()) {
+            try {
+                JsonNode parsedNode = objectMapper.readTree(p.getAiSummaryJson());
+                if ((p.getHospitalName() == null || p.getHospitalName().isBlank()) && parsedNode.has("hospitalName") && !parsedNode.get("hospitalName").isNull()) {
+                    p.setHospitalName(parsedNode.get("hospitalName").asText());
+                }
+                if ((p.getNickname() == null || p.getNickname().isBlank()) && parsedNode.has("nickname") && !parsedNode.get("nickname").isNull()) {
+                    p.setNickname(parsedNode.get("nickname").asText());
+                }
+                if (parsedNode.has("aiGuide") && !parsedNode.get("aiGuide").isNull()) {
+                    p.setAiGuide(parsedNode.get("aiGuide"));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     @Autowired
     private ScheduleDAO scheduleDAO;
@@ -223,16 +248,38 @@ public class ScheduleServiceImpl implements ScheduleService {
             targetLocalDate = LocalDate.now();
         }
 
+        List<PrescriptionDTO> rxList = prescriptionDAO.getPrescriptionListByUserId(userId);
+        if (rxList != null) {
+            for (PrescriptionDTO p : rxList) {
+                parsePrescriptionMeta(p);
+            }
+        }
+
         List<ScheduleDTO> combinedList = new ArrayList<>();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         for (ScheduleDTO ps : physicalList) {
             if (Boolean.TRUE.equals(ps.getIsCancelled())) {
                 continue;
             }
             assignSlotByTime(ps);
+            if (ps.getPrescriptionId() != null && rxList != null) {
+                for (PrescriptionDTO p : rxList) {
+                    if (p.getPrescriptionId() != null && p.getPrescriptionId().equals(ps.getPrescriptionId())) {
+                        ps.setHospitalName(p.getHospitalName());
+                        if (p.getDispensedDate() != null) {
+                            ps.setDispensedDate(sdf.format(p.getDispensedDate()));
+                        }
+                        ps.setPrescriptionNickname(p.getNickname());
+                        if (p.getAiGuide() != null && p.getAiGuide().has("purpose") && !p.getAiGuide().get("purpose").isNull()) {
+                            ps.setPrescriptionPurpose(p.getAiGuide().get("purpose").asText());
+                        }
+                        break;
+                    }
+                }
+            }
             combinedList.add(ps);
         }
 
-        List<PrescriptionDTO> rxList = prescriptionDAO.getPrescriptionListByUserId(userId);
         if (rxList != null) {
             for (PrescriptionDTO p : rxList) {
                 if (p.getDispensedDate() == null) continue;
@@ -276,6 +323,14 @@ public class ScheduleServiceImpl implements ScheduleService {
                                 dto.setAlarmEnabled(true);
                                 dto.setSlot(s.slot);
                                 dto.setSlotLabel(s.slotLabel);
+                                dto.setHospitalName(p.getHospitalName());
+                                if (p.getDispensedDate() != null) {
+                                    dto.setDispensedDate(sdf.format(p.getDispensedDate()));
+                                }
+                                dto.setPrescriptionNickname(p.getNickname());
+                                if (p.getAiGuide() != null && p.getAiGuide().has("purpose") && !p.getAiGuide().get("purpose").isNull()) {
+                                    dto.setPrescriptionPurpose(p.getAiGuide().get("purpose").asText());
+                                }
                                 combinedList.add(dto);
                             }
                         }

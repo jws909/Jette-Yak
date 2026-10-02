@@ -1475,3 +1475,247 @@ input:checked + .slider:before { transform: translateX(18px); }
     padding: 10px;
   }
 }
+
+/* ==========================================================================
+   캘린더 처방약 봉지(Pouch) 카드 & 상세 스타일
+   ========================================================================== */
+.cal-pouch-card {
+  border-left: 4px solid #8b3e4b !important;
+  background: #ffffff;
+  border: 1px solid #ebd0d5;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.04);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-pouch-card:hover {
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.08);
+  border-color: #d6abb4;
+}
+
+.cal-pouch-card.is-completed {
+  border-left-color: #2e7d32 !important;
+  background: #fafcfb;
+  border-color: #cce3d2;
+  opacity: 0.92;
+}
+
+.cal-pouch-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+}
+
+.cal-pouch-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.cal-pouch-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cal-pouch-tag {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1.5px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+
+.cal-pouch-card.is-completed .cal-pouch-tag {
+  background: #2e7d32;
+}
+
+.cal-pouch-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #2b2523;
+  letter-spacing: -0.2px;
+}
+
+.cal-pouch-count {
+  font-size: 11px;
+  color: #8c8278;
+  font-weight: 600;
+}
+
+.cal-pouch-meta-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.cal-pouch-hospital {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #7d6b67;
+}
+
+.cal-pouch-pills {
+  font-size: 11px;
+  color: #9c9289;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-pouch-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-cal-pouch-batch {
+  background: #8b3e4b;
+  color: #ffffff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-cal-pouch-batch:hover {
+  background: #732f3c;
+  transform: translateY(-1px);
+}
+
+.btn-cal-pouch-batch.completed {
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+}
+
+.btn-cal-pouch-batch.completed:hover {
+  background: #c8e6c9;
+  transform: none;
+}
+
+.btn-pouch-expand-cal {
+  background: #fbf9f5;
+  border: 1.5px solid #ded6c9;
+  color: #6b6059;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  transition: all 0.15s ease;
+}
+
+.btn-pouch-expand-cal:hover {
+  background: #f4eee4;
+  border-color: #baa996;
+  color: #2b2523;
+}
+
+/* 캘린더 아코디언 펼침 목록 */
+.cal-pouch-expanded-list {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #fbf9f6;
+  border-radius: 6px;
+  border: 1px dashed #ded6c9;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: calPouchFadeIn 0.2s ease-out;
+}
+
+@keyframes calPouchFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cal-pouch-sub-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 8px;
+  background: #ffffff;
+  border: 1px solid #eee8df;
+  border-radius: 4px;
+}
+
+.cal-pouch-sub-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cal-pouch-sub-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8b3e4b;
+  flex-shrink: 0;
+}
+
+.cal-pouch-card.is-completed .cal-pouch-sub-dot {
+  background: #2e7d32;
+}
+
+.cal-pouch-sub-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b332e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-pouch-sub-dosage {
+  font-size: 10.5px;
+  color: #8c8278;
+}
+
+.btn-cal-sub-check {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  border: 1px solid #d4c6b5;
+  background: #ffffff;
+  color: #6b6059;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-cal-sub-check:hover {
+  background: #f4eee4;
+}
+
+.btn-cal-sub-check.checked {
+  background: #2e7d32;
+  color: #ffffff;
+  border-color: #2e7d32;
+}
