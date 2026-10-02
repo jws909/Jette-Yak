@@ -62,6 +62,15 @@
           AND ROWNUM = 1
     </select>
 
+    <!-- 4-1. 캐비닛 ID로 의약품 ID 역조회 -->
+    <select id="selectMedicationIdByCabinetId" parameterType="map" resultType="string">
+        SELECT medication_id
+        FROM cabinet_medications
+        WHERE cabinet_id = #{cabinetId}
+          AND user_id = #{userId}
+          AND ROWNUM = 1
+    </select>
+
     <!-- 5. 캐비닛(상시약) 등록 -->
     <insert id="insertCabinetMedication" parameterType="map">
         INSERT INTO cabinet_medications (

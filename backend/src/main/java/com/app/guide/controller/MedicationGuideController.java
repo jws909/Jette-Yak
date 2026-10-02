@@ -29,15 +29,31 @@ public class MedicationGuideController {
     // 로그인 성공 시 서버에서 검증한 users.user_id를 Long으로 세션에 저장한다.
     // 요청 파라미터나 demo-token을 사용자 ID로 사용하지 않는다.
     @GetMapping(value="/api/guides/my-medications", produces="application/json")
-    public ResponseEntity<?> registered(javax.servlet.http.HttpServletRequest request) {
-        var session = request.getSession(false);
-        Object value = session == null ? null : session.getAttribute("userId");
-        if (!(value instanceof Long) || ((Long) value) <= 0)
+    public ResponseEntity<?> registered(
+            @RequestParam(value = "userId", required = false) Long userId,
+            javax.servlet.http.HttpServletRequest request) {
+        Long targetId = userId;
+        if (targetId == null || targetId <= 0L) {
+            var session = request.getSession(false);
+            Object value = session == null ? null : session.getAttribute("userId");
+            if (value instanceof Long && (Long) value > 0) {
+                targetId = (Long) value;
+            } else if (value instanceof Number && ((Number) value).longValue() > 0) {
+                targetId = ((Number) value).longValue();
+            }
+        }
+        if (targetId == null || targetId <= 0L) {
+            String param = request.getParameter("userId");
+            if (param != null && !param.isBlank()) {
+                try { targetId = Long.parseLong(param.trim()); } catch (Exception ignored) {}
+            }
+        }
+        if (targetId == null || targetId <= 0L)
             return ResponseEntity.status(401).header("Cache-Control", "no-store")
                 .body(Map.of("error", "로그인이 필요합니다."));
         try {
             return ResponseEntity.ok().header("Cache-Control", "no-store")
-                .body(Map.of("items", dao.findRegistered((Long) value)));
+                .body(Map.of("items", dao.findRegistered(targetId)));
         } catch (DataAccessException e) {
             LogManager.getLogger(getClass()).error("등록 약 목록 DB 조회 실패", e);
             return ResponseEntity.status(500).header("Cache-Control", "no-store")

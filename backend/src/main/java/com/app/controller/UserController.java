@@ -309,10 +309,12 @@ public class UserController {
     @GetMapping(value = "/meal-times", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> getMealTimes(
             @RequestParam(value = "userId", required = false) Long userId,
-            @RequestParam(value = "username", required = false) String username) {
+            @RequestParam(value = "username", required = false) String username,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
         User user = null;
-        if (userId != null && userId > 0L) {
-            user = userMapper.findById(userId);
+        if (resolvedUserId != null && resolvedUserId > 0L) {
+            user = userMapper.findById(resolvedUserId);
         } else if (username != null && !username.isBlank()) {
             user = userMapper.findByLoginId(username);
         }
@@ -324,8 +326,8 @@ public class UserController {
 
         Map<String, Object> res = new HashMap<>();
         res.put("success", true);
-        res.put("userId", user != null ? user.getUserId() : null);
-        res.put("username", user != null ? user.getLoginId() : null);
+        res.put("userId", user != null ? user.getUserId() : (resolvedUserId != null ? resolvedUserId : null));
+        res.put("username", user != null ? user.getLoginId() : username);
         res.put("breakfastTime", bTime);
         res.put("lunchTime", lTime);
         res.put("dinnerTime", dTime);
@@ -338,28 +340,42 @@ public class UserController {
      * POST /api/users/meal-times
      */
     @PostMapping(value = "/meal-times", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> updateMealTimes(@RequestBody Map<String, Object> body) {
-        Long userId = body.get("userId") != null ? Long.valueOf(body.get("userId").toString()) : null;
-        String username = body.get("username") != null ? body.get("username").toString() : null;
+    public ResponseEntity<?> updateMealTimes(
+            @RequestBody Map<String, Object> body,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+        Long userId = null;
+        if (body.get("userId") != null) {
+            try {
+                String s = body.get("userId").toString().trim();
+                if (!s.isEmpty() && !"null".equalsIgnoreCase(s) && !"undefined".equalsIgnoreCase(s)) {
+                    userId = Long.valueOf(s);
+                }
+            } catch (NumberFormatException ignored) {}
+        }
+        String username = body.get("username") != null ? body.get("username").toString().trim() : null;
+        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+
+        if ((resolvedUserId == null || resolvedUserId <= 0L) && (username == null || username.isBlank())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
+        }
+
         String bTime = body.get("breakfastTime") != null ? body.get("breakfastTime").toString().trim() : "07:30";
         String lTime = body.get("lunchTime") != null ? body.get("lunchTime").toString().trim() : "12:00";
         String dTime = body.get("dinnerTime") != null ? body.get("dinnerTime").toString().trim() : "18:30";
         String bedTime = body.get("bedtime") != null ? body.get("bedtime").toString().trim() : "22:00";
-
-        if ((userId == null || userId <= 0L) && (username == null || username.isBlank())) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
-        }
 
         String timeRegex = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$";
         if (!bTime.matches(timeRegex) || !lTime.matches(timeRegex) || !dTime.matches(timeRegex) || !bedTime.matches(timeRegex)) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "시간 형식이 올바르지 않습니다. (예: 07:30)"));
         }
 
-        userMapper.updateMealTimes(userId, username, bTime, lTime, dTime, bedTime);
+        userMapper.updateMealTimes(resolvedUserId, username, bTime, lTime, dTime, bedTime);
 
         Map<String, Object> res = new HashMap<>();
         res.put("success", true);
         res.put("message", "식사 기준 시간이 성공적으로 저장되었습니다.");
+        res.put("userId", resolvedUserId);
+        res.put("username", username);
         res.put("breakfastTime", bTime);
         res.put("lunchTime", lTime);
         res.put("dinnerTime", dTime);
