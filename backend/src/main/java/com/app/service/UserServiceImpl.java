@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -79,7 +80,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(request.getEmail());
         user.setNickname(request.getNickname());
         user.setSex(request.getSex());
-        user.setBirthdate(LocalDate.parse(request.getBirthdate())); // "yyyy-MM-dd"
+        user.setBirthdate(validateBirthdate(request.getBirthdate()));
         user.setIsPregnant(request.getIsPregnant() != null ? request.getIsPregnant() : 0);
         user.setTel(request.getTel());
 
@@ -103,6 +104,22 @@ public class UserServiceImpl implements UserService {
     private void validateNicknameFormat(String nickname) {
         if (nickname == null || nickname.length() < NICKNAME_MIN_LENGTH || nickname.length() > NICKNAME_MAX_LENGTH) {
             throw new IllegalArgumentException("닉네임은 " + NICKNAME_MIN_LENGTH + "~" + NICKNAME_MAX_LENGTH + "자로 입력해 주세요.");
+        }
+    }
+
+    private LocalDate validateBirthdate(String birthdate) {
+        if (birthdate == null || birthdate.isBlank()) {
+            throw new IllegalArgumentException("생년월일을 입력해 주세요.");
+        }
+
+        try {
+            LocalDate parsedBirthdate = LocalDate.parse(birthdate);
+            if (parsedBirthdate.isAfter(LocalDate.now())) {
+                throw new IllegalArgumentException("생년월일은 오늘 이후 날짜로 입력할 수 없습니다.");
+            }
+            return parsedBirthdate;
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException("생년월일 형식이 올바르지 않습니다.");
         }
     }
 

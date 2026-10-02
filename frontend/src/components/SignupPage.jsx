@@ -7,6 +7,11 @@ const SUPPLEMENTS = ["오메가-3", "유산균", "비타민D", "마그네슘", "
 // 형식 검증 규칙
 const USERNAME_REGEX = /^[A-Za-z0-9]{6,20}$/; // 영문, 숫자 6~20자
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TODAY = (() => {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+})();
 
 function getFormatError(field, value) {
   if (field === "username") {
@@ -300,6 +305,10 @@ export default function SignupPage() {
       setFormError("닉네임은 6자 이내로 입력해 주세요.");
       return false;
     }
+    if (form.birthdate > TODAY) {
+      setFormError("생년월일은 오늘 이후 날짜로 선택할 수 없습니다.");
+      return false;
+    }
     if (!emailVerified) {
       setFormError("이메일 인증을 완료해 주세요.");
       return false;
@@ -556,6 +565,7 @@ export default function SignupPage() {
               <input
                 id="birthdate"
                 type="date"
+                max={TODAY}
                 value={form.birthdate}
                 onChange={(e) => updateField("birthdate", e.target.value)}
               />
