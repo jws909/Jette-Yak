@@ -122,6 +122,20 @@ export default function Sidebar({
               <span className="nav-item-text">메인 홈</span>
             </NavLink>
 
+            {/* 약 등록 (신규 등록 허브) */}
+            <NavLink
+              to="/medication/register"
+              className={({ isActive }) => `sidebar-nav-item ${isActive ? 'active' : ''}`}
+              onClick={handleLinkClick}
+            >
+              <span className="nav-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                </svg>
+              </span>
+              <span className="nav-item-text">약 등록</span>
+            </NavLink>
+
             {/* My Page (마이페이지) */}
             <NavLink
               to="/mypage"

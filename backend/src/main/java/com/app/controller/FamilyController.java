@@ -5,6 +5,7 @@ import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,22 +34,31 @@ public class FamilyController {
 	/**
 	 * 가족 구성원 삭제 (내보내기 / 직접 등록 프로필 삭제)
 	 */
-	@PostMapping("/members/{targetUserId}/remove")
+	@PostMapping(value = "/members/{targetUserId}/remove", produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<Map<String, Object>> removeFamilyMember(
 			@PathVariable("targetUserId") Long targetUserId,
+			@RequestBody(required = false) Map<String, Object> req,
+			@RequestParam(value = "userId", required = false) Long paramUserId,
 			javax.servlet.http.HttpServletRequest request) {
 
 		Map<String, Object> response = new HashMap<>();
 
-		// 1. 요청자 세션 검증
-		var session = request.getSession(false);
-		Long currentUserId = null;
-		if (session != null) {
-			Object sessionVal = session.getAttribute("userId");
-			if (sessionVal instanceof Long) {
-				currentUserId = (Long) sessionVal;
-			} else if (sessionVal instanceof Number) {
-				currentUserId = ((Number) sessionVal).longValue();
+		// 1. 요청자 세션 또는 파라미터 검증
+		Long currentUserId = paramUserId;
+		if (currentUserId == null && req != null && req.get("userId") != null) {
+			try {
+				currentUserId = Long.valueOf(req.get("userId").toString().trim());
+			} catch (NumberFormatException ignored) {}
+		}
+		if (currentUserId == null && request != null) {
+			var session = request.getSession(false);
+			if (session != null) {
+				Object sessionVal = session.getAttribute("userId");
+				if (sessionVal instanceof Long) {
+					currentUserId = (Long) sessionVal;
+				} else if (sessionVal instanceof Number) {
+					currentUserId = ((Number) sessionVal).longValue();
+				}
 			}
 		}
 
@@ -139,6 +149,155 @@ public class FamilyController {
 		}
 	}
 	/**
+	 * 0. 가족 그룹 생성 API
+	 * POST /api/family/create
+	 */
+	@PostMapping(value = "/create", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<?> createFamily(@RequestBody(required = false) Map<String, Object> req, javax.servlet.http.HttpServletRequest httpRequest) {
+		Long userId = null;
+		if (req != null && req.get("userId") != null) {
+			try {
+				userId = Long.valueOf(req.get("userId").toString().trim());
+			} catch (NumberFormatException ignored) {}
+		}
+		if (userId == null && httpRequest != null) {
+			var session = httpRequest.getSession(false);
+			if (session != null && session.getAttribute("userId") instanceof Number) {
+				userId = ((Number) session.getAttribute("userId")).longValue();
+			}
+		}
+
+		if (userId == null || userId <= 0L) {
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
+		}
+
+		String familyName = req.get("familyName") != null ? req.get("familyName").toString().trim() : "";
+
+		Connection conn = null;
+		try {
+			conn = dataSource.getConnection();
+			conn.setAutoCommit(false);
+
+			// 1) 이미 FAMILY_ID가 존재하는지 확인
+			Long existingFamilyId = null;
+			String checkSql = "SELECT FAMILY_ID, NICKNAME, LOGIN_ID FROM USERS WHERE USER_ID = ?";
+			String userDisplayName = "";
+			try (PreparedStatement pstmt = conn.prepareStatement(checkSql)) {
+				pstmt.setLong(1, userId);
+				try (ResultSet rs = pstmt.executeQuery()) {
+					if (rs.next()) {
+						existingFamilyId = rs.getLong("FAMILY_ID");
+						if (rs.wasNull()) existingFamilyId = null;
+						userDisplayName = rs.getString("NICKNAME");
+						if (userDisplayName == null || userDisplayName.isBlank()) {
+							userDisplayName = rs.getString("LOGIN_ID");
+						}
+					} else {
+						return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("success", false, "message", "사용자를 찾을 수 없습니다."));
+					}
+				}
+			}
+
+			if (existingFamilyId != null && existingFamilyId > 0L) {
+				return ResponseEntity.ok(Map.of(
+						"success", true,
+						"familyId", existingFamilyId,
+						"message", "이미 가족 그룹에 소속되어 있습니다."
+				));
+			}
+
+			if (familyName.isEmpty()) {
+				familyName = (userDisplayName != null && !userDisplayName.isBlank() ? userDisplayName : "우리") + " 가족";
+			}
+
+			// 2) FAMILIES 테이블에 신규 생성 및 FAMILY_ID 채번
+			Long newFamilyId = null;
+			try {
+				String insertFamSql = "INSERT INTO FAMILIES (FAMILY_NAME) VALUES (?)";
+				try (PreparedStatement pstmt = conn.prepareStatement(insertFamSql, new String[] { "FAMILY_ID" })) {
+					pstmt.setString(1, familyName);
+					pstmt.executeUpdate();
+					try (ResultSet rs = pstmt.getGeneratedKeys()) {
+						if (rs.next()) {
+							newFamilyId = rs.getLong(1);
+						}
+					}
+				}
+			} catch (Exception ex) {
+				// 만약 SEQUENCE(FAMILY_SEQ) 방식인 경우 폴백
+				try {
+					String seqSql = "SELECT FAMILY_SEQ.NEXTVAL FROM DUAL";
+					try (PreparedStatement ps = conn.prepareStatement(seqSql);
+						 ResultSet rs = ps.executeQuery()) {
+						if (rs.next()) newFamilyId = rs.getLong(1);
+					}
+					if (newFamilyId != null) {
+						try (PreparedStatement ps = conn.prepareStatement("INSERT INTO FAMILIES (FAMILY_ID, FAMILY_NAME) VALUES (?, ?)")) {
+							ps.setLong(1, newFamilyId);
+							ps.setString(2, familyName);
+							ps.executeUpdate();
+						}
+					}
+				} catch (Exception ex2) {
+					throw new RuntimeException("가족 생성 실패: " + ex.getMessage());
+				}
+			}
+
+			if (newFamilyId == null || newFamilyId <= 0L) {
+				throw new RuntimeException("가족 ID 생성에 실패했습니다.");
+			}
+
+			// 3) USERS 테이블에 FAMILY_ID 부여 및 ROLE을 'GUAR'로 업데이트
+			String updateUserSql = "UPDATE USERS SET FAMILY_ID = ?, ROLE = 'GUAR', UPDATED_AT = SYSDATE WHERE USER_ID = ?";
+			try (PreparedStatement pstmt = conn.prepareStatement(updateUserSql)) {
+				pstmt.setLong(1, newFamilyId);
+				pstmt.setLong(2, userId);
+				pstmt.executeUpdate();
+			}
+
+			// 4) FAMILY_MEMBERS 테이블에 관계 등록
+			try {
+				String insertMemSql = "INSERT INTO FAMILY_MEMBERS (FAMILY_ID, USER_ID) VALUES (?, ?)";
+				try (PreparedStatement pstmt = conn.prepareStatement(insertMemSql)) {
+					pstmt.setLong(1, newFamilyId);
+					pstmt.setLong(2, userId);
+					pstmt.executeUpdate();
+				}
+			} catch (Exception ignored) {}
+
+			// 5) FAMILY_GROUPS 테이블이 존재할 경우 동기화
+			try {
+				String insertGroupSql = "INSERT INTO FAMILY_GROUPS (FAMILY_ID, CREATED_AT) VALUES (?, SYSDATE)";
+				try (PreparedStatement pstmt = conn.prepareStatement(insertGroupSql)) {
+					pstmt.setLong(1, newFamilyId);
+					pstmt.executeUpdate();
+				}
+			} catch (Exception ignored) {}
+
+			conn.commit();
+
+			return ResponseEntity.ok(Map.of(
+					"success", true,
+					"familyId", newFamilyId,
+					"familyName", familyName,
+					"message", "가족이 성공적으로 생성되었습니다."
+			));
+
+		} catch (Exception e) {
+			if (conn != null) {
+				try { conn.rollback(); } catch (Exception ignored) {}
+			}
+			e.printStackTrace();
+			return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+					.body(Map.of("success", false, "message", "가족 생성 중 오류가 발생했습니다: " + e.getMessage()));
+		} finally {
+			if (conn != null) {
+				try { conn.close(); } catch (Exception ignored) {}
+			}
+		}
+	}
+
+	/**
 	 * 1. 가족 구성원 목록 조회
 	 * GET /api/family/members?userId=1
 	 */
@@ -146,11 +305,13 @@ public class FamilyController {
 	public ResponseEntity<?> getFamilyMembers(@RequestParam("userId") Long userId) {
 		List<Map<String, Object>> members = new ArrayList<>();
 
-		String selectFamilySql = "SELECT FAMILY_ID FROM USERS WHERE USER_ID = ?";
-		String listSql = "SELECT USER_ID, NICKNAME AS NAME, ROLE, IS_VIRTUAL FROM USERS WHERE FAMILY_ID = ? ORDER BY USER_ID ASC";
+		String selectFamilySql = "SELECT u.FAMILY_ID, f.FAMILY_NAME FROM USERS u LEFT JOIN FAMILIES f ON u.FAMILY_ID = f.FAMILY_ID WHERE u.USER_ID = ?";
+		String listSql = "SELECT USER_ID, NVL(NICKNAME, LOGIN_ID) AS NAME, NVL(ROLE, 'PROT') AS ROLE, NVL(IS_VIRTUAL, 'N') AS IS_VIRTUAL "
+				+ "FROM USERS WHERE FAMILY_ID = ? ORDER BY CASE WHEN ROLE = 'GUAR' THEN 0 ELSE 1 END, USER_ID ASC";
 
 		try (Connection conn = dataSource.getConnection()) {
 			Long familyId = null;
+			String familyName = "";
 			try (PreparedStatement pstmt = conn.prepareStatement(selectFamilySql)) {
 				pstmt.setLong(1, userId);
 				try (ResultSet rs = pstmt.executeQuery()) {
@@ -158,6 +319,10 @@ public class FamilyController {
 						familyId = rs.getLong("FAMILY_ID");
 						if (rs.wasNull() || familyId == 0) {
 							return ResponseEntity.ok(Collections.emptyList());
+						}
+						familyName = rs.getString("FAMILY_NAME");
+						if (familyName == null || familyName.isBlank()) {
+							familyName = "우리 가족";
 						}
 					} else {
 						return ResponseEntity.ok(Collections.emptyList());
@@ -174,6 +339,8 @@ public class FamilyController {
 						map.put("name", rs.getString("NAME"));
 						map.put("role", rs.getString("ROLE"));
 						map.put("isVirtual", rs.getString("IS_VIRTUAL"));
+						map.put("familyId", familyId);
+						map.put("familyName", familyName);
 						members.add(map);
 					}
 				}
@@ -186,10 +353,41 @@ public class FamilyController {
 	}
 
 	/**
+	 * 1-1. 가족 이름 변경 API
+	 * POST /api/family/rename
+	 */
+	@PostMapping(value = "/rename", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<?> renameFamily(@RequestBody(required = false) Map<String, Object> req) {
+		if (req == null) {
+			return ResponseEntity.badRequest().body(Map.of("success", false, "message", "요청 데이터가 없습니다."));
+		}
+		Long userId = req.get("userId") != null ? Long.valueOf(req.get("userId").toString().trim()) : null;
+		String familyName = req.get("familyName") != null ? req.get("familyName").toString().trim() : "";
+		if (userId == null || familyName.isEmpty()) {
+			return ResponseEntity.badRequest().body(Map.of("success", false, "message", "가족 이름을 입력해주세요."));
+		}
+		String updateSql = "UPDATE FAMILIES SET FAMILY_NAME = ? WHERE FAMILY_ID = (SELECT FAMILY_ID FROM USERS WHERE USER_ID = ?)";
+		try (Connection conn = dataSource.getConnection();
+		     PreparedStatement pstmt = conn.prepareStatement(updateSql)) {
+			pstmt.setString(1, familyName);
+			pstmt.setLong(2, userId);
+			int updated = pstmt.executeUpdate();
+			if (updated > 0) {
+				return ResponseEntity.ok(Map.of("success", true, "familyName", familyName, "message", "가족 이름이 변경되었습니다."));
+			} else {
+				return ResponseEntity.badRequest().body(Map.of("success", false, "message", "소속된 가족 정보를 찾을 수 없습니다."));
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			return ResponseEntity.internalServerError().body(Map.of("success", false, "message", e.getMessage()));
+		}
+	}
+
+	/**
 	 * 2. 가족 구성원 직접 등록 (영유아/자녀 등 가상 계정)
 	 * POST /api/family/members
 	 */
-	@PostMapping("/members")
+	@PostMapping(value = "/members", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> addFamilyMember(@RequestBody Map<String, Object> req) {
 		Connection conn = null;
 		try {
@@ -198,7 +396,8 @@ public class FamilyController {
 
 			Long guardianId = Long.valueOf(req.get("guardianId").toString());
 			String name = (String) req.get("name");
-			String role = req.get("role") != null ? (String) req.get("role") : "BABY";
+			String role = req.get("role") != null ? req.get("role").toString() : "PROT";
+			String safeRole = ("GUAR".equalsIgnoreCase(role) || "보호자".equals(role)) ? "GUAR" : "PROT";
 			String sex = req.get("sex") != null ? (String) req.get("sex") : "M";
 			String birthdate = (String) req.get("birthdate");
 			if (birthdate == null || birthdate.trim().isEmpty()) {
@@ -255,7 +454,7 @@ public class FamilyController {
 			try (PreparedStatement pstmt = conn.prepareStatement(insertUserSql, new String[] { "USER_ID" })) {
 				pstmt.setString(1, "virtual_" + System.currentTimeMillis() + "@jette.local");
 				pstmt.setString(2, name);
-				pstmt.setString(3, role);
+				pstmt.setString(3, safeRole);
 				pstmt.setLong(4, familyId);
 				pstmt.setString(5, sex);
 				pstmt.setString(6, birthdate);
@@ -297,7 +496,7 @@ public class FamilyController {
 	 * POST /api/family/invite
 	 * Body: { "senderId": 1, "targetLoginId": "user123" }
 	 */
-	@PostMapping("/invite")
+	@PostMapping(value = "/invite", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> sendInvitation(@RequestBody Map<String, Object> req) {
 		Connection conn = null;
 		try {
@@ -341,21 +540,26 @@ public class FamilyController {
 			}
 
 			if (familyId == null || familyId == 0L) {
-				// 가족 그룹 시퀀스 생성
-				String createFamSql = "INSERT INTO FAMILY_GROUPS (FAMILY_ID, CREATED_AT) VALUES (FAMILY_SEQ.NEXTVAL, SYSDATE)";
-				try (PreparedStatement pstmt = conn.prepareStatement(createFamSql)) {
+				String insertFamSql = "INSERT INTO FAMILIES (FAMILY_NAME) VALUES (?)";
+				try (PreparedStatement pstmt = conn.prepareStatement(insertFamSql, new String[] { "FAMILY_ID" })) {
+					pstmt.setString(1, "우리 가족");
 					pstmt.executeUpdate();
-				}
-				String getSeqSql = "SELECT FAMILY_SEQ.CURRVAL FROM DUAL";
-				try (PreparedStatement pstmt = conn.prepareStatement(getSeqSql);
-					 ResultSet rs = pstmt.executeQuery()) {
-					if (rs.next()) {
-						familyId = rs.getLong(1);
+					try (ResultSet rs = pstmt.getGeneratedKeys()) {
+						if (rs.next()) {
+							familyId = rs.getLong(1);
+						}
 					}
 				}
 				// 본인 계정에 가족 ID 반영
-				String updateMyFamSql = "UPDATE USERS SET FAMILY_ID = ? WHERE USER_ID = ?";
+				String updateMyFamSql = "UPDATE USERS SET FAMILY_ID = ?, ROLE = 'GUAR' WHERE USER_ID = ?";
 				try (PreparedStatement pstmt = conn.prepareStatement(updateMyFamSql)) {
+					pstmt.setLong(1, familyId);
+					pstmt.setLong(2, senderId);
+					pstmt.executeUpdate();
+				}
+				// 본인을 FAMILY_MEMBERS에 매핑
+				String insertMyFmSql = "INSERT INTO FAMILY_MEMBERS (FAMILY_ID, USER_ID) VALUES (?, ?)";
+				try (PreparedStatement pstmt = conn.prepareStatement(insertMyFmSql)) {
 					pstmt.setLong(1, familyId);
 					pstmt.setLong(2, senderId);
 					pstmt.executeUpdate();
@@ -440,7 +644,7 @@ public class FamilyController {
 	 * POST /api/family/invitations/respond
 	 * Body: { "inviteId": 1, "userId": 2, "action": "ACCEPT" 또는 "REJECT" }
 	 */
-	@PostMapping("/invitations/respond")
+	@PostMapping(value = "/invitations/respond", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> respondInvitation(@RequestBody Map<String, Object> req) {
 		Long inviteId = Long.valueOf(req.get("inviteId").toString());
 		Long userId = Long.valueOf(req.get("userId").toString());

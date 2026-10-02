@@ -809,14 +809,12 @@ export default function MainPage({ user }) {
     }
   };
 
-  // 처방전 업로드 모달 상태
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(() => new URLSearchParams(window.location.search).get('register') === 'prescription');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [uploadFile, setUploadFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [rotation, setRotation] = useState(0); // 0, 90, 180, 270도
-  const [isFlipped, setIsFlipped] = useState(false); // 좌우 반전 여부
-  const [isDragging, setIsDragging] = useState(false);
+  // 처방전 등록 파라미터 감지 시 약 등록 전용 페이지로 즉시 안내
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('register') === 'prescription') {
+      navigate('/medication/register?tab=prescription', { replace: true });
+    }
+  }, [navigate]);
 
   // 약품 상세 모달 상태
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
@@ -902,7 +900,6 @@ export default function MainPage({ user }) {
     const userId = user?.userId;
     if (!userId) {
       setAllPrescriptions([]);
-      setPrescriptionList([]);
       setHasPrescription(false);
       setRoutineItems([]);
       return;
@@ -915,227 +912,24 @@ export default function MainPage({ user }) {
         if (rawList.length > 0) {
           const mappedList = rawList.map(mapPrescriptionToState);
           setAllPrescriptions(mappedList);
-          setPrescriptionList(rawList);
           setHasPrescription(true);
         } else {
           setAllPrescriptions([]);
-          setPrescriptionList([]);
           setHasPrescription(false);
           setRoutineItems([]);
         }
       } else {
         setAllPrescriptions([]);
-        setPrescriptionList([]);
         setHasPrescription(false);
         setRoutineItems([]);
       }
     } catch (err) {
       console.warn('처방전 목록 로드 실패:', err);
       setAllPrescriptions([]);
-      setPrescriptionList([]);
       setHasPrescription(false);
       setRoutineItems([]);
     }
   }, [user?.userId]);
-
-  // 처방전 목록/수정/삭제 관리 모달 상태
-  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
-  const [prescriptionList, setPrescriptionList] = useState([]);
-  const [isLoadingList, setIsLoadingList] = useState(false);
-  const [editingPrescription, setEditingPrescription] = useState(null);
-  const [editForm, setEditForm] = useState({
-    prescriptionId: null,
-    hospitalName: '',
-    doctorName: '',
-    dispensedDate: '',
-    totalDays: 3,
-    items: [],
-  });
-  const [isSavingEdit, setIsSavingEdit] = useState(false);
-  const [manageAlert, setManageAlert] = useState(null);
-
-  const fetchPrescriptionList = useCallback(async () => {
-    const userId = user?.userId;
-    if (!userId) {
-      setPrescriptionList([]);
-      return;
-    }
-    setIsLoadingList(true);
-    try {
-      const res = await fetch(`/api/prescriptions/list?userId=${userId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPrescriptionList(data.prescriptions || []);
-      }
-    } catch (err) {
-      console.warn('처방전 목록 로드 실패:', err);
-    } finally {
-      setIsLoadingList(false);
-    }
-  }, [user?.userId]);
-
-  const openManageModal = () => {
-    setEditingPrescription(null);
-    setManageAlert(null);
-    setIsManageModalOpen(true);
-    fetchPrescriptionList();
-  };
-
-  const closeManageModal = () => {
-    setIsManageModalOpen(false);
-    setEditingPrescription(null);
-    setManageAlert(null);
-  };
-
-  const startEditPrescription = (rx) => {
-    setManageAlert(null);
-    let dateStr = '';
-    if (rx.dispensedDate) {
-      if (typeof rx.dispensedDate === 'string') {
-        dateStr = rx.dispensedDate.slice(0, 10);
-      } else {
-        const d = new Date(rx.dispensedDate);
-        if (!isNaN(d.getTime())) {
-          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        }
-      }
-    }
-    setEditForm({
-      prescriptionId: rx.prescriptionId,
-      hospitalName: rx.hospitalName || '',
-      doctorName: rx.doctorName || '',
-      dispensedDate: dateStr,
-      totalDays: rx.totalDays || 3,
-      items: (rx.items || []).map((it) => ({
-        itemId: it.itemId,
-        medicationId: it.medicationId,
-        itemName: it.itemName || '',
-        dailyDose: it.dailyDose != null ? it.dailyDose : 1,
-        dailyFrequency: it.dailyFrequency || 3,
-        usageTiming: it.usageTiming || '1일 3회 식후 30분',
-        totalDays: it.totalDays || rx.totalDays || 3,
-        className: it.className || '',
-        ediCode: it.ediCode || '',
-        isDiscontinued: Boolean(it.isDiscontinued),
-      })),
-    });
-    setEditingPrescription(rx);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!editForm.hospitalName.trim()) {
-      alert('의료기관(병원명)을 입력해주세요.');
-      return;
-    }
-    if (editForm.items.length === 0) {
-      alert('최소 1개 이상의 처방 약품이 포함되어야 합니다.');
-      return;
-    }
-    for (let i = 0; i < editForm.items.length; i++) {
-      if (!editForm.items[i].itemName.trim()) {
-        alert(`${i + 1}번째 약품의 이름을 입력해주세요.`);
-        return;
-      }
-    }
-
-    setIsSavingEdit(true);
-    setManageAlert(null);
-
-    try {
-      const res = await fetch(`/api/prescriptions/${editForm.prescriptionId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      });
-
-      if (res.ok) {
-        setManageAlert({ type: 'success', message: '처방전 정보가 성공적으로 수정되었습니다.' });
-        await fetchPrescriptionList();
-        await reloadPrescriptionAndRoutine();
-        setTimeout(() => {
-          setEditingPrescription(null);
-          setManageAlert(null);
-        }, 1200);
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        setManageAlert({ type: 'error', message: errData.message || '처방전 수정에 실패했습니다.' });
-      }
-    } catch (err) {
-      console.error('처방전 수정 오류:', err);
-      setManageAlert({ type: 'error', message: '서버 통신 중 오류가 발생했습니다.' });
-    } finally {
-      setIsSavingEdit(false);
-    }
-  };
-
-  const handleDeletePrescription = async (rxId) => {
-    const userId = user?.userId;
-    if (!userId) {
-      alert('로그인이 필요한 기능입니다.');
-      return;
-    }
-    if (!window.confirm('정말 이 처방전을 삭제하시겠습니까?\n포함된 처방 약품 및 오늘의 복약 루틴이 함께 삭제됩니다.')) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/prescriptions/${rxId}?userId=${userId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        await fetchPrescriptionList();
-        await reloadPrescriptionAndRoutine();
-
-        // 캘린더 및 사이드바 등 전역 UI에 처방전 삭제 및 복약 일정 갱신 알림
-        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-          detail: { userId: userId }
-        }));
-      } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || '처방전 삭제에 실패했습니다.');
-      }
-    } catch (err) {
-      console.error('처방전 삭제 오류:', err);
-      alert('처방전 삭제 중 오류가 발생했습니다.');
-    }
-  };
-
-  const handleAddMedicineToEdit = () => {
-    setEditForm((prev) => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        {
-          itemId: null,
-          medicationId: '',
-          itemName: '',
-          dailyDose: 1,
-          dailyFrequency: 3,
-          usageTiming: '1일 3회 식후 30분',
-          totalDays: prev.totalDays || 3,
-          className: '',
-          ediCode: '',
-          isDiscontinued: false,
-        },
-      ],
-    }));
-  };
-
-  const handleRemoveMedicineFromEdit = (idx) => {
-    setEditForm((prev) => ({
-      ...prev,
-      items: prev.items.filter((_, i) => i !== idx),
-    }));
-  };
-
-  const handleEditItemChange = (idx, field, value) => {
-    setEditForm((prev) => {
-      const nextItems = [...prev.items];
-      nextItems[idx] = { ...nextItems[idx], [field]: value };
-      return { ...prev, items: nextItems };
-    });
-  };
 
   // 컴포넌트 마운트 및 user.userId 변경 시 최신 처방전 DB 조회
   useEffect(() => {
@@ -1153,7 +947,8 @@ export default function MainPage({ user }) {
       if (!Array.isArray(schedules)) return;
 
       setRoutineItems((currentItems) => {
-        return currentItems.map((item) => {
+        // 1. 기존 루틴 항목에 매칭되는 서버 스케줄 상태 반영
+        const updated = currentItems.map((item) => {
           const matchedSchedule = schedules.find((s) => {
             const sameMed =
               (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
@@ -1175,6 +970,58 @@ export default function MainPage({ user }) {
           }
           return item;
         });
+
+        // 2. 처방전 외에 캘린더/상비약/영양제에서 등록된 단독 스케줄 항목 병합
+        const unmatchedSchedules = schedules.filter((s) => {
+          return !updated.some((item) => {
+            const sameMed =
+              (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
+              (s.name && item.name && (s.name.includes(item.name) || item.name.includes(s.name)));
+            if (!sameMed) return false;
+            if (s.slot && item.slot) return s.slot === item.slot;
+            if (s.time && item.time) return s.time === item.time;
+            return true;
+          });
+        });
+
+        if (unmatchedSchedules.length > 0) {
+          const extraItems = unmatchedSchedules.map((s, idx) => {
+            const timeStr = s.time || s.scheduledTime || '09:00';
+            let slot = s.slot;
+            let slotLabel = '아침';
+            if (!slot) {
+              const hour = parseInt(timeStr.slice(0, 2), 10);
+              if (hour < 11) { slot = 'breakfast'; slotLabel = '아침'; }
+              else if (hour < 16) { slot = 'lunch'; slotLabel = '점심'; }
+              else if (hour < 21) { slot = 'dinner'; slotLabel = '저녁'; }
+              else { slot = 'bedtime'; slotLabel = '취침 전'; }
+            } else {
+              slotLabel = slot === 'breakfast' ? '아침' : slot === 'lunch' ? '점심' : slot === 'dinner' ? '저녁' : '취침 전';
+            }
+            return {
+              id: `sched-${s.scheduleId || idx}`,
+              scheduleId: s.scheduleId,
+              slot: slot,
+              slotLabel: slotLabel,
+              time: timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr,
+              name: s.name || '복용약',
+              dotColor: s.type === 'supplement' ? '#e09f3e' : '#5c9e76',
+              taken: Boolean(s.takenAt),
+              takenAt: s.takenAt || null,
+              type: s.type === 'supplement' ? '영양제' : s.type === 'regular' ? '상비약' : '일반',
+              orderIndex: 100 + idx,
+              medicationId: s.medicationId || '',
+            };
+          });
+          const slotOrder = { breakfast: 1, lunch: 2, dinner: 3, bedtime: 4 };
+          return [...updated, ...extraItems].sort((a, b) => {
+            const orderDiff = (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99);
+            if (orderDiff !== 0) return orderDiff;
+            return (a.time || '').localeCompare(b.time || '');
+          });
+        }
+
+        return updated;
       });
     } catch (err) {
       console.warn('스케줄 DB 동기화 실패:', err);
@@ -1189,25 +1036,25 @@ export default function MainPage({ user }) {
       return;
     }
 
+    const dateStr = formatDateToHyphen(targetDate);
     if (activeMedsForTargetDate && activeMedsForTargetDate.length > 0) {
       const baseList = buildRoutineItems(activeMedsForTargetDate, mealTimes);
-      const dateStr = formatDateToHyphen(targetDate);
       setRoutineItems(baseList);
-
-      // 서버 DB의 당일 스케줄 데이터(scheduleId 및 takenAt)로 즉시 동기화
       syncRoutinesWithServer(dateStr);
     } else {
       setRoutineItems([]);
+      syncRoutinesWithServer(dateStr);
     }
   }, [mealTimes, activeMedsForTargetDate, targetDate, user?.userId, syncRoutinesWithServer]);
 
-  // 캘린더 등 외부에서 복약 체크 상태 변경 시 메인 홈 실시간 동기화
+  // 캘린더 및 약등록 등 외부에서 복약 및 처방전 변경 시 메인 홈 실시간 동기화
   useEffect(() => {
     const handleIntakeSync = (e) => {
       const eventUserId = e?.detail?.userId;
       const eventDate = e?.detail?.date;
       const curDateStr = formatDateToHyphen(targetDate);
       if (String(eventUserId) === String(user?.userId)) {
+        reloadPrescriptionAndRoutine();
         if (!eventDate || eventDate === curDateStr) {
           syncRoutinesWithServer(curDateStr);
         }
@@ -1217,7 +1064,7 @@ export default function MainPage({ user }) {
     return () => {
       window.removeEventListener('jette-intake-updated', handleIntakeSync);
     };
-  }, [user?.userId, targetDate, syncRoutinesWithServer]);
+  }, [user?.userId, targetDate, syncRoutinesWithServer, reloadPrescriptionAndRoutine]);
 
   // 식사 시간 저장 핸들러
   const handleSaveMealTimes = async (e) => {
@@ -1422,148 +1269,7 @@ export default function MainPage({ user }) {
     setIsSearching(false);
   };
 
-  // 모달 열기/닫기 및 미리보기 메모리 해제
-  const openUploadModal = () => {
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-    setUploadFile(null);
-    setRotation(0);
-    setIsFlipped(false);
-    setIsUploadModalOpen(true);
-  };
 
-  const closeUploadModal = () => {
-    if (isAnalyzing) return;
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(null);
-    }
-    setUploadFile(null);
-    setRotation(0);
-    setIsFlipped(false);
-    setIsUploadModalOpen(false);
-  };
-
-  // 파일 선택 및 드롭 시 미리보기 URL 생성
-  const handleFileSelect = (file) => {
-    if (!file) return;
-    if (previewUrl) {
-      URL.revokeObjectURL(previewUrl);
-    }
-    setUploadFile(file);
-    if (file.type && file.type.startsWith('image/')) {
-      setPreviewUrl(URL.createObjectURL(file));
-    } else {
-      setPreviewUrl(null);
-    }
-    setRotation(0);
-    setIsFlipped(false);
-  };
-
-  // 클라이언트 측 Canvas 이미지 회전/반전 변환 유틸리티
-  const getTransformedFile = async (file, rot, flipped) => {
-    if (!file || !(file instanceof File) || !file.type.startsWith('image/') || (rot === 0 && !flipped)) {
-      return file;
-    }
-
-    return new Promise((resolve) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        const canvas = document.createElement('canvas');
-        const isSideways = rot === 90 || rot === 270;
-
-        canvas.width = isSideways ? img.naturalHeight : img.naturalWidth;
-        canvas.height = isSideways ? img.naturalWidth : img.naturalHeight;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(file);
-          return;
-        }
-
-        // 캔버스 중심점으로 원점 이동 후 회전/반전 수행
-        ctx.translate(canvas.width / 2, canvas.height / 2);
-        ctx.rotate((rot * Math.PI) / 180);
-        if (flipped) {
-          ctx.scale(-1, 1);
-        }
-        ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              const baseName = file.name.replace(/\.[^/.]+$/, '');
-              const adjustedFile = new File([blob], `${baseName}_adjusted.jpg`, {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-              });
-              resolve(adjustedFile);
-            } else {
-              resolve(file);
-            }
-          },
-          'image/jpeg',
-          0.95
-        );
-      };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve(file);
-      };
-
-      img.src = objectUrl;
-    });
-  };
-
-  // 처방전 업로드 및 백엔드 OCR / DB 처리
-  const handleUploadSubmit = async (e) => {
-    e.preventDefault();
-    if (!user?.userId) {
-      alert('처방전 등록은 로그인 후 이용하실 수 있습니다.');
-      return;
-    }
-    if (!uploadFile) {
-      alert('처방전 사진 또는 스캔본 파일을 선택해 주세요.');
-      return;
-    }
-    setIsAnalyzing(true);
-
-    try {
-      // 1. 회전 또는 반전 보정이 적용된 경우 Canvas 변환 파일 생성
-      const finalFile = await getTransformedFile(uploadFile, rotation, isFlipped);
-
-      const formData = new FormData();
-      formData.append('file', finalFile);
-      formData.append('userId', user.userId);
-
-      const res = await fetch('/api/prescriptions/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.prescription) {
-          await reloadPrescriptionAndRoutine();
-          closeUploadModal();
-          alert('처방전 분석이 성공적으로 완료되었습니다!\n처방 약품 목록과 복용 주의점이 메인에 반영되었습니다.');
-          return;
-        }        throw new Error(data.message || '처방전 처리 응답 오류');
-      }
-      throw new Error('처방전 처리 응답 오류');
-    } catch (err) {
-      console.warn('처방전 분석 오류:', err);
-      alert('처방전 분석 및 저장에 실패했습니다. 사진 파일 상태를 확인하고 다시 시도해 주세요.');
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
 
   const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
@@ -1705,52 +1411,251 @@ export default function MainPage({ user }) {
         )}
       </section>
 
-      {/* 3. 처방전 등록 전 vs 처방전 등록 후 영역 */}
-      {!hasPrescription ? (
-        /* -------------------------------------------------------------
-           [처방전 등록 전 화면] (와이어프레임 메인,navbar,sidebar.jpg 명세)
-           ------------------------------------------------------------- */
-        <section className="empty-prescription-hero">
-          <div className="empty-prescription-box">
-            <div className="empty-icon-circle">
-              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 8h20a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H14a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M24 18v12m-6-6h12" />
-              </svg>
-            </div>
-            <h2 className="empty-title">처방전 또는 약봉투를 등록해주세요.</h2>
-            <p className="empty-subtitle">
-              병원 처방전뿐만 아니라 <strong>약국 약봉투</strong> 사진도 등록하시면 복용 일정과 약품 정보를 자동으로 분석해 드립니다.
-            </p>
-            <div className="empty-actions-row">
-              <button
-                type="button"
-                className="prescription-upload-btn"
-                onClick={openUploadModal}
-              >
-                처방전 · 약봉투 등록 <span className="btn-arrow">→</span>
-              </button>
-              <button
-                type="button"
-                className="manage-prescription-empty-btn"
-                onClick={openManageModal}
-              >
-                내 처방전 목록/관리
-              </button>
-              <button
-                type="button"
-                className="guide-register-btn"
-                onClick={() => navigate('/guide')}
-              >
-                내 약 관리 등록 <span className="btn-arrow">→</span>
-              </button>
-            </div>
+      {/* 3. 상단 핵심: 오늘의 복약 루틴 (TODAY'S ROUTINE) */}
+      <section className="today-routine-card today-routine-dark-card">
+        <div className="routine-header-row">
+          <div className="routine-header-left">
+            <span className="routine-label">TODAY'S ROUTINE</span>
+            {!isTargetToday && (
+              <span className="routine-past-pill">{getTargetDateDiffText(targetDate)} 기록</span>
+            )}
           </div>
-        </section>
-      ) : (
-        /* -------------------------------------------------------------
-           [처방전 등록 후 화면] (메인.png 디자인)
-           ------------------------------------------------------------- */
+          <div className="routine-header-actions">
+            <button
+              type="button"
+              className="med-register-quick-btn"
+              onClick={() => navigate('/medication/register')}
+              title="처방전, 상비약, 영양제 등록 페이지로 이동"
+            >
+              + 약 등록
+            </button>
+            <span className="routine-date-badge">{routineDateBadge}</span>
+            {!isTargetToday && (
+              <button
+                type="button"
+                className="routine-today-return-btn"
+                onClick={handleResetToday}
+                title="오늘 날짜로 이동"
+              >
+                오늘로 복귀
+              </button>
+            )}
+            <button
+              type="button"
+              className="meal-setting-btn"
+              onClick={() => {
+                setTempMealTimes(mealTimes);
+                setIsMealModalOpen(true);
+              }}
+              title="아침/점심/저녁 식사 및 취침 시간 설정"
+            >
+              <svg className="setting-btn-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+              </svg>
+              식사 시간 설정
+            </button>
+          </div>
+        </div>
+
+        <div className="routine-title-row">
+          <h3 className="routine-title">
+            {isTargetToday ? '오늘의 복용' : `${formatDateShort(targetDate)} 복약 루틴`}{' '}
+            <span className="taken-highlight">{takenCount}</span>/{totalCount}
+          </h3>
+          <span className="routine-rate-tip">
+            {totalCount === 0
+              ? currentRxStatus?.status === 'completed'
+                ? '해당 일자에는 복용이 완료되어 일정이 없습니다.'
+                : currentRxStatus?.status === 'upcoming'
+                ? '해당 일자는 아직 복용 시작 전입니다.'
+                : '등록된 복용 일정이 없습니다.'
+              : !isTargetToday
+              ? `${formatDateWithDay(targetDate)} 기준 복약 루틴을 확인하고 있습니다`
+              : takenCount === totalCount
+              ? '오늘 모든 복약을 완료했습니다!'
+              : '시간대별 탭을 선택하여 간편하게 복용을 체크하세요'}
+          </span>
+        </div>
+
+        {/* 복약 루틴 시간대 탭 (아침, 점심, 저녁, 전체) */}
+        {activeRoutineList.length > 0 && (
+          <div className="routine-slot-tabs" role="tablist">
+            {routineSlotTabs.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={activeSlotKey === tab.key}
+                className={`routine-slot-tab ${activeSlotKey === tab.key ? 'active' : ''} ${tab.isAllDone ? 'is-all-done' : ''}`}
+                onClick={() => setSelectedRoutineSlot(tab.key)}
+              >
+                <span className="slot-tab-label">{tab.label}</span>
+                {tab.timeHint && <span className="slot-tab-time">{tab.timeHint}</span>}
+                <span className="slot-tab-badge">
+                  {tab.isAllDone ? '완료' : `${tab.taken}/${tab.total}`}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 체크리스트 항목들 */}
+        <div className="routine-items-list">
+          {activeRoutineList.length === 0 ? (
+            <div className="routine-empty-box">
+              <div className="routine-empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              </div>
+
+              {hasPrescription ? (
+                <>
+                  <h4 className="routine-empty-title">
+                    {currentRxStatus?.status === 'completed'
+                      ? '복용이 완료된 처방전입니다.'
+                      : currentRxStatus?.status === 'upcoming'
+                      ? '복용 시작 전입니다.'
+                      : '복용 일정이 없습니다.'}
+                  </h4>
+                  <p className="routine-empty-text">
+                    {currentRxStatus?.status === 'completed'
+                      ? '선택하신 날짜에는 복용할 약이 없습니다. 과거 복약 내역은 상단 날짜 선택을 통해 확인하실 수 있습니다.'
+                      : currentRxStatus?.status === 'upcoming'
+                      ? `복용 시작일(${prescriptionData?.dispensedDate || ''})부터 복약 루틴이 표시됩니다.`
+                      : '선택하신 날짜에는 등록된 복약 일정이 없습니다.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h4 className="routine-empty-title">등록된 복약 일정이 없습니다.</h4>
+                  <p className="routine-empty-text">
+                    처방전 사진을 등록하거나 상비약, 영양제를 등록하여 매일의 복약 루틴을 편리하게 관리해 보세요.
+                  </p>
+                  <button
+                    type="button"
+                    className="routine-empty-cta-btn"
+                    onClick={() => navigate('/medication/register')}
+                  >
+                    + 내 약 등록하러 가기 →
+                  </button>
+                </>
+              )}
+            </div>
+          ) : activeSlotKey === 'all' ? (
+            /* 전체 보기 모드: 시간대별 섹션으로 그룹화 표시 */
+            <div className="routine-grouped-container">
+              {groupedSlots.map((group) => {
+                const groupTaken = group.items.filter((i) => i.taken).length;
+                const groupAllDone = group.items.length > 0 && groupTaken === group.items.length;
+                return (
+                  <div key={group.slot} className="routine-slot-section">
+                    <div className="slot-section-header">
+                      <div className="slot-section-info">
+                        <span className="slot-section-badge">{group.label}</span>
+                        <span className="slot-section-time">{group.time} 복용 예정</span>
+                      </div>
+                      <span className={`slot-section-counter ${groupAllDone ? 'done' : ''}`}>
+                        {groupAllDone ? '복용 완료' : `${groupTaken} / ${group.items.length} 완료`}
+                      </span>
+                    </div>
+
+                    <div className="slot-section-items">
+                      {group.items.map((item) => (
+                        <div
+                          key={item.id}
+                          className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
+                          onClick={() => toggleRoutine(item.id)}
+                        >
+                          <div className="routine-item-left">
+                            <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
+                              {item.taken && (
+                                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className="routine-name">{item.name}</span>
+                            {selectedRxId === 'all' && item.originHospital && (
+                              <span className="routine-origin-hospital-chip">{item.originHospital}</span>
+                            )}
+                          </div>
+
+                          <div className="routine-item-right">
+                            {item.taken && item.takenAt && (
+                              <span className="routine-taken-time">
+                                {formatTimeOnly(item.takenAt)} 복용
+                              </span>
+                            )}
+                            <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* 개별 시간대 탭 선택 모드: 선택된 시간대의 약품만 표시 */
+            <div className="routine-single-slot-container">
+              <div className="slot-single-header">
+                <span className="slot-single-title">
+                  {routineSlotTabs.find((t) => t.key === activeSlotKey)?.label} 복약 리스트
+                </span>
+                <span className="slot-single-count">
+                  {displayedRoutineList.filter((i) => i.taken).length} / {displayedRoutineList.length} 완료
+                </span>
+              </div>
+
+              {displayedRoutineList.map((item) => (
+                <div
+                  key={item.id}
+                  className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
+                  onClick={() => toggleRoutine(item.id)}
+                >
+                  <div className="routine-item-left">
+                    <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
+                      {item.taken && (
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
+                        </svg>
+                      )}
+                    </div>
+                    <span className="routine-name">{item.name}</span>
+                    {selectedRxId === 'all' && item.originHospital && (
+                      <span className="routine-origin-hospital-chip">{item.originHospital}</span>
+                    )}
+                  </div>
+
+                  <div className="routine-item-right">
+                    {item.taken && item.takenAt && (
+                      <span className="routine-taken-time">
+                        {formatTimeOnly(item.takenAt)} 복용
+                      </span>
+                    )}
+                    <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 복약 기록 전체 보기 버튼 (와이어프레임 캘린더 연동) */}
+        <div className="routine-footer-action">
+          <button
+            type="button"
+            className="view-all-records-btn"
+            onClick={() => navigate('/calendar')}
+          >
+            복약 기록 전체 보기 <span className="arrow-left">←</span>
+          </button>
+        </div>
+      </section>
+
+      {/* 4. 처방전 정보 & 주의사항 (처방전 등록 시 상세 표시) */}
+      {hasPrescription ? (
         <>
           {/* 0. 처방전 선택 탭 바 (전체 통합 및 개별 처방전 전환) */}
           {/* 0. 처방전 선택 드롭다운 셀렉터 (가로 스크롤 제거 및 직관적 선택) */}
@@ -1763,7 +1668,7 @@ export default function MainPage({ user }) {
               <button
                 type="button"
                 className="rx-manage-shortcut-btn"
-                onClick={openManageModal}
+                onClick={() => navigate('/medication/register?tab=prescription')}
                 title="내 처방전 목록/수정/삭제 관리"
               >
                 처방전 관리 &gt;
@@ -1955,7 +1860,7 @@ export default function MainPage({ user }) {
               <button
                 type="button"
                 className="new-prescription-btn"
-                onClick={openUploadModal}
+                onClick={() => navigate('/medication/register?tab=prescription')}
               >
                 + 처방전 · 약봉투 등록
               </button>
@@ -1983,7 +1888,7 @@ export default function MainPage({ user }) {
                 <button
                   type="button"
                   className="card-link-action"
-                  onClick={openManageModal}
+                  onClick={() => navigate('/medication/register?tab=prescription')}
                   title="내 처방전 목록 및 수정/삭제 관리"
                 >
                   처방전 관리 &gt;
@@ -2102,410 +2007,34 @@ export default function MainPage({ user }) {
             })()}
           </section>
         </>
-      )}
-
-      {/* 4. 하단 영역: 오늘의 복약 루틴 (TODAY'S ROUTINE) */}
-      <section className="today-routine-card today-routine-dark-card">
-        <div className="routine-header-row">
-          <div className="routine-header-left">
-            <span className="routine-label">TODAY'S ROUTINE</span>
-            {!isTargetToday && (
-              <span className="routine-past-pill">{getTargetDateDiffText(targetDate)} 기록</span>
-            )}
-          </div>
-          <div className="routine-header-actions">
-            <span className="routine-date-badge">{routineDateBadge}</span>
-            {!isTargetToday && (
+      ) : (
+        <section className="prescription-banner-card">
+          <div className="banner-card-content">
+            <div className="banner-card-text">
+              <span className="banner-kicker">PRESCRIPTION & OTC</span>
+              <h3 className="banner-title">처방전 또는 약봉투를 등록해 보세요</h3>
+              <p className="banner-desc">
+                병원 처방전이나 약국 약봉투를 등록하시면 복용 일정과 약품 효능, 주의사항을 자동으로 분석해 드립니다.
+              </p>
+            </div>
+            <div className="banner-card-actions">
               <button
                 type="button"
-                className="routine-today-return-btn"
-                onClick={handleResetToday}
-                title="오늘 날짜로 이동"
+                className="banner-primary-btn"
+                onClick={() => navigate('/medication/register?tab=prescription')}
               >
-                오늘로 복귀
+                처방전 · 약봉투 등록 →
               </button>
-            )}
-            <button
-              type="button"
-              className="meal-setting-btn"
-              onClick={() => {
-                setTempMealTimes(mealTimes);
-                setIsMealModalOpen(true);
-              }}
-              title="아침/점심/저녁 식사 및 취침 시간 설정"
-            >
-              <svg className="setting-btn-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-              </svg>
-              식사 시간 설정
-            </button>
-          </div>
-        </div>
-
-        <div className="routine-title-row">
-          <h3 className="routine-title">
-            {isTargetToday ? '오늘의 복용' : `${formatDateShort(targetDate)} 복약 루틴`}{' '}
-            <span className="taken-highlight">{takenCount}</span>/{totalCount}
-          </h3>
-          <span className="routine-rate-tip">
-            {totalCount === 0
-              ? currentRxStatus?.status === 'completed'
-                ? '해당 일자에는 복용이 완료되어 일정이 없습니다.'
-                : currentRxStatus?.status === 'upcoming'
-                ? '해당 일자는 아직 복용 시작 전입니다.'
-                : '등록된 복용 일정이 없습니다.'
-              : !isTargetToday
-              ? `${formatDateWithDay(targetDate)} 기준 복약 루틴을 확인하고 있습니다`
-              : takenCount === totalCount
-              ? '오늘 모든 복약을 완료했습니다!'
-              : '시간대별 탭을 선택하여 간편하게 복용을 체크하세요'}
-          </span>
-        </div>
-
-        {/* 복약 루틴 시간대 탭 (아침, 점심, 저녁, 전체) */}
-        {activeRoutineList.length > 0 && (
-          <div className="routine-slot-tabs" role="tablist">
-            {routineSlotTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={activeSlotKey === tab.key}
-                className={`routine-slot-tab ${activeSlotKey === tab.key ? 'active' : ''} ${tab.isAllDone ? 'is-all-done' : ''}`}
-                onClick={() => setSelectedRoutineSlot(tab.key)}
-              >
-                <span className="slot-tab-label">{tab.label}</span>
-                {tab.timeHint && <span className="slot-tab-time">{tab.timeHint}</span>}
-                <span className="slot-tab-badge">
-                  {tab.isAllDone ? '완료' : `${tab.taken}/${tab.total}`}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* 체크리스트 항목들 */}
-        <div className="routine-items-list">
-          {activeRoutineList.length === 0 ? (
-            <div className="routine-empty-box">
-              <div className="routine-empty-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-              </div>
-
-              {hasPrescription ? (
-                <>
-                  <h4 className="routine-empty-title">
-                    {currentRxStatus?.status === 'completed'
-                      ? '복용이 완료된 처방전입니다.'
-                      : currentRxStatus?.status === 'upcoming'
-                      ? '복용 시작 전입니다.'
-                      : '복용 일정이 없습니다.'}
-                  </h4>
-                  <p className="routine-empty-text">
-                    {currentRxStatus?.status === 'completed'
-                      ? '선택하신 날짜에는 복용할 약이 없습니다. 과거 복약 내역은 상단 날짜 선택을 통해 확인하실 수 있습니다.'
-                      : currentRxStatus?.status === 'upcoming'
-                      ? `복용 시작일(${prescriptionData?.dispensedDate || ''})부터 복약 루틴이 표시됩니다.`
-                      : '선택하신 날짜에는 등록된 복약 일정이 없습니다.'}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="routine-empty-text">
-                    처방전이나 약봉투를 등록하시면 1일 복용 횟수와 식사 시간에 맞춰 오늘의 복약 루틴이 자동으로 계산되어 등록됩니다.
-                  </p>
-                  {!hasPrescription && (
-                    <button
-                      type="button"
-                      className="routine-empty-cta-btn"
-                      onClick={openUploadModal}
-                    >
-                      처방전 · 약봉투 등록하고 시작하기 →
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          ) : activeSlotKey === 'all' ? (
-            /* 전체 보기 모드: 시간대별 섹션으로 그룹화 표시 */
-            <div className="routine-grouped-container">
-              {groupedSlots.map((group) => {
-                const groupTaken = group.items.filter((i) => i.taken).length;
-                const groupAllDone = group.items.length > 0 && groupTaken === group.items.length;
-                return (
-                  <div key={group.slot} className="routine-slot-section">
-                    <div className="slot-section-header">
-                      <div className="slot-section-info">
-                        <span className="slot-section-badge">{group.label}</span>
-                        <span className="slot-section-time">{group.time} 복용 예정</span>
-                      </div>
-                      <span className={`slot-section-counter ${groupAllDone ? 'done' : ''}`}>
-                        {groupAllDone ? '복용 완료' : `${groupTaken} / ${group.items.length} 완료`}
-                      </span>
-                    </div>
-
-                    <div className="slot-section-items">
-                      {group.items.map((item) => (
-                        <div
-                          key={item.id}
-                          className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
-                          onClick={() => toggleRoutine(item.id)}
-                        >
-                          <div className="routine-item-left">
-                            <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
-                              {item.taken && (
-                                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                                </svg>
-                              )}
-                            </div>
-                            <span className="routine-time">{item.time}</span>
-                            <span className="routine-name">{item.name}</span>
-                            {selectedRxId === 'all' && item.originHospital && (
-                              <span className="routine-origin-hospital-chip">{item.originHospital}</span>
-                            )}
-                          </div>
-                          <div className="routine-item-right">
-                            {item.taken && item.takenAt && (
-                              <span className="routine-taken-time">
-                                {formatTimeOnly(item.takenAt)} 복용
-                              </span>
-                            )}
-                            <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* 개별 시간대 탭 선택 모드: 선택된 시간대의 약품만 표시 */
-            <div className="routine-single-slot-container">
-              <div className="slot-single-header">
-                <span className="slot-single-title">
-                  {routineSlotTabs.find((t) => t.key === activeSlotKey)?.label} 복약 리스트
-                </span>
-                <span className="slot-single-count">
-                  {displayedRoutineList.filter((i) => i.taken).length} / {displayedRoutineList.length} 완료
-                </span>
-              </div>
-
-              {displayedRoutineList.map((item) => (
-                <div
-                  key={item.id}
-                  className={`routine-item-row ${item.taken ? 'is-taken' : ''}`}
-                  onClick={() => toggleRoutine(item.id)}
-                >
-                  <div className="routine-item-left">
-                    <div className={`custom-checkbox ${item.taken ? 'checked' : ''}`}>
-                      {item.taken && (
-                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                        </svg>
-                      )}
-                    </div>
-                    <span className="routine-time">{item.time}</span>
-                    <span className="routine-name">{item.name}</span>
-                    {selectedRxId === 'all' && item.originHospital && (
-                      <span className="routine-origin-hospital-chip">{item.originHospital}</span>
-                    )}
-                  </div>
-                  <div className="routine-item-right">
-                    {item.taken && item.takenAt && (
-                      <span className="routine-taken-time">
-                        {formatTimeOnly(item.takenAt)} 복용
-                      </span>
-                    )}
-                    <span className="routine-dot" style={{ backgroundColor: item.dotColor }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 복약 기록 전체 보기 버튼 (와이어프레임 캘린더 연동) */}
-        <div className="routine-footer-action">
-          <button
-            type="button"
-            className="view-all-records-btn"
-            onClick={() => navigate('/calendar')}
-          >
-            복약 기록 전체 보기 <span className="arrow-left">←</span>
-          </button>
-        </div>
-      </section>
-
-      {/* -------------------------------------------------------------
-         모달 1: 처방전 업로드 & 자동 분석 모달
-         ------------------------------------------------------------- */}
-      {isUploadModalOpen && (
-        <div className="modal-backdrop" onClick={closeUploadModal}>
-          <div className="modal-content-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3 className="modal-title">처방전 · 약봉투 등록 및 AI 분석</h3>
               <button
                 type="button"
-                className="modal-close"
-                disabled={isAnalyzing}
-                onClick={closeUploadModal}
+                className="banner-secondary-btn"
+                onClick={() => navigate('/medication/register?tab=prescription')}
               >
-                ✕
+                내 처방전 목록/관리
               </button>
             </div>
-
-            <form onSubmit={handleUploadSubmit} className="upload-form">
-              {/* 지원 서식 안내 칩 */}
-              <div className="upload-support-chips">
-                <span className="support-chip highlight">병원 처방전</span>
-                <span className="support-chip highlight">약국 약봉투 (조제안내문)</span>
-                <span className="support-chip-hint">둘 중 하나만 촬영하셔도 자동 인식됩니다</span>
-              </div>
-
-              {/* 처방전 / 약봉투 촬영 안내 배너 */}
-              <div className="upload-guide-banner">
-                <div className="guide-banner-header">
-                  <span className="guide-icon">INFO</span>
-                  <strong>처방전 및 약봉투 촬영 안내</strong>
-                </div>
-                <p className="guide-text">
-                  병원 처방전뿐만 아니라 <strong>약국에서 받은 약봉투(복약안내문)</strong>도 그대로 촬영하시면 약품명과 일수를 자동 인식합니다.
-                  글자가 수평(가로)으로 똑바로 읽히도록 평평하게 펴서 촬영해 주세요. 기울어진 사진은 아래 <strong>[회전]</strong> 및 <strong>[반전]</strong> 도구로 교정하실 수 있습니다.
-                </p>
-              </div>
-
-              {/* 업로드 드롭존 */}
-              <div
-                className={`upload-dropzone ${isDragging ? 'dragover' : ''}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsDragging(false);
-                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                    handleFileSelect(e.dataTransfer.files[0]);
-                  }
-                }}
-              >
-                <svg className="upload-cloud-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                <strong>처방전 또는 약봉투 사진 업로드</strong>
-                <p>JPG, PNG, PDF 지원 (최대 15MB) · 약봉투 전면 촬영본 지원</p>
-                <input
-                  type="file"
-                  id="prescription-file-input"
-                  className="file-hidden-input"
-                  accept="image/*,.pdf"
-                  onChange={(e) => handleFileSelect(e.target.files && e.target.files[0])}
-                />
-                <label htmlFor="prescription-file-input" className="file-pick-btn">
-                  {uploadFile ? `선택됨: ${uploadFile.name}` : '파일 찾아보기'}
-                </label>
-              </div>
-
-              {/* 실시간 이미지 미리보기 및 회전/반전 툴바 */}
-              {previewUrl && (
-                <div className="preview-container">
-                  <div className="preview-header">
-                    <span className="preview-title">처방전 방향 확인 및 교정</span>
-                    {(rotation !== 0 || isFlipped) && (
-                      <span className="preview-badge">
-                        교정 적용: {rotation}° {isFlipped ? '(좌우반전)' : ''}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="preview-viewport">
-                    <img
-                      src={previewUrl}
-                      alt="처방전 미리보기"
-                      className="preview-image"
-                      style={{
-                        transform: `rotate(${rotation}deg) scaleX(${isFlipped ? -1 : 1})`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="preview-toolbar">
-                    <button
-                      type="button"
-                      className="tool-btn"
-                      onClick={() => setRotation((r) => (r + 270) % 360)}
-                      title="왼쪽으로 90도 회전"
-                    >
-                      <span className="tool-icon">↺</span> 90° 좌회전
-                    </button>
-                    <button
-                      type="button"
-                      className="tool-btn"
-                      onClick={() => setRotation((r) => (r + 90) % 360)}
-                      title="오른쪽으로 90도 회전"
-                    >
-                      <span className="tool-icon">↻</span> 90° 우회전
-                    </button>
-                    <button
-                      type="button"
-                      className={`tool-btn ${isFlipped ? 'active' : ''}`}
-                      onClick={() => setIsFlipped((f) => !f)}
-                      title="셀카 모드 거울상 좌우 반전"
-                    >
-                      <span className="tool-icon">⇄</span> 좌우 반전
-                    </button>
-                    <button
-                      type="button"
-                      className="tool-btn reset-btn"
-                      onClick={() => {
-                        setRotation(0);
-                        setIsFlipped(false);
-                      }}
-                      disabled={rotation === 0 && !isFlipped}
-                      title="원본 방향으로 초기화"
-                    >
-                      <span className="tool-icon">⟲</span> 초기화
-                    </button>
-                  </div>
-
-                  <p className="preview-hint">
-                    글자가 가로 방향으로 똑바로 보이도록 조정한 후 아래 [분석 및 등록 완료]를 눌러주세요.
-                  </p>
-                </div>
-              )}
-
-              {isAnalyzing && (
-                <div className="analyzing-progress">
-                  <div className="progress-spinner" />
-                  <p>처방전 OCR 및 의약품 상호작용 분석 중...</p>
-                </div>
-              )}
-
-              <div className="modal-foot">
-                <button
-                  type="button"
-                  className="btn-cancel modal-cancel-btn"
-                  disabled={isAnalyzing}
-                  onClick={closeUploadModal}
-                >
-                  취소
-                </button>
-                <button
-                  type="submit"
-                  className="btn-confirm modal-confirm-btn"
-                  disabled={isAnalyzing}
-                >
-                  {isAnalyzing ? '분석 중...' : '분석 및 등록 완료'}
-                </button>
-              </div>
-            </form>
           </div>
-        </div>
+        </section>
       )}
 
       {/* -------------------------------------------------------------
@@ -2526,7 +2055,7 @@ export default function MainPage({ user }) {
             <div className="med-detail-body">
               {selectedMedDetail?.medicationId && !medDetailExtra && (
                 <div className="ai-summary-loading-hint">
-                  ✨ AI 복약 요약 및 상세 정보를 조회하고 있습니다...
+                  AI 복약 요약 및 상세 정보를 조회하고 있습니다...
                 </div>
               )}
 
@@ -2537,11 +2066,11 @@ export default function MainPage({ user }) {
                     : medDetailExtra.medication.aiSummaryJson;
                   return (
                     <div className="detail-field ai-summary-highlight-box">
-                      <label className="ai-summary-label">✨ AI 핵심 복약 요약</label>
+                      <label className="ai-summary-label">AI 핵심 복약 요약</label>
                       <p className="ai-summary-main-text">{ai.summary}</p>
-                      {ai.tips && <p className="ai-sub-line">💡 <strong>복용 팁:</strong> {ai.tips}</p>}
-                      {ai.warnings && <p className="ai-sub-line ai-warning-line">⚠️ <strong>주의사항:</strong> {ai.warnings}</p>}
-                      {ai.foodCautions && <p className="ai-sub-line">🍽️ <strong>음식 주의:</strong> {ai.foodCautions}</p>}
+                      {ai.tips && <p className="ai-sub-line"><strong>복용 팁:</strong> {ai.tips}</p>}
+                      {ai.warnings && <p className="ai-sub-line ai-warning-line"><strong>주의사항:</strong> {ai.warnings}</p>}
+                      {ai.foodCautions && <p className="ai-sub-line"><strong>음식 주의:</strong> {ai.foodCautions}</p>}
                     </div>
                   );
                 } catch {
@@ -2886,332 +2415,6 @@ export default function MainPage({ user }) {
                 </div>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* =============================================================
-          [모달 4] 내 처방전 목록/수정/삭제 관리 모달
-          ============================================================= */}
-      {isManageModalOpen && (
-        <div className="manage-rx-modal-overlay" onClick={closeManageModal}>
-          <div className="manage-rx-modal-dialog" onClick={(e) => e.stopPropagation()}>
-            <div className="manage-rx-header">
-              <div>
-                <span className="manage-rx-kicker">PRESCRIPTION MANAGEMENT</span>
-                <h3 className="manage-rx-title">
-                  {editingPrescription ? '처방전 정보 수정' : '내 처방전 보관함 및 관리'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                className="modal-close-btn"
-                onClick={closeManageModal}
-                aria-label="닫기"
-              >
-                ✕
-              </button>
-            </div>
-
-            {manageAlert && (
-              <div className={`manage-alert-banner ${manageAlert.type}`}>
-                {manageAlert.type === 'success' ? '[완료] ' : '[주의] '}
-                {manageAlert.message}
-              </div>
-            )}
-
-            <div className="manage-rx-body">
-              {!editingPrescription ? (
-                /* ----------------- 목록 뷰 ----------------- */
-                <div className="manage-rx-list-view">
-                  <div className="manage-rx-list-intro">
-                    <p className="manage-intro-text">
-                      등록된 처방전 <strong>{prescriptionList.length}</strong>건이 보관되어 있습니다.
-                    </p>
-                    <button
-                      type="button"
-                      className="manage-add-rx-btn"
-                      onClick={() => {
-                        closeManageModal();
-                        openUploadModal();
-                      }}
-                    >
-                      + 처방전 · 약봉투 추가 등록
-                    </button>
-                  </div>
-
-                  {isLoadingList ? (
-                    <div className="manage-loading-box">
-                      <div className="spinner" />
-                      <p>처방전 목록을 불러오는 중입니다...</p>
-                    </div>
-                  ) : prescriptionList.length === 0 ? (
-                    <div className="manage-empty-box">
-                      <span className="manage-empty-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="36" height="36">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
-                      </span>
-                      <p className="manage-empty-title">등록된 처방전이 없습니다.</p>
-                      <p className="manage-empty-desc">처방전이나 약봉투 사진을 업로드하여 복약 일정 관리를 시작해보세요.</p>
-                      <button
-                        type="button"
-                        className="manage-empty-cta"
-                        onClick={() => {
-                          closeManageModal();
-                          openUploadModal();
-                        }}
-                      >
-                        처방전 · 약봉투 등록하기 →
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="manage-cards-grid">
-                      {prescriptionList.map((rx, index) => {
-                        const isLatest = index === 0;
-                        const dateStr = rx.dispensedDate
-                          ? (typeof rx.dispensedDate === 'string' ? rx.dispensedDate.slice(0, 10).replace(/-/g, '.') : '')
-                          : '날짜 미상';
-                        const itemCount = rx.items ? rx.items.length : 0;
-                        return (
-                          <div key={rx.prescriptionId} className={`manage-card ${isLatest ? 'is-active-rx' : ''}`}>
-                            <div className="manage-card-top">
-                              <div className="manage-card-badge-row">
-                                {isLatest && <span className="rx-status-badge active">현재 복용 중 (최신)</span>}
-                                <span className="rx-dispensed-date">조제일: {dateStr}</span>
-                                <span className="rx-days-badge">{rx.totalDays || 0}일분</span>
-                              </div>
-                              <div className="manage-card-actions">
-                                <button
-                                  type="button"
-                                  className="manage-action-edit-btn"
-                                  onClick={() => startEditPrescription(rx)}
-                                  title="처방전 및 약품 수정"
-                                >
-                                  수정
-                                </button>
-                                <button
-                                  type="button"
-                                  className="manage-action-del-btn"
-                                  onClick={() => handleDeletePrescription(rx.prescriptionId)}
-                                  title="처방전 삭제"
-                                >
-                                  삭제
-                                </button>
-                              </div>
-                            </div>
-
-                            <div className="manage-card-middle">
-                              <h4 className="manage-hospital-name">
-                                {rx.hospitalName || '의료기관'}
-                                <span className="manage-doctor-name"> · {rx.doctorName || '처방의'}</span>
-                              </h4>
-                              {rx.hasDiscontinuedDrug === 1 && (
-                                <span className="manage-discontinued-warn">[주의] 판매중단 약품 포함</span>
-                              )}
-                            </div>
-
-                            {(() => {
-                              let purpose = rx.aiGuide?.purpose;
-                              if (!purpose && rx.aiSummaryJson) {
-                                try {
-                                  const parsed = JSON.parse(rx.aiSummaryJson);
-                                  if (parsed.aiGuide?.purpose) purpose = parsed.aiGuide.purpose;
-                                } catch {}
-                              }
-                              if (!purpose) return null;
-                              return (
-                                <div className="manage-card-ai-purpose">
-                                  <span className="ai-badge-sm">이 처방을 받은 이유 (AI)</span>
-                                  <span className="ai-purpose-text">{purpose}</span>
-                                </div>
-                              );
-                            })()}
-
-                            <div className="manage-card-items-preview">
-                              <span className="items-count-label">포함 약품 ({itemCount}종):</span>
-                              <div className="meds-preview-chips">
-                                {rx.items && rx.items.length > 0 ? (
-                                  rx.items.map((it, itIdx) => (
-                                    <span key={itIdx} className="med-preview-chip">
-                                      {it.itemName} ({it.dailyFrequency}회/{it.dailyDose}정)
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="med-preview-chip empty">등록된 약품 없음</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* ----------------- 수정 뷰 ----------------- */
-                <div className="manage-rx-edit-view">
-                  <div className="edit-back-row">
-                    <button
-                      type="button"
-                      className="edit-back-btn"
-                      onClick={() => setEditingPrescription(null)}
-                    >
-                      ← 목록으로 돌아가기
-                    </button>
-                    <span className="edit-rx-id">처방전 ID #{editForm.prescriptionId}</span>
-                  </div>
-
-                  <div className="edit-form-section">
-                    <h4 className="edit-section-title">기본 정보</h4>
-                    <div className="edit-fields-grid">
-                      <div className="edit-field-group">
-                        <label>의료기관명 (병원/의원)</label>
-                        <input
-                          type="text"
-                          value={editForm.hospitalName}
-                          onChange={(e) => setEditForm({ ...editForm, hospitalName: e.target.value })}
-                          placeholder="예: 한내과의원"
-                        />
-                      </div>
-                      <div className="edit-field-group">
-                        <label>처방의 / 담당의사</label>
-                        <input
-                          type="text"
-                          value={editForm.doctorName}
-                          onChange={(e) => setEditForm({ ...editForm, doctorName: e.target.value })}
-                          placeholder="예: 김도현 원장"
-                        />
-                      </div>
-                      <div className="edit-field-group">
-                        <label>처방 / 조제 일자</label>
-                        <input
-                          type="date"
-                          value={editForm.dispensedDate}
-                          onChange={(e) => setEditForm({ ...editForm, dispensedDate: e.target.value })}
-                        />
-                      </div>
-                      <div className="edit-field-group">
-                        <label>총 투약 일수 (일)</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="365"
-                          value={editForm.totalDays}
-                          onChange={(e) => setEditForm({ ...editForm, totalDays: parseInt(e.target.value, 10) || 1 })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="edit-form-section">
-                    <div className="edit-items-header">
-                      <h4 className="edit-section-title">처방 약품 및 복용 용법 편집 ({editForm.items.length}종)</h4>
-                      <button
-                        type="button"
-                        className="edit-add-item-btn"
-                        onClick={handleAddMedicineToEdit}
-                      >
-                        + 약품 추가
-                      </button>
-                    </div>
-
-                    <div className="edit-items-table-wrapper">
-                      <table className="edit-items-table">
-                        <thead>
-                          <tr>
-                            <th style={{ width: '30%' }}>약품명</th>
-                            <th style={{ width: '18%' }}>1일 복용 횟수</th>
-                            <th style={{ width: '16%' }}>1회 투약량</th>
-                            <th style={{ width: '28%' }}>복용 시점 / 용법</th>
-                            <th style={{ width: '8%' }}>삭제</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {editForm.items.map((item, idx) => (
-                            <tr key={idx}>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="table-input"
-                                  value={item.itemName}
-                                  onChange={(e) => handleEditItemChange(idx, 'itemName', e.target.value)}
-                                  placeholder="약품명 입력"
-                                />
-                              </td>
-                              <td>
-                                <select
-                                  className="table-select"
-                                  value={item.dailyFrequency}
-                                  onChange={(e) => handleEditItemChange(idx, 'dailyFrequency', parseInt(e.target.value, 10))}
-                                >
-                                  <option value={1}>1일 1회</option>
-                                  <option value={2}>1일 2회</option>
-                                  <option value={3}>1일 3회</option>
-                                  <option value={4}>1일 4회</option>
-                                </select>
-                              </td>
-                              <td>
-                                <div className="dose-input-group">
-                                  <input
-                                    type="number"
-                                    step="0.5"
-                                    min="0.5"
-                                    max="10"
-                                    className="table-input number-input"
-                                    value={item.dailyDose}
-                                    onChange={(e) => handleEditItemChange(idx, 'dailyDose', parseFloat(e.target.value) || 1)}
-                                  />
-                                  <span className="dose-unit">정/포</span>
-                                </div>
-                              </td>
-                              <td>
-                                <input
-                                  type="text"
-                                  className="table-input"
-                                  value={item.usageTiming}
-                                  onChange={(e) => handleEditItemChange(idx, 'usageTiming', e.target.value)}
-                                  placeholder="예: 1일 3회 식후 30분"
-                                />
-                              </td>
-                              <td style={{ textAlign: 'center' }}>
-                                <button
-                                  type="button"
-                                  className="table-del-btn"
-                                  onClick={() => handleRemoveMedicineFromEdit(idx)}
-                                  title="약품 삭제"
-                                >
-                                  ✕
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="edit-form-footer">
-                    <button
-                      type="button"
-                      className="edit-cancel-btn"
-                      onClick={() => setEditingPrescription(null)}
-                      disabled={isSavingEdit}
-                    >
-                      취소
-                    </button>
-                    <button
-                      type="button"
-                      className="edit-save-btn"
-                      onClick={handleSaveEdit}
-                      disabled={isSavingEdit}
-                    >
-                      {isSavingEdit ? '저장 중...' : '저장 완료'}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       )}

@@ -189,7 +189,7 @@ export default function Navbar({
           {
             id: newNotifId,
             type: 'routine',
-            title: isPre ? '⏰ 복약 30분 전 안내' : '💊 지금 복약할 시간입니다!',
+            title: isPre ? '복약 30분 전 안내' : '지금 복약할 시간입니다!',
             text: isPre 
               ? `[${item.time}] '${item.name}' 복약 30분 전입니다. 미리 준비하세요.`
               : `[${item.time}] '${item.name}' 복용 시간입니다. 잊지 말고 복용하세요!`,
