@@ -9,6 +9,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
   const [isNicknameSaving, setIsNicknameSaving] = useState(false);
   const [email, setEmail] = useState(user?.email || '');
+  const [accountDetails, setAccountDetails] = useState({ sex: '', isPregnant: 0, familyName: '' });
   const [profileImage, setProfileImage] = useState(user?.profileImageUrl || '');
   const [imgError, setImgError] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
@@ -24,6 +25,11 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
         if (!profile) return;
         setNickname(profile.nickname || user.name);
         if (profile.email) setEmail(profile.email);
+        setAccountDetails((prev) => ({
+          ...prev,
+          sex: profile.sex || '',
+          isPregnant: profile.isPregnant === 1 || profile.isPregnant === '1',
+        }));
         setProfileImage(profile.profileImageUrl || '');
         setImgError(false);
         const isPush = profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0';
@@ -35,6 +41,16 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
           userId: profile.userId || user?.userId,
           pushEnabled: isPush,
         });
+
+        if (profile.userId) {
+          fetch(`/api/family/members?userId=${encodeURIComponent(profile.userId)}`)
+            .then((response) => response.ok ? response.json() : [])
+            .then((members) => {
+              const familyName = Array.isArray(members) && members[0]?.familyName ? members[0].familyName : '';
+              setAccountDetails((prev) => ({ ...prev, familyName }));
+            })
+            .catch(() => {});
+        }
       })
       .catch(() => {});
   }, [user?.username]);
@@ -374,6 +390,9 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     );
   }
 
+  const sexLabel = accountDetails.sex === 'F' ? '여성' : accountDetails.sex === 'M' ? '남성' : '미입력';
+  const emailLabel = email || user?.email || (user?.username ? `${user.username}@jetteyak.kr` : '미입력');
+
   return (
     <div className="mypage-wrapper">
       {/* 토스트 알림 */}
@@ -423,7 +442,6 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               ✎
             </button>
           </div>
-          <span className="email-display">{email || user?.email || (user?.username ? `${user.username}@jetteyak.kr` : '')}</span>
           {profileMessage && <span className="profile-message">{profileMessage}</span>}
         </div>
       </section>
@@ -432,6 +450,17 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       <div className="mypage-two-cols">
         {/* 좌측 열: 비밀번호 변경 및 약 등록 바로가기 안내 */}
         <div className="mypage-col-left">
+          <section className="mypage-subcard account-info-card">
+            <span className="meta-kicker">ACCOUNT INFORMATION</span>
+            <h2 className="subcard-title">계정 정보</h2>
+            <dl className="account-info-list">
+              <div><dt>아이디</dt><dd>{user?.username || '미입력'}</dd></div>
+              <div><dt>이메일</dt><dd>{emailLabel}</dd></div>
+              <div><dt>성별</dt><dd>{sexLabel}</dd></div>
+              {accountDetails.sex === 'F' && <div><dt>임신 여부</dt><dd>{accountDetails.isPregnant ? '임신 중' : '해당 없음'}</dd></div>}
+              <div><dt>가족 이름</dt><dd>{accountDetails.familyName || '소속 가족 없음'}</dd></div>
+            </dl>
+          </section>
           {/* 비밀번호 변경 */}
           <section className="mypage-subcard">
             <span className="meta-kicker">PASSWORD</span>

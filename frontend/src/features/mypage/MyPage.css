@@ -160,6 +160,39 @@
   color: #8a8177;
 }
 
+.account-info-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 10px 24px;
+  margin: 0;
+}
+
+.account-info-list div {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 0;
+  min-width: 0;
+  border-bottom: 1px solid #f1ece5;
+}
+
+.account-info-list dt {
+  flex: 0 0 auto;
+  color: #8c8278;
+  font-size: 12px;
+}
+
+.account-info-list dd {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: #4a413a;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .profile-message {
   margin-top: 6px;
   font-size: 12px;
@@ -1060,6 +1093,10 @@ input:checked + .toggle-slider:before {
 
 @media (max-width: 840px) {
   .mypage-two-cols {
+    grid-template-columns: 1fr;
+  }
+
+  .account-info-list {
     grid-template-columns: 1fr;
   }
 }
