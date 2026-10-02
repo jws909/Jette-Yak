@@ -112,13 +112,17 @@ const CalendarPage = (props) => {
   }, [currentYearMonth, currentUserId]);
 
   // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
-  const fetchDailySchedules = useCallback(async (targetDateStr) => {
+  // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
+  // isSilent: true인 경우 화면 깜빡임 방지를 위해 loading 상태를 변경하지 않고 백그라운드 동기화 수행
+  const fetchDailySchedules = useCallback(async (targetDateStr, isSilent = false) => {
     if (!currentUserId) {
       setSchedules([]);
-      setLoading(false);
+      if (!isSilent) setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const response = await fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`);
       if (response.ok) {
@@ -140,15 +144,30 @@ const CalendarPage = (props) => {
           };
         });
 
-        setSchedules(normalized);
+        // 불필요한 전체 리렌더링 및 깜빡임 방지: 내용이 실질적으로 변경되었을 때만 새 배열 반영
+        setSchedules((prev) => {
+          if (!prev || prev.length !== normalized.length) return normalized;
+          const isIdentical = prev.every((p, idx) => {
+            const n = normalized[idx];
+            return (
+              p.scheduleId === n.scheduleId &&
+              p.takenAt === n.takenAt &&
+              p.time === n.time &&
+              p.name === n.name
+            );
+          });
+          return isIdentical ? prev : normalized;
+        });
       } else {
-        setSchedules([]);
+        if (!isSilent) setSchedules([]);
       }
     } catch (err) {
       console.error("데이터 조회 실패:", err);
-      setSchedules([]);
+      if (!isSilent) setSchedules([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   }, [currentUserId]);
 
@@ -168,7 +187,7 @@ const CalendarPage = (props) => {
       const eventDate = e?.detail?.date;
       if (String(eventUserId) === String(currentUserId)) {
         if (!eventDate || eventDate === selectedDate) {
-          fetchDailySchedules(selectedDate);
+          fetchDailySchedules(selectedDate, true);
         }
         fetchMonthSummary();
       }
@@ -324,8 +343,8 @@ const CalendarPage = (props) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taken: isTaken, date: selectedDate }),
       });
-      // DB 최신 실체화 scheduleId 및 월간 요약 재조회
-      fetchDailySchedules(selectedDate);
+      // DB 최신 실체화 scheduleId 및 월간 요약 재조회 (isSilent: true로 깜빡임 방지)
+      fetchDailySchedules(selectedDate, true);
       fetchMonthSummary();
     } catch (err) {
       console.error("체크박스 서버 토글 통신 실패:", err);
@@ -390,7 +409,8 @@ const CalendarPage = (props) => {
           )
         );
       }
-      fetchDailySchedules(selectedDate);
+      // DB 최신 실체화 scheduleId 및 월간 요약 재조회 (isSilent: true로 깜빡임 방지)
+      fetchDailySchedules(selectedDate, true);
       fetchMonthSummary();
     } catch (err) {
       console.error("봉지 체크 서버 토글 통신 실패:", err);
@@ -438,7 +458,7 @@ const CalendarPage = (props) => {
           setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
         }
 
-        await fetchDailySchedules(selectedDate);
+        await fetchDailySchedules(selectedDate, true);
         await fetchMonthSummary();
 
         // 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
@@ -587,7 +607,7 @@ const CalendarPage = (props) => {
       });
 
       if (response.ok) {
-        await fetchDailySchedules(selectedDate);
+        await fetchDailySchedules(selectedDate, true);
         await fetchMonthSummary();
 
         // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
@@ -823,8 +843,28 @@ const CalendarPage = (props) => {
         <div className="calendar-right">
           <div>
             <div className="panel-header">
-              <span className="panel-sub">SELECTED DATE</span>
-              <h3>{selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일</h3>
+              <div className="panel-header-top">
+                <span className="panel-sub">SELECTED DATE</span>
+                {(() => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  return selectedDate === todayStr ? (
+                    <span className="panel-today-badge">오늘</span>
+                  ) : null;
+                })()}
+              </div>
+              <div className="panel-header-bottom">
+                <h3>
+                  {selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일
+                  <span className="panel-day-of-week">
+                    ({['일', '월', '화', '수', '목', '금', '토'][new Date(selectedDate + 'T00:00:00').getDay()]})
+                  </span>
+                </h3>
+                {totalCount > 0 && (
+                  <span className={`panel-completion-badge ${takenCount === totalCount ? 'all-done' : ''}`}>
+                    {takenCount} / {totalCount} 완료
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* 메인 페이지와 동일한 아침 / 점심 / 저녁 시간대별 탭 (1줄 균등 세그먼트 UI) */}
@@ -863,14 +903,17 @@ const CalendarPage = (props) => {
                     const isTaken = unit.items.every((i) => Boolean(i.takenAt));
                     const isExpanded = Boolean(expandedPouches[unit.pouchKey]);
                     const currentSlotLabel = unit.slotLabel || getSlotFromTime(unit.time).slotLabel;
-                    const takenCount = unit.items.filter((i) => Boolean(i.takenAt)).length;
+
+                    // 간결하고 또렷한 제목 (별칭 최우선, 없으면 병원명 기반 처방약)
                     const title = unit.nickname
                       ? unit.nickname
-                      : unit.purpose
-                      ? (unit.purpose.length > 25 ? unit.purpose.slice(0, 23) + '…' : unit.purpose)
                       : `${unit.hospitalName || '처방'}약`;
-                    const hospitalDate = `${unit.hospitalName || '의료기관'}${unit.dispensedDate ? ` · ${unit.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제` : ''}`;
-                    const pillsSummary = `${unit.items[0]?.name || '처방약'}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}종 (총 ${unit.items.length}알)` : ' (1알)'}`;
+
+                    // 간결한 서브 텍스트 (예: 서울아산병원 · 아모잘탄 외 3알)
+                    const firstMedFullName = unit.items[0]?.name || '처방약';
+                    const firstMedShort = firstMedFullName.length > 8 ? firstMedFullName.slice(0, 7) + '…' : firstMedFullName;
+                    const summaryLine = `${unit.hospitalName || '의료기관'} · ${firstMedShort}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}알` : ''}`;
+                    const fullTooltip = `${unit.hospitalName || '의료기관'}${unit.dispensedDate ? ` (${unit.dispensedDate.slice(0, 10)} 조제)` : ''}\n${unit.items.map((m) => m.name).join(', ')}`;
 
                     return (
                       <div key={unit.pouchKey} className={`cal-pouch-card ${isTaken ? 'done' : ''}`}>
@@ -886,23 +929,26 @@ const CalendarPage = (props) => {
                           <div className="dose-info">
                             <div className="time-row">
                               <span className="type-dot prescription" />
-                              <span className="cal-slot-badge">{currentSlotLabel}</span>
                               <span className="time">{unit.time}</span>
-                              <span className="cal-pouch-tag">1포 봉지약</span>
+                              <span className="cal-slot-badge">{currentSlotLabel}</span>
+                              <span className="cal-pouch-tag">1포 ({unit.items.length}알)</span>
                             </div>
                             <div className="name-row">
                               <strong
                                 className="name"
+                                title={unit.purpose ? `${title} - ${unit.purpose}` : title}
                                 style={{ textDecoration: isTaken ? 'line-through' : 'none' }}
                               >
-                                [{currentSlotLabel} 1포] {title}
+                                {title}
                               </strong>
-                              <span className="category-tag cat-prescription">처방약</span>
+                              {unit.purpose && (
+                                <span className="cal-pouch-purpose-chip" title={unit.purpose}>
+                                  {unit.purpose.length > 9 ? unit.purpose.slice(0, 8) + '…' : unit.purpose}
+                                </span>
+                              )}
                             </div>
-                            <div className="cal-pouch-meta-sub">
-                              <span className="cal-pouch-hospital">{hospitalDate}</span>
-                              <span className="cal-pouch-sep">·</span>
-                              <span className="cal-pouch-pills">{pillsSummary}</span>
+                            <div className="cal-pouch-meta-sub" title={fullTooltip}>
+                              {summaryLine}
                             </div>
                           </div>
 
@@ -913,7 +959,7 @@ const CalendarPage = (props) => {
                               onClick={(e) => togglePouchExpand(unit.pouchKey, e)}
                               title={isExpanded ? '알약 접기' : '포함된 알약 보기'}
                             >
-                              {isExpanded ? '접기 ▲' : `약 ${unit.items.length}알 ▼`}
+                              {isExpanded ? '접기 ▲' : `${unit.items.length}알 ▼`}
                             </button>
                             <button
                               type="button"
@@ -1005,8 +1051,8 @@ const CalendarPage = (props) => {
                       <div className="dose-info">
                         <div className="time-row">
                           <span className={`type-dot ${unit.type || 'regular'}`} />
-                          <span className="cal-slot-badge">{currentSlotLabel}</span>
                           <span className="time">{unit.time}</span>
+                          <span className="cal-slot-badge">{currentSlotLabel}</span>
                         </div>
                         <div className="name-row">
                           <strong

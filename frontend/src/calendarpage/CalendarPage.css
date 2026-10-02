@@ -214,22 +214,74 @@
 }
 
 .panel-header {
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   text-align: left;
 }
 
+.panel-header-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
 .panel-sub {
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 1.5px;
-  color: #7d2638;
-  font-weight: 700;
+  color: #8b3e4b;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.panel-today-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  background: #8b3e4b;
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.panel-header-bottom {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .panel-header h3 {
-  margin: 4px 0 0;
+  margin: 0;
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
   color: #2b2523;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.panel-day-of-week {
+  font-size: 14px;
+  font-weight: 600;
+  color: #7d6b67;
+}
+
+.panel-completion-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  padding: 2.5px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.panel-completion-badge.all-done {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
 }
 
 /* --------------------------------------------------------------------------
@@ -405,37 +457,50 @@
 .name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
   min-width: 0;
 }
 
 .dose-info strong.name {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #2b2523;
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;   /* 약 이름 길어질 때 줄바꿈 대신 말줄임표 처리 */
-  display: inline-block;
-  flex-shrink: 1;
+  flex: 1;
+  min-width: 0;
+  display: block;
 }
 
 .category-tag {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  padding: 0;
-  background: transparent !important;
-  border: none !important;
+  padding: 1px 6px;
+  border-radius: 4px;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.category-tag.cat-prescription { color: #7d2638; }
-.category-tag.cat-regular { color: #2b7044; }
-.category-tag.cat-supplement { color: #b87b2b; }
+.category-tag.cat-prescription {
+  color: #8b3e4b;
+  background: #faeff0 !important;
+  border: 1px solid #ebd0d5 !important;
+}
+
+.category-tag.cat-regular {
+  color: #2b7044;
+  background: #edf7f0 !important;
+  border: 1px solid #c8e6c9 !important;
+}
+
+.category-tag.cat-supplement {
+  color: #b87b2b;
+  background: #fdf5e8 !important;
+  border: 1px solid #fae1c3 !important;
+}
 
 .dose-item-actions {
   display: flex;
@@ -1480,11 +1545,11 @@ input:checked + .slider:before { transform: translateX(18px); }
    캘린더 처방약 봉지(Pouch) 카드 & 상세 스타일
    ========================================================================== */
 .cal-pouch-card {
-  border-left: 4px solid #8b3e4b !important;
+  border-left: 3.5px solid #8b3e4b !important;
   background: #ffffff;
   border: 1px solid #ebd0d5;
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   margin-bottom: 8px;
   box-shadow: 0 1px 4px rgba(139, 62, 75, 0.04);
   transition: all 0.2s ease;
@@ -1497,11 +1562,12 @@ input:checked + .slider:before { transform: translateX(18px); }
   border-color: #d6abb4;
 }
 
+.cal-pouch-card.done,
 .cal-pouch-card.is-completed {
-  border-left-color: #2e7d32 !important;
-  background: #fafcfb;
-  border-color: #cce3d2;
-  opacity: 0.92;
+  border-left-color: #8b3e4b !important;
+  background: #fcf9f8;
+  border-color: #e5d7d5;
+  opacity: 0.88;
 }
 
 .cal-pouch-main-row {
@@ -1509,7 +1575,7 @@ input:checked + .slider:before { transform: translateX(18px); }
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 10px;
+  gap: 8px;
 }
 
 .cal-pouch-left {
@@ -1525,25 +1591,41 @@ input:checked + .slider:before { transform: translateX(18px); }
 }
 
 .cal-pouch-tag {
-  background: #8b3e4b;
-  color: #ffffff;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  color: #8b3e4b;
   font-size: 10px;
-  font-weight: 800;
-  padding: 1.5px 6px;
+  font-weight: 700;
+  padding: 1px 5px;
   border-radius: 4px;
   letter-spacing: -0.2px;
   white-space: nowrap;
 }
 
+.cal-pouch-card.done .cal-pouch-tag,
 .cal-pouch-card.is-completed .cal-pouch-tag {
-  background: #2e7d32;
+  background: #faeff0;
+  color: #8b3e4b;
+  border-color: #ebd0d5;
 }
 
 .cal-pouch-title {
-  font-size: 14.5px;
+  font-size: 13.5px;
   font-weight: 700;
   color: #2b2523;
   letter-spacing: -0.2px;
+}
+
+.cal-pouch-purpose-chip {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cal-pouch-count {
@@ -1553,14 +1635,18 @@ input:checked + .slider:before { transform: translateX(18px); }
 }
 
 .cal-pouch-meta-sub {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
+  font-size: 11px;
+  color: #7d6b67;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
 }
 
 .cal-pouch-hospital {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: #7d6b67;
 }
@@ -1576,7 +1662,7 @@ input:checked + .slider:before { transform: translateX(18px); }
 .cal-pouch-right {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-shrink: 0;
 }
 
@@ -1584,9 +1670,9 @@ input:checked + .slider:before { transform: translateX(18px); }
   background: #8b3e4b;
   color: #ffffff;
   border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1599,29 +1685,37 @@ input:checked + .slider:before { transform: translateX(18px); }
 }
 
 .btn-cal-pouch-batch.completed {
-  background: #e8f5e9;
-  color: #2e7d32;
-  border: 1px solid #a5d6a7;
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
 }
 
 .btn-cal-pouch-batch.completed:hover {
-  background: #c8e6c9;
+  background: #f5dde0;
   transform: none;
 }
 
 .btn-pouch-expand-cal {
   background: #fbf9f5;
-  border: 1.5px solid #ded6c9;
+  border: 1px solid #ded6c9;
   color: #6b6059;
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  height: 26px;
+  padding: 2px 7px;
+  border-radius: 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 10px;
+  font-size: 10.5px;
+  font-weight: 700;
   transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-pouch-expand-cal:hover {
+  background: #f4eee4;
+  border-color: #baa996;
+  color: #2b2523;
 }
 
 .btn-pouch-expand-cal:hover {

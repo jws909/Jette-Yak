@@ -342,53 +342,26 @@ function generateMedicationNotes(prescriptionData, rxStatus, activeMeds) {
     };
   }
 
-  // 복용 완료 상태인 경우 (처방 기간 경과)
-  if (rxStatus?.status === 'completed') {
-    return {
-      hasDiscontinued: false,
-      badgeText: '복용 완료',
-      badgeType: 'completed',
-      points: [
-        {
-          category: '처방 기간 완료',
-          text: '선택하신 날짜 기준으로 정해진 처방 일수가 모두 종료되었습니다. 현재 복용 중인 약품이 없습니다.'
-        },
-        {
-          category: '잔여 의약품 안전 관리',
-          text: '처방 후 남은 의약품은 임의로 다시 복용하지 마시고, 가까운 약국이나 보건소의 폐의약품 수거함을 통해 안전하게 폐기하세요.'
-        },
-        {
-          category: '과거 복약 기록 확인',
-          text: '당시 처방 약품 및 상세 주의사항은 상단 날짜를 조제일 기간으로 변경하여 언제든 다시 확인하실 수 있습니다.'
-        }
-      ]
-    };
-  }
-
-  // 복용 시작 전인 경우
-  if (rxStatus?.status === 'upcoming') {
-    return {
-      hasDiscontinued: false,
-      badgeText: '복용 대기',
-      badgeType: 'upcoming',
-      points: [
-        {
-          category: '복용 시작 대기',
-          text: `선택하신 날짜는 복용 시작 전입니다. 조제일(${prescriptionData.dispensedDate || ''})부터 지정된 용법에 맞춰 복용을 시작하세요.`
-        },
-        {
-          category: '복약 전 보관 수칙',
-          text: '의약품은 직사광선과 습기를 피해 서늘한 실온에 보관하시고, 복용 시작 전 용법 및 주의사항을 미리 숙지하세요.'
-        }
-      ]
-    };
-  }
-
-  const items = (activeMeds && activeMeds.length > 0) ? activeMeds : prescriptionData.items;
+  const isCompleted = rxStatus?.status === 'completed';
+  const isUpcoming = rxStatus?.status === 'upcoming';
+  const items = (activeMeds && activeMeds.length > 0) ? activeMeds : (prescriptionData.items || []);
   const hasDiscontinued = prescriptionData.hasDiscontinuedDrug === 1 || items.some((i) => i.isDiscontinued);
   const discontinuedItem = items.find((i) => i.isDiscontinued);
 
   const points = [];
+
+  // 복용 완료 상태인 경우 상단 안내 배너 추가
+  if (isCompleted) {
+    points.push({
+      category: '복용 완료 처방전',
+      text: `선택하신 처방전은 정해진 복용 기간(${rxStatus?.startDateStr || ''} ~ ${rxStatus?.endDateStr || ''})이 모두 종료된 기록입니다. 당시 처방받으신 약품별 핵심 주의사항을 안내합니다.`
+    });
+  } else if (isUpcoming) {
+    points.push({
+      category: '복용 시작 대기',
+      text: `선택하신 날짜는 복용 시작 전입니다. 조제일(${prescriptionData.dispensedDate || ''})부터 지정된 용법에 맞춰 복용을 시작하세요.`
+    });
+  }
 
   // 1. 판매중단 또는 주의 약품이 포함된 경우 (최우선 배치)
   if (hasDiscontinued) {
@@ -470,10 +443,20 @@ function generateMedicationNotes(prescriptionData, rxStatus, activeMeds) {
     text: `총 ${totalDays}일 처방: 증상이 일시적으로 완화되더라도 임의로 복용을 중단하지 마시고 처방 기간을 완료하세요.`
   });
 
+  let badgeText = hasDiscontinued ? '주의 대상 포함' : `${points.length}가지 핵심 체크`;
+  let badgeType = hasDiscontinued ? 'danger' : 'safe';
+  if (isCompleted) {
+    badgeText = '복용 완료 기록';
+    badgeType = 'completed';
+  } else if (isUpcoming) {
+    badgeText = '복용 대기';
+    badgeType = 'upcoming';
+  }
+
   return {
     hasDiscontinued,
-    badgeText: hasDiscontinued ? '주의 대상 포함' : `${points.length}가지 핵심 체크`,
-    badgeType: hasDiscontinued ? 'danger' : 'safe',
+    badgeText,
+    badgeType,
     points
   };
 }
@@ -831,8 +814,38 @@ export default function MainPage({ user }) {
     }
   }, [allPrescriptions, selectedRxId, targetDate]);
 
-  // 기준 일자(targetDate)에 유효한 활성 처방 약품 목록 (복약 기간 경과 시 빈 배열)
+  // 기준 일자(targetDate)에 실제로 복약해야 하는 처방 약품 목록 (복약 루틴 생성용)
   const activeMedList = activeMedsForTargetDate;
+
+  // 처방전 상세 및 처방 약품 카드에 표시할 약품 목록
+  // 과거 처방전(복용 완료)이라도 해당 처방전에 포함된 약품들을 언제든 바로 확인할 수 있도록 보존
+  const displayedMedList = useMemo(() => {
+    if (!prescriptionData) return [];
+
+    if (selectedRxId === 'all') {
+      // 전체 통합: 오늘 복용할 약품이 있으면 해당 목록 우선,
+      // 오늘 복용 일정이 없더라도 등록된 모든 처방전의 약품 목록을 보여줌
+      if (activeMedsForTargetDate && activeMedsForTargetDate.length > 0) {
+        return activeMedsForTargetDate;
+      }
+      return (prescriptionData.items || []).map((item) => ({
+        ...item,
+        originHospital: item.originHospital || prescriptionData.hospitalName || '의료기관',
+        originDispensedDate: item.originDispensedDate || prescriptionData.dispensedDate || '',
+        prescriptionId: item.prescriptionId || prescriptionData.prescriptionId,
+      }));
+    }
+
+    // 개별 처방전 선택: 오늘 날짜와 무관하게 해당 처방전에 포함된 모든 약품을 온전히 표시
+    return (prescriptionData.items || []).map((item) => ({
+      ...item,
+      originHospital: prescriptionData.hospitalName || '의료기관',
+      originDispensedDate: prescriptionData.dispensedDate || '',
+      prescriptionId: prescriptionData.prescriptionId,
+      prescriptionNickname: prescriptionData.nickname,
+      prescriptionPurpose: prescriptionData.aiGuide?.purpose,
+    }));
+  }, [prescriptionData, selectedRxId, activeMedsForTargetDate]);
 
   // 날짜 네비게이터 핸들러
   const handlePrevDay = () => {
@@ -991,6 +1004,14 @@ export default function MainPage({ user }) {
       const schedules = await res.json();
       if (!Array.isArray(schedules)) return;
 
+      // dateStr 날짜 기준 복용 중('taking')인 처방전 ID Set
+      const targetDateObj = parseDateOnly(dateStr) || new Date();
+      const activeRxIdSet = new Set(
+        allPrescriptions
+          .filter((rx) => getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDateObj).status === 'taking')
+          .map((rx) => String(rx.prescriptionId))
+      );
+
       setRoutineItems((currentItems) => {
         let hasChanges = false;
         // 1. 기존 루틴 항목에 매칭되는 서버 스케줄 상태 반영
@@ -1032,7 +1053,7 @@ export default function MainPage({ user }) {
 
         // 2. 처방전 외에 캘린더/상비약/영양제에서 등록된 단독 스케줄 항목 병합
         const unmatchedSchedules = schedules.filter((s) => {
-          return !updated.some((item) => {
+          const alreadyInRoutine = updated.some((item) => {
             const sameMed =
               (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
               (s.name && item.name && (s.name.includes(item.name) || item.name.includes(s.name)));
@@ -1041,6 +1062,26 @@ export default function MainPage({ user }) {
             if (s.time && item.time) return s.time === item.time;
             return true;
           });
+          if (alreadyInRoutine) return false;
+
+          // 처방약 스케줄인 경우:
+          if (s.prescriptionId) {
+            // 특정 처방전 선택 모드일 때 해당 처방전이 아니면 제외
+            if (selectedRxId !== 'all' && String(s.prescriptionId) !== String(selectedRxId)) {
+              return false;
+            }
+            // dateStr 기준 해당 처방전이 복용 중('taking')이 아니라면 제외 (과거 처방약 스케줄 유입 차단)
+            if (!activeRxIdSet.has(String(s.prescriptionId))) {
+              return false;
+            }
+          } else {
+            // 특정 처방전 선택 모드일 때는 단독 영양제/상비약 스케줄 제외
+            if (selectedRxId !== 'all') {
+              return false;
+            }
+          }
+
+          return true;
         });
 
         if (unmatchedSchedules.length > 0) {
@@ -1092,7 +1133,7 @@ export default function MainPage({ user }) {
     } catch (err) {
       console.warn('스케줄 DB 동기화 실패:', err);
     }
-  }, [user?.userId]);
+  }, [user?.userId, allPrescriptions, selectedRxId]);
 
   // 식사 시간이나 기준 일자별 유효 복약 약품 변경 시 복약 루틴 알림 시간 재계산 및 DB 스케줄 동기화
   useEffect(() => {
@@ -1138,9 +1179,13 @@ export default function MainPage({ user }) {
       syncRoutinesWithServer(dateStr);
     } else {
       setRoutineItems([]);
-      syncRoutinesWithServer(dateStr);
+      // 특정 처방전을 선택했을 때 해당 처방전이 복용 중이 아니면(과거/예정 처방전),
+      // 서버에서 무관한 스케줄을 가져와 빈 루틴에 채우지 않도록 방지
+      if (selectedRxId === 'all') {
+        syncRoutinesWithServer(dateStr);
+      }
     }
-  }, [mealTimes, activeMedsForTargetDate, targetDate, user?.userId, syncRoutinesWithServer]);
+  }, [mealTimes, activeMedsForTargetDate, targetDate, user?.userId, syncRoutinesWithServer, selectedRxId]);
 
   // 캘린더 및 약등록 등 외부에서 복약 및 처방전 변경 시 메인 홈 실시간 동기화
   useEffect(() => {
@@ -1335,7 +1380,39 @@ export default function MainPage({ user }) {
   };
 
   // DB에 등록된 활성 복약 루틴 리스트
-  const activeRoutineList = routineItems;
+  // 1) 특정 처방전 선택 시:
+  //    - 선택된 처방전이 targetDate 기준 복용 중('taking')이 아니라면 (과거 'completed' 또는 예정 'upcoming'),
+  //      오늘의 복약 루틴 목록은 무조건 빈 배열 [] (오늘 복약 대상 아님)
+  //    - 선택된 처방전이 targetDate 기준 복용 중('taking')이라면, 오직 해당 처방전(prescriptionId === selectedRxId) 소속 약품만 표시
+  // 2) 전체 처방전 통합 선택 시(selectedRxId === 'all'):
+  //    - targetDate에 실제로 복용 중('taking')인 처방전의 약품 및 해당 일자의 일반/상비약/영양제 스케줄만 표시
+  //    - 이미 복용이 완료된 과거 처방전(또는 복용 전 처방전)의 처방약은 오늘의 복용 목록에 절대 노출되지 않음
+  const activeRoutineList = useMemo(() => {
+    if (!routineItems || routineItems.length === 0) return [];
+
+    if (selectedRxId !== 'all') {
+      const rx = allPrescriptions.find((r) => String(r.prescriptionId) === String(selectedRxId));
+      if (!rx) return [];
+      const st = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
+      if (st.status !== 'taking') {
+        return [];
+      }
+      return routineItems.filter((item) => String(item.prescriptionId) === String(selectedRxId));
+    }
+
+    const activeRxIdSet = new Set(
+      allPrescriptions
+        .filter((rx) => getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate).status === 'taking')
+        .map((rx) => String(rx.prescriptionId))
+    );
+
+    return routineItems.filter((item) => {
+      if (item.prescriptionId) {
+        return activeRxIdSet.has(String(item.prescriptionId));
+      }
+      return true;
+    });
+  }, [routineItems, selectedRxId, allPrescriptions, targetDate]);
   const allRoutineUnits = useMemo(() => groupRoutineItemsByPouch(activeRoutineList), [activeRoutineList]);
   const takenUnitsCount = allRoutineUnits.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length;
   const totalUnitsCount = allRoutineUnits.length;
@@ -1852,11 +1929,20 @@ export default function MainPage({ user }) {
                   </h4>
                   <p className="routine-empty-text">
                     {currentRxStatus?.status === 'completed'
-                      ? '선택하신 날짜에는 복용할 약이 없습니다. 과거 복약 내역은 상단 날짜 선택을 통해 확인하실 수 있습니다.'
+                      ? '선택하신 날짜에는 복용할 약이 없습니다. 아래 처방 약품 목록에서 약 정보를 확인하시거나, 당시 복약 체크 기록으로 바로 이동하실 수 있습니다.'
                       : currentRxStatus?.status === 'upcoming'
                       ? `복용 시작일(${prescriptionData?.dispensedDate || ''})부터 복약 루틴이 표시됩니다.`
                       : '선택하신 날짜에는 등록된 복약 일정이 없습니다.'}
                   </p>
+                  {currentRxStatus?.status === 'completed' && prescriptionData?.dispensedDate && (
+                    <button
+                      type="button"
+                      className="routine-jump-past-btn"
+                      onClick={() => handleJumpToDate(prescriptionData.dispensedDate)}
+                    >
+                      당시 복약 기록 확인하기 ({prescriptionData.dispensedDate}) &rarr;
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -2001,6 +2087,7 @@ export default function MainPage({ user }) {
                     onClick={() => {
                       setSelectedRxId('all');
                       setIsRxDropdownOpen(false);
+                      setTargetDate(new Date());
                     }}
                   >
                     <div className="rx-dropdown-option-left">
@@ -2021,6 +2108,8 @@ export default function MainPage({ user }) {
 
                   {/* 개별 처방전 옵션 목록 */}
                   {allPrescriptions.map((rx) => {
+                    const today = new Date();
+                    const todayStatus = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, today);
                     const rxStatus = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
                     const isSelected = String(selectedRxId) === String(rx.prescriptionId);
                     return (
@@ -2032,6 +2121,9 @@ export default function MainPage({ user }) {
                         onClick={() => {
                           setSelectedRxId(rx.prescriptionId);
                           setIsRxDropdownOpen(false);
+                          if (todayStatus.status === 'taking') {
+                            setTargetDate(today);
+                          }
                         }}
                       >
                         <div className="rx-dropdown-option-left">
@@ -2125,12 +2217,22 @@ export default function MainPage({ user }) {
               </div>
               <div className="stat-divider" />
               <div className="stat-unit">
-                <span className="stat-number">{activeMedList.length}</span>
+                <span className="stat-number">{displayedMedList.length}</span>
                 <span className="stat-label">처방 약품</span>
               </div>
             </div>
 
             <div className="summary-col-right">
+              {selectedRxId !== 'all' && currentRxStatus?.status === 'completed' && prescriptionData?.dispensedDate && (
+                <button
+                  type="button"
+                  className="summary-past-jump-btn"
+                  onClick={() => handleJumpToDate(prescriptionData.dispensedDate)}
+                  title="당시 복약 기간으로 이동하여 체크 기록 확인"
+                >
+                  당시 복약 기록 보기
+                </button>
+              )}
               <button
                 type="button"
                 className="new-prescription-btn"
@@ -2156,7 +2258,7 @@ export default function MainPage({ user }) {
                 <div>
                   <span className="card-sub-label">PRESCRIBED MEDICINES</span>
                   <h3 className="card-main-title">
-                    처방 약품 <span className="count-num">{String(activeMedList.length).padStart(2, '0')}</span>
+                    처방 약품 <span className="count-num">{String(displayedMedList.length).padStart(2, '0')}</span>
                   </h3>
                 </div>
                 <button
@@ -2169,10 +2271,32 @@ export default function MainPage({ user }) {
                 </button>
               </div>
 
+              {/* 과거 복용 완료 처방전인 경우 안내 배너 및 바로가기 */}
+              {currentRxStatus?.status === 'completed' && selectedRxId !== 'all' && (
+                <div className="past-rx-info-banner">
+                  <div className="past-rx-info-left">
+                    <span className="past-rx-badge">복용 완료 기록</span>
+                    <span className="past-rx-desc">
+                      조제일 {prescriptionData?.dispensedDate} ({prescriptionData?.totalDays}일 처방) 완료 내역입니다.
+                    </span>
+                  </div>
+                  {prescriptionData?.dispensedDate && (
+                    <button
+                      type="button"
+                      className="past-rx-jump-action"
+                      onClick={() => handleJumpToDate(prescriptionData.dispensedDate)}
+                      title="당시 복약 체크 기록 확인"
+                    >
+                      당시 복약 기록 &rarr;
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="meds-list-divider" />
 
               <div className="meds-vertical-list">
-                {activeMedList.length === 0 ? (
+                {displayedMedList.length === 0 ? (
                   <div className="meds-empty-notice">
                     <div className="meds-empty-icon">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -2180,30 +2304,26 @@ export default function MainPage({ user }) {
                       </svg>
                     </div>
                     <strong className="meds-empty-title">
-                      {currentRxStatus?.status === 'completed'
-                        ? '복용이 완료된 처방전입니다.'
-                        : currentRxStatus?.status === 'upcoming'
+                      {currentRxStatus?.status === 'upcoming'
                         ? '복용 시작 전입니다.'
-                        : '해당 일자에 복용할 처방 약품이 없습니다.'}
+                        : '등록된 처방 약품이 없습니다.'}
                     </strong>
                     <p className="meds-empty-desc">
-                      {currentRxStatus?.status === 'completed'
-                        ? '선택하신 날짜에는 복용 중인 처방 약품이 없습니다. 당시 처방 내역은 상단 날짜를 조제일 기간으로 변경하여 확인하세요.'
-                        : currentRxStatus?.status === 'upcoming'
+                      {currentRxStatus?.status === 'upcoming'
                         ? `조제일(${prescriptionData?.dispensedDate || ''})부터 처방 약품 목록이 표시됩니다.`
                         : '처방전을 등록하시거나 유효한 복약 날짜를 선택해 주세요.'}
                     </p>
                   </div>
                 ) : (
-                  activeMedList.map((med) => (
+                  displayedMedList.map((med) => (
                     <div
-                      key={med.id}
+                      key={med.id || med.medicationId}
                       className="med-item-row"
                       onClick={() => setSelectedMedDetail(med)}
                       title="상세 정보 보기"
                     >
                       <div className="med-item-left">
-                        <span className="med-color-dot" style={{ backgroundColor: med.dotColor }} />
+                        <span className="med-color-dot" style={{ backgroundColor: med.dotColor || '#8b3e4b' }} />
                         <div className="med-text-group">
                           <div className="med-title-hospital-row">
                             <strong className="med-item-name">{med.name}</strong>
@@ -2217,7 +2337,7 @@ export default function MainPage({ user }) {
 
                       <div className="med-item-right">
                         <span className={`med-type-pill ${med.badge === '처방' ? 'rx' : med.badge === '영양제' ? 'supp' : 'reg'}`}>
-                          {med.badge}
+                          {med.badge || '처방'}
                         </span>
                         <button
                           type="button"
@@ -2469,11 +2589,23 @@ export default function MainPage({ user }) {
                     </strong>
                     <p className="caution-empty-desc">
                       {currentRxStatus?.status === 'completed'
-                        ? '처방전의 복약 기간이 이미 완료되었습니다. 과거 처방 약품의 복용 주의사항을 확인하시려면 상단 날짜를 해당 처방전의 조제일 기간으로 변경해 주세요.'
+                        ? '처방전의 복약 기간이 이미 완료되었습니다. 과거 처방 약품의 복용 주의사항을 확인하시려면 아래 접기/펼치기 또는 당시 복약 기록 날짜로 바로 이동해 보세요.'
                         : currentRxStatus?.status === 'upcoming'
                         ? `조제일(${prescriptionData?.dispensedDate || ''})부터 처방 약품 주의사항이 표시됩니다.`
                         : '유효한 복약 일자를 선택해 주세요.'}
                     </p>
+                    {currentRxStatus?.status === 'completed' && prescriptionData?.dispensedDate && (
+                      <button
+                        type="button"
+                        className="btn-modal-jump-date"
+                        onClick={() => {
+                          handleJumpToDate(prescriptionData.dispensedDate);
+                          setIsCautionModalOpen(false);
+                        }}
+                      >
+                        당시 복약 기록 날짜로 이동 ({prescriptionData.dispensedDate})
+                      </button>
+                    )}
                   </div>
 
                   {/* 지난 처방전 기록을 확인하고 싶을 때 접기/펼치기로 볼 수 있는 기능 */}
