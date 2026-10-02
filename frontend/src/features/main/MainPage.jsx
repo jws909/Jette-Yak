@@ -2430,7 +2430,7 @@ export default function MainPage({ user }) {
                         </div>
 
                         <div className="prescribed-group-items">
-                          {group.items.map((med) => (
+                          {group.items.map((med, idx) => (
                             <div
                               key={med.id || med.medicationId}
                               className="med-item-row"
@@ -2438,6 +2438,7 @@ export default function MainPage({ user }) {
                               title="상세 정보 보기"
                             >
                               <div className="med-item-left">
+                                <span className="med-index-num">{String(idx + 1).padStart(2, '0')}</span>
                                 <div className="med-text-group">
                                   <div className="med-title-hospital-row">
                                     <strong className="med-item-name">{med.name}</strong>
@@ -2470,7 +2471,7 @@ export default function MainPage({ user }) {
                   })
                 ) : (
                   /* 개별 처방전 선택 모드: 그룹핑 헤더 없이 해당 처방전 약품들 평면 표시 */
-                  displayedMedList.map((med) => (
+                  displayedMedList.map((med, idx) => (
                     <div
                       key={med.id || med.medicationId}
                       className="med-item-row"
@@ -2478,6 +2479,7 @@ export default function MainPage({ user }) {
                       title="상세 정보 보기"
                     >
                       <div className="med-item-left">
+                        <span className="med-index-num">{String(idx + 1).padStart(2, '0')}</span>
                         <div className="med-text-group">
                           <div className="med-title-hospital-row">
                             <strong className="med-item-name">{med.name}</strong>

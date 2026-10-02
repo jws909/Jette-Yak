@@ -796,14 +796,24 @@
   gap: 12px;
   flex: 1;
   min-width: 0;
-  padding-left: 4px;
+  padding-left: 2px;
 }
 
-.med-color-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+.med-index-num {
+  font-size: 13px;
+  font-weight: 700;
+  color: #a4978a;
+  min-width: 22px;
+  letter-spacing: -0.2px;
   flex-shrink: 0;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.med-item-row:hover .med-index-num {
+  color: #8b3e4b;
 }
 
 .med-text-group {
