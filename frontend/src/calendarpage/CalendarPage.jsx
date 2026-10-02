@@ -112,13 +112,17 @@ const CalendarPage = (props) => {
   }, [currentYearMonth, currentUserId]);
 
   // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
-  const fetchDailySchedules = useCallback(async (targetDateStr) => {
+  // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
+  // isSilent: true인 경우 화면 깜빡임 방지를 위해 loading 상태를 변경하지 않고 백그라운드 동기화 수행
+  const fetchDailySchedules = useCallback(async (targetDateStr, isSilent = false) => {
     if (!currentUserId) {
       setSchedules([]);
-      setLoading(false);
+      if (!isSilent) setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const response = await fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`);
       if (response.ok) {
@@ -140,15 +144,30 @@ const CalendarPage = (props) => {
           };
         });
 
-        setSchedules(normalized);
+        // 불필요한 전체 리렌더링 및 깜빡임 방지: 내용이 실질적으로 변경되었을 때만 새 배열 반영
+        setSchedules((prev) => {
+          if (!prev || prev.length !== normalized.length) return normalized;
+          const isIdentical = prev.every((p, idx) => {
+            const n = normalized[idx];
+            return (
+              p.scheduleId === n.scheduleId &&
+              p.takenAt === n.takenAt &&
+              p.time === n.time &&
+              p.name === n.name
+            );
+          });
+          return isIdentical ? prev : normalized;
+        });
       } else {
-        setSchedules([]);
+        if (!isSilent) setSchedules([]);
       }
     } catch (err) {
       console.error("데이터 조회 실패:", err);
-      setSchedules([]);
+      if (!isSilent) setSchedules([]);
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   }, [currentUserId]);
 
@@ -168,7 +187,7 @@ const CalendarPage = (props) => {
       const eventDate = e?.detail?.date;
       if (String(eventUserId) === String(currentUserId)) {
         if (!eventDate || eventDate === selectedDate) {
-          fetchDailySchedules(selectedDate);
+          fetchDailySchedules(selectedDate, true);
         }
         fetchMonthSummary();
       }
@@ -324,8 +343,8 @@ const CalendarPage = (props) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taken: isTaken, date: selectedDate }),
       });
-      // DB 최신 실체화 scheduleId 및 월간 요약 재조회
-      fetchDailySchedules(selectedDate);
+      // DB 최신 실체화 scheduleId 및 월간 요약 재조회 (isSilent: true로 깜빡임 방지)
+      fetchDailySchedules(selectedDate, true);
       fetchMonthSummary();
     } catch (err) {
       console.error("체크박스 서버 토글 통신 실패:", err);
@@ -390,7 +409,8 @@ const CalendarPage = (props) => {
           )
         );
       }
-      fetchDailySchedules(selectedDate);
+      // DB 최신 실체화 scheduleId 및 월간 요약 재조회 (isSilent: true로 깜빡임 방지)
+      fetchDailySchedules(selectedDate, true);
       fetchMonthSummary();
     } catch (err) {
       console.error("봉지 체크 서버 토글 통신 실패:", err);
@@ -438,7 +458,7 @@ const CalendarPage = (props) => {
           setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
         }
 
-        await fetchDailySchedules(selectedDate);
+        await fetchDailySchedules(selectedDate, true);
         await fetchMonthSummary();
 
         // 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
@@ -587,7 +607,7 @@ const CalendarPage = (props) => {
       });
 
       if (response.ok) {
-        await fetchDailySchedules(selectedDate);
+        await fetchDailySchedules(selectedDate, true);
         await fetchMonthSummary();
 
         // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
