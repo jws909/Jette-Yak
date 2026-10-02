@@ -48,6 +48,14 @@ public class ScheduleDAO {
         return cabinetId;
     }
 
+    public String findMedicationIdByCabinetId(Long userId, Long cabinetId) {
+        if (userId == null || cabinetId == null) return null;
+        Map<String, Object> params = new HashMap<>();
+        params.put("userId", userId);
+        params.put("cabinetId", cabinetId);
+        return sqlSession.selectOne("schedule.selectMedicationIdByCabinetId", params);
+    }
+
     public Long findOrCreateRoutineId(Long userId, String supplementName, String takeTime, String notes, String medicationId) {
         Map<String, Object> params = new HashMap<>();
         params.put("userId", userId);

@@ -401,20 +401,84 @@
   border-radius: 4px;
 }
 
-/* 복약 항목 */
+/* 복약 항목 카드 공통 (상비약, 영양제, 개별 처방약) */
 .dose-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #f0e9df;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
   text-align: left;
   width: 100%;
   box-sizing: border-box;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid #ded6c9;
+  border-left: 3.5px solid #8c8278 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
 }
 
-.dose-item.done {
-  opacity: 0.45;
+.dose-item:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* 상시약 / 상비약 테두리 및 카드 스타일 */
+.dose-item.regular {
+  border: 1px solid #cce5d4;
+  border-left: 3.5px solid #2b7044 !important;
+  box-shadow: 0 1px 4px rgba(43, 112, 68, 0.04);
+}
+
+.dose-item.regular:hover {
+  box-shadow: 0 3px 8px rgba(43, 112, 68, 0.08);
+  border-color: #a7d4b4;
+}
+
+.dose-item.regular.done {
+  border-left-color: #2b7044 !important;
+  background: #fbfdfb;
+  border-color: #dcebe0;
+  opacity: 0.88;
+}
+
+/* 영양제 테두리 및 카드 스타일 */
+.dose-item.supplement {
+  border: 1px solid #fae6cb;
+  border-left: 3.5px solid #b87b2b !important;
+  box-shadow: 0 1px 4px rgba(184, 123, 43, 0.04);
+}
+
+.dose-item.supplement:hover {
+  box-shadow: 0 3px 8px rgba(184, 123, 43, 0.08);
+  border-color: #eccda5;
+}
+
+.dose-item.supplement.done {
+  border-left-color: #b87b2b !important;
+  background: #fdfbf8;
+  border-color: #f2e4d2;
+  opacity: 0.88;
+}
+
+/* 처방약 단건 테두리 및 카드 스타일 */
+.dose-item.prescription {
+  border: 1px solid #ebd0d5;
+  border-left: 3.5px solid #8b3e4b !important;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.04);
+}
+
+.dose-item.prescription:hover {
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.08);
+  border-color: #d6abb4;
+}
+
+.dose-item.prescription.done {
+  border-left-color: #8b3e4b !important;
+  background: #fcf9f8;
+  border-color: #e5d7d5;
+  opacity: 0.88;
 }
 
 .check-box {

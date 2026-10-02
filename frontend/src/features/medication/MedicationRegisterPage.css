@@ -1012,6 +1012,11 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
 }
 
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
 .search-input-row {
   display: flex;
   align-items: center;
@@ -1048,6 +1053,118 @@
   font-size: 15px;
   color: #2b2520;
   padding: 8px 0;
+}
+
+/* 검색 자동완성 드롭다운 (식약처 DB 약품 연동) */
+.search-autocomplete-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: #ffffff;
+  border: 1px solid #dcd5c9;
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(43, 37, 35, 0.12);
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.dropdown-header {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8c8278;
+  background: #f7f3ec;
+  padding: 8px 14px;
+  border-bottom: 1px solid #ede7dc;
+}
+
+.dropdown-med-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdown-med-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  cursor: pointer;
+  border-bottom: 1px solid #f4efe7;
+  border-left: 3px solid transparent;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.dropdown-med-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-med-item:hover,
+.dropdown-med-item.highlighted {
+  background: #fbf5ee;
+  border-left-color: #2b7a4b;
+}
+
+.dropdown-med-item .med-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+  margin-right: 12px;
+}
+
+.dropdown-med-item .med-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2b2523;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-med-item .med-corp {
+  font-size: 12px;
+  color: #8c8278;
+}
+
+.med-add-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.med-add-badge {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  font-family: inherit;
+  pointer-events: none;
+}
+
+.med-add-badge.badge-cabinet {
+  background: #e8f4ed;
+  color: #2b7a4b;
+  border-color: #cde4d5;
+}
+
+.dropdown-med-item:hover .med-add-badge.badge-cabinet,
+.dropdown-med-item.highlighted .med-add-badge.badge-cabinet {
+  background: #2b7a4b;
+  color: #ffffff;
+  border-color: #2b7a4b;
+}
+
+.dropdown-empty-hint {
+  padding: 18px;
+  text-align: center;
+  font-size: 13.5px;
+  color: #8c8278;
 }
 
 .popular-tags {
@@ -1322,6 +1439,75 @@
   gap: 12px;
 }
 
+/* 영양제 일정 동시 등록 옵션 */
+.schedule-sync-options {
+  background: #fdfbf7;
+  border: 1px solid #ebdccb;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 14px 0 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sync-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sync-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #a36800;
+  cursor: pointer;
+}
+
+.sync-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #3f362c;
+}
+
+.days-picker-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 24px;
+}
+
+.days-label {
+  font-size: 12px;
+  color: #7d7265;
+  font-weight: 600;
+}
+
+.day-btn-mini {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #dcd1c1;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a4034;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.day-btn-mini:hover {
+  border-color: #a36800;
+  color: #a36800;
+}
+
+.day-btn-mini.active {
+  background: #a36800;
+  color: #ffffff;
+  border-color: #a36800;
+}
+
 .supplement-submit-btn {
   width: 100%;
   padding: 13px;
@@ -1421,7 +1607,7 @@
   border-color: #a36800;
 }
 
-.slot-checkbox-label input {
+.slot-checkbox-label input[type="checkbox"] {
   display: none;
 }
 
@@ -1429,6 +1615,26 @@
   font-size: 13.5px;
   font-weight: 700;
   color: #2b2520;
+}
+
+.slot-time-input {
+  display: block;
+  font-size: 11px;
+  border: 1px solid #dcd3c5;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 3px 4px;
+  margin-top: 6px;
+  color: #3e3832;
+  text-align: center;
+  width: 82px;
+  cursor: text;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.slot-time-input:focus {
+  border-color: #a36800;
 }
 
 .slot-checkbox-label small {

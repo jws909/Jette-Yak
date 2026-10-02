@@ -37,7 +37,8 @@
     <select id="searchMedications" parameterType="string" resultType="map">
         SELECT 
             medication_id AS "medicationId",
-            item_name     AS "itemName"
+            item_name     AS "itemName",
+            entp_name     AS "entpName"
         FROM medications
         WHERE item_name LIKE '%' || #{keyword} || '%'
         <![CDATA[
@@ -58,6 +59,15 @@
         FROM cabinet_medications
         WHERE user_id = #{userId}
           AND medication_id = #{medicationId}
+          AND ROWNUM = 1
+    </select>
+
+    <!-- 4-1. 캐비닛 ID로 의약품 ID 역조회 -->
+    <select id="selectMedicationIdByCabinetId" parameterType="map" resultType="string">
+        SELECT medication_id
+        FROM cabinet_medications
+        WHERE cabinet_id = #{cabinetId}
+          AND user_id = #{userId}
           AND ROWNUM = 1
     </select>
 

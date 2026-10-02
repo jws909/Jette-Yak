@@ -468,6 +468,13 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Transactional
     public boolean addSchedule(ScheduleAddDTO dto) {
         if ("regular".equalsIgnoreCase(dto.getType())) {
+            if ((dto.getMedicationId() == null || dto.getMedicationId().trim().isEmpty())
+                    && dto.getCabinetId() != null && dto.getCabinetId() > 0L) {
+                String foundMedId = scheduleDAO.findMedicationIdByCabinetId(dto.getUserId(), dto.getCabinetId());
+                if (foundMedId != null && !foundMedId.isBlank()) {
+                    dto.setMedicationId(foundMedId);
+                }
+            }
             if (dto.getMedicationId() == null || dto.getMedicationId().trim().isEmpty()) {
                 throw new IllegalArgumentException("상시약은 의약품 목록에서 약을 선택해야 등록할 수 있습니다.");
             }
@@ -475,7 +482,9 @@ public class ScheduleServiceImpl implements ScheduleService {
                 throw new IllegalArgumentException("선택하신 약품이 의약품 목록에 존재하지 않아 상시약으로 등록할 수 없습니다.");
             }
 
-            Long cabinetId = scheduleDAO.findOrCreateCabinetId(dto.getUserId(), dto.getMedicationId());
+            Long cabinetId = (dto.getCabinetId() != null && dto.getCabinetId() > 0L)
+                    ? dto.getCabinetId()
+                    : scheduleDAO.findOrCreateCabinetId(dto.getUserId(), dto.getMedicationId());
             dto.setCabinetId(cabinetId);
             dto.setRoutineId(null);
             dto.setPrescriptionId(null);

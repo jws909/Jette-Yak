@@ -74,10 +74,16 @@ public class FamilyController {
 			return ResponseEntity.badRequest().body(response);
 		}
 
-		// 외래키(자식 레코드) 삭제 순서: FAMILY_MEMBERS -> 복약일정 -> 초대내역 -> USERS
+		// 외래키(자식 레코드) 삭제 순서: FAMILY_MEMBERS -> 처방약세부 -> 복약일정 -> 처방전 -> 상비약 -> 영양제 -> 복약상태 -> 초대내역 -> USERS
 		String deleteFamilyMemberSql = "DELETE FROM FAMILY_MEMBERS WHERE USER_ID = ?";
 		String checkVirtualSql = "SELECT IS_VIRTUAL FROM USERS WHERE USER_ID = ?";
-		String deleteSchedulesSql = "DELETE FROM MEDICATION_SCHEDULES WHERE USER_ID = ?";
+		String deletePrescriptionItemsSql = "DELETE FROM PRESCRIPTION_ITEMS WHERE PRESCRIPTION_ID IN (SELECT PRESCRIPTION_ID FROM PRESCRIPTIONS WHERE USER_ID = ?)";
+		String deleteSchedulesSql = "DELETE FROM SCHEDULES WHERE USER_ID = ?";
+		String deletePrescriptionsSql = "DELETE FROM PRESCRIPTIONS WHERE USER_ID = ?";
+		String deleteCabinetSql = "DELETE FROM CABINET_MEDICATIONS WHERE USER_ID = ?";
+		String deleteRoutineSql = "DELETE FROM ROUTINE_MEDICATIONS WHERE USER_ID = ?";
+		String deleteUseStatesSql = "DELETE FROM MEDICATION_USE_STATES WHERE USER_ID = ?";
+		String deleteOverallGuideSql = "DELETE FROM MEDICATION_OVERALL_GUIDE WHERE USER_ID = ?";
 		String deleteUserSql = "DELETE FROM USERS WHERE USER_ID = ?";
 		String unlinkUserSql = "UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT' WHERE USER_ID = ?";
 		String cleanInviteSql = "DELETE FROM FAMILY_INVITATIONS WHERE RECEIVER_ID = ? OR SENDER_ID = ?";
@@ -116,13 +122,46 @@ public class FamilyController {
 
 			// (4) 가상 계정 vs 일반 회원 분기
 			if ("Y".equalsIgnoreCase(isVirtual)) {
-				// 일정 삭제
+				// 처방전 세부 항목 삭제
+				try (PreparedStatement ps = conn.prepareStatement(deletePrescriptionItemsSql)) {
+					ps.setLong(1, targetUserId);
+					ps.executeUpdate();
+				} catch (Exception ignored) {}
+
+				// 복약 일정 삭제
 				try (PreparedStatement pstmtSched = conn.prepareStatement(deleteSchedulesSql)) {
 					pstmtSched.setLong(1, targetUserId);
 					pstmtSched.executeUpdate();
-				} catch (Exception ex) {
-					// 스케줄 테이블명 다를 경우 대비
-				}
+				} catch (Exception ignored) {}
+
+				// 처방전 마스터 삭제
+				try (PreparedStatement ps = conn.prepareStatement(deletePrescriptionsSql)) {
+					ps.setLong(1, targetUserId);
+					ps.executeUpdate();
+				} catch (Exception ignored) {}
+
+				// 보관함 상시약 삭제
+				try (PreparedStatement ps = conn.prepareStatement(deleteCabinetSql)) {
+					ps.setLong(1, targetUserId);
+					ps.executeUpdate();
+				} catch (Exception ignored) {}
+
+				// 영양제 루틴 삭제
+				try (PreparedStatement ps = conn.prepareStatement(deleteRoutineSql)) {
+					ps.setLong(1, targetUserId);
+					ps.executeUpdate();
+				} catch (Exception ignored) {}
+
+				// 복약 상태 및 가이드 삭제
+				try (PreparedStatement ps = conn.prepareStatement(deleteUseStatesSql)) {
+					ps.setLong(1, targetUserId);
+					ps.executeUpdate();
+				} catch (Exception ignored) {}
+				try (PreparedStatement ps = conn.prepareStatement(deleteOverallGuideSql)) {
+					ps.setLong(1, targetUserId);
+					ps.executeUpdate();
+				} catch (Exception ignored) {}
+
 				// 유저 계정 삭제
 				try (PreparedStatement pstmtUser = conn.prepareStatement(deleteUserSql)) {
 					pstmtUser.setLong(1, targetUserId);
