@@ -1,24 +1,17 @@
 /**
- * 파일 역할: 현재 복용 중인 약 사이에서 발견된 DUR 비교 결과를 요약합니다.
- * 핵심 규칙: 경고 건수가 없어도 상호작용이 없다고 단정하지 않는 안내를 유지합니다.
+ * 현재 복용 중인 약 사이에서 실제로 확인된 주의정보만 보여준다.
+ * 연결 실패나 기록 없음은 화면에 빈 카드로 남기지 않는다.
  */
 import { Link } from 'react-router-dom'
 import { DurRecord } from '../chatbot/components/CatalogResults'
-export default function InteractionSummary({ data }) {
- if (!data) return null
- return <section className="interaction-summary" aria-label="약 사이의 DUR 조회 결과">
-  <h3>약 사이의 병용 주의정보</h3><p>{data.medications.length}개 제품의 성분을 비교했습니다.</p>
-  {data.unconfirmedCount > 0 && <p>복용 여부를 확인하지 않은 등록 건 {data.unconfirmedCount}개는 비교에서 제외했습니다.</p>}
-  {data.medications.length < 2 ? <p>비교할 수 있는 제품이 2개 이상 필요합니다.</p> : !data.pairs.length && <p>선택된 제품 사이에 연결된 병용금기 기록이 없습니다.</p>}
-  {data.pairs.map((pair,i) => <details key={i} open><summary>{pair.left.itemName} + {pair.right.itemName} · {pair.items.length}건</summary>
-    {pair.items.map((row,j) => <DurRecord key={j} record={row}/>)}
-    <Link className="my-med-action" to={'/chat?medicationId='+encodeURIComponent(pair.left.medicationId)+'&compareId='+encodeURIComponent(pair.right.medicationId)}>이 조합을 챗봇에서 확인 →</Link>
-  </details>)}
-  {data.duplicates.length > 0 && <details><summary>같은 성분이 들어 있는 제품 조합 {data.duplicates.length}건</summary>{data.duplicates.map((row,i)=><p key={i}>{row.left} + {row.right}: {row.ingredients.join(', ')}</p>)}</details>}
-  {(data.unresolved.length > 0 || data.unlinked.length > 0) && <details open><summary>자료 연결이 불완전한 약</summary>
-    {data.unlinked.map(name=><p key={name}>{name}: 제품이 연결되지 않아 비교하지 못했습니다.</p>)}
-    {data.unresolved.map(row=><p key={row.medicationId}>{row.itemName}: {row.ingredients.length ? 'DUR 기록 미연결 성분 — '+row.ingredients.join(', ') : '성분 정보 없음'}</p>)}
-  </details>}
-  <p className="guide-note">{data.notice}</p>
- </section>
+import { hasInteractionWarnings } from './interactionWarnings'
+
+export default function InteractionSummary({data}){
+  if(!hasInteractionWarnings(data))return null
+  const warningCount=(data.pairs||[]).reduce((total,pair)=>total+(pair.items?.length||0),0)
+  return <section className="interaction-summary" aria-label="함께 복용할 때 확인할 주의정보">
+    <div className="interaction-heading"><span aria-hidden="true">!</span><div><h3>함께 복용할 때 확인하세요</h3><p>{warningCount>0?`주의 기록 ${warningCount}건을 찾았습니다.`:'같은 성분이 포함된 약이 있습니다.'}</p></div></div>
+    {(data.pairs||[]).map((pair,index)=><details key={index} open={index===0}><summary><strong>{pair.left.itemName}</strong><span>+</span><strong>{pair.right.itemName}</strong><em>{pair.items.length}건</em></summary><div className="interaction-detail">{pair.items.map((row,rowIndex)=><DurRecord key={rowIndex} record={row}/>)}<Link className="my-med-action" to={'/chat?medicationId='+encodeURIComponent(pair.left.medicationId)+'&compareId='+encodeURIComponent(pair.right.medicationId)}>이 조합 자세히 질문하기 →</Link></div></details>)}
+    {(data.duplicates||[]).length>0&&<details><summary><strong>같은 성분이 포함된 약</strong><em>{data.duplicates.length}조합</em></summary><div className="interaction-detail">{data.duplicates.map((row,index)=><p key={index}><b>{row.left} + {row.right}</b><span>{row.ingredients.join(', ')}</span></p>)}</div></details>}
+  </section>
 }

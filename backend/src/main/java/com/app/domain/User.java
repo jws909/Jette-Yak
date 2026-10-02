@@ -19,6 +19,7 @@ public class User {
     private LocalDateTime updatedAt;
     private LocalDateTime medUpdatedAt;
     private String role;
+    private Integer isAdmin;
     private Long familyId;
     private LocalDate birthdate;
     private String sex;
@@ -115,6 +116,14 @@ public class User {
 
     public void setRole(String role) {
         this.role = role;
+    }
+
+    public Integer getIsAdmin() {
+        return isAdmin;
+    }
+
+    public void setIsAdmin(Integer isAdmin) {
+        this.isAdmin = isAdmin;
     }
 
     public Long getFamilyId() {

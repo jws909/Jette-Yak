@@ -11,6 +11,7 @@ public class LoginResponse {
     private String nickname;
     private String email;
     private String role;
+    private boolean isAdmin;
     private String message;
 
     public LoginResponse(String username, String message) {
@@ -27,6 +28,7 @@ public class LoginResponse {
         this.nickname = nickname;
         this.email = email;
         this.role = role;
+        this.isAdmin = isAdmin;
         this.message = message;
     }
 
@@ -49,6 +51,8 @@ public class LoginResponse {
     public String getRole() {
         return role;
     }
+
+    public boolean getIsAdmin() { return isAdmin; }
 
     public String getMessage() {
         return message;

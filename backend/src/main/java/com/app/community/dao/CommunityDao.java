@@ -18,7 +18,7 @@ public class CommunityDao {
 
     public List<Map<String,Object>> posts(Map<String,Object> p) { return session.selectList(NS+"posts", p); }
     public int countPosts(Map<String,Object> p) { return session.selectOne(NS+"countPosts", p); }
-    public Map<String,Object> post(long id, Long viewerId) { return session.selectOne(NS+"post", Map.of("postId",id,"viewerId",viewerId == null ? -1L : viewerId)); }
+    public Map<String,Object> post(long id, Long viewerId, boolean admin) { return session.selectOne(NS+"post", Map.of("postId",id,"viewerId",viewerId == null ? -1L : viewerId,"isAdmin",admin?1:0)); }
     public long insertPost(Map<String,Object> p) { session.insert(NS+"insertPost",p); return ((Number)p.get("postId")).longValue(); }
     public int updatePost(Map<String,Object> p) { return session.update(NS+"updatePost",p); }
     public int deletePost(long id,long userId) { return session.update(NS+"deletePost",Map.of("postId",id,"userId",userId)); }
@@ -32,7 +32,9 @@ public class CommunityDao {
     public void insertReport(Map<String,Object> p) { session.insert(NS+"insertReport",p); }
     public List<Map<String,Object>> reports() { return session.selectList(NS+"reports"); }
     public List<Map<String,Object>> pendingInfoReports() { return session.selectList(NS+"pendingInfoReports"); }
+    public List<Map<String,Object>> moderatedContent() { return session.selectList(NS+"moderatedContent"); }
     public int moderatePost(Map<String,Object> p) { return session.update(NS+"moderatePost",p); }
+    public int moderateComment(Map<String,Object> p) { return session.update(NS+"moderateComment",p); }
     public int reviewInfoPost(Map<String,Object> p) { return session.update(NS+"reviewInfoPost",p); }
     public int resolveReport(Map<String,Object> p) { return session.update(NS+"resolveReport",p); }
     public List<Map<String,Object>> medications(String q) { return session.selectList(NS+"medications",q); }

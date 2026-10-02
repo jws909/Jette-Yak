@@ -108,11 +108,24 @@ public class UserController {
         if (user == null) {
             return ResponseEntity.notFound().build();
         }
+        boolean authenticatedAsUser = false;
         if (httpRequest != null) {
+            javax.servlet.http.HttpSession existingSession = httpRequest.getSession(false);
+            Object sessionUserId = existingSession == null ? null : existingSession.getAttribute("userId");
+            boolean authenticated = existingSession != null
+                    && Boolean.TRUE.equals(existingSession.getAttribute("authenticated"));
+            if (authenticated && sessionUserId instanceof Number
+                    && ((Number) sessionUserId).longValue() != user.getUserId().longValue()) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("message", "다른 사용자의 프로필을 조회할 수 없습니다."));
+            }
+            authenticatedAsUser = authenticated && sessionUserId instanceof Number
+                    && ((Number) sessionUserId).longValue() == user.getUserId().longValue();
             javax.servlet.http.HttpSession session = httpRequest.getSession(true);
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getLoginId());
             session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
+            session.setAttribute("isAdmin", authenticatedAsUser && Integer.valueOf(1).equals(user.getIsAdmin()));
         }
         Map<String, Object> response = new HashMap<>();
         response.put("userId", user.getUserId());
@@ -122,6 +135,7 @@ public class UserController {
         response.put("profileImageUrl", profileImagePath(user));
         response.put("pushEnabled", user.getPushEnabled() == null ? 1 : user.getPushEnabled());
         response.put("role", user.getRole() == null ? "USER" : user.getRole());
+        response.put("isAdmin", authenticatedAsUser && Integer.valueOf(1).equals(user.getIsAdmin()));
         response.put("breakfastTime", user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
         response.put("lunchTime", user.getLunchTime() != null ? user.getLunchTime() : "12:00");
         response.put("dinnerTime", user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");

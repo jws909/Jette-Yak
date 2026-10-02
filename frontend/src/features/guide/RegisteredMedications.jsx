@@ -8,7 +8,8 @@ export default function RegisteredMedications({ items, onStatus, busy }) {
   return <ul className="my-med-registrations">{items.map(item => <li key={item.registrationId}>
     <span className="my-med-source">{labels[item.source] || '등록 약'}</span>
     {item.useStatus && <strong>{statusLabels[item.useStatus]}</strong>}
-    {item.startDate && <span>처방 기간: {item.startDate} ~ {item.endDate || '종료일 미등록'}</span>}
+    {item.startDate && item.endDate && <span>처방 기간: {item.startDate} ~ {item.endDate}</span>}
+    {item.startDate && !item.endDate && <span>처방 시작: {item.startDate}</span>}
     {item.periodState === 'CURRENT' && item.daysRemaining > 0 && <span>{item.daysRemaining === 1 ? '처방 기간 마지막 날' : '처방 기간 '+item.daysRemaining+'일 남음 (오늘 포함)'}</span>}
     {item.takeTime && <span>복용 시각: {item.takeTime}</span>}{item.notes && <span>{item.notes}</span>}
     {onStatus && !['ENDED','UPCOMING'].includes(item.periodState) && <label>현재 상태 <select aria-label={item.itemName+' '+labels[item.source]+' 복용 상태'} value={item.useStatus} disabled={busy} onChange={e => onStatus(item.registrationId,e.target.value)}>

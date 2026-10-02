@@ -3,5 +3,5 @@
  * 핵심 규칙: 이미지가 없는 제품은 빈 이미지 영역을 만들지 않습니다.
  */
 export default function MedicationImage({ url, name }) {
-  return url && /^https?:\/\//i.test(url) ? <img className="medication-thumbnail" src={url} alt={name+' 제품 사진'} loading="lazy" referrerPolicy="no-referrer" onError={event => { event.currentTarget.hidden = true }} /> : <span className="medication-image-empty">제품 사진 미등록</span>
+  return url && /^https?:\/\//i.test(url) ? <img className="medication-thumbnail" src={url} alt={name+' 제품 사진'} loading="lazy" referrerPolicy="no-referrer" onError={event => { event.currentTarget.hidden = true }} /> : null
 }

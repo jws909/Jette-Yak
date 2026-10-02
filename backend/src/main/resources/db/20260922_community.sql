@@ -76,5 +76,5 @@ CREATE INDEX ix_community_reports_status ON community_reports(status,created_at)
 CREATE INDEX ix_community_attachments_post ON community_attachments(post_id,attachment_type,created_at);
 
 -- 관리자 계정을 지정할 때 사용한다.
--- UPDATE users SET role='ADMIN' WHERE login_id='관리자아이디';
+-- UPDATE users SET is_admin='Y' WHERE login_id='관리자아이디';
 COMMIT;

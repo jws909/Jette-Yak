@@ -8,6 +8,7 @@ import MyPage from './features/mypage/MyPage';
 import FamilyPage from "./features/family/FamilyPage";
 import MedicationChat from './features/chatbot/components/MedicationChat';
 import CommunityPage from './features/community/CommunityPage';
+import AdminPage from './features/admin/AdminPage';
 import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import MedicationRegisterPage from './features/medication/MedicationRegisterPage';
@@ -68,7 +69,7 @@ function App() {
 
   // 세션 userId 자동 복구
   useEffect(() => {
-    if (user?.username && (!user?.userId || !user?.role || user?.pushEnabled === undefined)) {
+    if (user?.username && (!user?.userId || !user?.role || user?.pushEnabled === undefined || user?.isAdmin === undefined)) {
       const targetUser = user.username === 'demo' ? 'test12' : user.username;
       fetch(`/api/users/profile?username=${encodeURIComponent(targetUser)}`)
         .then((res) => (res.ok ? res.json() : null))
@@ -81,6 +82,7 @@ function App() {
                 username: data.username || curr?.username || targetUser,
                 name: curr?.name || data.nickname || '체험 사용자',
                 role: data.role || curr?.role || 'USER',
+                isAdmin: data.isAdmin === true || Number(data.isAdmin) === 1,
                 pushEnabled: data.pushEnabled !== false && data.pushEnabled !== 0 && data.pushEnabled !== '0',
               };
               localStorage.setItem('user', JSON.stringify(updated));
@@ -90,7 +92,7 @@ function App() {
         })
         .catch(() => {});
     }
-  }, [user?.username, user?.userId, user?.role]);
+  }, [user?.username, user?.userId, user?.role, user?.isAdmin]);
 
   // ★ 2. 로그인 시 브라우저 권한 상태를 확인하고, 미결정('default')이면 안내 모달 띄우기
   useEffect(() => {
@@ -295,6 +297,7 @@ function App() {
       name: loginData.nickname || loginData.username,
       email: loginData.email || '',
       role: loginData.role || 'USER',
+      isAdmin: loginData.isAdmin === true || Number(loginData.isAdmin) === 1,
     };
     setIsLoggedIn(true);
     setUser(loggedInUser);
@@ -357,6 +360,7 @@ function App() {
       nickname: profileData?.nickname || '체험 사용자',
       email: profileData?.email || '',
       role: profileData?.role || 'USER',
+      isAdmin: profileData?.isAdmin === true || Number(profileData?.isAdmin) === 1,
       profileImageUrl: profileData?.profileImageUrl || '',
       isDemo: true,
     };
@@ -518,6 +522,20 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            (user?.isAdmin === true || Number(user?.isAdmin) === 1) ? (
+              <MainLayout
+                isLoggedIn={isLoggedIn}
+                user={user}
+                onLogout={handleLogout}
+                onLoginDemoToggle={handleLoginDemoToggle}
+              >
+                <AdminPage />
+              </MainLayout>
+            ) : <Navigate to="/" replace />
+          }
 
         {/* 미등록 경로(404) 와일드카드 처리: 로그인 상태에 따라 메인 또는 로그인창으로 이동 */}
         <Route

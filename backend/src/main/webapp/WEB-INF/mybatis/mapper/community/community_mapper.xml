@@ -36,7 +36,8 @@
       TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",TO_CHAR(p.updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt",
       (SELECT COUNT(*) FROM community_post_helpful h WHERE h.post_id=p.post_id) AS "helpfulCount",
       CASE WHEN EXISTS(SELECT 1 FROM community_post_helpful h WHERE h.post_id=p.post_id AND h.user_id=#{viewerId}) THEN 1 ELSE 0 END AS "helpfulByMe"
-    FROM community_posts p JOIN users u ON u.user_id=p.user_id WHERE p.post_id=#{postId} AND p.status&lt;&gt;'DELETED'
+    FROM community_posts p JOIN users u ON u.user_id=p.user_id
+    WHERE p.post_id=#{postId} AND p.status&lt;&gt;'DELETED' AND (p.status='VISIBLE' OR #{isAdmin}=1)
   </select>
   <insert id="insertPost" parameterType="map"><selectKey keyProperty="postId" resultType="long" order="BEFORE">SELECT community_posts_seq.NEXTVAL FROM dual</selectKey>
     INSERT INTO community_posts(post_id,user_id,medication_id,medication_name,category,title,content,experience_duration,age_group,purpose,occurrence_timing,currently_taking,review_status,status,created_at,updated_at)
@@ -52,9 +53,35 @@
   <delete id="removeHelpful" parameterType="map">DELETE FROM community_post_helpful WHERE post_id=#{postId} AND user_id=#{userId}</delete>
   <select id="helpfulTotal" parameterType="long" resultType="int">SELECT COUNT(*) FROM community_post_helpful WHERE post_id=#{value}</select>
   <insert id="insertReport" parameterType="map"><selectKey keyProperty="reportId" resultType="long" order="BEFORE">SELECT community_reports_seq.NEXTVAL FROM dual</selectKey>INSERT INTO community_reports(report_id,reporter_id,target_type,target_id,reason,detail,status,created_at) VALUES(#{reportId},#{userId},#{targetType},#{targetId},#{reason},#{detail,jdbcType=VARCHAR},'PENDING',SYSDATE)</insert>
-  <select id="reports" resultType="map">SELECT r.report_id AS "reportId",r.target_type AS "targetType",r.target_id AS "targetId",r.reason AS "reason",r.detail AS "detail",r.status AS "status",u.nickname AS "reporterName",TO_CHAR(r.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",CASE WHEN r.target_type='POST' THEN (SELECT title FROM community_posts WHERE post_id=r.target_id) ELSE (SELECT DBMS_LOB.SUBSTR(content,120,1) FROM community_comments WHERE comment_id=r.target_id) END AS "targetSummary" FROM community_reports r JOIN users u ON u.user_id=r.reporter_id ORDER BY CASE r.status WHEN 'PENDING' THEN 0 ELSE 1 END,r.created_at DESC</select>
-  <select id="pendingInfoReports" resultType="map">SELECT p.post_id AS "postId",p.title AS "title",DBMS_LOB.SUBSTR(p.content,500,1) AS "content",p.medication_name AS "medicationName",u.nickname AS "authorName",TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt" FROM community_posts p JOIN users u ON u.user_id=p.user_id WHERE p.category='INFO_REPORT' AND p.review_status='PENDING' AND p.status='VISIBLE' ORDER BY p.created_at</select>
+  <select id="reports" resultType="map">
+    SELECT r.report_id AS "reportId",r.target_type AS "targetType",r.target_id AS "targetId",r.reason AS "reason",r.detail AS "detail",r.status AS "status",
+      u.nickname AS "reporterName",TO_CHAR(r.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",
+      CASE WHEN r.target_type='POST' THEN (SELECT title FROM community_posts WHERE post_id=r.target_id) ELSE (SELECT DBMS_LOB.SUBSTR(content,120,1) FROM community_comments WHERE comment_id=r.target_id) END AS "targetSummary",
+      CASE WHEN r.target_type='POST' THEN (SELECT status FROM community_posts WHERE post_id=r.target_id) ELSE (SELECT status FROM community_comments WHERE comment_id=r.target_id) END AS "targetStatus",
+      CASE WHEN r.target_type='POST' THEN r.target_id ELSE (SELECT post_id FROM community_comments WHERE comment_id=r.target_id) END AS "targetPostId"
+    FROM community_reports r JOIN users u ON u.user_id=r.reporter_id
+    ORDER BY CASE r.status WHEN 'PENDING' THEN 0 ELSE 1 END,r.created_at DESC
+  </select>
+  <select id="pendingInfoReports" resultType="map">
+    SELECT p.post_id AS "postId",p.title AS "title",DBMS_LOB.SUBSTR(p.content,500,1) AS "content",p.medication_name AS "medicationName",
+      p.review_status AS "reviewStatus",p.status AS "status",u.nickname AS "authorName",TO_CHAR(p.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",
+      TO_CHAR(p.moderated_at,'YYYY-MM-DD HH24:MI') AS "reviewedAt"
+    FROM community_posts p JOIN users u ON u.user_id=p.user_id
+    WHERE p.category='INFO_REPORT' AND p.status&lt;&gt;'DELETED'
+    ORDER BY CASE p.review_status WHEN 'PENDING' THEN 0 ELSE 1 END,p.created_at DESC
+  </select>
+  <select id="moderatedContent" resultType="map">
+    SELECT 'POST' AS "targetType",p.post_id AS "targetId",p.post_id AS "postId",p.title AS "title",
+      DBMS_LOB.SUBSTR(p.content,300,1) AS "content",p.status AS "status",u.nickname AS "authorName",TO_CHAR(p.moderated_at,'YYYY-MM-DD HH24:MI') AS "moderatedAt"
+    FROM community_posts p JOIN users u ON u.user_id=p.user_id WHERE p.status='HIDDEN'
+    UNION ALL
+    SELECT 'COMMENT' AS "targetType",c.comment_id AS "targetId",c.post_id AS "postId",'댓글 #'||TO_CHAR(c.comment_id) AS "title",
+      DBMS_LOB.SUBSTR(c.content,300,1) AS "content",c.status AS "status",u.nickname AS "authorName",TO_CHAR(c.updated_at,'YYYY-MM-DD HH24:MI') AS "moderatedAt"
+    FROM community_comments c JOIN users u ON u.user_id=c.user_id WHERE c.status='HIDDEN'
+    ORDER BY "moderatedAt" DESC
+  </select>
   <update id="moderatePost" parameterType="map">UPDATE community_posts SET status=#{status},moderated_by=#{adminId},moderated_at=SYSDATE,updated_at=SYSDATE WHERE post_id=#{postId}</update>
+  <update id="moderateComment" parameterType="map">UPDATE community_comments SET status=#{status},updated_at=SYSDATE WHERE comment_id=#{commentId} AND status&lt;&gt;'DELETED'</update>
   <update id="reviewInfoPost" parameterType="map">UPDATE community_posts SET review_status=#{status},moderated_by=#{adminId},moderated_at=SYSDATE,updated_at=SYSDATE WHERE post_id=#{postId} AND category='INFO_REPORT' AND review_status='PENDING'</update>
   <update id="resolveReport" parameterType="map">UPDATE community_reports SET status=#{status},resolution_note=#{note},resolved_by=#{adminId},resolved_at=SYSDATE WHERE report_id=#{reportId}</update>
   <select id="medications" parameterType="string" resultType="map">SELECT medication_id AS "medicationId",item_name AS "itemName",entp_name AS "entpName" FROM medications WHERE INSTR(LOWER(item_name),LOWER(#{value}))&gt;0 AND ROWNUM&lt;=10 ORDER BY item_name</select>

@@ -11,13 +11,26 @@ import { activeMedicationRegistrations, groupMedications } from '../../guide/med
 import MedicationSearch from './MedicationSearch'
 import CatalogSearch from './CatalogSearch'
 import CatalogResults, { DurReports } from './CatalogResults'
+import UiDialog from '../../../components/ui/UiDialog'
 import './MedicationChat.css'
 
-const fields = [
-  ['itemName', '제품명'], ['entpName', '업체명'], ['materialName', '성분'],
-  ['ediCode', 'EDI 코드'], ['updatedAt', '자료 수정일'], ['className', '분류'], ['etcOtcCode', '전문·일반'], ['efficacy', '효능·효과'], ['usageDosage', '용법·용량'],
-]
+const fields=[['itemName','제품명'],['entpName','제조사'],['materialName','성분'],['updatedAt','자료 수정일'],['className','분류'],['etcOtcCode','전문·일반'],['efficacy','효능·효과'],['usageDosage','복용 방법']]
+const hasValue=value=>value!==null&&value!==undefined&&String(value).trim()!==''
 const suggestions = ['어제부터 머리가 아파', '약을 먹고 두드러기가 생겼어', '이 증상으로 병원에 가야 할까?', '임산부가 먹으면 안 되는 약들이 뭐야?']
+
+function AnswerContent({ text }) {
+  const normalized=String(text||'').replace(/\*\*/g,'').trim()
+  let lines=normalized.split(/\n+/).map(line=>line.trim()).filter(Boolean)
+  // 모델이 줄바꿈 없이 긴 문단을 반환해도 문장 단위로 나눠 읽기 쉽게 만든다.
+  if(lines.length===1&&normalized.length>110) lines=normalized.split(/(?<=[.!?])\s+/).map(line=>line.trim()).filter(Boolean)
+  return <div className="answer-content">{lines.map((line,index)=>{
+    const heading=line.replace(/[:：]$/,'')
+    if(line.endsWith(':')||line.endsWith('：')||/^(확인한 내용|주의할 점|다음 행동|복용 방법|참고 정보)$/.test(heading))
+      return <h4 key={index}>{heading}</h4>
+    if(/^[-•]\s*/.test(line)) return <p className="answer-list-item" key={index}>{line.replace(/^[-•]\s*/,'')}</p>
+    return <p key={index}>{line}</p>
+  })}</div>
+}
 
 async function readResponse(response) {
   if (!(response.headers.get('content-type') || '').includes('application/json'))
@@ -65,6 +78,8 @@ function MedicationConversation() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [paging, setPaging] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [evidenceDialog, setEvidenceDialog] = useState(null)
   // 화면 안의 메시지 구분용 ID. HTTP LAN에서도 동작하며 인증에는 사용하지 않는다.
   const messageSequence = useRef(0)
   function nextMessageId() { return 'chat-' + (++messageSequence.current) }
@@ -149,7 +164,7 @@ function MedicationConversation() {
         { role: 'user', content: message.question.slice(0, 1500) },
         { role: 'assistant', content: message.answer.slice(0, 1500) },
       ])
-      const data = await postQuestion({ conversationId, itemSeq: chosenDrug?.itemSeq || selected?.itemSeq, question: text, selections, recentQuestions, conversation }, controller.signal)
+      const data = await postQuestion({ conversationId, itemSeq: chosenDrug?.itemSeq || selected?.itemSeq, selectionConfirmed:Boolean(chosenDrug), question: text, selections, recentQuestions, conversation }, controller.signal)
       if (typeof data.answer !== 'string' || !data.answer.trim()) throw new Error('서버 응답에 답변이 없습니다.')
       if (requestRef.current !== controller) return
       const seconds = data.seconds
@@ -160,6 +175,7 @@ function MedicationConversation() {
         choiceKeyword: data.choiceKeyword, choiceTotal: data.choiceTotal || 0,
         catalog: data.catalog, durReports: data.durReports, durNotice: data.durNotice,
         conversationMode: Boolean(data.conversationMode), urgency: data.urgency,
+        aiSupplemented: Boolean(data.aiSupplemented), evidenceLimited: Boolean(data.evidenceLimited), evidenceWarning: data.evidenceWarning,
         followUpQuestions: Array.isArray(data.followUpQuestions) ? data.followUpQuestions : [], seconds,
       } : message))
       if (data.activeMedication) setSelected(data.activeMedication)
@@ -167,6 +183,7 @@ function MedicationConversation() {
         setConversationId(Number(data.conversationId))
         loadHistories()
       }
+      if(data.aiSupplemented) setEvidenceDialog(data.evidenceWarning||'우리 DB에서 확인되지 않은 내용을 AI 일반 지식으로 보완했습니다.')
       setQuestion('')
     } catch (err) {
       if (requestRef.current !== controller) return
@@ -214,26 +231,21 @@ function MedicationConversation() {
   }
 
   async function deleteConversation(id) {
-    if (requestRef.current || !window.confirm('이 대화 기록을 삭제하시겠습니까?')) return
+    if (requestRef.current) return
     try {
       await readResponse(await fetch('/api/chat/conversations/' + encodeURIComponent(id), { method: 'DELETE' }))
       if (Number(id) === Number(conversationId)) startNewConversation()
       await loadHistories()
-    } catch (err) { setError(err.message) }
+      setDeleteTarget(null)
+    } catch (err) { setDeleteTarget(null);setError(err.message) }
   }
 
   async function compareProducts() {
-    // 프런트에서 상호작용을 추측하지 않고 두 품목코드를 서버에 보내 DUR 원문을 비교한다.
+    // 일반 상담 경로로 보내 DB 기록이 없을 때에도 AI 보완 설명과 출처 경고를 받을 수 있게 한다.
     if (!selected || !other || selected.itemSeq===other.itemSeq || requestRef.current || paging) return
-    const id = nextMessageId()
-    const controller = new AbortController();requestRef.current=controller;setLoading(true);setError('')
-    const timer=setTimeout(()=>controller.abort(),60000)
-    try {
-      const data=await readResponse(await fetch('/api/guides/compare',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({medicationIds:[selected.itemSeq,other.itemSeq]}),signal:controller.signal}))
-      if(requestRef.current!==controller)return
-      setMessages(previous=>[...previous,{id,question:selected.itemName+' + '+other.itemName+' 병용 주의정보',answer:'선택한 두 제품의 성분을 대조한 DB 조회 결과입니다.',sources:[],choices:[],comparison:data}])
-    } catch(error) {if(requestRef.current===controller)setError(error.name==='AbortError'?'비교 시간이 초과됐습니다. 다시 시도해주세요.':error.message)}
-    finally {clearTimeout(timer);if(requestRef.current===controller){requestRef.current=null;setLoading(false)}}
+    const text=`${selected.itemName}과 ${other.itemName}을 함께 먹어도 될까요?`
+    await sendQuestion(text,{[selected.itemName]:selected.itemSeq,[other.itemName]:other.itemSeq},
+      `${selected.itemName} · ${other.itemName}`)
   }
 
   async function moreChoices(message) {
@@ -279,20 +291,31 @@ function MedicationConversation() {
     <section className="chat-layout" aria-label="약 정보 AI 도우미">
       <aside className="product-panel">
         <span className="eyebrow">FIND YOUR MEDICINE</span>
-        <h2>어떤 약이<br />궁금하세요?</h2>
-        <MedicationSearch onSelect={selectDrug} disabled={loading || Boolean(paging)} />
-        {linked.loading && <p role="status">선택한 약을 불러오는 중…</p>}
+        <h2>상담 도구</h2>
+        <p className="panel-intro">약을 직접 찾거나, 내 복용약을 불러오고, 지난 상담을 이어갈 수 있어요.</p>
+        <section className="side-tool-card side-tool-primary">
+          <div className="side-tool-heading"><span>01</span><div><strong>약 선택하기</strong><small>제품을 고르면 질문의 기준이 됩니다</small></div></div>
+          <MedicationSearch onSelect={selectDrug} disabled={loading || Boolean(paging)} />
+        </section>
+        {linked.loading && <div className="side-loading" role="status"><span aria-hidden="true"/>선택한 약을 확인하고 있어요…</div>}
         {linked.error && <p role="alert">{linked.error}</p>}
-        <CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} />
         <div className="product-note active-medication">
-          <span>현재 대화 중인 약</span>
+          <span>현재 상담 기준</span>
           {selected ? <><p><strong>{selected.itemName}</strong><br />{selected.entpName}</p>
             <button type="button" className="clear-selection" disabled={loading} onClick={() => setSelected(null)}>선택 해제</button></>
             : <p>선택한 약이 없어요.<br />검색하거나 질문에 약 이름을 적어주세요.</p>}
         </div>
-        <details className="chat-history-panel" open>
-          <summary>지난 상담 기록</summary>
-          {historyLoading && <p>대화 기록을 불러오는 중…</p>}
+        <details className="chat-personal-panel side-tool-card"><summary><span className="side-summary-number">02</span> 내 복용약으로 질문하기</summary>
+          {mine.loading && <div className="side-loading" role="status"><span aria-hidden="true"/>복용약을 불러오고 있어요…</div>}
+          {mine.error && (mine.status===401 ? <Link to="/login?next=/chat">로그인하고 내 약 불러오기 →</Link> : <p role="alert">{mine.error}<button onClick={mine.retry}>다시 시도</button></p>)}
+          {mine.data && <>{ownProducts.length > 0 && <button type="button" className="side-action-button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion('내가 먹는 약끼리 같이 먹어도 돼?')}>내 약을 함께 먹어도 되는지 확인 <span>→</span></button>}
+            {ownProducts.map(item=><button type="button" className="drug-option" key={item.key} disabled={loading || Boolean(paging)} onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>{item.itemName}</button>)}
+            {!ownProducts.length && <p>현재 복용 중인 약이 없습니다. <Link to="/guide">내 약 관리 →</Link></p>}</>}
+        </details>
+        <section className="side-tool-card"><div className="side-tool-heading"><span>03</span><div><strong>조건으로 찾아보기</strong><small>성분·효능·주의 대상을 자세히 검색</small></div></div><CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} /></section>
+        <details className="chat-history-panel side-tool-card">
+          <summary><span className="side-summary-number">04</span> 지난 상담 이어보기</summary>
+          {historyLoading && <div className="side-loading"><span aria-hidden="true"/>상담 기록을 불러오고 있어요…</div>}
           {historyLoginRequired && <p><Link to="/login?next=/chat">로그인하고 상담 기록 보기 →</Link></p>}
           {!historyLoading && !historyLoginRequired && historyItems.length === 0 && <p>저장된 상담 기록이 없습니다.</p>}
           <div className="chat-history-list">
@@ -300,32 +323,25 @@ function MedicationConversation() {
               <button type="button" className="chat-history-open" disabled={loading || Boolean(paging)} onClick={() => openConversation(item.conversationId)}>
                 <strong>{item.title}</strong><small>{item.updatedAt} · 질문 {item.messageCount || 0}개</small>
               </button>
-              <button type="button" className="chat-history-delete" aria-label={`${item.title} 대화 삭제`} onClick={() => deleteConversation(item.conversationId)}>×</button>
+              <button type="button" className="chat-history-delete" aria-label={`${item.title} 대화 삭제`} onClick={() => setDeleteTarget(item)}>×</button>
             </div>)}
           </div>
         </details>
         {selected&&<section className="related-community"><div><span>이 약의 커뮤니티</span><Link to={'/community?'+communityQuery}>전체 보기 →</Link></div>{community.loading&&<p>관련 글을 찾고 있어요…</p>}{community.error&&<p>관련 글을 불러오지 못했습니다.</p>}{community.data?.items?.slice(0,3).map(post=><Link className="related-community-post" key={post.postId} to={'/community?'+communityQuery+'&postId='+post.postId}><strong>{post.title}</strong><small>{post.authorName} · 댓글 {post.commentCount||0}</small></Link>)}{community.data&&community.data.total===0&&<p>아직 이 약에 연결된 글이 없어요.</p>}</section>}
-        <details className="chat-personal-panel"><summary>복용 중인 내 약에서 선택</summary>
-          {mine.loading && <p role="status">등록 약을 불러오는 중…</p>}
-          {mine.error && (mine.status===401 ? <Link to="/login?next=/chat">로그인하고 내 약 불러오기 →</Link> : <p role="alert">{mine.error}<button onClick={mine.retry}>다시 시도</button></p>)}
-          {mine.data && <>{ownProducts.length > 0 && <button type="button" className="load-more" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion('내가 먹는 약끼리 같이 먹어도 돼?')}>복용 중인 내 약 DUR 확인</button>}
-            {ownProducts.map(item=><button type="button" className="drug-option" key={item.key} disabled={loading || Boolean(paging)} onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>{item.itemName}</button>)}
-            {!ownProducts.length && <p>현재 복용 중인 약이 없습니다. <Link to="/guide">내 약 관리 →</Link></p>}</>}
-        </details>
-        {selected && <details className="chat-personal-panel" open={Boolean(compareId)}><summary>다른 약과 함께 먹어도 될까? · 비교 약 선택</summary>
+        {selected && <details className="chat-personal-panel" open={Boolean(compareId)}><summary>다른 약과 함께 먹어도 될까요?</summary>
           <select aria-label="복용 중인 약 중 비교할 약" disabled={loading || Boolean(paging)} value={other?.itemSeq || ''} onChange={event=>{const item=ownProducts.find(item=>item.medicationId===event.target.value);setOther(item?{...item,itemSeq:item.medicationId}:null)}}>
             <option value="">복용 중인 내 약에서 선택</option>{other && !ownProducts.some(item=>item.medicationId===other.itemSeq) && <option value={other.itemSeq}>{other.itemName}</option>}
             {ownProducts.filter(item=>item.medicationId!==selected.itemSeq).map(item=><option key={item.key} value={item.medicationId}>{item.itemName}</option>)}
           </select>
           <MedicationSearch onSelect={setOther} disabled={loading || Boolean(paging)} />
           {other && <p>비교 대상: {other.itemName}</p>}{linkedCompare.error && <p role="alert">{linkedCompare.error}</p>}
-          <button type="button" className="load-more" disabled={!other || selected.itemSeq===other.itemSeq || loading || Boolean(paging)} onClick={compareProducts}>두 약의 DUR 비교</button>
+          <button type="button" className="load-more" disabled={!other || selected.itemSeq===other.itemSeq || loading || Boolean(paging)} onClick={compareProducts}>함께 먹을 때 주의사항 확인</button>
         </details>}
         <p className="scope-note">다른 약 이름을 질문하면 새로 찾아드려요.<br />“효능은?”처럼 이름을 생략하면 현재 선택한 약을 기준으로 안내해요.</p>
       </aside>
       <div className="conversation">
-        <header className="conversation-heading"><h2>복약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>{conversationId ? '저장된 상담 · DB 근거' : '새 상담 · DB 근거'}</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
-        {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{['효능은?','복용법은?','등록된 DUR 주의사항은?'].map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
+        <header className="conversation-heading"><h2>복약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>{conversationId?'이어지는 상담':'새 상담'} · 등록 정보 우선 · AI 보완</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
+        {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{['어디에 쓰는 약이야?','어떻게 먹어?','복용할 때 주의할 점은?'].map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
         <div className="chat-log" ref={logRef} role="log" aria-label="질문과 답변" aria-live="polite" aria-relevant="additions text">
           {messages.length === 0 && <div className="welcome"><span className="welcome-mark" aria-hidden="true">✦</span><h3>지금 어떤 도움이 필요한가요?</h3>
             <p>증상이나 복용 중 불편한 점을 편하게 말해주세요.<br />필요한 질문을 이어가며 다음 행동을 함께 정리해드려요.</p>
@@ -333,32 +349,33 @@ function MedicationConversation() {
           </div>}
           {messages.map(message => <article className="exchange" key={message.id}>
             <div className="question-bubble"><span className="bubble-label">내 질문</span><p>{message.question}</p>{message.choiceLabel && <small>선택한 제품: {message.choiceLabel}</small>}</div>
-            {message.answer !== null && <div className={'answer-bubble ' + (message.urgency === 'EMERGENCY' ? 'answer-emergency' : message.urgency === 'PROMPT' ? 'answer-prompt' : '')}><span className="bubble-label">✦ {message.conversationMode ? '상담 답변' : '답변 요약'}</span><p>{message.answer}</p>
+            {message.answer !== null && <div className={'answer-bubble ' + (message.urgency === 'EMERGENCY' ? 'answer-emergency' : message.urgency === 'PROMPT' ? 'answer-prompt' : '')}><span className="bubble-label">✦ {message.conversationMode ? '상담 답변' : '답변 요약'}</span><AnswerContent text={message.answer}/>
               {message.followUpQuestions?.length > 0 && <section className="follow-up-questions" aria-label="추가로 필요한 정보"><strong>답변을 위해 이것만 더 알려주세요</strong><ul>{message.followUpQuestions.map(item => <li key={item}>{item}</li>)}</ul></section>}
+              {(message.aiSupplemented || message.evidenceLimited) && <aside className="ai-evidence-warning" role="note"><strong>{message.aiSupplemented?'AI 참고정보가 포함됐어요':'확인 가능한 정보가 제한적이에요'}</strong><p>{message.evidenceWarning}</p></aside>}
               {message.sources.length > 0 && <p className="answer-subject">{message.sources.map(source => source.itemName).join(' · ')}</p>}
               {message.choices.length > 0 && <div className="choice-list">
                 {message.choices.map(drug => <button type="button" className="drug-option" key={drug.itemSeq} disabled={loading}
                   onClick={() => sendQuestion(message.question, { ...message.selections, [message.choiceKeyword]: drug.itemSeq }, drug.itemName, drug)}>
-                  <strong>{drug.itemName}</strong><small>{drug.entpName || '업체 정보 없음'}</small>
+                  <strong>{drug.itemName}</strong>{drug.entpName&&<small>{drug.entpName}</small>}
                 </button>)}
                 {message.choices.length < message.choiceTotal && <button type="button" className="load-more" disabled={Boolean(paging) || loading} onClick={() => moreChoices(message)}>다른 제품 더 보기 ({message.choices.length}/{message.choiceTotal})</button>}
               </div>}
               {message.loginRequired && <Link to="/login?next=/chat">로그인하기 →</Link>}
               {message.registeredMedications && <div>{groupMedications(activeMedicationRegistrations(message.registeredMedications)).map(item=><div key={item.key}><strong>{item.itemName}</strong><RegisteredMedications items={item.registrations}/>{item.medicationId && <button type="button" className="drug-option" onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>이 약 질문하기</button>}</div>)}</div>}
               <InteractionSummary data={message.comparison}/>
-              {message.sources.length > 0 && <h4>확인한 약 · DB 근거</h4>}
-              <CatalogResults data={message.catalog} onMore={() => searchCatalog(message.catalog.query,message)} onSelect={selectDrug} busy={loading || Boolean(paging)} />
+              {message.sources.length > 0 && <h4>답변에 참고한 약 정보</h4>}
+              <CatalogResults data={message.catalog} onMore={() => searchCatalog(message.catalog.query,message)} onSelect={drug=>sendQuestion(message.question,{},drug.itemName,drug)} busy={loading || Boolean(paging)} />
               <DurReports reports={message.durReports} notice={message.durNotice} />
               {message.seconds && <small className="response-time">응답 시간 {message.seconds}초</small>}
-              {message.sources.length > 0 && <p className="scope-note"><strong>확인 범위</strong> · DB에 등록된 해당 제품의 자료를 참고했습니다. 음식·음주나 개인별 복용 가능 여부는 근거가 없으면 판단할 수 없습니다.</p>}
-              {message.sources.length > 0 && <details className="sources"><summary>참고한 DB 원문 보기 ({message.sources.length})</summary>
-                {message.sources.map((source, index) => <dl key={String(source.itemSeq) + index}>{fields.map(([field, label]) =>
-                  <div key={field}><dt>{label}</dt><dd>{source[field] == null || String(source[field]).trim() === '' ? '등록된 정보 없음' : String(source[field])}</dd></div>)}</dl>)}
+              {message.sources.length > 0 && !message.aiSupplemented && !message.evidenceLimited && <p className="scope-note">공식 등록 자료를 참고한 답변입니다. 개인의 상태에 따른 복용 결정은 의사나 약사에게 확인해주세요.</p>}
+              {message.sources.length > 0 && <details className="sources"><summary>참고한 상세 정보 보기 ({message.sources.length})</summary>
+                <div className="details-reveal">{message.sources.map((source, index) => <dl key={String(source.itemSeq) + index}>{fields.filter(([field])=>hasValue(source[field])).map(([field, label]) =>
+                  <div key={field}><dt>{label}</dt><dd>{String(source[field])}</dd></div>)}</dl>)}</div>
               </details>}
             </div>}
             {message.failed && <p className="failed-message">답변을 받지 못했어요. 질문을 다시 보내주세요.</p>}
           </article>)}
-          {(loading || paging) && <p className="loading" role="status"><span aria-hidden="true" />대화 맥락과 필요한 정보를 확인하고 있어요…</p>}
+          {(loading || paging) && <div className="loading" role="status"><span aria-hidden="true" /><div><strong>답변을 준비하고 있어요</strong><small>대화 내용과 필요한 약 정보를 함께 확인 중입니다.</small></div></div>}
         </div>
         <form className="composer" onSubmit={event => { event.preventDefault(); sendQuestion(question) }}>
           <label htmlFor="chat-question">질문하기</label>
@@ -369,5 +386,7 @@ function MedicationConversation() {
       </div>
     </section>
     <footer className="page-footer">증상 안내는 진단을 대신하지 않습니다. 약 정보는 표시된 DB 근거를 확인하고, 응급 증상은 119 또는 응급실에 도움을 요청하세요.</footer>
+    <UiDialog open={Boolean(deleteTarget)} title="상담 기록을 삭제할까요?" description={`“${deleteTarget?.title||'선택한 대화'}” 기록이 목록에서 삭제됩니다.`} confirmLabel="기록 삭제" tone="danger" busy={historyLoading} onCancel={()=>setDeleteTarget(null)} onConfirm={()=>deleteConversation(deleteTarget.conversationId)}/>
+    <UiDialog open={Boolean(evidenceDialog)} title="AI 참고정보를 확인해주세요" description={evidenceDialog||''} confirmLabel="답변 확인" cancelLabel="" onCancel={()=>setEvidenceDialog(null)} onConfirm={()=>setEvidenceDialog(null)} />
   </main>
 }

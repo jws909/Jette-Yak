@@ -218,8 +218,22 @@ export default function Sidebar({
                 </svg>
               </span>
               <span className="nav-item-text">약 이야기 커뮤니티</span>
-              {user?.role === 'ADMIN' && <span className="nav-item-badge">관리</span>}
+              {(user?.isAdmin === true || Number(user?.isAdmin) === 1) && <span className="nav-item-badge">관리</span>}
             </NavLink>
+
+            {(user?.isAdmin === true || Number(user?.isAdmin) === 1) && <NavLink
+              to="/admin"
+              className={({ isActive }) => `sidebar-nav-item admin-nav-item ${isActive ? 'active' : ''}`}
+              onClick={handleLinkClick}
+            >
+              <span className="nav-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3l7 4v5c0 4.4-2.9 7.8-7 9-4.1-1.2-7-4.6-7-9V7l7-4zm-3 9l2 2 4-4" />
+                </svg>
+              </span>
+              <span className="nav-item-text">관리자 센터</span>
+              <span className="nav-item-badge">ADMIN</span>
+            </NavLink>}
           </nav>
 
           {/* 하단 보조 정보: 로그인 상태에서만 실제 오늘의 복용 진척도 표시 */}
