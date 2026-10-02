@@ -390,7 +390,9 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     );
   }
 
-  const sexLabel = accountDetails.sex === 'F' ? '여성' : accountDetails.sex === 'M' ? '남성' : '미입력';
+  const normalizedSex = String(accountDetails.sex || '').trim().toUpperCase();
+  const isFemale = ['F', 'FEMALE', '여성'].includes(normalizedSex);
+  const sexLabel = isFemale ? '여성' : ['M', 'MALE', '남성'].includes(normalizedSex) ? '남성' : '미입력';
   const emailLabel = email || user?.email || (user?.username ? `${user.username}@jetteyak.kr` : '미입력');
 
   return (
@@ -457,7 +459,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               <div><dt>아이디</dt><dd>{user?.username || '미입력'}</dd></div>
               <div><dt>이메일</dt><dd>{emailLabel}</dd></div>
               <div><dt>성별</dt><dd>{sexLabel}</dd></div>
-              {accountDetails.sex === 'F' && <div><dt>임신 여부</dt><dd>{accountDetails.isPregnant ? '임신 중' : '해당 없음'}</dd></div>}
+              {isFemale && <div><dt>임신 여부</dt><dd>{accountDetails.isPregnant ? '임신 중' : '해당 없음'}</dd></div>}
               <div><dt>가족 이름</dt><dd>{accountDetails.familyName || '소속 가족 없음'}</dd></div>
             </dl>
           </section>
