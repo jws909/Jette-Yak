@@ -132,6 +132,9 @@ public class UserController {
         response.put("username", user.getLoginId());
         response.put("nickname", user.getNickname());
         response.put("email", user.getEmail() != null ? user.getEmail() : "");
+        response.put("sex", user.getSex() != null ? user.getSex() : "");
+        response.put("isPregnant", user.getIsPregnant() == null ? 0 : user.getIsPregnant());
+        response.put("familyId", user.getFamilyId());
         response.put("profileImageUrl", profileImagePath(user));
         response.put("pushEnabled", user.getPushEnabled() == null ? 1 : user.getPushEnabled());
         response.put("role", user.getRole() == null ? "USER" : user.getRole());
