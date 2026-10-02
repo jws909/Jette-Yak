@@ -29,7 +29,7 @@ function saveTypeOverride(key, type) {
 const CalendarPage = (props) => {
   const user = props.user;
   const today = new Date();
-  const currentUserId = (user && user.userId) ? user.userId : null;
+  const currentUserId = user?.userId || user?.id || null;
   
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
@@ -185,7 +185,7 @@ const CalendarPage = (props) => {
       if (e?.detail?.origin === 'calendar') return;
       const eventUserId = e?.detail?.userId;
       const eventDate = e?.detail?.date;
-      if (String(eventUserId) === String(currentUserId)) {
+      if (!eventUserId || String(eventUserId) === String(currentUserId)) {
         if (!eventDate || eventDate === selectedDate) {
           fetchDailySchedules(selectedDate, true);
         }

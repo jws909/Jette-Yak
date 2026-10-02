@@ -17,10 +17,11 @@ export default function Sidebar({
   onLogout,
   user
 }) {
+  const currentUserId = user?.userId || user?.id;
   const [progress, setProgress] = useState({ total: 0, taken: 0, percent: 0 });
 
   const fetchTodayProgress = useCallback(async () => {
-    if (!isLoggedIn || !user?.userId) {
+    if (!isLoggedIn || !currentUserId) {
       setProgress({ total: 0, taken: 0, percent: 0 });
       return;
     }
@@ -28,7 +29,7 @@ export default function Sidebar({
     const todayStr = getTodayDateStr();
 
     try {
-      const res = await fetch(`/api/calendar?userId=${user.userId}&date=${todayStr}`);
+      const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${todayStr}`);
       if (res.ok) {
         const list = await res.json();
         if (Array.isArray(list)) {
@@ -44,10 +45,10 @@ export default function Sidebar({
     }
 
     setProgress({ total: 0, taken: 0, percent: 0 });
-  }, [isLoggedIn, user?.userId]);
+  }, [isLoggedIn, currentUserId]);
 
   useEffect(() => {
-    if (!isLoggedIn || !user?.userId) {
+    if (!isLoggedIn || !currentUserId) {
       setProgress({ total: 0, taken: 0, percent: 0 });
       return;
     }
@@ -70,7 +71,7 @@ export default function Sidebar({
       window.removeEventListener('focus', handleIntakeUpdate);
       clearInterval(timer);
     };
-  }, [fetchTodayProgress, isLoggedIn, user?.userId, isOpen]);
+  }, [fetchTodayProgress, isLoggedIn, currentUserId, isOpen]);
 
   const handleLinkClick = () => {
     // 모바일(768px 미만)인 경우에만 링크 클릭 시 사이드바 자동 닫힘

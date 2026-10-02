@@ -79,6 +79,7 @@ function App() {
               const updated = {
                 ...curr,
                 userId: data.userId,
+                id: data.userId,
                 username: data.username || curr?.username || targetUser,
                 name: curr?.name || data.nickname || '체험 사용자',
                 role: data.role || curr?.role || 'USER',
@@ -140,11 +141,11 @@ function App() {
       return;
     }
 
-    let resolvedUserId = user?.userId;
+    let resolvedUserId = user?.userId || user?.id;
     if (!resolvedUserId) {
       try {
         const stored = JSON.parse(localStorage.getItem('user'));
-        resolvedUserId = stored?.userId;
+        resolvedUserId = stored?.userId || stored?.id;
       } catch {
         resolvedUserId = null;
       }

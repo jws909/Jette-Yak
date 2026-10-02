@@ -11,14 +11,15 @@ export default function Navbar({
   onLogout,
   onLoginDemoToggle
 }) {
+  const currentUserId = user?.userId || user?.id;
   const [showNotification, setShowNotification] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
   const notifBoxRef = useRef(null);
 
-  // ★ 1. 가족 초대 수락/거절 핸들러 함수
+  // 1. 가족 초대 수락/거절 핸들러 함수
   const handleRespondInvitation = async (inviteId, action) => {
-    if (!user?.userId) return;
+    if (!currentUserId) return;
 
     try {
       const res = await fetch('/api/family/invitations/respond', {
@@ -26,7 +27,7 @@ export default function Navbar({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           inviteId: inviteId,
-          userId: user.userId,
+          userId: currentUserId,
           action: action // 'ACCEPT' 또는 'REJECT'
         })
       });
@@ -52,12 +53,12 @@ export default function Navbar({
 
   // 로그인 시 사용자의 실제 복약 일정(원샷 브리핑) 및 처방전 주의사항 로드
   useEffect(() => {
-    if (!isLoggedIn || !user?.userId) {
+    if (!isLoggedIn || !currentUserId) {
       setNotifications([]);
       return;
     }
 
-    const userId = user.userId;
+    const userId = currentUserId;
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');

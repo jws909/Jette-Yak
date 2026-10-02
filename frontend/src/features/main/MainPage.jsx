@@ -669,8 +669,17 @@ function groupRoutineItemsByPouch(items) {
   return result;
 }
 
+function isSameSlot(slotA, slotB) {
+  if (!slotA || !slotB) return false;
+  if (slotA === slotB) return true;
+  if ((slotA === 'breakfast' && slotB === 'morning') || (slotA === 'morning' && slotB === 'breakfast')) return true;
+  if ((slotA === 'dinner' && slotB === 'evening') || (slotA === 'evening' && slotB === 'dinner')) return true;
+  return false;
+}
+
 export default function MainPage({ user }) {
   const navigate = useNavigate();
+  const currentUserId = user?.userId || user?.id;
 
   // 처방전 데이터 및 등록 여부 상태 (DB 조회 결과에 따라 실시간 반영)
   const [hasPrescription, setHasPrescription] = useState(false);
@@ -964,8 +973,8 @@ export default function MainPage({ user }) {
   // 사용자별 식사 및 취침 기준 시간 상태 (기본값: 아침 07:30, 점심 12:00, 저녁 18:30, 취침 22:00)
   const [mealTimes, setMealTimes] = useState(() => {
     try {
-      if (user?.userId) {
-        const cached = localStorage.getItem(`jette_meal_times_${user.userId}`);
+      if (currentUserId) {
+        const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
         if (cached) return JSON.parse(cached);
       }
     } catch {}
@@ -979,13 +988,12 @@ export default function MainPage({ user }) {
 
   // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
   useEffect(() => {
-    const userId = user?.userId;
-    if (!userId) {
+    if (!currentUserId) {
       setMealTimes(DEFAULT_MEAL_TIMES);
       setTempMealTimes(DEFAULT_MEAL_TIMES);
       return;
     }
-    fetch(`/api/users/meal-times?userId=${userId}`)
+    fetch(`/api/users/meal-times?userId=${currentUserId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.success) {
@@ -998,24 +1006,23 @@ export default function MainPage({ user }) {
           setMealTimes(loaded);
           setTempMealTimes(loaded);
           try {
-            localStorage.setItem(`jette_meal_times_${userId}`, JSON.stringify(loaded));
+            localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(loaded));
           } catch {}
         }
       })
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
-  }, [user?.userId]);
+  }, [currentUserId]);
 
   // 사용자의 등록 처방전 전체 목록 및 복약 루틴 새로고침 (비로그인 시 일체 조회하지 않고 초기화)
   const reloadPrescriptionAndRoutine = useCallback(async () => {
-    const userId = user?.userId;
-    if (!userId) {
+    if (!currentUserId) {
       setAllPrescriptions([]);
       setHasPrescription(false);
       setRoutineItems([]);
       return;
     }
     try {
-      const res = await fetch(`/api/prescriptions/list?userId=${userId}`);
+      const res = await fetch(`/api/prescriptions/list?userId=${currentUserId}`);
       if (res.ok) {
         const data = await res.json();
         const rawList = data.prescriptions || [];
@@ -1039,19 +1046,18 @@ export default function MainPage({ user }) {
       setHasPrescription(false);
       setRoutineItems([]);
     }
-  }, [user?.userId]);
+  }, [currentUserId]);
 
-  // 컴포넌트 마운트 및 user.userId 변경 시 최신 처방전 DB 조회
+  // 컴포넌트 마운트 및 currentUserId 변경 시 최신 처방전 DB 조회
   useEffect(() => {
     reloadPrescriptionAndRoutine();
   }, [reloadPrescriptionAndRoutine]);
 
   // 서버 DB의 당일 캘린더 스케줄과 복약 루틴(scheduleId 및 takenAt)을 100% 동기화하는 함수
   const syncRoutinesWithServer = useCallback(async (dateStr) => {
-    const userId = user?.userId;
-    if (!userId) return;
+    if (!currentUserId) return;
     try {
-      const res = await fetch(`/api/calendar?userId=${userId}&date=${dateStr}`);
+      const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${dateStr}`);
       if (!res.ok) return;
       const schedules = await res.json();
       if (!Array.isArray(schedules)) return;
@@ -1073,7 +1079,7 @@ export default function MainPage({ user }) {
               (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
               (s.name && item.name && (s.name.includes(item.name) || item.name.includes(s.name)));
             if (!sameMed) return false;
-            if (s.slot && item.slot) return s.slot === item.slot;
+            if (s.slot && item.slot) return isSameSlot(s.slot, item.slot);
             if (s.time && item.time) return s.time === item.time;
             return true;
           });
@@ -1110,7 +1116,7 @@ export default function MainPage({ user }) {
               (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
               (s.name && item.name && (s.name.includes(item.name) || item.name.includes(s.name)));
             if (!sameMed) return false;
-            if (s.slot && item.slot) return s.slot === item.slot;
+            if (s.slot && item.slot) return isSameSlot(s.slot, item.slot);
             if (s.time && item.time) return s.time === item.time;
             return true;
           });
@@ -1149,7 +1155,7 @@ export default function MainPage({ user }) {
               else if (hour < 21) { slot = 'dinner'; slotLabel = '저녁'; }
               else { slot = 'bedtime'; slotLabel = '취침 전'; }
             } else {
-              slotLabel = slot === 'breakfast' ? '아침' : slot === 'lunch' ? '점심' : slot === 'dinner' ? '저녁' : '취침 전';
+              slotLabel = (slot === 'breakfast' || slot === 'morning') ? '아침' : slot === 'lunch' ? '점심' : (slot === 'dinner' || slot === 'evening') ? '저녁' : '취침 전';
             }
             return {
               id: `sched-${s.scheduleId || idx}`,
@@ -1185,12 +1191,11 @@ export default function MainPage({ user }) {
     } catch (err) {
       console.warn('스케줄 DB 동기화 실패:', err);
     }
-  }, [user?.userId, allPrescriptions, selectedRxId]);
+  }, [currentUserId, allPrescriptions, selectedRxId]);
 
   // 식사 시간이나 기준 일자별 유효 복약 약품 변경 시 복약 루틴 알림 시간 재계산 및 DB 스케줄 동기화
   useEffect(() => {
-    const userId = user?.userId;
-    if (!userId) {
+    if (!currentUserId) {
       setRoutineItems([]);
       return;
     }
@@ -1237,7 +1242,7 @@ export default function MainPage({ user }) {
         syncRoutinesWithServer(dateStr);
       }
     }
-  }, [mealTimes, activeMedsForTargetDate, targetDate, user?.userId, syncRoutinesWithServer, selectedRxId]);
+  }, [mealTimes, activeMedsForTargetDate, targetDate, currentUserId, syncRoutinesWithServer, selectedRxId]);
 
   // 캘린더 및 약등록 등 외부에서 복약 및 처방전 변경 시 메인 홈 실시간 동기화
   useEffect(() => {
@@ -1247,15 +1252,12 @@ export default function MainPage({ user }) {
 
       const eventUserId = e?.detail?.userId;
       const eventDate = e?.detail?.date;
-      const isPrescriptionChange = e?.detail?.isPrescriptionChange;
       const curDateStr = formatDateToHyphen(targetDate);
 
-      if (String(eventUserId) === String(user?.userId)) {
-        // 처방전 등록/삭제/수정 등의 구조적 변경일 때만 전체 목록 재조회
-        if (isPrescriptionChange) {
-          reloadPrescriptionAndRoutine();
-        }
-        // 단순 복약 완료/취소 체크는 스케줄만 조용히 갱신
+      // eventUserId가 없거나 현재 사용자 ID와 일치할 때 동기화
+      if (!eventUserId || String(eventUserId) === String(currentUserId)) {
+        // 처방전/약품 목록 및 복약 일정 실시간 최신화
+        reloadPrescriptionAndRoutine();
         if (!eventDate || eventDate === curDateStr) {
           syncRoutinesWithServer(curDateStr);
         }
@@ -1265,13 +1267,12 @@ export default function MainPage({ user }) {
     return () => {
       window.removeEventListener('jette-intake-updated', handleIntakeSync);
     };
-  }, [user?.userId, targetDate, syncRoutinesWithServer, reloadPrescriptionAndRoutine]);
+  }, [currentUserId, targetDate, syncRoutinesWithServer, reloadPrescriptionAndRoutine]);
 
   // 식사 시간 저장 핸들러
   const handleSaveMealTimes = async (e) => {
     e.preventDefault();
-    const userId = user?.userId;
-    if (!userId) {
+    if (!currentUserId) {
       alert('로그인 후 식사 시간을 설정할 수 있습니다.');
       setIsMealModalOpen(false);
       return;
@@ -1281,14 +1282,14 @@ export default function MainPage({ user }) {
     try {
       setMealTimes(tempMealTimes);
       try {
-        localStorage.setItem(`jette_meal_times_${userId}`, JSON.stringify(tempMealTimes));
+        localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(tempMealTimes));
       } catch {}
 
       const res = await fetch('/api/users/meal-times', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId,
+          userId: currentUserId,
           username: user?.username,
           breakfastTime: tempMealTimes.breakfast,
           lunchTime: tempMealTimes.lunch,
@@ -1312,8 +1313,7 @@ export default function MainPage({ user }) {
 
   // 오늘의 복용 체크박스 토글 (서버 스케줄 DB 동기화)
   const toggleRoutine = async (id) => {
-    const userId = user?.userId;
-    if (!userId) {
+    if (!currentUserId) {
       alert('로그인 후 복약 체크를 이용하실 수 있습니다.');
       return;
     }
@@ -1351,7 +1351,7 @@ export default function MainPage({ user }) {
 
     // 3. 사이드바 및 캘린더 등 전역 UI에 복약 진척도 즉시 갱신 알림
     window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-      detail: { userId, date: dateStr, origin: 'main' }
+      detail: { userId: currentUserId, date: dateStr, origin: 'main' }
     }));
 
     // 4. DB 최신 상태 재조회
@@ -1372,8 +1372,7 @@ export default function MainPage({ user }) {
   // 처방약 봉지 전체 일괄 복용 체크/해제
   const togglePouch = async (pouch, e) => {
     if (e) e.stopPropagation();
-    const userId = user?.userId;
-    if (!userId) {
+    if (!currentUserId) {
       alert('로그인 후 복약 체크를 이용하실 수 있습니다.');
       return;
     }
@@ -1423,7 +1422,7 @@ export default function MainPage({ user }) {
     // 3. 전역 UI 이벤트 발송
     window.dispatchEvent(
       new CustomEvent('jette-intake-updated', {
-        detail: { userId, date: dateStr, origin: 'main' },
+        detail: { userId: currentUserId, date: dateStr, origin: 'main' },
       })
     );
 
