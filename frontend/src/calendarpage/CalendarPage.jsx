@@ -909,10 +909,10 @@ const CalendarPage = (props) => {
                       ? unit.nickname
                       : `${unit.hospitalName || '처방'}약`;
 
-                    // 간결한 서브 텍스트 (예: 서울아산병원 · 아모잘탄 외 3알)
+                    // 간결한 서브 텍스트 (예: 서울아산병원 · 아모잘탄 외 3종)
                     const firstMedFullName = unit.items[0]?.name || '처방약';
                     const firstMedShort = firstMedFullName.length > 8 ? firstMedFullName.slice(0, 7) + '…' : firstMedFullName;
-                    const summaryLine = `${unit.hospitalName || '의료기관'} · ${firstMedShort}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}알` : ''}`;
+                    const summaryLine = `${unit.hospitalName || '의료기관'} · ${firstMedShort}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}종` : ''}`;
                     const fullTooltip = `${unit.hospitalName || '의료기관'}${unit.dispensedDate ? ` (${unit.dispensedDate.slice(0, 10)} 조제)` : ''}\n${unit.items.map((m) => m.name).join(', ')}`;
 
                     return (
@@ -931,7 +931,7 @@ const CalendarPage = (props) => {
                               <span className="type-dot prescription" />
                               <span className="time">{unit.time}</span>
                               <span className="cal-slot-badge">{currentSlotLabel}</span>
-                              <span className="cal-pouch-tag">1포 ({unit.items.length}알)</span>
+                              <span className="cal-pouch-tag">1포 ({unit.items.length}종)</span>
                             </div>
                             <div className="name-row">
                               <strong
@@ -957,9 +957,9 @@ const CalendarPage = (props) => {
                               type="button"
                               className="btn-pouch-expand-cal"
                               onClick={(e) => togglePouchExpand(unit.pouchKey, e)}
-                              title={isExpanded ? '알약 접기' : '포함된 알약 보기'}
+                              title={isExpanded ? '처방약 목록 접기' : '포함된 처방약 보기'}
                             >
-                              {isExpanded ? '접기 ▲' : `${unit.items.length}알 ▼`}
+                              {isExpanded ? '접기 ▲' : `${unit.items.length}종 ▼`}
                             </button>
                             <button
                               type="button"
@@ -1002,10 +1002,10 @@ const CalendarPage = (props) => {
                           </div>
                         </div>
 
-                        {/* 펼쳤을 때 알약 목록 */}
+                        {/* 펼쳤을 때 처방약 목록 */}
                         {isExpanded && (
                           <div className="cal-pouch-expanded-list">
-                            <div className="cal-pouch-expanded-title">봉지에 포함된 개별 알약 ({unit.items.length}알)</div>
+                            <div className="cal-pouch-expanded-title">봉지에 포함된 개별 처방약 ({unit.items.length}종)</div>
                             {unit.items.map((subItem) => {
                               const subTaken = Boolean(subItem.takenAt);
                               return (

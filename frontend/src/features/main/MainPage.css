@@ -687,14 +687,98 @@
   flex-direction: column;
 }
 
+/* 처방전별 묶음(그룹핑) 섹션 (통합 처방전 모드) */
+.prescribed-group-box {
+  margin-bottom: 20px;
+}
+
+.prescribed-group-box:last-child {
+  margin-bottom: 0;
+}
+
+.prescribed-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #fbf9f5;
+  border: 1px solid #ebd9c8;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.prescribed-group-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.prescribed-group-icon {
+  color: #8b3e4b;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.prescribed-group-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #382c2b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prescribed-group-meta {
+  font-size: 12px;
+  color: #8a7e73;
+  white-space: nowrap;
+}
+
+.prescribed-group-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.prescribed-group-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2.5px 8px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.prescribed-group-status-badge.taking {
+  background: #eef7f0;
+  color: #2b7a4b;
+  border: 1px solid #cce8d4;
+}
+
+.prescribed-group-status-badge.completed {
+  background: #f0ede8;
+  color: #7a7066;
+  border: 1px solid #e2ddd5;
+}
+
+.prescribed-group-status-badge.upcoming {
+  background: #fdf5eb;
+  color: #b7791f;
+  border: 1px solid #f4dfbe;
+}
+
 .med-item-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 8px;
+  padding: 14px 14px;
   border-bottom: 1px solid #f6f1ea;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: background-color 0.15s ease;
 }
 
@@ -712,6 +796,7 @@
   gap: 12px;
   flex: 1;
   min-width: 0;
+  padding-left: 4px;
 }
 
 .med-color-dot {
@@ -4294,6 +4379,48 @@
   padding: 1px 6px;
   border-radius: 4px;
   white-space: nowrap;
+}
+
+.subitem-efficacy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f7f3ed;
+  border: 1px solid #ebd9c8;
+  color: #7a5e4f;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2.5px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.subitem-efficacy-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subitem-efficacy-chip:hover {
+  background: #faefe6;
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.12);
+}
+
+.subitem-efficacy-chip .chip-info-icon {
+  opacity: 0.65;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.subitem-efficacy-chip:hover .chip-info-icon {
+  opacity: 1;
 }
 
 .btn-subitem-check {
