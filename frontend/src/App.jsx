@@ -536,6 +536,7 @@ function App() {
               </MainLayout>
             ) : <Navigate to="/" replace />
           }
+        />
 
         {/* 미등록 경로(404) 와일드카드 처리: 로그인 상태에 따라 메인 또는 로그인창으로 이동 */}
         <Route
