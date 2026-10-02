@@ -5,6 +5,7 @@ import './MedicationRegisterPage.css';
 export default function MedicationRegisterPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const currentUserId = user?.userId || user?.id;
 
   // URL query parameter ?tab=prescription | cabinet | supplement
   const queryTab = new URLSearchParams(location.search).get('tab');
@@ -86,13 +87,13 @@ export default function MedicationRegisterPage({ user }) {
   // 데이터 불러오기 (처방전 목록 & 상비약/영양제 목록)
   // ==========================================
   const fetchPrescriptionList = useCallback(async () => {
-    if (!user?.userId) {
+    if (!currentUserId) {
       setUserPrescriptions([]);
       return;
     }
     setIsLoadingRxList(true);
     try {
-      const res = await fetch(`/api/prescriptions/list?userId=${user.userId}`);
+      const res = await fetch(`/api/prescriptions/list?userId=${currentUserId}`);
       if (res.ok) {
         const data = await res.json();
         const rawList = data.prescriptions || (Array.isArray(data) ? data : []);
@@ -106,13 +107,13 @@ export default function MedicationRegisterPage({ user }) {
     } finally {
       setIsLoadingRxList(false);
     }
-  }, [user?.userId]);
+  }, [currentUserId]);
 
   const fetchEverydayMeds = useCallback(async () => {
-    if (!user?.userId) return;
+    if (!currentUserId) return;
     setIsLoadingEverydayMeds(true);
     try {
-      const res = await fetch(`/api/users/everyday-meds?userId=${user.userId}`);
+      const res = await fetch(`/api/users/everyday-meds?userId=${currentUserId}`);
       if (res.ok) {
         const data = await res.json();
         setEverydayMeds(Array.isArray(data) ? data : []);
@@ -122,7 +123,7 @@ export default function MedicationRegisterPage({ user }) {
     } finally {
       setIsLoadingEverydayMeds(false);
     }
-  }, [user?.userId]);
+  }, [currentUserId]);
 
   useEffect(() => {
     fetchPrescriptionList();
@@ -196,7 +197,7 @@ export default function MedicationRegisterPage({ user }) {
   // 처방전 업로드 & OCR 요청
   const handleRxUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!user?.userId) {
+    if (!currentUserId) {
       alert('로그인이 필요한 서비스입니다.');
       return;
     }
@@ -210,7 +211,7 @@ export default function MedicationRegisterPage({ user }) {
       const finalFile = await getTransformedFile(rxFile, rotation, isFlipped);
       const formData = new FormData();
       formData.append('file', finalFile);
-      formData.append('userId', user.userId);
+      formData.append('userId', currentUserId);
 
       const res = await fetch('/api/prescriptions/upload', {
         method: 'POST',
@@ -225,7 +226,7 @@ export default function MedicationRegisterPage({ user }) {
           setRxPreview(null);
           await fetchPrescriptionList();
           window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-            detail: { userId: user.userId }
+            detail: { userId: currentUserId }
           }));
           return;
         }
@@ -351,7 +352,7 @@ export default function MedicationRegisterPage({ user }) {
         await fetchPrescriptionList();
 
         window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-          detail: { userId: user?.userId }
+          detail: { userId: currentUserId }
         }));
 
         setTimeout(() => {
@@ -372,7 +373,7 @@ export default function MedicationRegisterPage({ user }) {
 
   // 처방전 삭제
   const handleDeleteRx = async (prescriptionId) => {
-    if (!user?.userId) {
+    if (!currentUserId) {
       alert('로그인이 필요한 기능입니다.');
       return;
     }
@@ -380,14 +381,14 @@ export default function MedicationRegisterPage({ user }) {
       return;
     }
     try {
-      const res = await fetch(`/api/prescriptions/${prescriptionId}?userId=${user.userId}`, {
+      const res = await fetch(`/api/prescriptions/${prescriptionId}?userId=${currentUserId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
         alert('처방전이 삭제되었습니다.');
         await fetchPrescriptionList();
         window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-          detail: { userId: user.userId }
+          detail: { userId: currentUserId }
         }));
       } else {
         const data = await res.json().catch(() => ({}));
@@ -438,12 +439,17 @@ export default function MedicationRegisterPage({ user }) {
     const medId = item?.medicationId || item?.itemSeq;
     if (!medId) return;
 
+    if (!currentUserId) {
+      alert('로그인이 필요한 기능입니다.');
+      return;
+    }
+
     try {
       const res = await fetch('/api/users/everyday-meds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.userId,
+          userId: currentUserId,
           username: user?.username,
           type: 'CABINET',
           medicationId: String(medId),
@@ -454,8 +460,10 @@ export default function MedicationRegisterPage({ user }) {
         alert(`'${item.itemName}' 이(가) 상비약으로 등록되었습니다.`);
         setMedSearchText('');
         setIsDropdownOpen(false);
-        fetchEverydayMeds();
-        window.dispatchEvent(new CustomEvent('jette-intake-updated'));
+        await fetchEverydayMeds();
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId }
+        }));
       } else {
         const data = await res.json().catch(() => ({}));
         alert(data.message || '상비약 등록에 실패했습니다.');
@@ -475,7 +483,6 @@ export default function MedicationRegisterPage({ user }) {
       return;
     }
 
-    const currentUserId = user?.userId || user?.id;
     if (!currentUserId) {
       alert('로그인이 필요한 기능입니다.');
       return;
@@ -492,7 +499,7 @@ export default function MedicationRegisterPage({ user }) {
           type: 'ROUTINE',
           name: name,
           takeTime: customSupplementTime,
-          notes: `${customSupplementSlot === 'morning' ? '아침' : customSupplementSlot === 'lunch' ? '점심' : customSupplementSlot === 'evening' ? '저녁' : '취침전'} 식후`,
+          notes: `${(customSupplementSlot === 'morning' ? '아침' : (customSupplementSlot === 'lunch' ? '점심' : (customSupplementSlot === 'dinner' || customSupplementSlot === 'evening' ? '저녁' : '취침전')))} 식후`,
         }),
       });
 
@@ -532,8 +539,10 @@ export default function MedicationRegisterPage({ user }) {
           : `'${name}' 영양제가 성공적으로 등록되었습니다.`
       );
       setCustomSupplementName('');
-      fetchEverydayMeds();
-      window.dispatchEvent(new CustomEvent('jette-intake-updated'));
+      await fetchEverydayMeds();
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+        detail: { userId: currentUserId }
+      }));
     } catch (err) {
       console.error('영양제 등록 오류:', err);
       alert('영양제 등록 처리 중 오류가 발생했습니다.');
@@ -542,19 +551,25 @@ export default function MedicationRegisterPage({ user }) {
 
   // 평소 복용 약 삭제
   const handleRemoveEverydayMed = async (med) => {
+    if (!currentUserId) {
+      alert('로그인이 필요한 기능입니다.');
+      return;
+    }
     if (!window.confirm(`'${med.name}' 을(를) 목록에서 삭제하시겠습니까?`)) return;
     try {
       const source = med.source ? med.source.toLowerCase() : 'cabinet';
       const rawId = med.rawId || (med.id ? String(med.id).replace(/^[A-Za-z]:/, '') : '');
-      const currentUserId = user?.userId || user?.id;
       const res = await fetch(`/api/users/everyday-meds/${source}/${rawId}?userId=${currentUserId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
-        fetchEverydayMeds();
-        window.dispatchEvent(new CustomEvent('jette-intake-updated'));
+        await fetchEverydayMeds();
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId }
+        }));
       } else {
-        alert('삭제에 실패했습니다.');
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || '삭제에 실패했습니다.');
       }
     } catch (err) {
       console.error('삭제 오류:', err);
@@ -602,7 +617,6 @@ export default function MedicationRegisterPage({ user }) {
       return;
     }
 
-    const currentUserId = user?.userId || user?.id;
     if (!currentUserId) {
       alert('로그인이 필요한 기능입니다.');
       return;
@@ -616,13 +630,18 @@ export default function MedicationRegisterPage({ user }) {
       let allSuccess = true;
       let lastErrMsg = '';
 
+      const isCabinet = scheduleModalMed.source === 'CABINET';
+      const rawNumericId = scheduleModalMed.rawId ? Number(scheduleModalMed.rawId) : null;
+
       for (const slot of selectedSlots) {
-        const time = schedTimes[slot];
+        const time = schedTimes[slot] || (slot === 'morning' ? '08:30' : slot === 'lunch' ? '12:30' : slot === 'dinner' ? '18:30' : '22:00');
         const payload = {
           userId: currentUserId,
           name: scheduleModalMed.name,
-          type: scheduleModalMed.source === 'CABINET' ? 'regular' : 'supplement',
+          type: isCabinet ? 'regular' : 'supplement',
           medicationId: scheduleModalMed.medicationId ? String(scheduleModalMed.medicationId) : null,
+          cabinetId: isCabinet ? rawNumericId : null,
+          routineId: !isCabinet ? rawNumericId : null,
           scheduledDate: todayStr,
           scheduledTime: time,
           repeatDays: Number(schedDays) || 30,
@@ -645,7 +664,10 @@ export default function MedicationRegisterPage({ user }) {
       if (allSuccess) {
         alert(`${scheduleModalMed.name}의 ${schedDays}일 복약 일정이 캘린더에 성공적으로 등록되었습니다!`);
         setScheduleModalMed(null);
-        window.dispatchEvent(new CustomEvent('jette-intake-updated'));
+        await fetchEverydayMeds();
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId }
+        }));
       } else {
         alert('일정 등록에 실패했습니다.' + (lastErrMsg ? ` (${lastErrMsg})` : ''));
       }
@@ -1197,13 +1219,13 @@ export default function MedicationRegisterPage({ user }) {
                           setCustomSupplementSlot(slot);
                           if (slot === 'morning') setCustomSupplementTime('08:30');
                           if (slot === 'lunch') setCustomSupplementTime('12:30');
-                          if (slot === 'evening') setCustomSupplementTime('18:30');
+                          if (slot === 'dinner' || slot === 'evening') setCustomSupplementTime('18:30');
                           if (slot === 'bedtime') setCustomSupplementTime('22:00');
                         }}
                       >
                         <option value="morning">아침 식후 (권장 08:30)</option>
                         <option value="lunch">점심 식후 (권장 12:30)</option>
-                        <option value="evening">저녁 식후 (권장 18:30)</option>
+                        <option value="dinner">저녁 식후 (권장 18:30)</option>
                         <option value="bedtime">취침 전 (권장 22:00)</option>
                       </select>
                     </div>
@@ -1318,7 +1340,7 @@ export default function MedicationRegisterPage({ user }) {
               </p>
 
               <div className="slots-picker">
-                <label className="picker-title">복용 시간대 선택 (복수 선택 가능)</label>
+                <label className="picker-title">복용 시간대 선택 및 알림 시간 설정 (복수 선택 가능)</label>
                 <div className="slots-grid">
                   {[
                     { key: 'morning', label: '아침', defaultTime: '08:30' },
@@ -1326,15 +1348,30 @@ export default function MedicationRegisterPage({ user }) {
                     { key: 'dinner', label: '저녁', defaultTime: '18:30' },
                     { key: 'bedtime', label: '취침전', defaultTime: '22:00' },
                   ].map((s) => (
-                    <label key={s.key} className={`slot-checkbox-label ${schedSlots[s.key] ? 'checked' : ''}`}>
+                    <div
+                      key={s.key}
+                      className={`slot-checkbox-label ${schedSlots[s.key] ? 'checked' : ''}`}
+                      onClick={() => setSchedSlots((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
+                    >
                       <input
                         type="checkbox"
                         checked={Boolean(schedSlots[s.key])}
-                        onChange={(e) => setSchedSlots({ ...schedSlots, [s.key]: e.target.checked })}
+                        onChange={(e) => setSchedSlots((prev) => ({ ...prev, [s.key]: e.target.checked }))}
+                        onClick={(e) => e.stopPropagation()}
                       />
                       <span>{s.label}</span>
-                      <small>{schedTimes[s.key] || s.defaultTime}</small>
-                    </label>
+                      <input
+                        type="time"
+                        className="slot-time-input"
+                        value={schedTimes[s.key] || s.defaultTime}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSchedTimes((prev) => ({ ...prev, [s.key]: val }));
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        title={`${s.label} 알림 시간 설정`}
+                      />
+                    </div>
                   ))}
                 </div>
               </div>
