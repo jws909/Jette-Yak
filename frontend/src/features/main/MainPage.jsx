@@ -199,6 +199,22 @@ function getPrescriptionStatus(dispensedDateStr, totalDays, targetDate) {
 
 const DOT_COLORS = ['#c04b4b', '#e09f3e', '#5c9e76', '#4a69bd', '#8b3e4b', '#2e86de'];
 
+// 식약처 의약품 분류 코드([02390] 등) 및 접두어를 정제하여 사용자 친화적인 약효명으로 변환
+function cleanCategoryName(rawName) {
+  if (!rawName || typeof rawName !== 'string') return '';
+  // 1. [02390] 같은 앞쪽 숫자 분류 코드 제거
+  let clean = rawName.replace(/^\[\d+\]\s*/, '').trim();
+  // 2. '기타의 ' 접두사 제거 (예: '기타의 소화기관용약' -> '소화기관용약')
+  clean = clean.replace(/^기타의\s*/, '').trim();
+  // 3. '주로 ~ 균에 작용하는 것' 등의 긴 행정 분류명 축약
+  if (clean.includes('그람양성') || clean.includes('균에 작용')) {
+    clean = '항생·항균제';
+  } else if (clean.includes('개개의 기관계용 의약품')) {
+    clean = '기관계용 의약품';
+  }
+  return clean;
+}
+
 function mapPrescriptionToState(prescription) {
   if (!prescription) return null;
 
@@ -241,9 +257,11 @@ function mapPrescriptionToState(prescription) {
         } else if (timingLower.includes('3회')) {
           freq = 3;
         }
-        const className = item.className || '';
+        const rawClass = item.className || '';
+        const className = cleanCategoryName(rawClass);
         const materialName = item.materialName || '';
-        const efficacy = item.efficacy || className || '전문의 처방 의약품';
+        const rawEfficacy = item.efficacy || '';
+        const efficacy = cleanCategoryName(rawEfficacy) || className || '전문의 처방 의약품';
         const usageDosage = item.usageDosage || `1일 ${freq}회 · 1회 ${dose}정 (${timing})`;
         const isDiscontinued = Boolean(item.isDiscontinued);
 
@@ -255,7 +273,6 @@ function mapPrescriptionToState(prescription) {
           itemName: item.itemName || '처방 의약품',
           desc: className ? `${className} · ${timing}` : (timing || '식후 30분 복용'),
           badge: '처방',
-          dotColor: DOT_COLORS[idx % DOT_COLORS.length],
           dosage: usageDosage,
           dailyFrequency: freq,
           dailyDose: dose,
@@ -265,6 +282,7 @@ function mapPrescriptionToState(prescription) {
           usageDosage: usageDosage,
           materialName: materialName,
           className: className,
+          rawClassName: rawClass,
           caution: getMedicineCaution({
             isDiscontinued,
             className,
@@ -592,6 +610,11 @@ function buildRoutineItems(prescribedMeds, mealTimes = DEFAULT_MEAL_TIMES) {
         originDispensedDate: med.originDispensedDate,
         prescriptionNickname: med.prescriptionNickname,
         prescriptionPurpose: med.prescriptionPurpose,
+        className: med.className || '',
+        efficacy: med.efficacy || '',
+        dosage: med.dosage || med.usageDosage || '',
+        caution: med.caution || '',
+        rawMed: med,
       });
     });
   });
@@ -846,6 +869,35 @@ export default function MainPage({ user }) {
       prescriptionPurpose: prescriptionData.aiGuide?.purpose,
     }));
   }, [prescriptionData, selectedRxId, activeMedsForTargetDate]);
+
+  // 처방전별로 그룹핑된 처방 약품 목록 (selectedRxId === 'all' 모드 전용)
+  const groupedPrescriptionMeds = useMemo(() => {
+    if (selectedRxId !== 'all') return [];
+    if (!displayedMedList || displayedMedList.length === 0) return [];
+
+    const map = new Map();
+    displayedMedList.forEach((med) => {
+      const rxId = med.prescriptionId ? String(med.prescriptionId) : 'unknown';
+      if (!map.has(rxId)) {
+        const rx = (allPrescriptions || []).find((r) => String(r.prescriptionId) === rxId);
+        const status = rx ? getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate) : null;
+        map.set(rxId, {
+          prescriptionId: rxId,
+          hospitalName: rx?.hospitalName || med.originHospital || '의료기관',
+          dispensedDate: rx?.dispensedDate || med.originDispensedDate || '',
+          nickname: rx?.nickname || med.prescriptionNickname || '',
+          purpose: rx?.aiGuide?.purpose || med.prescriptionPurpose || '',
+          status: status?.status,
+          dayNum: status?.dayNum,
+          totalDays: rx?.totalDays,
+          items: [],
+        });
+      }
+      map.get(rxId).items.push(med);
+    });
+
+    return Array.from(map.values());
+  }, [selectedRxId, displayedMedList, allPrescriptions, targetDate]);
 
   // 날짜 네비게이터 핸들러
   const handlePrevDay = () => {
@@ -1542,7 +1594,7 @@ export default function MainPage({ user }) {
         : `${entry.originHospital || '처방'}약`;
 
       const hospitalDateText = `${entry.originHospital || '의료기관'}${entry.dispensedDate ? ` · ${entry.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제` : ''}`;
-      const pillsSummary = `${entry.items[0]?.name || '처방약'}${entry.items.length > 1 ? ` 외 ${entry.items.length - 1}종 (총 ${entry.items.length}알)` : ' (1알)'}`;
+      const pillsSummary = `${entry.items[0]?.name || '처방약'}${entry.items.length > 1 ? ` 외 ${entry.items.length - 1}종 (총 ${entry.items.length}종류)` : ' (1종류)'}`;
 
       return (
         <div
@@ -1578,7 +1630,7 @@ export default function MainPage({ user }) {
                     [{entry.slotLabel || '정시'} 1포] {pouchTitle}
                   </span>
                   <span className={`pouch-count-badge ${allTaken ? 'done' : ''}`}>
-                    {allTaken ? '전체 복용 완료' : `${takenCount}/${entry.items.length}알`}
+                    {allTaken ? '전체 복용 완료' : `${takenCount}/${entry.items.length}종`}
                   </span>
                 </div>
                 <div className="pouch-meta-row">
@@ -1598,48 +1650,71 @@ export default function MainPage({ user }) {
                 type="button"
                 className="btn-pouch-toggle"
                 onClick={(e) => togglePouchExpand(entry.pouchKey, e)}
-                title={isExpanded ? '알약 목록 접기' : '포함된 알약 보기'}
+                title={isExpanded ? '처방약 목록 접기' : '포함된 처방약 보기'}
               >
-                {isExpanded ? '접기 ▲' : `약 목록 (${entry.items.length}알) ▼`}
+                {isExpanded ? '접기 ▲' : `약 목록 (${entry.items.length}종) ▼`}
               </button>
             </div>
           </div>
 
-          {/* 펼침 영역: 개별 알약 목록 */}
+          {/* 펼침 영역: 개별 처방약 목록 */}
           {isExpanded && (
             <div className="pouch-expanded-items">
               <div className="pouch-expanded-header">
-                <span>봉지에 포함된 개별 알약 목록 (개별 복용 체크 가능)</span>
+                <span>봉지에 포함된 개별 처방약 목록 (개별 복용 체크 가능)</span>
               </div>
-              {entry.items.map((subItem) => (
-                <div
-                  key={subItem.id}
-                  className={`pouch-subitem-row ${subItem.taken ? 'is-taken' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleRoutine(subItem.id);
-                  }}
-                >
-                  <div className="routine-item-left">
-                    <div className={`custom-checkbox sub-checkbox ${subItem.taken ? 'checked' : ''}`}>
-                      {subItem.taken && (
-                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                        </svg>
+              {entry.items.map((subItem) => {
+                const rawCategory = subItem.rawClassName || subItem.className || subItem.efficacy || '';
+                const cleanCat = cleanCategoryName(rawCategory);
+                const displayEfficacy = cleanCat.length > 12 ? cleanCat.slice(0, 11) + '…' : cleanCat;
+
+                return (
+                  <div
+                    key={subItem.id}
+                    className={`pouch-subitem-row ${subItem.taken ? 'is-taken' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleRoutine(subItem.id);
+                    }}
+                  >
+                    <div className="routine-item-left">
+                      <div className={`custom-checkbox sub-checkbox ${subItem.taken ? 'checked' : ''}`}>
+                        {subItem.taken && (
+                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="pouch-subitem-name">{subItem.name}</span>
+                    </div>
+
+                    <div className="routine-item-right" onClick={(e) => e.stopPropagation()}>
+                      {displayEfficacy && (
+                        <button
+                          type="button"
+                          className="subitem-efficacy-chip"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMedDetail(subItem.rawMed || subItem);
+                          }}
+                          title={`${rawCategory ? `${rawCategory} · ` : ''}클릭 시 상세 복약 정보`}
+                        >
+                          <span>{displayEfficacy}</span>
+                          <svg className="chip-info-icon" viewBox="0 0 20 20" fill="currentColor" width="11" height="11">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {subItem.taken && subItem.takenAt && (
+                        <span className="routine-taken-time">
+                          {formatTimeOnly(subItem.takenAt)}
+                        </span>
                       )}
                     </div>
-                    <span className="pouch-subitem-name">{subItem.name}</span>
                   </div>
-                  <div className="routine-item-right">
-                    {subItem.taken && subItem.takenAt && (
-                      <span className="routine-taken-time">
-                        {formatTimeOnly(subItem.takenAt)}
-                      </span>
-                    )}
-                    <span className="routine-dot" style={{ backgroundColor: subItem.dotColor }} />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -1674,7 +1749,6 @@ export default function MainPage({ user }) {
               {formatTimeOnly(entry.takenAt)} 복용
             </span>
           )}
-          <span className="routine-dot" style={{ backgroundColor: entry.dotColor }} />
         </div>
       </div>
     );
@@ -2314,8 +2388,90 @@ export default function MainPage({ user }) {
                         : '처방전을 등록하시거나 유효한 복약 날짜를 선택해 주세요.'}
                     </p>
                   </div>
+                ) : selectedRxId === 'all' ? (
+                  /* 통합 처방전 모드: 처방전별로 묶어서 그룹핑하여 표시 */
+                  groupedPrescriptionMeds.map((group) => {
+                    const groupTitle = group.nickname
+                      ? `${group.nickname} (${group.hospitalName})`
+                      : group.hospitalName;
+                    const dateFormatted = group.dispensedDate
+                      ? `${group.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제`
+                      : '';
+                    const metaText = [dateFormatted, `총 ${group.items.length}종`].filter(Boolean).join(' · ');
+
+                    return (
+                      <div key={group.prescriptionId} className="prescribed-group-box">
+                        <div className="prescribed-group-header">
+                          <div className="prescribed-group-header-left">
+                            <span className="prescribed-group-icon" title="처방전">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="15" height="15" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                              </svg>
+                            </span>
+                            <strong className="prescribed-group-title" title={groupTitle}>
+                              {groupTitle}
+                            </strong>
+                            {metaText && <span className="prescribed-group-meta">({metaText})</span>}
+                          </div>
+
+                          <div className="prescribed-group-header-right">
+                            {group.status === 'taking' && (
+                              <span className="prescribed-group-status-badge taking">
+                                {group.dayNum ? `복용 중 (${group.dayNum}일차)` : '복용 중'}
+                              </span>
+                            )}
+                            {group.status === 'completed' && (
+                              <span className="prescribed-group-status-badge completed">복용 완료</span>
+                            )}
+                            {group.status === 'upcoming' && (
+                              <span className="prescribed-group-status-badge upcoming">복용 예정</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="prescribed-group-items">
+                          {group.items.map((med, idx) => (
+                            <div
+                              key={med.id || med.medicationId}
+                              className="med-item-row"
+                              onClick={() => setSelectedMedDetail(med)}
+                              title="상세 정보 보기"
+                            >
+                              <div className="med-item-left">
+                                <span className="med-index-num">{String(idx + 1).padStart(2, '0')}</span>
+                                <div className="med-text-group">
+                                  <div className="med-title-hospital-row">
+                                    <strong className="med-item-name">{med.name}</strong>
+                                  </div>
+                                  <p className="med-item-desc">{med.desc}</p>
+                                </div>
+                              </div>
+
+                              <div className="med-item-right">
+                                <span className={`med-type-pill ${med.badge === '처방' ? 'rx' : med.badge === '영양제' ? 'supp' : 'reg'}`}>
+                                  {med.badge || '처방'}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="med-more-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedMedDetail(med);
+                                  }}
+                                  title="상세 복약 정보 보기"
+                                >
+                                  ···
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
                 ) : (
-                  displayedMedList.map((med) => (
+                  /* 개별 처방전 선택 모드: 그룹핑 헤더 없이 해당 처방전 약품들 평면 표시 */
+                  displayedMedList.map((med, idx) => (
                     <div
                       key={med.id || med.medicationId}
                       className="med-item-row"
@@ -2323,13 +2479,10 @@ export default function MainPage({ user }) {
                       title="상세 정보 보기"
                     >
                       <div className="med-item-left">
-                        <span className="med-color-dot" style={{ backgroundColor: med.dotColor || '#8b3e4b' }} />
+                        <span className="med-index-num">{String(idx + 1).padStart(2, '0')}</span>
                         <div className="med-text-group">
                           <div className="med-title-hospital-row">
                             <strong className="med-item-name">{med.name}</strong>
-                            {selectedRxId === 'all' && med.originHospital && (
-                              <span className="med-hospital-tag">{med.originHospital}</span>
-                            )}
                           </div>
                           <p className="med-item-desc">{med.desc}</p>
                         </div>
@@ -2346,6 +2499,7 @@ export default function MainPage({ user }) {
                             e.stopPropagation();
                             setSelectedMedDetail(med);
                           }}
+                          title="상세 복약 정보 보기"
                         >
                           ···
                         </button>
@@ -2439,7 +2593,6 @@ export default function MainPage({ user }) {
           <div className="modal-content-box med-detail-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div className="detail-head-left">
-                <span className="med-color-dot" style={{ backgroundColor: selectedMedDetail.dotColor }} />
                 <h3 className="modal-title">{selectedMedDetail.name}</h3>
                 <span className="med-type-pill rx">{selectedMedDetail.badge}</span>
               </div>
@@ -2552,7 +2705,6 @@ export default function MainPage({ user }) {
                     {activeMedList.map((item, idx) => (
                       <li key={item.id || idx} className="caution-item-card">
                         <div className="caution-item-top">
-                          <span className="med-color-dot" style={{ backgroundColor: item.dotColor || '#8b3e4b' }} />
                           <strong className="caution-item-name">{item.name}</strong>
                           {selectedRxId === 'all' && item.originHospital && (
                             <span className="med-hospital-tag">{item.originHospital}</span>
