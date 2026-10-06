@@ -1489,7 +1489,8 @@ const CalendarPage = (props) => {
               </div>
             )}
             <p className="delete-modal-desc">
-              선택한 날짜의 일정만 삭제할 수도 있고,<br />이 약에 대한 전체 스케줄을 함께 삭제할 수 있습니다.
+              선택한 날짜의 일정만 삭제할 수도 있고,<br />
+              등록된 약 정보는 유지한 채 전체 복약 일정만 삭제할 수 있습니다.
             </p>
 
             <div className="delete-modal-choice-group">
@@ -1501,18 +1502,26 @@ const CalendarPage = (props) => {
                 <span className="choice-title">이 일정만 삭제</span>
                 <span className="choice-desc">{selectedDate} 일정만 삭제합니다</span>
               </button>
+              
               <button
                 type="button"
                 className="btn-delete-choice btn-choice-all"
                 onClick={() => confirmDeleteSchedule(true)}
               >
                 <span className="choice-title">이 약의 전체 스케줄 삭제</span>
-                <span className="choice-desc">모든 날짜의 스케줄과 약품 정보를 함께 삭제합니다</span>
+                <span className="choice-desc">등록된 약의 모든 날짜의 일정을 삭제합니다</span>
               </button>
             </div>
 
             <div className="delete-modal-footer">
-              <button type="button" className="btn-modal-cancel" onClick={() => setIsDeleteModalOpen(false)}>
+              <button 
+                type="button" 
+                className="btn-modal-cancel" 
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setItemToDelete(null);
+                }}
+              >
                 취소
               </button>
             </div>
