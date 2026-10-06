@@ -94,6 +94,7 @@ function MedicationConversation() {
       if (response.status === 401) {
         setHistoryLoginRequired(true)
         setHistoryItems([])
+        window.dispatchEvent(new CustomEvent('AUTH_SESSION_EXPIRED'))
         return
       }
       const data = await readResponse(response)
@@ -112,7 +113,12 @@ function MedicationConversation() {
     let active = true
     fetch('/api/chat/conversations', { headers: { Accept: 'application/json' } }).then(async response => {
       if (!active) return
-      if (response.status === 401) { setHistoryLoginRequired(true); setHistoryItems([]); return }
+      if (response.status === 401) {
+        setHistoryLoginRequired(true);
+        setHistoryItems([]);
+        window.dispatchEvent(new CustomEvent('AUTH_SESSION_EXPIRED'));
+        return;
+      }
       const data = await readResponse(response)
       if (active) { setHistoryLoginRequired(false); setHistoryItems(Array.isArray(data.items) ? data.items : []) }
     }).catch(err => { if (active) setError(err.message) }).finally(() => { if (active) setHistoryLoading(false) })

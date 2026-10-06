@@ -54,4 +54,14 @@ http://www.springframework.org/schema/tx/spring-tx.xsd">
 		</message-converters>
 	</annotation-driven>
 
+	<!-- 전역 CORS 설정: 모든 IP, 포트, 도메인 허용 (세션 쿠키 allow-credentials 지원) -->
+	<cors>
+		<mapping path="/**"
+			allowed-origin-patterns="*"
+			allowed-methods="GET, POST, PUT, DELETE, OPTIONS, PATCH"
+			allowed-headers="*"
+			allow-credentials="true"
+			max-age="3600" />
+	</cors>
+
 </beans:beans>

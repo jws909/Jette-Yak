@@ -17,11 +17,6 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/family")
-@CrossOrigin(
-	    origins = "http://localhost:5173", 
-	    allowCredentials = "true", 
-	    methods = { RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS }
-	)
 public class FamilyController {
 
 	@Autowired
