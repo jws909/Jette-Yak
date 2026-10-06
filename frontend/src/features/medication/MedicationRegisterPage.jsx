@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
-import * as medicationApi from './medicationApi';
+import {
+  fetchPrescriptions,
+  fetchEverydayMeds,
+  deletePrescription,
+  deleteEverydayMed,
+} from './medicationApi';
 import PrescriptionTab from './components/PrescriptionTab';
 import CabinetTab from './components/CabinetTab';
 import SupplementTab from './components/SupplementTab';
@@ -51,7 +56,7 @@ export default function MedicationRegisterPage({ user }) {
     }
     setIsLoadingRxList(true);
     try {
-      const list = await medicationApi.fetchPrescriptions(currentUserId);
+      const list = await fetchPrescriptions(currentUserId);
       setUserPrescriptions(list);
     } catch (err) {
       console.warn('처방전 목록 조회 실패:', err);
@@ -66,7 +71,7 @@ export default function MedicationRegisterPage({ user }) {
     if (!currentUserId) return;
     setIsLoadingEverydayMeds(true);
     try {
-      const list = await medicationApi.fetchEverydayMeds(currentUserId);
+      const list = await fetchEverydayMeds(currentUserId);
       setEverydayMeds(list);
     } catch (err) {
       console.warn('평소 복용 약 목록 조회 실패:', err);
@@ -99,7 +104,7 @@ export default function MedicationRegisterPage({ user }) {
           description: '선택하신 처방전 및 관련 복약 기록을 삭제하고 있습니다. 잠시만 기다려 주세요.',
         });
         try {
-          await medicationApi.deletePrescription(prescriptionId, currentUserId);
+          await deletePrescription(prescriptionId, currentUserId);
           await fetchPrescriptionList();
           window.dispatchEvent(new CustomEvent('jette-intake-updated', {
             detail: { userId: currentUserId }
@@ -130,7 +135,7 @@ export default function MedicationRegisterPage({ user }) {
       onConfirm: async () => {
         try {
           const rawId = med.rawId || (med.id ? String(med.id).replace(/^[A-Za-z]:/, '') : '');
-          await medicationApi.deleteEverydayMed(med.source, rawId, currentUserId);
+          await deleteEverydayMed(med.source, rawId, currentUserId);
           await fetchEverydayMedsList();
           window.dispatchEvent(new CustomEvent('jette-intake-updated', {
             detail: { userId: currentUserId }

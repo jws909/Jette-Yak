@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { getTransformedFile } from '../../../utils/imageTransform';
 import { uploadPrescription } from '../medicationApi';
