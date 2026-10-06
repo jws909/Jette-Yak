@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.chatbot.dao.ChatHistoryDao">
+  <!--
+    역할: 사용자별 상담방과 메시지의 생성·조회·삭제 SQL
+    소유권 기준: 대화방 변경과 조회에 conversation_id와 user_id를 함께 사용
+  -->
   <select id="nextConversationId" resultType="long">SELECT chat_conversation_seq.NEXTVAL FROM dual</select>
   <select id="nextMessageId" resultType="long">SELECT chat_message_seq.NEXTVAL FROM dual</select>
   <insert id="insertConversation" parameterType="map">
@@ -48,5 +52,8 @@
   </select>
   <delete id="deleteConversation" parameterType="map">
     DELETE FROM chat_conversations WHERE conversation_id=#{conversationId} AND user_id=#{userId}
+  </delete>
+  <delete id="deleteAllConversations" parameterType="long">
+    DELETE FROM chat_conversations WHERE user_id=#{value}
   </delete>
 </mapper>

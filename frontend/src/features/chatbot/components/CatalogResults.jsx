@@ -1,4 +1,7 @@
-/** 검색 결과에서 값이 있는 항목과 실제 주의 기록만 표시한다. */
+/**
+ * 역할: 구조화된 의약품·DUR 검색 결과를 카드와 근거 목록으로 표시
+ * 표시 기준: 값이 있는 필드와 실제로 연결된 주의 기록만 출력
+ */
 const types={1:'임신 중 복용 주의',2:'고령자 복용 주의',3:'연령별 복용 주의',4:'함께 복용 금지'}
 const fields=[['materialName','성분'],['efficacy','효능·효과'],['usageDosage','복용 방법'],['className','분류'],['etcOtcCode','전문·일반'],['ediCode','보험 코드'],['updatedAt','자료 수정일']]
 const hasValue=value=>value!==null&&value!==undefined&&String(value).trim()!==''

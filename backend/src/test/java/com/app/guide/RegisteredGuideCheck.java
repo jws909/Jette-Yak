@@ -1,6 +1,6 @@
 /**
- * 로그인 세션의 사용자 ID로 등록 약과 가이드 API가 조회되는지 확인하는 통합 점검입니다.
- * 세션은 Proxy로 만들고 MyBatis는 로컬 DB 설정을 사용합니다.
+ * 역할: 로그인 세션 사용자 ID로 등록 약과 가이드 API를 조회하는 흐름 점검
+ * 실행 방식: Proxy 세션과 로컬 DB MyBatis 설정 사용
  */
 package com.app.guide;
 import java.nio.file.*;import java.util.*;import java.sql.*;import java.lang.reflect.Proxy;

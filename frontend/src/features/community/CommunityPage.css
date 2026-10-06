@@ -1,6 +1,6 @@
 /*
- * 파일 역할: 커뮤니티 목록, 작성 폼, 상세 모달, 첨부파일과 관리자 영역의 스타일입니다.
- * 유지보수: 모달 닫기 버튼과 작성일이 겹치지 않도록 헤더 여백을 변경할 때 함께 확인합니다.
+ * 역할: 커뮤니티 목록, 작성 폼, 상세 모달, 첨부파일, 관리자 진입 버튼 스타일
+ * 확인 지점: 상세 모달 헤더 수정 시 닫기 버튼과 작성일 사이의 여백도 함께 점검
  */
 .community-page{display:flex;flex-direction:column;gap:24px;color:#2b2523}.community-header{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap}.community-header h1{margin-bottom:8px}.community-header p{margin:0;color:#736b63;line-height:1.7}.community-primary{border:0;border-radius:8px;background:#7d2638;color:#fff;padding:11px 18px;font:inherit;font-weight:700;cursor:pointer}.community-primary:hover{background:#68202f}.community-safety{display:grid;grid-template-columns:auto 1fr auto;gap:12px 18px;align-items:center;padding:16px 18px;border:1px solid #dfd3c4;border-left:4px solid #7d2638;background:#fffaf5;border-radius:8px;font-size:13px;line-height:1.6}.community-safety span{color:#6f655c}.community-safety a,.community-side a{color:#7d2638;font-weight:700;text-decoration:none}.community-notice{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border:1px solid #e3cdd2;border-radius:8px;background:#f3e8eb;color:#7d2638}.community-notice button{border:0;background:transparent;color:inherit;font-size:20px;cursor:pointer}.community-error{padding:12px 14px;border:1px solid #ebd0ce;border-radius:8px;background:#fff4f2;color:#a02c32}.community-toolbar {
   display: flex;
@@ -114,3 +114,10 @@
 .community-medication-link-state{margin:-7px 0 12px;color:#9a6c37;font-size:11px}.community-medication-link-state.linked{color:#4f7150}
 .community-primary:disabled{opacity:.65;cursor:wait}
 .community-detail>.community-card-top{min-height:32px;padding-right:44px}.community-detail>.community-card-top time{white-space:nowrap}.community-detail>.community-close{z-index:1;top:16px;right:18px;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border-radius:50%;background:#f4efe8;color:#5f554d;line-height:1}.community-detail>.community-close:hover{background:#eadfd3;color:#7d2638}
+
+/* 답글 관계와 댓글 동작을 데스크톱·모바일에서 구분 */
+.community-comment.is-reply{margin-left:38px;padding-left:18px;border-left:2px solid #eadde0}
+.community-comment-actions button.active{border-color:#7d2638;background:#f3e8eb;color:#7d2638;font-weight:700}
+.community-reply-target{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:7px;background:#f4efe8;color:#665b53;font-size:12px}
+.community-reply-target button{padding:4px 8px}
+@media(max-width:560px){.community-comment{padding-top:16px}.community-comment.is-reply{margin-left:14px;padding-left:12px}.community-comment-actions{position:static;flex-wrap:wrap;margin-top:8px}.community-comment-author>div{min-width:0;flex-wrap:wrap}.community-detail-actions{flex-wrap:wrap}.community-detail-actions button{flex:1 1 auto}.community-reply-target{align-items:flex-start}}

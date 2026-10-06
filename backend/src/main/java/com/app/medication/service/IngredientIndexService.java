@@ -1,3 +1,7 @@
+/**
+ * 역할: 제품 원문 성분을 표준 성분과 검증된 별칭 인덱스로 변환
+ * 트랜잭션 기준: 품목별 인덱싱 실패를 분리해 전체 허가정보 동기화 중단 방지
+ */
 package com.app.medication.service;
 
 import java.util.LinkedHashMap;
@@ -12,7 +16,6 @@ import org.springframework.transaction.interceptor.TransactionAspectSupport;
 import com.app.guide.service.DurGuideService;
 import com.app.medication.dao.MedicationDao;
 
-/** 제품 원문 성분을 검증 가능한 표준 성분 인덱스로 변환한다. */
 @Service
 public class IngredientIndexService {
     private static final Logger log=LogManager.getLogger(IngredientIndexService.class);

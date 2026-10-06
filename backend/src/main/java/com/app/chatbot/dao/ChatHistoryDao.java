@@ -1,3 +1,7 @@
+/**
+ * 역할: 사용자별 챗봇 대화방과 메시지를 MyBatis SQL로 저장·조회
+ * 소유권 기준: conversationId와 userId를 함께 사용해 다른 사용자의 대화 접근 차단
+ */
 package com.app.chatbot.dao;
 
 import java.util.List;
@@ -6,7 +10,6 @@ import org.apache.ibatis.session.SqlSession;
 import org.springframework.stereotype.Repository;
 import com.app.chatbot.dto.ChatHistoryMessageDto;
 
-/** 로그인 사용자가 소유한 챗봇 대화와 메시지만 읽고 쓴다. */
 @Repository
 public class ChatHistoryDao {
     private static final String NS="com.app.chatbot.dao.ChatHistoryDao.";
@@ -22,4 +25,5 @@ public class ChatHistoryDao {
     public Map<String,Object> findConversation(long userId,long conversationId){return session.selectOne(NS+"findConversation",Map.of("userId",userId,"conversationId",conversationId));}
     public List<ChatHistoryMessageDto> findMessages(long userId,long conversationId){return session.selectList(NS+"findMessages",Map.of("userId",userId,"conversationId",conversationId));}
     public int deleteConversation(long userId,long conversationId){return session.delete(NS+"deleteConversation",Map.of("userId",userId,"conversationId",conversationId));}
+    public int deleteAllConversations(long userId){return session.delete(NS+"deleteAllConversations",userId);}
 }

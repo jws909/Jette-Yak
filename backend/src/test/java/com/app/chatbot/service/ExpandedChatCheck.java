@@ -1,6 +1,6 @@
 /**
- * MyBatis 매퍼와 모의 Gemini 응답을 결합해 확장된 챗봇 검색·답변 흐름을 확인합니다.
- * DB 연결 설정을 읽으므로 로컬 테스트 DB가 준비된 환경에서 실행해야 합니다.
+ * 역할: MyBatis 매퍼와 모의 Gemini 응답을 결합한 챗봇 검색·답변 흐름 점검
+ * 실행 조건: 로컬 테스트 DB와 DB 연결 설정 필요
  */
 package com.app.chatbot.service;
 import java.util.*;import java.nio.file.*;

@@ -1,6 +1,6 @@
 /**
- * 파일 역할: ChatbotDao를 MyBatis SqlSession 호출로 연결하는 구현체입니다.
- * 핵심 규칙: SQL 식별자는 chatbot_mapper.xml의 namespace와 id가 반드시 일치해야 합니다.
+ * 역할: ChatbotDao 메서드를 MyBatis SqlSession 호출로 연결
+ * 매핑 기준: SQL 식별자는 chatbot_mapper.xml의 namespace와 id에 맞춤
  */
 package com.app.chatbot.dao.impl;
 import java.util.Map;

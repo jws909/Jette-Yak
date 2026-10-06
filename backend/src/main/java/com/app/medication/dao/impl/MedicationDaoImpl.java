@@ -1,6 +1,6 @@
 /**
- * 파일 역할: MedicationDao를 medication_mapper.xml의 MyBatis 구문과 연결합니다.
- * 핵심 규칙: SqlSession 반환값은 실제 INSERT 또는 변경 UPDATE가 수행된 행 수입니다.
+ * 역할: MedicationDao 메서드를 medication_mapper.xml SQL에 연결
+ * 반환 기준: SqlSession 결과값은 실제 INSERT 또는 변경 UPDATE 행 수
  */
 package com.app.medication.dao.impl;
 import java.util.Map;

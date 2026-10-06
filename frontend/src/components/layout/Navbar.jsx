@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
+import UiDialog from '../ui/UiDialog';
 import './Navbar.css';
 
 export default function Navbar({
@@ -11,9 +12,11 @@ export default function Navbar({
   onLogout,
   onLoginDemoToggle
 }) {
+  const navigate = useNavigate();
   const currentUserId = user?.userId || user?.id;
   const [showNotification, setShowNotification] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [notificationDialog, setNotificationDialog] = useState(null);
 
   const notifBoxRef = useRef(null);
 
@@ -36,26 +39,25 @@ export default function Navbar({
 
       if (res.ok) {
         if (action === 'ACCEPT') {
-          alert('가족 초대를 수락했습니다!');
-          window.location.reload();
+          setNotificationDialog({title:'가족 초대를 수락했습니다.',text:'가족 약 관리에 새 가족 정보가 반영됩니다.',reload:true});
         } else {
-          alert('초대를 거절했습니다.');
+          setNotificationDialog({title:'가족 초대를 거절했습니다.',text:'해당 초대는 알림 목록에서 제거됐습니다.'});
           setNotifications((prev) => prev.filter((n) => n.id !== `invitation-${inviteId}`));
         }
       } else {
-        alert(data.message || '초대 응답 처리에 실패했습니다.');
+        setNotificationDialog({title:'초대 요청을 처리하지 못했습니다.',text:data.message || '잠시 후 다시 시도해주세요.'});
       }
     } catch (err) {
       console.error('초대 처리 에러:', err);
-      alert('서버 통신 중 오류가 발생했습니다.');
+      setNotificationDialog({title:'서버에 연결하지 못했습니다.',text:'네트워크 상태를 확인한 뒤 다시 시도해주세요.'});
     }
   };
 
   // 로그인 시 사용자의 실제 복약 일정(원샷 브리핑) 및 처방전 주의사항 로드
   useEffect(() => {
     if (!isLoggedIn || !currentUserId) {
-      setNotifications([]);
-      return;
+      const clearTimer=window.setTimeout(()=>setNotifications([]),0);
+      return ()=>window.clearTimeout(clearTimer);
     }
 
     const userId = currentUserId;
@@ -168,12 +170,36 @@ export default function Navbar({
         console.warn('Navbar 복약 일정 조회 실패:', err);
       }
 
+      // 커뮤니티 활동과 관리자 처리 결과는 DB에 저장된 알림을 읽어 다른 기기에서도 유지한다.
+      try {
+        const savedRes = await fetch('/api/notifications', { headers: { Accept: 'application/json' } });
+        if (savedRes.ok) {
+          const savedData = await savedRes.json();
+          const savedItems = (Array.isArray(savedData.items) ? savedData.items : []).map(item => ({
+            id: `saved-${item.notificationId}`,
+            notificationId: item.notificationId,
+            type: item.type === 'ADMIN_REPORT' || item.type === 'REPORT_RESULT' ? 'warning' : 'routine',
+            title: item.title,
+            text: item.content,
+            time: item.createdAt,
+            read: Number(item.read) === 1,
+            saved: true,
+            postId: item.postId,
+            targetType: item.targetType,
+          }));
+          items.unshift(...savedItems);
+        }
+      } catch (err) {
+        console.warn('Navbar 저장 알림 조회 실패:', err);
+      }
+
       if (isMounted) {
-        setNotifications(items);
+        setNotifications(previous => items.map(item => item.saved ? item : ({ ...item, read: Boolean(previous.find(old => old.id === item.id)?.read) })));
       }
     };
 
     loadNotifications();
+    const notificationTimer = window.setInterval(loadNotifications, 30000);
 
     // ★ 3. 실시간 알림 이벤트 수신 (30분 전 예비 알림 + 정시 본 알람)
     const handleNewDoseAlarm = (e) => {
@@ -206,9 +232,10 @@ export default function Navbar({
 
     return () => {
       isMounted = false;
+      window.clearInterval(notificationTimer);
       window.removeEventListener('NEW_MEDICATION_ALARM', handleNewDoseAlarm);
     };
-  }, [isLoggedIn, user?.userId]);
+  }, [isLoggedIn, currentUserId]);
 
   // 외부 클릭 시 알림창 닫기
   useEffect(() => {
@@ -223,13 +250,31 @@ export default function Navbar({
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    try { await fetch('/api/notifications/read-all', { method: 'PATCH' }); } catch (err) { console.warn('알림 전체 읽음 처리 실패:', err); }
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
-  const markAsRead = (id) => {
+  const markAsRead = async (item) => {
+    if (item.saved && item.notificationId) {
+      try { await fetch(`/api/notifications/${item.notificationId}/read`, { method: 'PATCH' }); } catch (err) { console.warn('알림 읽음 처리 실패:', err); }
+      setNotificationDialog(item);
+      setShowNotification(false);
+    }
+    const id = item.id;
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   };
+
+  function closeNotificationDialog(){ setNotificationDialog(null); }
+  function confirmNotificationDialog(){
+    if(notificationDialog?.reload){window.location.reload();return}
+    closeNotificationDialog();
+  }
+  function followNotification(){
+    const postId=notificationDialog?.postId;
+    closeNotificationDialog();
+    if(postId)navigate('/community?postId='+encodeURIComponent(postId));
+  }
 
   return (
     <header className="site-navbar">
@@ -303,7 +348,8 @@ export default function Navbar({
                           <div
                             key={n.id}
                             className={`notif-item ${n.read ? 'read' : 'unread'}`}
-                            onClick={() => markAsRead(n.id)}
+                            onClick={() => markAsRead(n)}
+                            onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();markAsRead(n)}}}
                             role="button"
                             tabIndex={0}
                           >
@@ -375,6 +421,7 @@ export default function Navbar({
           )}
         </div>
       </div>
+      <UiDialog open={Boolean(notificationDialog)} title={notificationDialog?.title} description={notificationDialog?.text} confirmLabel={notificationDialog?.postId?'게시글 보기':'확인'} cancelLabel={notificationDialog?.postId?'닫기':''} onCancel={closeNotificationDialog} onConfirm={notificationDialog?.postId?followNotification:confirmNotificationDialog}/>
     </header>
   );
 }

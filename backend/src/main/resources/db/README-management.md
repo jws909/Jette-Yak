@@ -72,3 +72,7 @@ Eclipse에서 Project Build 후 Tomcat Publish/재시작, 브라우저 새로고
 SELECT COUNT(*) FROM chat_conversations;
 SELECT COUNT(*) FROM chat_messages;
 ```
+
+## 커뮤니티 답글·좋아요·저장형 알림
+
+`20261006_community_notifications.sql`을 SQL Developer에서 전체 스크립트 실행(F5)한 뒤 Tomcat을 다시 시작한다. 이 스크립트는 댓글 답글 관계, 댓글 좋아요, 관리자 검토 메모, 사용자별 알림 테이블과 인덱스를 추가한다. 스크립트를 적용하지 않으면 새 커뮤니티 API에서 `ORA-00942` 또는 `ORA-00904`가 발생한다.

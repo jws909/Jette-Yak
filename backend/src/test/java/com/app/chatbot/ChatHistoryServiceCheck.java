@@ -1,3 +1,7 @@
+/**
+ * 역할: 대화 소유권, 질문·답변 저장, 화면 응답 복원을 DB 없이 점검
+ * 실행 방식: main 메서드에서 모의 DAO 사용
+ */
 package com.app.chatbot;
 
 import java.util.ArrayList;
@@ -9,7 +13,6 @@ import com.app.chatbot.dto.ChatHistoryMessageDto;
 import com.app.chatbot.dto.MedicationChatRequest;
 import com.app.chatbot.service.ChatHistoryService;
 
-/** 대화 소유권, 질문·답변 저장, 화면 응답 복원을 DB 없이 확인한다. */
 public class ChatHistoryServiceCheck {
     static void check(boolean value,String message){if(!value)throw new AssertionError(message);}
     public static void main(String[] args){

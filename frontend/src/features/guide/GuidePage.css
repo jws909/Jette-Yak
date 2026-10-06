@@ -1,6 +1,6 @@
 /*
- * 파일 역할: 내 약 관리의 상태 필터, 제품 탭, 전체 목록과 상세 정보 카드 스타일입니다.
- * 유지보수: 제품 수와 설명 길이가 달라도 열 너비와 탭 스크롤이 유지되도록 구성되어 있습니다.
+ * 역할: 내 약 관리 상태 필터, 제품 탭, 전체 목록, 상세 정보 카드 스타일
+ * 확인 지점: 제품 수와 설명 길이가 달라도 열 너비와 가로 탭 스크롤 유지
  */
 /* ==========================================================================
    GuidePage Styles (Faithful reproduction of wireframe 4.png)
@@ -372,6 +372,15 @@
 .my-med-header-actions a:hover {
   background: #ead9de;
   border-color: #b77b89;
+}
+.my-med-header-actions a.my-med-register-action {
+  border-color: #7d2638;
+  background: #7d2638;
+  color: #ffffff;
+}
+.my-med-header-actions a.my-med-register-action:hover {
+  border-color: #6a1f2e;
+  background: #6a1f2e;
 }
 .my-med-header-actions a:focus-visible {
   outline: 2px solid #7d2638;

@@ -2,8 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.easydrug.dao.EasyDrugDao">
 <!--
-  e약은요의 효능·용법·이미지를 기존 MEDICATIONS 행에 보강한다.
-  허가정보 적재가 먼저 완료되어야 하며, 값이 달라진 경우에만 UPDATE한다.
+  역할: e약은요 효능·용법·이미지를 기존 MEDICATIONS 행에 보강
+  갱신 기준: 허가정보 적재 후 실제 값이 달라진 경우에만 UPDATE
 -->
 <update id="updateEasyMedication"
 		parameterType="com.app.easydrug.dto.MedicationEasyDto">

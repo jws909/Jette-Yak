@@ -2,8 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.guide.dao.MedicationGuideDao">
     <!--
-      내 약 관리의 제품 상세, DUR, 사용자 등록 약, 통합 가이드 저장·조회 SQL이다.
-      사용자 데이터 쿼리는 반드시 user_id 조건을 유지하고 ACTIVE 상태와 전체 이력을 구분한다.
+      역할: 제품 상세, DUR, 사용자 등록 약, 통합 가이드 저장·조회 SQL
+      소유권 기준: 사용자 자료 쿼리에서 user_id 조건 유지, ACTIVE 상태와 전체 이력 구분
     -->
     <resultMap id="guide" type="com.app.guide.dto.MedicationGuideDto" autoMapping="false">
         <id column="medication_id" property="medicationId" />

@@ -1,6 +1,6 @@
 /**
- * 현재 복용 중인 약 사이에서 실제로 확인된 주의정보만 보여준다.
- * 연결 실패나 기록 없음은 화면에 빈 카드로 남기지 않는다.
+ * 역할: 현재 복용 중인 약 조합에서 확인된 병용 주의와 중복 성분 요약
+ * 표시 기준: 연결 실패나 기록 없음은 빈 카드로 남기지 않고 생략
  */
 import { Link } from 'react-router-dom'
 import { DurRecord } from '../chatbot/components/CatalogResults'
