@@ -12,6 +12,7 @@ import AdminPage from './features/admin/AdminPage';
 import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import MedicationRegisterPage from './features/medication/MedicationRegisterPage';
+import { DialogProvider } from './contexts/DialogContext';
 import './App.css';
 
 const getFormattedDate = (targetDate) => {
@@ -401,7 +402,7 @@ function App() {
   };
 
   return (
-    <>
+    <DialogProvider>
       <Routes>
         {/* 비로그인 전용 라우트 (이미 로그인된 상태면 메인으로 튕겨냄) */}
         <Route
@@ -723,7 +724,7 @@ function App() {
           </div>
         </div>
       )}
-    </>
+    </DialogProvider>
   );
 }
 
