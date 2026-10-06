@@ -59,10 +59,10 @@ public class RegisteredGuideCheck {
   final long[] seen={0};
   var dao=new MedicationGuideDao(null){@Override public List<com.app.guide.dto.RegisteredMedicationDto> findRegistered(long id){seen[0]=id;return List.of();}};
   var controller=new MedicationGuideController(dao,null);
-  check(controller.registered(null,request(null)).getStatusCodeValue()==401,"missing session identity rejected");
-  check(controller.registered(null,request("11")).getStatusCodeValue()==401,"unverified string identity rejected");
-  check(controller.registered(null,request(-1L)).getStatusCodeValue()==401,"invalid identity rejected");
-  var response=controller.registered(null,request(11L));
+  check(controller.registered(request(null)).getStatusCodeValue()==401,"missing session identity rejected");
+  check(controller.registered(request("11")).getStatusCodeValue()==401,"unverified string identity rejected");
+  check(controller.registered(request(-1L)).getStatusCodeValue()==401,"invalid identity rejected");
+  var response=controller.registered(request(11L));
   check(response.getStatusCodeValue()==200 && seen[0]==11L,"server identity scopes query");
   check("no-store".equals(response.getHeaders().getCacheControl()),"private results never cached");
  }
