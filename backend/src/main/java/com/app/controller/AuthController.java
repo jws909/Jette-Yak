@@ -83,6 +83,41 @@ public class AuthController {
         return ResponseEntity.ok().header("Cache-Control","no-store").body(Map.of("message","로그아웃되었습니다."));
     }
 
+    @PostMapping("/demo")
+    public ResponseEntity<LoginResponse> demoLogin(javax.servlet.http.HttpServletRequest httpRequest) {
+        String targetUsername = "test12";
+        User user = userMapper.findByLoginId(targetUsername);
+        if (user == null) {
+            user = userMapper.findById(1L);
+        }
+        if (user == null) {
+            LoginResponse failResponse = new LoginResponse(null, "체험용 계정을 찾을 수 없습니다.");
+            return ResponseEntity.status(404).body(failResponse);
+        }
+
+        if (httpRequest != null) {
+            var oldSession = httpRequest.getSession(false);
+            if (oldSession != null) oldSession.invalidate();
+            javax.servlet.http.HttpSession session = httpRequest.getSession(true);
+            session.setAttribute("userId", user.getUserId());
+            session.setAttribute("username", user.getLoginId());
+            session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
+            session.setAttribute("isAdmin", Integer.valueOf(1).equals(user.getIsAdmin()));
+            session.setAttribute("authenticated", true);
+        }
+
+        LoginResponse successResponse = new LoginResponse(
+                user.getUserId(),
+                user.getLoginId(),
+                user.getNickname(),
+                user.getEmail(),
+                user.getRole() == null ? "USER" : user.getRole(),
+                Integer.valueOf(1).equals(user.getIsAdmin()),
+                "체험 로그인 성공"
+        );
+        return ResponseEntity.ok(successResponse);
+    }
+
     @PostMapping("/find-id/send-code")
     public ResponseEntity<?> sendFindIdCode(@RequestBody EmailCodeRequest request) {
         String email = request.getEmail() == null ? "" : request.getEmail().trim();
