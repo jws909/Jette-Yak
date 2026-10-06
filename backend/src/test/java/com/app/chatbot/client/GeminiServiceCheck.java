@@ -57,6 +57,7 @@ public class GeminiServiceCheck {
             check(key.equals("fake-test-key") && !url.contains(key), "Key in header only");
             check(sent.path("contents").get(0).path("parts").get(0).path("text").asText().contains("시험"), "DB reference serialization");
             check(sent.has("systemInstruction") && !sent.has("tools"), "DB-only instructions, no search tools");
+            checkReadableRules(sent.path("systemInstruction").path("parts").get(0).path("text").asText(), "Medication answer");
             service.analyzeQuestion("텐텐이랑 맥주?", "텐텐츄정");
             check(sent.path("generationConfig").path("responseMimeType").asText().equals("application/json"), "Classifier JSON response format");
             check(sent.path("generationConfig").path("responseJsonSchema").path("required").size() == 8, "Classifier output schema");
@@ -64,6 +65,7 @@ public class GeminiServiceCheck {
             String prompt = sent.path("contents").get(0).path("parts").get(0).path("text").asText();
             check(prompt.contains("노인이 주의할 약 알려줘") && prompt.contains("그럼 임산부는?"), "Classifier receives recent and current questions");
             String classifierRules = sent.path("systemInstruction").path("parts").get(0).path("text").asText();
+            check(!classifierRules.contains("안내는 초등학생과 어르신"), "Readable answer rules do not affect question classification");
             check(classifierRules.contains("약봉투") && classifierRules.contains("영양제 등록"), "Medication registration questions route to site help");
             check(sent.path("generationConfig").path("responseJsonSchema").path("properties").has("clarificationQuestion"), "Targeted clarification schema");
             check(sent.path("generationConfig").path("responseJsonSchema").path("properties").path("intent").path("enum").toString().contains("SYMPTOM_CONSULTATION"), "Symptom intent in classifier schema");
@@ -75,9 +77,15 @@ public class GeminiServiceCheck {
             String counselPrompt = sent.path("contents").get(0).path("parts").get(0).path("text").asText();
             check(counselPrompt.contains("어제부터 아파") && counselPrompt.contains("머리가 아파"), "Counselor receives both prior and current context");
             String counselRules = sent.path("systemInstruction").path("parts").get(0).path("text").asText();
+            checkReadableRules(counselRules, "Counseling answer");
             check(counselRules.contains("약 등록 페이지") && counselRules.contains("내 약 관리"), "Counselor knows the medication registration flow");
             service.counsel("검색해줘", "[]", java.util.List.of(), "DB 검색 결과가 0건임");
             check(sent.path("contents").get(0).path("parts").get(0).path("text").asText().contains("DB 검색 결과가 0건임"), "Counselor receives trusted server context");
+            service.counselWithGeneralKnowledge("이 약을 함께 먹어도 되나요?", "[]", java.util.List.of(), "DB에 직접적인 병용 기록 없음");
+            String generalRules = sent.path("systemInstruction").path("parts").get(0).path("text").asText();
+            checkReadableRules(generalRules, "General-reference counseling answer");
+            check(generalRules.contains("아래 내용은 AI 일반 참고정보입니다") && generalRules.contains("기록이 없으니 안전하다"), "Readable rules retain source warning and uncertainty limits");
+            check(sent.path("generationConfig").path("responseJsonSchema").path("required").size() == 3, "Readable counseling retains answer schema");
             int before = calls.get();
             expect(new GeminiService(client, null, null), 503);
             expect(new GeminiService(client, "fake", "../bad"), 503);
@@ -112,5 +120,12 @@ public class GeminiServiceCheck {
     private static void check(boolean ok, String label) {
         if (!ok) throw new AssertionError(label);
         checks++;
+    }
+
+    // 실제 문장 난이도를 판정하는 검사가 아닌, 사용자 안내용 프롬프트의 경계와 보존 규칙 점검
+    private static void checkReadableRules(String rules, String label) {
+        check(rules.contains("안내는 초등학생과 어르신") && rules.contains("한 문장에는 한 가지 내용"), label + " uses readable guidance");
+        check(rules.contains("제품명·성분명·용량·단위·횟수·기간·연령 기준·금기 조건과 인용한 원문은 바꾸거나 생략하지 않는다")
+            && rules.contains("JSON 키·허용값·스키마·숫자 값은 그대로 지킨다"), label + " preserves medicine facts and response structure");
     }
 }

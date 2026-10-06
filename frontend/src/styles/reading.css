@@ -1,0 +1,69 @@
+/*
+ * 내 약 관리·상담·커뮤니티·관리자 화면의 공통 읽기 규칙
+ * 나이는 표시 방식에만 사용하며 DUR 자료와 복용량 원문은 그대로 표시
+ */
+html[data-reading-mode] {
+  --reading-body-size: 15px;
+  --reading-note-size: 14px;
+}
+
+html[data-reading-mode='child'] { --reading-body-size: 17px; --reading-note-size: 16px; }
+html[data-reading-mode='senior'] { --reading-body-size: 18px; --reading-note-size: 16px; }
+
+/* px로 크기를 지정한 기존 화면도 본문·입력창의 읽기 크기를 함께 조정 */
+html[data-reading-mode] :is(.guide-page-wrapper, .chat-page, .community-page, .admin-page, .ui-dialog)
+  :is(p, li, dd, input, textarea, select) {
+  font-size: var(--reading-body-size) !important;
+  line-height: 1.75 !important;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+html[data-reading-mode] :is(.guide-page-wrapper, .chat-page, .community-page, .admin-page, .ui-dialog)
+  :is(p, dd) { white-space: pre-wrap; }
+
+html[data-reading-mode] :is(.guide-page-wrapper, .chat-page, .community-page, .admin-page, .ui-dialog)
+  :is(button, input, select, summary) {
+  min-height: 44px;
+  max-width: 100%;
+}
+
+html[data-reading-mode] :is(.guide-page-wrapper, .chat-page, .community-page, .admin-page, .ui-dialog)
+  :is(button, summary) {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  white-space: normal;
+}
+
+/* 작은 보조 문구와 조작 버튼도 쉬운 보기에서는 본문과 함께 키움 */
+html:is([data-reading-mode='child'], [data-reading-mode='senior'])
+  :is(.guide-page-wrapper, .chat-page, .community-page, .admin-page, .ui-dialog)
+  :is(button, summary, label, dt, small, .guide-note, .scope-note, .field-help, .panel-intro, .side-tool-heading strong, .side-tool-heading small, .drug-option strong, .chat-history-open strong, .ui-dialog-field-meta) {
+  font-size: var(--reading-note-size) !important;
+  line-height: 1.7 !important;
+}
+
+html:is([data-reading-mode='child'], [data-reading-mode='senior'])
+  :is(.guide-page-wrapper, .chat-page, .community-page, .admin-page, .ui-dialog)
+  :is(input, textarea, select) { min-height: 48px; }
+
+html:is([data-reading-mode='child'], [data-reading-mode='senior']) .ui-dialog { width: min(580px, 100%); }
+html:is([data-reading-mode='child'], [data-reading-mode='senior']) .ui-dialog-description { gap: 14px; }
+
+/* 확대된 글과 긴 제품명은 줄바꿈하고, 표·카드의 폭은 화면 안에 유지 */
+html[data-reading-mode] :is(.guide-page-wrapper, .chat-page, .community-page, .admin-page, .ui-dialog),
+html[data-reading-mode] :is(.my-med-row, .guide-col, .community-layout, .community-card, .admin-item, .admin-actions, .guide-warning-preview, .ui-dialog-copy) {
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  html[data-reading-mode] :is(.community-detail-actions, .admin-actions, .my-med-header-actions, .composer-footer) { flex-wrap: wrap; }
+  html[data-reading-mode] :is(.community-detail-actions, .admin-actions, .my-med-header-actions) > :is(button, a) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+}
+
+html[data-reading-mode] .community-safety > span { font-size: var(--reading-body-size); line-height: 1.8; overflow-wrap: anywhere; word-break: keep-all; }

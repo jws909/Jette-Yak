@@ -73,6 +73,7 @@ public class AuthController {
                 Integer.valueOf(1).equals(user.getIsAdmin()),
                 "로그인 성공"
         );
+        successResponse.setBirthdate(user.getBirthdate() == null ? null : user.getBirthdate().toString());
         return ResponseEntity.ok(successResponse);
     }
 
@@ -115,6 +116,7 @@ public class AuthController {
                 Integer.valueOf(1).equals(user.getIsAdmin()),
                 "체험 로그인 성공"
         );
+        successResponse.setBirthdate(user.getBirthdate() == null ? null : user.getBirthdate().toString());
         return ResponseEntity.ok(successResponse);
     }
 

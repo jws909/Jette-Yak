@@ -13,6 +13,7 @@ import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import MedicationRegisterPage from './features/medication/MedicationRegisterPage';
 import { DialogProvider } from './contexts/DialogContext';
+import { ReadingProvider } from './contexts/ReadingContext';
 import './App.css';
 
 const getFormattedDate = (targetDate) => {
@@ -70,7 +71,7 @@ function App() {
 
   // 세션 userId 자동 복구
   useEffect(() => {
-    if (user?.username && (!user?.userId || !user?.role || user?.pushEnabled === undefined || user?.isAdmin === undefined)) {
+    if (user?.username && (!user?.userId || !user?.role || user?.pushEnabled === undefined || user?.isAdmin === undefined || user?.birthdate === undefined)) {
       const targetUser = user.username === 'demo' ? 'test12' : user.username;
       fetch(`/api/users/profile?username=${encodeURIComponent(targetUser)}`)
         .then((res) => (res.ok ? res.json() : null))
@@ -86,6 +87,8 @@ function App() {
                 role: data.role || curr?.role || 'USER',
                 isAdmin: data.isAdmin === true || Number(data.isAdmin) === 1,
                 pushEnabled: data.pushEnabled !== false && data.pushEnabled !== 0 && data.pushEnabled !== '0',
+                // 생년월일은 읽기 쉬운 화면을 고르는 데만 사용하고 복용 주의기록은 숨기지 않음
+                birthdate: data.birthdate || null,
               };
               localStorage.setItem('user', JSON.stringify(updated));
               return updated;
@@ -94,7 +97,7 @@ function App() {
         })
         .catch(() => {});
     }
-  }, [user?.username, user?.userId, user?.role, user?.isAdmin]);
+  }, [user?.username, user?.userId, user?.role, user?.isAdmin, user?.pushEnabled, user?.birthdate]);
 
   // 백엔드 세션 만료(401) 감지 시 유령 로그인 상태 자동 초기화
   useEffect(() => {
@@ -315,6 +318,7 @@ function App() {
       email: loginData.email || '',
       role: loginData.role || 'USER',
       isAdmin: loginData.isAdmin === true || Number(loginData.isAdmin) === 1,
+      birthdate: loginData.birthdate,
     };
     setIsLoggedIn(true);
     setUser(loggedInUser);
@@ -390,6 +394,7 @@ function App() {
       role: profileData?.role || 'USER',
       isAdmin: profileData?.isAdmin === true || Number(profileData?.isAdmin) === 1,
       profileImageUrl: profileData?.profileImageUrl || '',
+      birthdate: profileData?.birthdate || null,
       isDemo: true,
     };
 
@@ -402,6 +407,7 @@ function App() {
   };
 
   return (
+    <ReadingProvider user={user}>
     <DialogProvider>
       <Routes>
         {/* 비로그인 전용 라우트 (이미 로그인된 상태면 메인으로 튕겨냄) */}
@@ -725,6 +731,7 @@ function App() {
         </div>
       )}
     </DialogProvider>
+    </ReadingProvider>
   );
 }
 

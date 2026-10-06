@@ -1,6 +1,6 @@
 /**
  * 역할: 커뮤니티 서비스와 MyBatis SQL 사이의 호출 창구
- * 주의: 사용자 소유권과 관리자 권한 검사는 서비스에서 끝낸 뒤 변경 SQL 호출
+ * 권한 기준: 로그인 사용자 번호를 SQL에 전달해 작성자·관리자 여부를 DB에서 함께 검사
  */
 package com.app.community.dao;
 
@@ -23,6 +23,7 @@ public class CommunityDao {
     public Map<String,Object> post(long id, Long viewerId, boolean admin) { return session.selectOne(NS+"post", Map.of("postId",id,"viewerId",viewerId == null ? -1L : viewerId,"isAdmin",admin?1:0)); }
     public long insertPost(Map<String,Object> p) { session.insert(NS+"insertPost",p); return ((Number)p.get("postId")).longValue(); }
     public int updatePost(Map<String,Object> p) { return session.update(NS+"updatePost",p); }
+    // isAdmin 요청값을 받지 않고 SQL에서 USERS.IS_ADMIN을 확인해 삭제 권한 조작 방지
     public int deletePost(long id,long userId) { return session.update(NS+"deletePost",Map.of("postId",id,"userId",userId)); }
     // 댓글과 도움 표시
     public List<Map<String,Object>> comments(long postId,Long viewerId) { return session.selectList(NS+"comments",Map.of("postId",postId,"viewerId",viewerId==null?-1L:viewerId)); }

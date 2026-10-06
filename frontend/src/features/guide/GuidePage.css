@@ -323,7 +323,7 @@
 .guide-registered-header button:disabled { cursor: default; }
 .guide-maker { display: block; margin-top: 4px; font-weight: 400; font-size: 11px; }
 .guide-pagination { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
-.guide-note { font-size: 13px; color: #736b63; line-height: 1.7; }
+.guide-note { font-size: 13px; color: #736b63; line-height: 1.7; white-space: pre-line; overflow-wrap: anywhere; word-break: keep-all; }
 .guide-db-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.8; margin: 8px 0 20px; }
 .guide-empty { padding: 48px 24px; background: #fff; border: 1px solid #e2dbd0; text-align: center; }
 .guide-page-wrapper button:focus-visible, .guide-page-wrapper input:focus-visible { outline: 2px solid #7d2638; outline-offset: 3px; }
@@ -417,8 +417,18 @@
 .my-med-row-description h3 { margin: 0; font-size: 14px; }
 .my-med-row-description .guide-db-text { margin: 6px 0 16px; }
 .my-med-registrations { list-style: none; padding: 0; margin: 12px 0; }
-.my-med-registrations li { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; color: #736b63; font-size: 12px; line-height: 1.6; }
-.my-med-source { background: #ede6dc; color: #7d2638; border-radius: 4px; padding: 1px 6px; }
+/* 상태 행은 같은 중심선에, 기간·메모는 아래에 배치해 긴 안내와 입력창 분리 */
+.my-med-registration-item { display: grid; gap: 10px; min-width: 0; margin: 12px 0; color: #736b63; font-size: 14px; line-height: 1.7; }
+.my-med-registration-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; min-width: 0; }
+.my-med-registration-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.my-med-source, .my-med-status { display: inline-flex; align-items: center; min-height: 32px; font-size: inherit; line-height: 1.7; }
+.my-med-source { background: #ede6dc; color: #7d2638; border-radius: 6px; padding: 4px 10px; }
+.my-med-status-control { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; font-size: inherit; }
+.my-med-status-control > span { flex: 0 0 auto; }
+.my-med-status-control select { min-width: 0; min-height: 44px; width: 210px; max-width: 100%; border: 1px solid #ded5c8; border-radius: 8px; padding: 8px 12px; background: white; color: #443b36; font: inherit; line-height: 1.5; cursor: pointer; }
+.my-med-status-control select:focus-visible { outline: 2px solid #7d2638; outline-offset: 3px; }
+.my-med-status-control select:disabled { opacity: .6; cursor: wait; }
+.my-med-registration-details { display: grid; gap: 4px; min-width: 0; font-size: inherit; white-space: pre-wrap; overflow-wrap: anywhere; word-break: keep-all; }
 .my-med-registration { padding: 20px 24px; background: #fffdf9; border: 1px solid #e2dbd0; margin-bottom: 20px; }
 .my-med-registration h2 { font-size: 20px; margin: 0; }
 @media (max-width: 760px) { .my-med-row { grid-template-columns: 1fr; gap: 16px; } .my-med-row > .my-med-action { justify-self: start; } }
@@ -447,7 +457,6 @@
   border-color: #7d2638;
   color: #7d2638;
 }
-.my-med-registrations select{max-width:100%;border:1px solid #ded5c8;border-radius:6px;padding:6px;background:white;color:#443b36}
 .medication-thumbnail{display:block;width:120px;height:85px;object-fit:contain;margin:12px 0;border-radius:8px;background:#faf8f4}
 .medication-image-empty{display:block;color:#82766b;font-size:12px;margin:10px 0}
 .interaction-summary{background:#fff9f5;border:1px solid #e2c7c2;border-left:5px solid #9e3538;border-radius:12px;padding:20px;margin:20px 0;overflow-wrap:anywhere;animation:guide-rise .32s ease-out}
@@ -456,7 +465,7 @@
 .interaction-summary p{line-height:1.7}
 .interaction-summary .my-med-action{display:inline-block;text-decoration:none}
 .guide-warning-col{background:#fffaf7}.my-med-warning-link{display:inline-flex;margin:5px 0 0;padding:7px 10px;border-radius:6px;background:#f7e8e6;color:#913438;font-size:12px;font-weight:700}.guide-warning-preview{display:grid;gap:7px;margin-top:16px}.guide-warning-preview p{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;align-items:center;gap:7px;margin:0;padding:10px;border-radius:7px;background:#fff6f3;font-size:12px}.guide-warning-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.guide-warning-preview em{color:#96373a;font-style:normal}.guide-loading{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:9px;background:#f6f1ea;color:#665b53;font-size:13px}.guide-loading>span{width:18px;height:18px;border:2px solid #ddcec2;border-top-color:#7d2638;border-radius:50%;animation:guide-spin .75s linear infinite}@keyframes guide-spin{to{transform:rotate(360deg)}}@keyframes guide-rise{from{opacity:0;transform:translateY(8px)}}@keyframes guide-reveal{from{opacity:0;transform:translateY(-4px)}}
-@media(max-width:760px){.guide-page-wrapper{gap:18px}.guide-page-header{align-items:flex-start}.my-med-header-actions{width:100%;flex-wrap:nowrap;overflow-x:auto}.my-med-header-actions>*{flex:0 0 auto;white-space:nowrap}.my-med-tabs,.my-med-filters{margin-left:-4px;margin-right:-4px;padding-left:4px;padding-right:4px}.my-med-row{padding:18px;border-radius:10px}.my-med-registrations li{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center}.my-med-registrations li label{grid-column:1/-1;display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;gap:8px}.guide-warning-preview p{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}.guide-warning-preview em{grid-column:1/-1}.interaction-summary{padding:16px}.interaction-summary summary strong{max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media(max-width:760px){.guide-page-wrapper{gap:18px}.guide-page-header{align-items:flex-start}.my-med-header-actions{width:100%;flex-wrap:nowrap;overflow-x:auto}.my-med-header-actions>*{flex:0 0 auto;white-space:nowrap}.my-med-tabs,.my-med-filters{margin-left:-4px;margin-right:-4px;padding-left:4px;padding-right:4px}.my-med-row{padding:18px;border-radius:10px}.guide-warning-preview p{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}.guide-warning-preview em{grid-column:1/-1}.interaction-summary{padding:16px}.interaction-summary summary strong{max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 @media(prefers-reduced-motion:reduce){.interaction-summary,.interaction-detail,.guide-loading>span{animation:none}}
 .my-med-panel{animation:guide-rise .24s ease-out}@media(prefers-reduced-motion:reduce){.my-med-panel{animation:none}}
 .my-med-row-description>.my-med-action{display:inline-block;margin-bottom:14px;text-decoration:none}
@@ -525,3 +534,43 @@
 /* 약 이름과 주의 문구가 길어도 관리 카드와 경고 영역을 밀어내지 않도록 처리 */
 .guide-page-wrapper,.my-med-row,.interaction-summary{min-width:0}
 .guide-page-wrapper p,.my-med-row p,.interaction-summary p{overflow-wrap:anywhere;word-break:keep-all}
+
+/* 경고와 약 정보로 가는 버튼은 본문과 구분하고 긴 이름은 끝까지 표시 */
+.my-med-caution-summary { padding: 22px; border: 1px solid #e3c3be; border-left: 5px solid #97393e; border-radius: 12px; background: #fff8f5; }
+.my-med-caution-summary h2 { margin: 0; font-size: 20px; line-height: 1.5; }
+.my-med-caution-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.my-med-caution-list button { display: grid; gap: 8px; min-width: 0; padding: 16px; border: 1px solid #e6cbc5; border-radius: 9px; background: #fff; color: #392e29; font: inherit; text-align: left; line-height: 1.7; }
+.my-med-caution-list strong { font-size: 17px; overflow-wrap: anywhere; word-break: keep-all; }
+.my-med-caution-list span { font-size: 14px; }
+.my-med-caution-action { color: #8b2e38; }
+.my-med-warning-link { display: block; max-width: 100%; margin: 0 0 16px; border: 1px solid #dfb7b4; cursor: pointer; text-align: left; line-height: 1.7; overflow-wrap: anywhere; white-space: normal; }
+.my-med-row-actions { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.my-med-row-actions a { text-decoration: none; }
+.my-med-back { margin-bottom: 16px; }
+.guide-product-warning-preview { display: grid; gap: 14px; margin-top: 18px; }
+.guide-product-warning-preview article { min-width: 0; padding: 14px; border: 1px solid #e5c9c4; border-radius: 10px; background: #fffaf7; }
+.guide-product-warning-preview h3 { margin: 0 0 8px; font-size: 18px; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.guide-product-warning-preview p { margin: 8px 0; line-height: 1.8; }
+.guide-product-warning-preview .dur-records { max-height: none; overflow: visible; }
+.guide-warning-col:focus { outline: 2px solid #8b3e4b; outline-offset: 3px; }
+.guide-db-text, .ai-summary-text, .guide-ai-summary-compact p { font-size: 15px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; word-break: keep-all; }
+.interaction-summary summary { flex-wrap: wrap; line-height: 1.7; }
+.interaction-summary summary strong { min-width: 0; max-width: 100%; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; }
+.guide-page-wrapper .my-med-action, .guide-page-wrapper .med-pill-tab { min-height: 44px; line-height: 1.6; }
+.guide-page-wrapper a.my-med-action { display: inline-flex; align-items: center; justify-content: center; }
+.guide-ai-summary-compact p { margin: 6px 0 0; }
+@media (max-width: 1280px) { .guide-detail-card { grid-template-columns: minmax(0, 1fr); } .guide-med-intro, .guide-col { border-right: 0; border-bottom: 1px solid #eee7dc; } }
+@media (max-width: 760px) {
+  .my-med-header-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; gap: 10px; }
+  .my-med-header-actions > * { min-width: 0; white-space: normal; text-align: center; }
+  .my-med-header-actions .my-med-register-action { grid-column: 1 / -1; }
+  .my-med-caution-summary { padding: 16px; }
+  .my-med-row-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .my-med-row-actions .my-med-action { padding: 10px; white-space: normal; text-align: center; }
+  .guide-col, .guide-med-intro { min-width: 0; padding: 22px 18px; }
+  .my-med-registration-header { display: grid; gap: 12px; }
+  .my-med-status-control { display: grid; grid-template-columns: max-content minmax(0, 1fr); width: 100%; }
+  .my-med-status-control select { width: 100%; }
+  .my-med-registration { padding: 18px; }
+  .guide-product-warning-preview article { padding: 12px; }
+}

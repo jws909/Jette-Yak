@@ -139,3 +139,32 @@
 
 /* 상담 기록 전체 삭제는 개별 기록과 분리해 실수로 누르지 않도록 보조 동작으로 표시 */
 .chat-history-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;color:#7a7067;font-size:11px}.chat-history-toolbar button{border:0;background:transparent;color:#9b3b49;padding:4px 0;font:inherit;font-weight:700;cursor:pointer}.chat-history-toolbar button:disabled{opacity:.5;cursor:wait}
+
+/* 제품명과 긴 질문은 생략 부호 대신 줄바꿈하고, 삭제 버튼은 손가락으로 누를 공간 확보 */
+.chat-history-list > div { grid-template-columns: minmax(0, 1fr) 44px; }
+.chat-history-open :is(strong, small) { display: block; overflow: visible; -webkit-line-clamp: unset; white-space: normal; }
+.chat-history-delete { min-width: 44px; min-height: 44px; }
+.chat-history-toolbar { flex-wrap: wrap; }
+.chat-history-toolbar button { min-height: 44px; padding: 8px 10px; }
+.reading-support-note { color: #793442 !important; }
+.page-heading p, .welcome p { white-space: pre-wrap; overflow-wrap: anywhere; word-break: keep-all; }
+.suggestions button { min-height: 44px; }
+
+@media (min-width: 821px) {
+  /* 추천 질문 행이 없어져도 대화 영역과 입력칸에 남은 높이를 올바르게 배분 */
+  .conversation { display: flex; flex-direction: column; }
+  .conversation-heading, .selected-suggestions, .composer { flex: 0 0 auto; }
+  .chat-log { flex: 1 1 auto; min-height: 0; }
+  .selected-suggestions { max-height: 150px; overflow-y: auto; flex-wrap: wrap; }
+  html:is([data-reading-mode='child'], [data-reading-mode='senior']) .chat-layout { grid-template-columns: minmax(240px, 310px) minmax(0, 1fr); }
+  html:is([data-reading-mode='child'], [data-reading-mode='senior']) .composer textarea { min-height: 72px; max-height: 120px; }
+  html:is([data-reading-mode='child'], [data-reading-mode='senior']) .conversation-heading { align-items: flex-start; }
+}
+
+@media (max-width: 820px) {
+  /* 태블릿에서도 좁은 두 열을 억지로 유지하지 않고 상담을 한 열로 표시 */
+  .chat-layout { grid-template-columns: minmax(0, 1fr); }
+  .selected-suggestions { flex-wrap: wrap; overflow-x: visible; }
+  .selected-suggestions button { flex: 1 1 160px; white-space: normal; }
+  .question-bubble { max-width: 100%; }
+}

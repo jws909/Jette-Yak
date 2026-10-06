@@ -12,17 +12,45 @@ import MedicationSearch from './MedicationSearch'
 import CatalogSearch from './CatalogSearch'
 import CatalogResults, { DurReports } from './CatalogResults'
 import UiDialog from '../../../components/ui/UiDialog'
+import { useReadingProfile } from '../../../contexts/ReadingContext'
 import './MedicationChat.css'
 
 const fields=[['itemName','제품명'],['entpName','제조사'],['materialName','성분'],['updatedAt','자료 수정일'],['className','분류'],['etcOtcCode','전문·일반'],['efficacy','효능·효과'],['usageDosage','복용 방법']]
 const hasValue=value=>value!==null&&value!==undefined&&String(value).trim()!==''
-const suggestions = ['어제부터 머리가 아파', '약을 먹고 두드러기가 생겼어', '이 증상으로 병원에 가야 할까?', '임산부가 먹으면 안 되는 약들이 뭐야?']
+// 생년월일로 안내 말투만 선택. 질문·답변에 쓰이는 제품 원문과 복용량은 바꾸지 않음
+const readingCopy = {
+  standard: {
+    intro: '아픈 곳이나 약에 대해 궁금한 점을 말해주세요. 필요한 내용을 함께 확인해요.',
+    tools: '약을 찾아 고르거나, 내가 먹는 약과 지난 상담을 볼 수 있어요.',
+    welcome: '아픈 곳이나 약을 먹고 불편한 점을 편하게 말해주세요.\n필요한 내용을 더 물어보고, 다음에 무엇을 할지 함께 정리해요.',
+    placeholder: '예: 어제부터 머리가 아파요. / 이 약을 먹고 속이 불편해요.',
+    suggestions: ['어제부터 머리가 아파요', '약을 먹고 두드러기가 생겼어요', '이 증상으로 병원에 가야 하나요?', '임신 중 주의해야 하는 약이 있나요?'],
+    selectedQuestions: ['어디에 쓰는 약인가요?', '어떻게 먹어야 하나요?', '먹을 때 조심할 점은 무엇인가요?'],
+  },
+  child: {
+    intro: '아픈 곳이나 궁금한 약을 말해 주세요. 약을 먹기 전에는 보호자에게 꼭 보여 주세요.',
+    tools: '궁금한 약을 골라 보세요. 예전 질문도 다시 볼 수 있어요.',
+    welcome: '어디가 아픈지, 언제부터 아픈지 적어 주세요.\n답변을 보호자와 함께 보고, 약은 보호자에게 확인한 뒤 먹어요.',
+    placeholder: '예: 오늘부터 머리가 아파요. 이 약은 어디에 쓰나요?',
+    suggestions: ['머리가 아파요', '약을 먹고 몸이 가려워요', '보호자에게 무엇을 알려야 하나요?'],
+    selectedQuestions: ['이 약은 어디에 쓰나요?', '약을 먹기 전에 보호자와 무엇을 확인하나요?', '이 약을 먹을 때 무엇을 조심하나요?'],
+  },
+  senior: {
+    intro: '아픈 곳이나 궁금한 약을 편하게 적어 주세요. 한 가지씩 함께 확인해요.',
+    tools: '약을 고른 뒤 질문해 주세요. 먹고 있는 약이나 지난 상담도 볼 수 있어요.',
+    welcome: '어디가 아픈지, 언제부터 불편했는지 알려 주세요.\n약을 먹는 방법을 바꾸기 전에는 의사나 약사에게 확인해 주세요.',
+    placeholder: '예: 어제부터 머리가 아픕니다. 이 약은 어떻게 먹나요?',
+    suggestions: ['이 약은 어떻게 먹나요?', '먹는 약을 깜빡했어요', '약을 먹고 어지러워요', '병원에 가야 하는 증상인가요?'],
+    selectedQuestions: ['어디에 쓰는 약인가요?', '어떻게 먹어야 하나요?', '무엇을 조심해야 하나요?'],
+  },
+}
 
 function AnswerContent({ text }) {
   const normalized=String(text||'').replace(/\*\*/g,'').trim()
   let lines=normalized.split(/\n+/).map(line=>line.trim()).filter(Boolean)
   // 모델이 줄바꿈 없이 긴 문단을 반환해도 문장 단위로 나눠 읽기 쉽게 만든다.
-  if(lines.length===1&&normalized.length>110) lines=normalized.split(/(?<=[.!?])\s+/).map(line=>line.trim()).filter(Boolean)
+  lines=lines.flatMap(line=>line.length>140&&!/^(?:[-•]|\d+[.)])\s*/.test(line)
+    ? line.split(/(?<=[.!?])\s+/).map(sentence=>sentence.trim()).filter(Boolean) : [line])
   return <div className="answer-content">{lines.map((line,index)=>{
     const heading=line.replace(/[:：]$/,'')
     if(line.endsWith(':')||line.endsWith('：')||/^(확인한 내용|주의할 점|다음 행동|복용 방법|참고 정보)$/.test(heading))
@@ -34,9 +62,9 @@ function AnswerContent({ text }) {
 
 async function readResponse(response) {
   if (!(response.headers.get('content-type') || '').includes('application/json'))
-    throw new Error('서버 응답을 읽을 수 없습니다. Spring 서버와 검색 API를 확인해주세요. (HTTP ' + response.status + ')')
+    throw new Error('답변을 불러오지 못했어요. 잠시 후 다시 시도해주세요.')
   const data = await response.json()
-  if (!response.ok) throw new Error(data.error || '요청 실패: HTTP ' + response.status)
+  if (!response.ok) throw new Error(data.error || '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.')
   return data
 }
 
@@ -53,6 +81,8 @@ export default function MedicationChat() {
   return <MedicationConversation key={location.search} />
 }
 function MedicationConversation() {
+  const reading = useReadingProfile()
+  const copy = readingCopy[reading.mode]
   const params = new URLSearchParams(useLocation().search)
   const id = params.get('medicationId')
   const compareId = params.get('compareId')
@@ -303,23 +333,23 @@ function MedicationConversation() {
 
   return <main className="chat-page">
     <header className="page-heading">
-      <span className="eyebrow">JETTE-YAK / PERSONAL HEALTH GUIDE</span>
+      <span className="eyebrow">제때약 · 약 상담</span>
       <h1>궁금한 약 정보,<br /><em>다양하게 물어보세요.</em></h1>
-      <p>불편한 증상과 복약 고민을 자연스럽게 이야기하면 필요한 내용을 함께 좁혀가요.</p>
+      <p className={reading.isChild?'reading-support-note':undefined}>{copy.intro}</p>
     </header>
     <section className="chat-layout" aria-label="약 정보 AI 도우미">
       <aside className="product-panel">
-        <span className="eyebrow">FIND YOUR MEDICINE</span>
+        <span className="eyebrow">약 찾기와 상담 기록</span>
         <h2>상담 도구</h2>
-        <p className="panel-intro">약을 직접 찾거나, 내 복용약을 불러오고, 지난 상담을 이어갈 수 있어요.</p>
+        <p className="panel-intro">{copy.tools}</p>
         <section className="side-tool-card side-tool-primary">
-          <div className="side-tool-heading"><span>01</span><div><strong>약 선택하기</strong><small>제품을 고르면 질문의 기준이 됩니다</small></div></div>
+          <div className="side-tool-heading"><span>01</span><div><strong>약 선택하기</strong><small>궁금한 약을 고른 뒤 질문해 주세요</small></div></div>
           <MedicationSearch onSelect={selectDrug} disabled={loading || Boolean(paging)} />
         </section>
         {linked.loading && <div className="side-loading" role="status"><span aria-hidden="true"/>선택한 약을 확인하고 있어요…</div>}
         {linked.error && <p role="alert">{linked.error}</p>}
         <div className="product-note active-medication">
-          <span>현재 상담 기준</span>
+          <span>지금 이야기하는 약</span>
           {selected ? <><p><strong>{selected.itemName}</strong><br />{selected.entpName}</p>
             <button type="button" className="clear-selection" disabled={loading} onClick={() => setSelected(null)}>선택 해제</button></>
             : <p>선택한 약이 없어요.<br />검색하거나 질문에 약 이름을 적어주세요.</p>}
@@ -331,7 +361,7 @@ function MedicationConversation() {
             {ownProducts.map(item=><button type="button" className="drug-option" key={item.key} disabled={loading || Boolean(paging)} onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>{item.itemName}</button>)}
             {!ownProducts.length && <p>현재 복용 중인 약이 없습니다. <Link to="/medication/register">약 등록하기 →</Link></p>}</>}
         </details>
-        <section className="side-tool-card"><div className="side-tool-heading"><span>03</span><div><strong>조건으로 찾아보기</strong><small>성분·효능·주의 대상을 자세히 검색</small></div></div><CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} /></section>
+        <section className="side-tool-card"><div className="side-tool-heading"><span>03</span><div><strong>조건으로 찾아보기</strong><small>약의 성분, 쓰임, 주의할 대상을 골라 찾기</small></div></div><CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} /></section>
         <details className="chat-history-panel side-tool-card">
           <summary><span className="side-summary-number">04</span> 지난 상담 이어보기</summary>
           {!historyLoading&&!historyLoginRequired&&historyItems.length>0&&<div className="chat-history-toolbar"><span>최근 상담 {historyItems.length}개</span><button type="button" disabled={loading} onClick={()=>setDeleteTarget({all:true,title:'모든 상담 기록'})}>전체 삭제</button></div>}
@@ -357,15 +387,15 @@ function MedicationConversation() {
           {other && <p>비교 대상: {other.itemName}</p>}{linkedCompare.error && <p role="alert">{linkedCompare.error}</p>}
           <button type="button" className="load-more" disabled={!other || selected.itemSeq===other.itemSeq || loading || Boolean(paging)} onClick={compareProducts}>함께 먹을 때 주의사항 확인</button>
         </details>}
-        <p className="scope-note">다른 약 이름을 질문하면 새로 찾아드려요.<br />“효능은?”처럼 이름을 생략하면 현재 선택한 약을 기준으로 안내해요.</p>
+        <p className="scope-note">다른 약 이름을 적으면 그 약을 찾아드려요.<br />“어디에 쓰는 약인가요?”라고 물으면 지금 고른 약을 설명해요.</p>
       </aside>
       <div className="conversation">
-        <header className="conversation-heading"><h2>복약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>{conversationId?'이어지는 상담':'새 상담'} · 등록 정보 우선 · AI 보완</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
-        {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{['어디에 쓰는 약이야?','어떻게 먹어?','복용할 때 주의할 점은?'].map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
+        <header className="conversation-heading"><h2>약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>{conversationId?'이어지는 상담':'새 상담'} · 약 자료와 AI 설명</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
+        {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{copy.selectedQuestions.map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
         <div className="chat-log" ref={logRef} role="log" aria-label="질문과 답변" aria-live="polite" aria-relevant="additions text">
           {messages.length === 0 && <div className="welcome"><span className="welcome-mark" aria-hidden="true">✦</span><h3>지금 어떤 도움이 필요한가요?</h3>
-            <p>증상이나 복용 중 불편한 점을 편하게 말해주세요.<br />필요한 질문을 이어가며 다음 행동을 함께 정리해드려요.</p>
-            <div className="suggestions">{suggestions.map(text => <button type="button" key={text} onClick={() => { setQuestion(text); inputRef.current?.focus() }}>{text} ↗</button>)}</div>
+            <p>{copy.welcome}</p>
+            <div className="suggestions">{copy.suggestions.map(text => <button type="button" key={text} onClick={() => { setQuestion(text); inputRef.current?.focus() }}>{text} ↗</button>)}</div>
           </div>}
           {messages.map(message => <article className="exchange" key={message.id}>
             <div className="question-bubble"><span className="bubble-label">내 질문</span><p>{message.question}</p>{message.choiceLabel && <small>선택한 제품: {message.choiceLabel}</small>}</div>
@@ -399,13 +429,13 @@ function MedicationConversation() {
         </div>
         <form className="composer" onSubmit={event => { event.preventDefault(); sendQuestion(question) }}>
           <label htmlFor="chat-question">질문하기</label>
-          <textarea id="chat-question" ref={inputRef} onKeyDown={submitOnEnter} value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} rows={3} disabled={loading || Boolean(paging)} required placeholder="예: 어제부터 머리가 아파 / 이 약 먹고 속이 불편해 / 이 증상으로 병원에 가야 할까?" />
+          <textarea id="chat-question" ref={inputRef} onKeyDown={submitOnEnter} value={question} onChange={event => setQuestion(event.target.value)} maxLength={1000} rows={3} disabled={loading || Boolean(paging)} required placeholder={copy.placeholder} />
           {error && <p className="error-message" role="alert">{error}</p>}
-          <div className="composer-footer"><small>Enter 전송 · Shift+Enter 줄바꿈 · {question.length} / 1000</small><button type="submit" disabled={loading || Boolean(paging) || !question.trim()}>{loading ? '답변 작성 중…' : '질문 보내기'} ↗</button></div>
+          <div className="composer-footer"><small>Enter로 보내기 · Shift+Enter로 줄바꿈<br />{question.length} / 1000자</small><button type="submit" disabled={loading || Boolean(paging) || !question.trim()}>{loading ? '답변 작성 중…' : '질문 보내기'} ↗</button></div>
         </form>
       </div>
     </section>
-    <footer className="page-footer">증상 안내는 진단을 대신하지 않습니다. 약 정보는 표시된 DB 근거를 확인하고, 응급 증상은 119 또는 응급실에 도움을 요청하세요.</footer>
+    <footer className="page-footer">AI 설명만으로 병을 판단하거나 약을 바꾸지 마세요.<br />위급한 증상이 있으면 119 또는 응급실에 도움을 요청하세요.</footer>
     <UiDialog open={Boolean(deleteTarget)} title={deleteTarget?.all?'모든 상담 기록을 삭제할까요?':'상담 기록을 삭제할까요?'} description={deleteTarget?.all?'저장된 상담 기록 전체가 영구 삭제됩니다.\n삭제한 기록은 되돌릴 수 없으며 현재 화면은 새 상담으로 초기화됩니다.':`“${deleteTarget?.title||'선택한 대화'}” 기록이 목록에서 삭제됩니다.\n삭제한 상담 기록은 다시 복구할 수 없습니다.`} confirmLabel={deleteTarget?.all?'전체 기록 삭제':'기록 삭제'} tone="danger" busy={historyLoading} onCancel={()=>setDeleteTarget(null)} onConfirm={()=>deleteTarget?.all?deleteAllConversations():deleteConversation(deleteTarget.conversationId)}/>
     <UiDialog open={Boolean(evidenceDialog)} title="AI 참고정보를 확인해주세요" description={evidenceDialog||''} confirmLabel="답변 확인" cancelLabel="" onCancel={()=>setEvidenceDialog(null)} onConfirm={()=>setEvidenceDialog(null)} />
   </main>

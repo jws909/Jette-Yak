@@ -136,6 +136,8 @@ public class UserController {
         response.put("nickname", user.getNickname());
         response.put("email", user.getEmail() != null ? user.getEmail() : "");
         response.put("sex", user.getSex() != null ? user.getSex() : "");
+        // 본인 인증이 확인된 프로필만 생년월일 전달; 다른 계정의 읽기 설정 조회에 노출하지 않음
+        response.put("birthdate", authenticatedAsUser && user.getBirthdate() != null ? user.getBirthdate().toString() : null);
         response.put("isPregnant", user.getIsPregnant() == null ? 0 : user.getIsPregnant());
         response.put("familyId", user.getFamilyId());
         response.put("profileImageUrl", profileImagePath(user));
