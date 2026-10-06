@@ -9,14 +9,14 @@ import PrescriptionSummaryCard from './components/PrescriptionSummaryCard';
 import PrescribedMedsCard from './components/PrescribedMedsCard';
 import MedicationNoteCard from './components/MedicationNoteCard';
 import PrescriptionPromoBanner from './components/PrescriptionPromoBanner';
+import MainGreetingHeader from './components/MainGreetingHeader';
+import MainSearchBar from './components/MainSearchBar';
 import {
   DEFAULT_MEAL_TIMES,
   DOT_COLORS,
   parseDateOnly,
   formatDateToHyphen,
   formatDateToDot,
-  formatDateWithDay,
-  getTargetDateDiffText,
   getPrescriptionStatus,
   getMedicineCaution,
   mapPrescriptionToState,
@@ -37,7 +37,6 @@ export default function MainPage({ user }) {
   const [allPrescriptions, setAllPrescriptions] = useState([]);
   const [selectedRxId, setSelectedRxId] = useState('all'); // 'all' 또는 개별 prescriptionId
   const [targetDate, setTargetDate] = useState(() => new Date());
-  const dateInputRef = useRef(null);
 
   // 타겟 날짜가 오늘인지 여부
   const isTargetToday = useMemo(() => {
@@ -293,12 +292,6 @@ export default function MainPage({ user }) {
       isCancelled = true;
     };
   }, [selectedMedDetail?.medicationId]);
-
-  // 메인 인라인 검색 상태
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
 
   // 오늘의 복약 루틴 리스트 (DB 처방 데이터 기반 생성)
   const [routineItems, setRoutineItems] = useState([]);
@@ -854,192 +847,23 @@ export default function MainPage({ user }) {
       ? allRoutineUnits
       : groupRoutineItemsByPouch(activeRoutineList.filter((i) => i.slot === activeSlotKey));
 
-  // 메인 검색 핸들러
-  useEffect(() => {
-    const trimmed = searchQuery.trim();
-    if (!trimmed) return;
-
-    let active = true;
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      setShowSearchResults(true);
-      try {
-        const res = await fetch(`/api/medications/search?q=${encodeURIComponent(trimmed)}&page=1`);
-        if (res.ok) {
-          const data = await res.json();
-          if (active) setSearchResults(data.items || []);
-        } else {
-          if (active) setSearchResults([]);
-        }
-      } catch {
-        if (active) setSearchResults([]);
-      } finally {
-        if (active) setIsSearching(false);
-      }
-    }, 250);
-
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [searchQuery]);
-
-  const handleQueryChange = (e) => {
-    const val = e.target.value;
-    setSearchQuery(val);
-    if (!val.trim()) {
-      setSearchResults([]);
-      setShowSearchResults(false);
-      setIsSearching(false);
-    }
-  };
-
-  const handleClearQuery = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setShowSearchResults(false);
-    setIsSearching(false);
-  };
-
-  const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
-  const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
-  const greetingDateStr = `${dayNames[targetDate.getDay()]}, ${targetDate.getDate()} ${monthNames[targetDate.getMonth()]}`;
   const routineDateBadge = `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
 
   return (
     <div className="main-page-wrapper">
       {/* 1. 상단 인사말 및 복약 날짜 네비게이터 영역 */}
-      <header className="main-greeting-header">
-        <div className="greeting-flex-row">
-          <div className="greeting-text-block">
-            <span className="greeting-date">{greetingDateStr}</span>
-            <h1 className="greeting-title">
-              안녕하세요, <span className="user-highlight">{user?.name || user?.username || '사용자'}</span>님.
-            </h1>
-            <p className="greeting-subtitle">오늘도 몸의 이야기에 귀 기울여 볼까요?</p>
-          </div>
-
-          {/* 날짜 이동 네비게이터 */}
-          <div className="main-date-navigator" title="복약 기준 날짜 변경">
-            <button
-              type="button"
-              className="date-nav-arrow-btn"
-              onClick={handlePrevDay}
-              title="하루 전으로 이동"
-            >
-              ‹
-            </button>
-            <div
-              className="date-nav-display-box"
-              onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
-              title="클릭하여 달력에서 날짜 직접 선택"
-            >
-              <span className="date-nav-calendar-icon">
-                <svg viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                </svg>
-              </span>
-              <span className="date-nav-date-text">{formatDateWithDay(targetDate)}</span>
-              {isTargetToday ? (
-                <span className="date-nav-today-tag">오늘</span>
-              ) : (
-                <span className="date-nav-diff-tag">{getTargetDateDiffText(targetDate)}</span>
-              )}
-              <input
-                ref={dateInputRef}
-                type="date"
-                className="date-nav-hidden-picker"
-                value={formatDateToHyphen(targetDate)}
-                onChange={(e) => {
-                  const parsed = parseDateOnly(e.target.value);
-                  if (parsed) setTargetDate(parsed);
-                }}
-              />
-            </div>
-            <button
-              type="button"
-              className="date-nav-arrow-btn"
-              onClick={handleNextDay}
-              title="다음 날로 이동"
-            >
-              ›
-            </button>
-            {!isTargetToday && (
-              <button
-                type="button"
-                className="date-nav-return-today-btn"
-                onClick={handleResetToday}
-                title="오늘 날짜로 복귀"
-              >
-                오늘로 복귀
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      <MainGreetingHeader
+        user={user}
+        targetDate={targetDate}
+        isTargetToday={isTargetToday}
+        onPrevDay={handlePrevDay}
+        onNextDay={handleNextDay}
+        onResetToday={handleResetToday}
+        onSetTargetDate={setTargetDate}
+      />
 
       {/* 2. 약 검색창 (메인.png 검색 바) */}
-      <section className="main-search-section">
-        <div className="main-search-bar">
-          <svg className="main-search-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 19l-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z" />
-          </svg>
-          <input
-            type="text"
-            className="main-search-input"
-            placeholder="약 이름을 검색해 보세요"
-            value={searchQuery}
-            onChange={handleQueryChange}
-            onFocus={() => searchQuery.trim() && setShowSearchResults(true)}
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="main-search-clear"
-              onClick={handleClearQuery}
-            >
-              ✕
-            </button>
-          )}
-        </div>
-
-        {/* 검색 결과 팝업 */}
-        {showSearchResults && searchQuery.trim() && (
-          <div className="main-search-results-modal">
-            <div className="results-inner-head">
-              <span>검색된 약품 ({searchResults.length}건)</span>
-              <button type="button" onClick={() => setShowSearchResults(false)}>닫기</button>
-            </div>
-            {isSearching ? (
-              <div className="results-loading">약 정보를 찾고 있습니다...</div>
-            ) : searchResults.length > 0 ? (
-              <div className="results-scroll-area">
-                {searchResults.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="result-row-card"
-                    onClick={() => {
-                      setShowSearchResults(false);
-                      navigate('/chat');
-                    }}
-                  >
-                    <div>
-                      <strong>{item.itemName}</strong>
-                      <span className="entp-label">{item.entpName}</span>
-                      <p className="efficacy-label">{item.efficacy || item.desc}</p>
-                    </div>
-                    <span className="view-link">챗봇에서 약 조회 →</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="results-none">
-                검색된 약품이 없습니다. 다른 이름으로 검색해 보세요.
-              </div>
-            )}
-          </div>
-        )}
-      </section>
+      <MainSearchBar />
 
       {/* 3. 상단 핵심: 오늘의 복약 루틴 (TODAY'S ROUTINE) */}
       <TodayRoutineSection
