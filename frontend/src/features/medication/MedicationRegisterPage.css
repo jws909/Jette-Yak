@@ -1825,76 +1825,238 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
-/* 타이밍 세부 시간 수정 행 */
-.timing-custom-row {
+/* =========================================================
+   스케줄 등록 모달: 평일 / 주말 구분 탭 & 동기화 옵션 바
+   ========================================================= */
+.schedule-daytype-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #f8f6f2;
-  border: 1px solid #e7ded3;
-  padding: 8px 12px;
-  border-radius: 8px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  background: #fbf9f5;
+  border: 1px solid #eee4d5;
+  border-radius: 10px;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
-.custom-row-desc {
+.schedule-daytype-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.schedule-day-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1.5px solid #ded5c7;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5d5348;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.schedule-day-tab:hover {
+  border-color: #bfaea0;
+}
+
+.schedule-day-tab.active {
+  background: #883030;
+  color: #ffffff;
+  border-color: #883030;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(136, 48, 48, 0.2);
+}
+
+.schedule-sync-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #554a3e;
+  cursor: pointer;
+  user-select: none;
+}
+
+.schedule-sync-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #883030;
+  cursor: pointer;
+}
+
+.sync-active-note {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #a36800;
+  margin-left: 4px;
+}
+
+.slot-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.slot-name-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #2b2520;
+}
+
+.slot-header-row input[type="checkbox"] {
+  display: inline-block !important;
+  width: 14px;
+  height: 14px;
+  accent-color: #a36800;
+  cursor: pointer;
+}
+
+.slot-daytimes-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #8c8072;
+  margin-top: 5px;
+  background: #f4ede3;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.2px;
+}
+
+.slot-daytimes-summary .sep {
+  color: #c4b5a2;
+}
+
+.repeat-info-text {
+  font-size: 12px;
+  color: #72685d;
+  margin: -14px 0 20px 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  color: #5d554c;
-  font-weight: 600;
+  line-height: 1.4;
 }
 
-.custom-row-desc i {
+.repeat-info-text i {
+  color: #883030;
+  font-size: 13px;
+}
+
+/* 영양제 평일 / 주말 개별 시간 조정 목록 */
+.timing-custom-container {
+  background: #fbf9f5;
+  border: 1px solid #ebd9c2;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+}
+
+.timing-custom-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #4b4136;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0e6d8;
+}
+
+.timing-custom-header i {
   color: #a36800;
 }
 
-.custom-time-inputs-wrap {
+.timing-custom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timing-custom-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #ded5c7;
+  border-radius: 8px;
+  padding: 8px 12px;
+  gap: 12px;
+}
+
+.item-preset-label {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2b2520;
+  flex-shrink: 0;
 }
 
-.timing-badge-tag {
-  display: inline-flex;
+.item-preset-label i {
+  color: #a36800;
+}
+
+.item-time-inputs {
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
+}
+
+.time-sub-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11.5px;
   font-weight: 700;
-  background: #ffffff;
-  border: 1px solid #dcd3c5;
+  color: #61564b;
+  background: #faf7f2;
+  padding: 3px 8px;
+  border: 1px solid #e0d7c9;
   border-radius: 6px;
-  padding: 3px 6px;
-  color: #3e3832;
 }
 
-.timing-badge-tag input[type="time"] {
+.time-sub-input-wrap input[type="time"] {
   border: none;
-  font-size: 11.5px;
-  font-family: inherit;
   background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2b2520;
   outline: none;
   cursor: pointer;
   padding: 0;
-  color: #2b2520;
-  font-weight: 700;
+}
+
+.time-sub-input-wrap input[type="time"]:disabled {
+  color: #9c9285;
+  cursor: not-allowed;
 }
 
 @media (max-width: 520px) {
   .supplement-timing-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  .timing-custom-row {
+  .timing-custom-item {
     flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
   }
-  .custom-time-inputs-wrap {
+  .item-time-inputs {
     width: 100%;
-    justify-content: flex-start;
+    justify-content: space-between;
   }
 }
 

@@ -519,8 +519,11 @@ public class ScheduleServiceImpl implements ScheduleService {
             if(linkedMedicationId!=null&&!linkedMedicationId.isBlank()
                     && !scheduleDAO.checkMedicationExists(linkedMedicationId))
                 throw new IllegalArgumentException("선택한 제품 정보를 찾을 수 없습니다.");
+            String defaultTakeTime = (dto.getWeekdayTime() != null && !dto.getWeekdayTime().isBlank())
+                    ? dto.getWeekdayTime().trim()
+                    : dto.getScheduledTime();
             Long routineId = scheduleDAO.findOrCreateRoutineId(dto.getUserId(), supName.trim(),
-                    dto.getScheduledTime(), "일정에서 등록", linkedMedicationId);
+                    defaultTakeTime, "일정에서 등록", linkedMedicationId);
             dto.setRoutineId(routineId);
             dto.setCabinetId(null);
             dto.setPrescriptionId(null);
@@ -540,8 +543,19 @@ public class ScheduleServiceImpl implements ScheduleService {
         for (int i = 0; i < repeatDays; i++) {
             LocalDate targetDate = startDate.plusDays(i);
             String dateStr = targetDate.toString();
+            boolean isWeekend = (targetDate.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || targetDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY);
 
-            if (!scheduleDAO.checkScheduleExists(dto.getUserId(), dateStr, dto.getScheduledTime(), dto.getRoutineId(), dto.getCabinetId(), dto.getMedicationId())) {
+            // 주중(평일)과 주말 식사 기준 시간에 따른 실제 적용 시간 결정
+            String finalScheduledTime;
+            if (isWeekend && dto.getWeekendTime() != null && !dto.getWeekendTime().isBlank()) {
+                finalScheduledTime = dto.getWeekendTime().trim();
+            } else if (!isWeekend && dto.getWeekdayTime() != null && !dto.getWeekdayTime().isBlank()) {
+                finalScheduledTime = dto.getWeekdayTime().trim();
+            } else {
+                finalScheduledTime = dto.getScheduledTime();
+            }
+
+            if (!scheduleDAO.checkScheduleExists(dto.getUserId(), dateStr, finalScheduledTime, dto.getRoutineId(), dto.getCabinetId(), dto.getMedicationId())) {
                 ScheduleAddDTO dayDto = new ScheduleAddDTO();
                 dayDto.setUserId(dto.getUserId());
                 dayDto.setName(dto.getName());
@@ -552,7 +566,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 dayDto.setPrescriptionId(dto.getPrescriptionId());
                 dayDto.setAlarmEnabled(dto.getAlarmEnabled() != null ? dto.getAlarmEnabled() : 1);
                 dayDto.setScheduledDate(dateStr);
-                dayDto.setScheduledTime(dto.getScheduledTime());
+                dayDto.setScheduledTime(finalScheduledTime);
 
                 if (scheduleDAO.insertSchedule(dayDto) > 0) {
                     insertedCount++;

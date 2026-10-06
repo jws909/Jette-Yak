@@ -39,7 +39,20 @@ export default function MedicationRegisterPage({ user }) {
     }
   }, [queryTab]);
 
-  // 유저 식사 시간 설정 로드 (스케줄 모달 연동용)
+  // 유저 식사 시간 설정 로드 (스케줄 모달 연동용: 평일/주말 구분)
+  const [mealSchedule, setMealSchedule] = useState(() => {
+    const defaultSched = {
+      weekday: { ...DEFAULT_MEAL_TIMES },
+      weekend: { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' },
+    };
+    if (!currentUserId) return defaultSched;
+    try {
+      const cachedSched = localStorage.getItem(`jette_meal_schedule_${currentUserId}`);
+      if (cachedSched) return JSON.parse(cachedSched);
+    } catch {}
+    return defaultSched;
+  });
+
   const [mealTimes, setMealTimes] = useState(() => {
     if (!currentUserId) return DEFAULT_MEAL_TIMES;
     try {
@@ -52,6 +65,10 @@ export default function MedicationRegisterPage({ user }) {
   useEffect(() => {
     if (!currentUserId) return;
     try {
+      const cachedSched = localStorage.getItem(`jette_meal_schedule_${currentUserId}`);
+      if (cachedSched) {
+        setMealSchedule(JSON.parse(cachedSched));
+      }
       const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
       if (cached) {
         setMealTimes(JSON.parse(cached));
@@ -61,15 +78,24 @@ export default function MedicationRegisterPage({ user }) {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.success) {
-          const loaded = {
-            breakfast: data.breakfastTime || DEFAULT_MEAL_TIMES.breakfast,
-            lunch: data.lunchTime || DEFAULT_MEAL_TIMES.lunch,
-            dinner: data.dinnerTime || DEFAULT_MEAL_TIMES.dinner,
-            bedtime: data.bedtime || DEFAULT_MEAL_TIMES.bedtime,
+          const loadedWeekday = {
+            breakfast: data.weekday?.breakfastTime || data.breakfastTime || DEFAULT_MEAL_TIMES.breakfast,
+            lunch: data.weekday?.lunchTime || data.lunchTime || DEFAULT_MEAL_TIMES.lunch,
+            dinner: data.weekday?.dinnerTime || data.dinnerTime || DEFAULT_MEAL_TIMES.dinner,
+            bedtime: data.weekday?.bedtime || data.bedtime || DEFAULT_MEAL_TIMES.bedtime,
           };
-          setMealTimes(loaded);
+          const loadedWeekend = {
+            breakfast: data.weekend?.breakfastTime || '09:00',
+            lunch: data.weekend?.lunchTime || '13:00',
+            dinner: data.weekend?.dinnerTime || '19:00',
+            bedtime: data.weekend?.bedtime || '23:00',
+          };
+          const sched = { weekday: loadedWeekday, weekend: loadedWeekend };
+          setMealSchedule(sched);
+          setMealTimes(data.isWeekend ? loadedWeekend : loadedWeekday);
           try {
-            localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(loaded));
+            localStorage.setItem(`jette_meal_schedule_${currentUserId}`, JSON.stringify(sched));
+            localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(data.isWeekend ? loadedWeekend : loadedWeekday));
           } catch {}
         }
       })
@@ -283,6 +309,7 @@ export default function MedicationRegisterPage({ user }) {
         med={scheduleModalMed}
         currentUserId={currentUserId}
         mealTimes={mealTimes}
+        mealSchedule={mealSchedule}
         onClose={() => setScheduleModalMed(null)}
         onSuccess={() => {
           setScheduleModalMed(null);

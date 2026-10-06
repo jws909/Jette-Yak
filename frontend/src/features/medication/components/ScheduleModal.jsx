@@ -91,50 +91,74 @@ const CABINET_SLOTS = [
   { key: 'bedtime', label: '취침전' },
 ];
 
+// 상비약 슬롯별 시간 계산기
+function calcCabinetSlotTimes(meals) {
+  return {
+    morning: addMinutes(meals?.breakfast || '07:30', 30),
+    lunch: addMinutes(meals?.lunch || '12:00', 30),
+    dinner: addMinutes(meals?.dinner || '18:30', 30),
+    bedtime: meals?.bedtime || '22:00',
+  };
+}
+
+// 영양제 프리셋별 시간 계산기
+function calcSupplementPresetTimes(meals) {
+  return {
+    empty_stomach: meals?.breakfast ? addMinutes(meals.breakfast, -30) : '07:00',
+    breakfast_post: meals?.breakfast ? addMinutes(meals.breakfast, 15) : '07:45',
+    lunch_post: meals?.lunch ? addMinutes(meals.lunch, 15) : '12:15',
+    afternoon: '15:30',
+    dinner_post: meals?.dinner ? addMinutes(meals.dinner, 15) : '18:45',
+    bedtime: meals?.bedtime || '22:00',
+  };
+}
+
 /**
  * 상비약 / 영양제 캘린더 복약 일정 등록 모달
- * - 상비약: 식사 시간(식후 30분) 연동 4개 슬롯 및 단기/중기 기간 제공
- * - 영양제: 성분별 스마트 권장 타이밍 가이드, 6종 프리셋 칩, 세부 시간 조정 제공
+ * - 평일(월~금) 및 주말(토~일) 식사 시간 연동 분리 설정 지원
+ * - "주말도 평일 시간과 동일하게 사용하기" 원클릭 동기화 지원
+ * - 상비약: 식사 시간(식후 30분) 기준 평일/주말 4개 슬롯 시간 개별 관리
+ * - 영양제: 6종 프리셋 및 평일/주말 세부 알림 시간 개별 조정
  */
 export default function ScheduleModal({
   isOpen,
   med,
   currentUserId,
   mealTimes,
+  mealSchedule,
   onClose,
   onSuccess,
 }) {
   const { showAlert } = useDialog();
 
   const isCabinet = med?.source === 'CABINET';
-  const baseMeals = mealTimes || DEFAULT_MEAL_TIMES;
 
-  // 상비약 식사시간 연동 슬롯 시간
-  const getCabinetSlotTimes = () => ({
-    morning: addMinutes(baseMeals?.breakfast || '07:30', 30),
-    lunch: addMinutes(baseMeals?.lunch || '12:00', 30),
-    dinner: addMinutes(baseMeals?.dinner || '18:30', 30),
-    bedtime: baseMeals?.bedtime || '22:00',
-  });
+  // 평일/주말 기준 식사시간 추출
+  const weekdayMeals = mealSchedule?.weekday || mealTimes || DEFAULT_MEAL_TIMES;
+  const weekendMeals = mealSchedule?.weekend || {
+    breakfast: '09:00',
+    lunch: '13:00',
+    dinner: '19:00',
+    bedtime: '23:00',
+  };
 
-  // 영양제 식사시간 패턴 연동 슬롯 시간 (아침/점심/저녁 식사 직후 15분, 공복 등)
-  const getSupplementPresetTimes = () => ({
-    empty_stomach: baseMeals?.breakfast ? addMinutes(baseMeals.breakfast, -30) : '07:00',
-    breakfast_post: baseMeals?.breakfast ? addMinutes(baseMeals.breakfast, 15) : '07:45',
-    lunch_post: baseMeals?.lunch ? addMinutes(baseMeals.lunch, 15) : '12:15',
-    afternoon: '15:30',
-    dinner_post: baseMeals?.dinner ? addMinutes(baseMeals.dinner, 15) : '18:45',
-    bedtime: baseMeals?.bedtime || '22:00',
-  });
+  // 평일/주말 탭 상태 ('weekday' | 'weekend')
+  const [dayTypeTab, setDayTypeTab] = useState('weekday');
+  // 주말도 평일 시간과 동일하게 사용 여부
+  const [syncWeekend, setSyncWeekend] = useState(false);
 
-  // 상비약용 상태
+  // 상비약용 상태: 슬롯 선택 여부
   const [cabinetSlots, setCabinetSlots] = useState({ morning: true, lunch: false, dinner: false, bedtime: false });
-  const [cabinetTimes, setCabinetTimes] = useState(getCabinetSlotTimes);
+  // 상비약 평일 / 주말 슬롯 시간
+  const [weekdayCabinetTimes, setWeekdayCabinetTimes] = useState(() => calcCabinetSlotTimes(weekdayMeals));
+  const [weekendCabinetTimes, setWeekendCabinetTimes] = useState(() => calcCabinetSlotTimes(weekendMeals));
 
-  // 영양제용 상태
+  // 영양제용 상태: 하루 섭취 횟수 및 선택된 타이밍
   const [suppFrequency, setSuppFrequency] = useState(1); // 1, 2, 3회
   const [suppSelectedKeys, setSuppSelectedKeys] = useState(['breakfast_post']);
-  const [suppTimes, setSuppTimes] = useState(getSupplementPresetTimes);
+  // 영양제 평일 / 주말 타이밍 시간
+  const [weekdaySuppTimes, setWeekdaySuppTimes] = useState(() => calcSupplementPresetTimes(weekdayMeals));
+  const [weekendSuppTimes, setWeekendSuppTimes] = useState(() => calcSupplementPresetTimes(weekendMeals));
 
   // 공통 복용 기간
   const [schedDays, setSchedDays] = useState(isCabinet ? 7 : 30);
@@ -142,16 +166,34 @@ export default function ScheduleModal({
 
   const guide = isCabinet ? null : getSupplementGuide(med?.name);
 
-  // 약 변경 시 초기화
+  // 약 변경 또는 식사시간 업데이트 시 상태 초기화
   useEffect(() => {
     if (!med) return;
 
+    const wkCabinet = calcCabinetSlotTimes(weekdayMeals);
+    const weCabinet = calcCabinetSlotTimes(weekendMeals);
+    setWeekdayCabinetTimes(wkCabinet);
+    setWeekendCabinetTimes(weCabinet);
+
+    const wkSupp = calcSupplementPresetTimes(weekdayMeals);
+    const weSupp = calcSupplementPresetTimes(weekendMeals);
+    setWeekdaySuppTimes(wkSupp);
+    setWeekendSuppTimes(weSupp);
+
+    // 평일/주말 식사시간이 완전히 동일한지 확인하여 sync 기본값 설정
+    const isSameMealTimes = (
+      weekdayMeals.breakfast === weekendMeals.breakfast &&
+      weekdayMeals.lunch === weekendMeals.lunch &&
+      weekdayMeals.dinner === weekendMeals.dinner &&
+      weekdayMeals.bedtime === weekendMeals.bedtime
+    );
+    setSyncWeekend(isSameMealTimes);
+    setDayTypeTab('weekday');
+
     if (isCabinet) {
-      setCabinetTimes(getCabinetSlotTimes());
       setCabinetSlots({ morning: true, lunch: false, dinner: false, bedtime: false });
       setSchedDays(7);
     } else {
-      // 영양제인 경우 성분 추천 기반 초기화
       const rec = getSupplementGuide(med.name);
       const recKey = rec.recommendedKey || 'breakfast_post';
       const initialFreq = (med.frequency && Number(med.frequency) >= 1)
@@ -166,13 +208,9 @@ export default function ScheduleModal({
       } else {
         setSuppSelectedKeys([recKey]);
       }
-
-      // 식사 시간 연동된 시간 프리셋 적용
-      const initialTimes = getSupplementPresetTimes();
-      setSuppTimes(initialTimes);
       setSchedDays(30);
     }
-  }, [med, isCabinet, baseMeals]);
+  }, [med, isCabinet, weekdayMeals, weekendMeals]);
 
   if (!isOpen || !med) return null;
 
@@ -199,24 +237,32 @@ export default function ScheduleModal({
   // 영양제 타이밍 선택 핸들러 (단일 또는 다중 선택)
   const handleSelectSuppTiming = (key) => {
     if (suppFrequency === 1) {
-      // 하루 1회: 클릭한 칩 1개로 즉시 단일 선택 교체
       setSuppSelectedKeys([key]);
       return;
     }
-    // 하루 2회 이상:
     setSuppSelectedKeys((prev) => {
       if (prev.includes(key)) {
-        if (prev.length <= 1) return prev; // 최소 1개는 유지
+        if (prev.length <= 1) return prev; // 최소 1개 유지
         return prev.filter((k) => k !== key);
       }
       if (prev.length < suppFrequency) {
         return [...prev, key];
       }
-      // 이미 횟수만큼 찬 경우 가장 먼저 고른 것을 빼고 새로 누른 것을 추가
       return [...prev.slice(1), key];
     });
   };
 
+  // 주말 동일 동기화 토글
+  const handleToggleSyncWeekend = (e) => {
+    const checked = e.target.checked;
+    setSyncWeekend(checked);
+    if (checked) {
+      setWeekendCabinetTimes({ ...weekdayCabinetTimes });
+      setWeekendSuppTimes({ ...weekdaySuppTimes });
+    }
+  };
+
+  // 캘린더 복약 일정 저장
   const handleSaveSchedule = async (e) => {
     e.preventDefault();
 
@@ -225,7 +271,7 @@ export default function ScheduleModal({
       return;
     }
 
-    // 시간대 및 타임 페이로드 목록 생성
+    // 시간대 및 타임 페이로드 목록 생성 (평일/주말 각각 바인딩)
     const targets = [];
     const now = new Date();
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -238,8 +284,12 @@ export default function ScheduleModal({
         return;
       }
       selected.forEach((slot) => {
+        const wkTime = weekdayCabinetTimes[slot] || '08:30';
+        const weTime = syncWeekend ? wkTime : (weekendCabinetTimes[slot] || '09:30');
         targets.push({
-          time: cabinetTimes[slot] || '08:30',
+          slot,
+          weekdayTime: wkTime,
+          weekendTime: weTime,
         });
       });
     } else {
@@ -249,8 +299,12 @@ export default function ScheduleModal({
       }
       suppSelectedKeys.forEach((key) => {
         const preset = SUPPLEMENT_PRESETS.find((p) => p.key === key);
+        const wkTime = weekdaySuppTimes[key] || preset?.defaultTime || '09:00';
+        const weTime = syncWeekend ? wkTime : (weekendSuppTimes[key] || preset?.defaultTime || '09:00');
         targets.push({
-          time: suppTimes[key] || preset?.defaultTime || '09:00',
+          key,
+          weekdayTime: wkTime,
+          weekendTime: weTime,
         });
       });
     }
@@ -269,7 +323,9 @@ export default function ScheduleModal({
           cabinetId: isCabinet ? rawNumericId : null,
           routineId: !isCabinet ? rawNumericId : null,
           scheduledDate: todayStr,
-          scheduledTime: t.time,
+          scheduledTime: t.weekdayTime, // 기본 시간 (하위 호환)
+          weekdayTime: t.weekdayTime,   // 평일(월~금) 복용 시간
+          weekendTime: t.weekendTime,   // 주말(토~일) 복용 시간
           repeatDays: Number(schedDays) || (isCabinet ? 7 : 30),
           alarmEnabled: 1,
         };
@@ -283,7 +339,10 @@ export default function ScheduleModal({
       }
 
       if (allSuccess) {
-        showAlert(`${med.name}의 ${schedDays}일 복약 일정이 캘린더에 성공적으로 등록되었습니다!`, '등록 완료');
+        showAlert(
+          `${med.name}의 ${schedDays}일 복약 일정이 캘린더에 성공적으로 등록되었습니다!\n(평일 및 주말 시간에 맞춰 자동 분기 적용)`,
+          '등록 완료'
+        );
         onSuccess?.();
       } else {
         showAlert('일정 등록에 실패했습니다.' + (lastErrMsg ? ` (${lastErrMsg})` : ''), '등록 실패');
@@ -295,6 +354,8 @@ export default function ScheduleModal({
       setIsSaving(false);
     }
   };
+
+  const currentMeals = dayTypeTab === 'weekday' ? weekdayMeals : weekendMeals;
 
   return (
     <div className="modal-overlay" onClick={() => !isSaving && onClose()}>
@@ -312,43 +373,110 @@ export default function ScheduleModal({
         </div>
 
         <form onSubmit={handleSaveSchedule}>
+          {/* ================= [평일 / 주말 구분 탭 컨트롤] ================= */}
+          <div className="schedule-daytype-bar">
+            <div className="schedule-daytype-tabs">
+              <button
+                type="button"
+                className={`schedule-day-tab ${dayTypeTab === 'weekday' ? 'active' : ''}`}
+                onClick={() => setDayTypeTab('weekday')}
+              >
+                <i className="fa-solid fa-briefcase" aria-hidden="true" />
+                <span>평일 (월~금)</span>
+              </button>
+              <button
+                type="button"
+                className={`schedule-day-tab ${dayTypeTab === 'weekend' ? 'active' : ''}`}
+                onClick={() => setDayTypeTab('weekend')}
+              >
+                <i className="fa-solid fa-mug-hot" aria-hidden="true" />
+                <span>주말 (토~일)</span>
+              </button>
+            </div>
+
+            <label className="schedule-sync-label">
+              <input
+                type="checkbox"
+                checked={syncWeekend}
+                onChange={handleToggleSyncWeekend}
+              />
+              <span>주말도 평일 시간과 동일하게 사용</span>
+            </label>
+          </div>
+
+          {/* 현재 선택 탭 식사 시간 연동 안내 배너 */}
+          <div className="supplement-meal-notice">
+            <i className="fa-solid fa-circle-info" aria-hidden="true" />
+            <span>
+              현재 <strong>{dayTypeTab === 'weekday' ? '평일 (월~금)' : '주말 (토~일)'}</strong> 식사 시간(아침 {currentMeals.breakfast || '07:30'}, 점심 {currentMeals.lunch || '12:00'}, 저녁 {currentMeals.dinner || '18:30'}, 취침 {currentMeals.bedtime || '22:00'})을 기준으로 시간이 계산되었습니다.
+              {syncWeekend && <span className="sync-active-note"> (주말 동일 적용 중)</span>}
+            </span>
+          </div>
+
           {isCabinet ? (
             /* ================= [상비약 모달 UI] ================= */
             <>
               <p className="modal-desc">
                 <i className="fa-regular fa-lightbulb" style={{ color: '#b45309', marginRight: '4px' }} aria-hidden="true" />
-                <strong>상비약 복약 일정:</strong> 비염, 알레르기 등 주기적으로 복용하는 상비약은 등록하신 <strong>식사 시간(식후 30분) 기준</strong>으로 시간이 자동 계산되었습니다. 복용할 기간(1일~30일)을 선택해 주세요.
+                <strong>상비약 복약 일정:</strong> 비염, 알레르기 등 주기적으로 복용하는 상비약은 등록하신 <strong>식사 시간(식후 30분) 기준</strong>으로 평일과 주말 시간이 각각 자동 계산되었습니다.
               </p>
 
               <div className="slots-picker">
-                <label className="picker-title">복용 시간대 선택 및 알림 시간 설정 (식사시간 연동)</label>
+                <label className="picker-title">
+                  복용 시간대 선택 및 알림 시간 설정 ({dayTypeTab === 'weekday' ? '평일 시간대' : '주말 시간대'})
+                </label>
                 <div className="slots-grid">
-                  {CABINET_SLOTS.map((s) => (
-                    <div
-                      key={s.key}
-                      className={`slot-checkbox-label ${cabinetSlots[s.key] ? 'checked' : ''}`}
-                      onClick={() => setCabinetSlots((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={Boolean(cabinetSlots[s.key])}
-                        onChange={(e) => setCabinetSlots((prev) => ({ ...prev, [s.key]: e.target.checked }))}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span>{s.label}</span>
-                      <input
-                        type="time"
-                        className="slot-time-input"
-                        value={cabinetTimes[s.key] || '08:30'}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCabinetTimes((prev) => ({ ...prev, [s.key]: val }));
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        title={`${s.label} 알림 시간 설정`}
-                      />
-                    </div>
-                  ))}
+                  {CABINET_SLOTS.map((s) => {
+                    const currentVal = dayTypeTab === 'weekday'
+                      ? (weekdayCabinetTimes[s.key] || '08:30')
+                      : (syncWeekend ? weekdayCabinetTimes[s.key] : (weekendCabinetTimes[s.key] || '09:30'));
+
+                    const wkVal = weekdayCabinetTimes[s.key] || '08:30';
+                    const weVal = syncWeekend ? wkVal : (weekendCabinetTimes[s.key] || '09:30');
+
+                    return (
+                      <div
+                        key={s.key}
+                        className={`slot-checkbox-label ${cabinetSlots[s.key] ? 'checked' : ''}`}
+                        onClick={() => setCabinetSlots((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
+                      >
+                        <div className="slot-header-row">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(cabinetSlots[s.key])}
+                            onChange={(e) => setCabinetSlots((prev) => ({ ...prev, [s.key]: e.target.checked }))}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <span className="slot-name-text">{s.label}</span>
+                        </div>
+                        <input
+                          type="time"
+                          className="slot-time-input"
+                          value={currentVal}
+                          disabled={dayTypeTab === 'weekend' && syncWeekend}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (dayTypeTab === 'weekday') {
+                              setWeekdayCabinetTimes((prev) => ({ ...prev, [s.key]: val }));
+                              if (syncWeekend) {
+                                setWeekendCabinetTimes((prev) => ({ ...prev, [s.key]: val }));
+                              }
+                            } else {
+                              setWeekendCabinetTimes((prev) => ({ ...prev, [s.key]: val }));
+                              setSyncWeekend(false);
+                            }
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`${s.label} 알림 시간 설정`}
+                        />
+                        <div className="slot-daytimes-summary" onClick={(e) => e.stopPropagation()}>
+                          <span>평일 {wkVal}</span>
+                          <span className="sep">·</span>
+                          <span>주말 {weVal}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -366,6 +494,9 @@ export default function ScheduleModal({
                     </button>
                   ))}
                 </div>
+                <p className="repeat-info-text">
+                  <i className="fa-regular fa-calendar-check" aria-hidden="true" /> 기간 내 평일(월~금)과 주말(토~일)에 맞추어 각각 설정하신 시간으로 캘린더 일정이 자동 등록됩니다.
+                </p>
               </div>
             </>
           ) : (
@@ -404,14 +535,6 @@ export default function ScheduleModal({
                   </div>
                 </div>
 
-                {/* 식사 시간 연동 안내 배너 */}
-                <div className="supplement-meal-notice">
-                  <i className="fa-solid fa-circle-info" aria-hidden="true" />
-                  <span>
-                    각 시간대는 회원님의 <strong>설정 식사 시간</strong>(아침 {baseMeals.breakfast || '07:30'}, 점심 {baseMeals.lunch || '12:00'}, 저녁 {baseMeals.dinner || '18:30'}, 취침 {baseMeals.bedtime || '22:00'})을 기준으로 자동 계산되었습니다.
-                  </span>
-                </div>
-
                 <label className="picker-title">
                   {suppFrequency === 1
                     ? '섭취할 시간대를 선택해 주세요 (1곳 선택)'
@@ -421,6 +544,10 @@ export default function ScheduleModal({
                   {SUPPLEMENT_PRESETS.map((p) => {
                     const isSelected = suppSelectedKeys.includes(p.key);
                     const isRec = guide?.recommendedKey === p.key;
+                    const dispTime = dayTypeTab === 'weekday'
+                      ? (weekdaySuppTimes[p.key] || p.defaultTime)
+                      : (syncWeekend ? weekdaySuppTimes[p.key] : (weekendSuppTimes[p.key] || p.defaultTime));
+
                     return (
                       <div
                         key={p.key}
@@ -432,34 +559,61 @@ export default function ScheduleModal({
                         {isRec && <span className="recommend-badge">추천</span>}
                         <i className={`timing-icon fa-solid ${p.icon}`} aria-hidden="true" />
                         <span className="timing-label">{p.label}</span>
-                        <span className="timing-time">{suppTimes[p.key] || p.defaultTime}</span>
+                        <span className="timing-time">{dispTime}</span>
                       </div>
                     );
                   })}
                 </div>
 
-                {/* 선택한 타이밍 시간 직접 조정 */}
-                <div className="timing-custom-row">
-                  <div className="custom-row-desc">
+                {/* 선택한 타이밍별 평일/주말 알림 시간 동시 확인 & 세부 조정 */}
+                <div className="timing-custom-container">
+                  <div className="timing-custom-header">
                     <i className="fa-regular fa-clock" aria-hidden="true" />
-                    <span>선택한 시간대 알림 시간:</span>
+                    <span>선택한 시간대 알림 시간 (평일 / 주말 개별 조정):</span>
                   </div>
-                  <div className="custom-time-inputs-wrap">
+
+                  <div className="timing-custom-list">
                     {suppSelectedKeys.map((key) => {
                       const preset = SUPPLEMENT_PRESETS.find((p) => p.key === key);
                       if (!preset) return null;
+                      const wkTime = weekdaySuppTimes[key] || preset.defaultTime;
+                      const weTime = syncWeekend ? wkTime : (weekendSuppTimes[key] || preset.defaultTime);
+
                       return (
-                        <label key={key} className="timing-badge-tag">
-                          <span>{preset.label}:</span>
-                          <input
-                            type="time"
-                            value={suppTimes[key] || preset.defaultTime}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setSuppTimes((prev) => ({ ...prev, [key]: val }));
-                            }}
-                          />
-                        </label>
+                        <div key={key} className="timing-custom-item">
+                          <span className="item-preset-label">
+                            <i className={`fa-solid ${preset.icon}`} aria-hidden="true" /> {preset.label}
+                          </span>
+                          <div className="item-time-inputs">
+                            <label className="time-sub-input-wrap">
+                              <span className="time-sub-label">평일:</span>
+                              <input
+                                type="time"
+                                value={wkTime}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setWeekdaySuppTimes((prev) => ({ ...prev, [key]: val }));
+                                  if (syncWeekend) {
+                                    setWeekendSuppTimes((prev) => ({ ...prev, [key]: val }));
+                                  }
+                                }}
+                              />
+                            </label>
+                            <label className="time-sub-input-wrap">
+                              <span className="time-sub-label">주말:</span>
+                              <input
+                                type="time"
+                                value={weTime}
+                                disabled={syncWeekend}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setWeekendSuppTimes((prev) => ({ ...prev, [key]: val }));
+                                  setSyncWeekend(false);
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
@@ -480,6 +634,9 @@ export default function ScheduleModal({
                     </button>
                   ))}
                 </div>
+                <p className="repeat-info-text">
+                  <i className="fa-regular fa-calendar-check" aria-hidden="true" /> 기간 내 평일(월~금)과 주말(토~일)에 맞추어 각각 설정하신 시간으로 캘린더 일정이 자동 등록됩니다.
+                </p>
               </div>
             </>
           )}
@@ -510,4 +667,3 @@ export default function ScheduleModal({
     </div>
   );
 }
-
