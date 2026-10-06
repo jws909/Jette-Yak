@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import MedicationDetailModal from './components/MedicationDetailModal';
 import CautionInfoModal from './components/CautionInfoModal';
 import MealTimeSettingModal from './components/MealTimeSettingModal';
+import TodayRoutineSection from './components/TodayRoutineSection';
 import {
   DEFAULT_MEAL_TIMES,
   DOT_COLORS,
@@ -10,11 +11,8 @@ import {
   formatDateToHyphen,
   formatDateToDot,
   formatDateWithDay,
-  formatDateShort,
-  formatTimeOnly,
   getTargetDateDiffText,
   getPrescriptionStatus,
-  cleanCategoryName,
   getMedicineCaution,
   mapPrescriptionToState,
   generateMedicationNotes,
@@ -916,230 +914,6 @@ export default function MainPage({ user }) {
     setIsSearching(false);
   };
 
-  const renderRoutineEntry = (entry) => {
-    if (entry.isPouch) {
-      const allTaken = entry.items.every((i) => i.taken);
-      const isExpanded = Boolean(expandedPouches[entry.pouchKey]);
-      const takenCount = entry.items.filter((i) => i.taken).length;
-      const latestTaken = entry.items.find((i) => i.taken && i.takenAt)?.takenAt;
-
-      const pouchTitle = entry.nickname
-        ? entry.nickname
-        : entry.purpose
-        ? (entry.purpose.length > 25 ? entry.purpose.slice(0, 23) + '…' : entry.purpose)
-        : `${entry.originHospital || '처방'}약`;
-
-      const hospitalDateText = `${entry.originHospital || '의료기관'}${entry.dispensedDate ? ` · ${entry.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제` : ''}`;
-      const pillsSummary = `${entry.items[0]?.name || '처방약'}${entry.items.length > 1 ? ` 외 ${entry.items.length - 1}종 (총 ${entry.items.length}종류)` : ' (1종류)'}`;
-
-      return (
-        <div
-          key={entry.pouchKey}
-          className={`routine-pouch-card ${allTaken ? 'is-taken' : ''}`}
-        >
-          <div
-            className="routine-pouch-header"
-            onClick={(e) => togglePouch(entry, e)}
-          >
-            <div className="routine-item-left">
-              <div
-                className={`custom-checkbox ${allTaken ? 'checked' : ''}`}
-                onClick={(e) => togglePouch(entry, e)}
-                title={allTaken ? '복용 취소' : '봉지 전체 복용 완료'}
-              >
-                {allTaken && (
-                  <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                  </svg>
-                )}
-              </div>
-
-              <div className="pouch-icon-badge" title="약봉지 (1포 처방약)">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              </div>
-
-              <div className="pouch-info-col">
-                <div className="pouch-title-row">
-                  <span className="pouch-name">
-                    [{entry.slotLabel || '정시'} 1포] {pouchTitle}
-                  </span>
-                  <span className={`pouch-count-badge ${allTaken ? 'done' : ''}`}>
-                    {allTaken ? '전체 복용 완료' : `${takenCount}/${entry.items.length}종`}
-                  </span>
-                </div>
-                <div className="pouch-meta-row">
-                  <span className="pouch-hospital-date">{hospitalDateText}</span>
-                  <span className="pouch-summary-text">{pillsSummary}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="routine-item-right" onClick={(e) => e.stopPropagation()}>
-              {allTaken && latestTaken && (
-                <span className="routine-taken-time">
-                  {formatTimeOnly(latestTaken)} 복용
-                </span>
-              )}
-              <button
-                type="button"
-                className="btn-pouch-toggle"
-                onClick={(e) => togglePouchExpand(entry.pouchKey, e)}
-                title={isExpanded ? '처방약 목록 접기' : '포함된 처방약 보기'}
-              >
-                {isExpanded ? '접기 ▲' : `약 목록 (${entry.items.length}종) ▼`}
-              </button>
-            </div>
-          </div>
-
-          {/* 펼침 영역: 개별 처방약 목록 */}
-          {isExpanded && (
-            <div className="pouch-expanded-items">
-              <div className="pouch-expanded-header">
-                <span>봉지에 포함된 개별 처방약 목록 (개별 복용 체크 가능)</span>
-              </div>
-              {entry.items.map((subItem) => {
-                const rawCategory = subItem.rawClassName || subItem.className || subItem.efficacy || '';
-                const cleanCat = cleanCategoryName(rawCategory);
-                const displayEfficacy = cleanCat.length > 12 ? cleanCat.slice(0, 11) + '…' : cleanCat;
-
-                return (
-                  <div
-                    key={subItem.id}
-                    className={`pouch-subitem-row ${subItem.taken ? 'is-taken' : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleRoutine(subItem.id);
-                    }}
-                  >
-                    <div className="routine-item-left">
-                      <div className={`custom-checkbox sub-checkbox ${subItem.taken ? 'checked' : ''}`}>
-                        {subItem.taken && (
-                          <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="pouch-subitem-name">{subItem.name}</span>
-                    </div>
-
-                    <div className="routine-item-right" onClick={(e) => e.stopPropagation()}>
-                      {displayEfficacy && (
-                        <button
-                          type="button"
-                          className="subitem-efficacy-chip"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedMedDetail(subItem.rawMed || subItem);
-                          }}
-                          title={`${rawCategory ? `${rawCategory} · ` : ''}클릭 시 상세 복약 정보`}
-                        >
-                          <span>{displayEfficacy}</span>
-                          <svg className="chip-info-icon" viewBox="0 0 20 20" fill="currentColor" width="11" height="11">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                      )}
-
-                      {subItem.taken && subItem.takenAt && (
-                        <span className="routine-taken-time">
-                          {formatTimeOnly(subItem.takenAt)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // 단일 항목 (영양제, 상비약 등)
-    const isSupplement = entry.type === '영양제' || entry.rawType === 'supplement';
-    const itemCategory = isSupplement ? 'supplement' : 'regular';
-    const categoryLabel = isSupplement ? '영양제' : (entry.type === '상비약' ? '상비약' : (entry.type || '상비약'));
-    const isSingleTaken = Boolean(entry.taken);
-    const subDescText = entry.notes || (isSupplement ? '일일 건강 영양제 · 활력 보충' : '가정 상비의약품 · 증상 완화');
-
-    return (
-      <div
-        key={entry.id}
-        className={`routine-single-card ${itemCategory} ${isSingleTaken ? 'is-taken' : ''}`}
-        onClick={() => toggleRoutine(entry.id)}
-      >
-        <div className="routine-item-left">
-          <div
-            className={`custom-checkbox ${itemCategory}-checkbox ${isSingleTaken ? 'checked' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleRoutine(entry.id);
-            }}
-            title={isSingleTaken ? '복용 취소' : '복용 완료 체크'}
-          >
-            {isSingleTaken && (
-              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 7l3 3 5-6" />
-              </svg>
-            )}
-          </div>
-
-          <div
-            className={`single-card-icon-badge ${itemCategory}`}
-            title={`${categoryLabel} (${entry.name})`}
-          >
-            {isSupplement ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18" strokeWidth="2">
-                <circle cx="12" cy="12" r="4" strokeWidth="2" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 2v3m0 14v3M4.93 4.93l2.12 2.12m9.9 9.9l2.12 2.12M2 12h3m14 0h3M4.93 19.07l2.12-2.12m9.9-9.9l2.12-2.12" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="18" height="18" strokeWidth="2">
-                <rect x="3" y="6" width="18" height="14" rx="3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M12 10v6m-3-3h6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-          </div>
-
-          <div className="single-card-info-col">
-            <div className="single-card-title-row">
-              <span className={`single-card-time-slot ${itemCategory}`}>
-                [{entry.slotLabel || '정시'}{entry.time ? ` ${entry.time}` : ''}]
-              </span>
-              <strong className="single-card-name" title={entry.name}>
-                {entry.name}
-              </strong>
-              <span className={`single-card-type-badge ${itemCategory}`}>
-                {categoryLabel}
-              </span>
-              {selectedRxId === 'all' && entry.originHospital && (
-                <span className="routine-origin-hospital-chip">{entry.originHospital}</span>
-              )}
-            </div>
-            <div className="single-card-meta-row">
-              <span className="single-card-sub-desc">{subDescText}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="routine-item-right" onClick={(e) => e.stopPropagation()}>
-          {isSingleTaken && entry.takenAt ? (
-            <span className={`routine-taken-time ${itemCategory}`}>
-              {formatTimeOnly(entry.takenAt)} 복용 완료
-            </span>
-          ) : (
-            <span className={`routine-pending-badge ${itemCategory}`}>
-              복용 대기
-            </span>
-          )}
-        </div>
-      </div>
-    );
-  };
-
   const dayNames = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
   const monthNames = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
   const greetingDateStr = `${dayNames[targetDate.getDay()]}, ${targetDate.getDate()} ${monthNames[targetDate.getMonth()]}`;
@@ -1281,195 +1055,31 @@ export default function MainPage({ user }) {
       </section>
 
       {/* 3. 상단 핵심: 오늘의 복약 루틴 (TODAY'S ROUTINE) */}
-      <section className="today-routine-card today-routine-dark-card">
-        <div className="routine-header-row">
-          <div className="routine-header-left">
-            <span className="routine-label">TODAY'S ROUTINE</span>
-            {!isTargetToday && (
-              <span className="routine-past-pill">{getTargetDateDiffText(targetDate)} 기록</span>
-            )}
-          </div>
-          <div className="routine-header-actions">
-            <button
-              type="button"
-              className="med-register-quick-btn"
-              onClick={() => navigate('/medication/register')}
-              title="처방전, 상비약, 영양제 등록 페이지로 이동"
-            >
-              + 약 등록
-            </button>
-            <span className="routine-date-badge">{routineDateBadge}</span>
-            {!isTargetToday && (
-              <button
-                type="button"
-                className="routine-today-return-btn"
-                onClick={handleResetToday}
-                title="오늘 날짜로 이동"
-              >
-                오늘로 복귀
-              </button>
-            )}
-            <button
-              type="button"
-              className="meal-setting-btn"
-              onClick={() => setIsMealModalOpen(true)}
-              title="아침/점심/저녁 식사 및 취침 시간 설정"
-            >
-              <svg className="setting-btn-icon" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-              </svg>
-              식사 시간 설정
-            </button>
-          </div>
-        </div>
-
-        <div className="routine-title-row">
-          <h3 className="routine-title">
-            {isTargetToday ? '오늘의 복용' : `${formatDateShort(targetDate)} 복약 루틴`}{' '}
-            <span className="taken-highlight">{takenCount}</span>/{totalCount}
-          </h3>
-          <span className="routine-rate-tip">
-            {totalCount === 0
-              ? currentRxStatus?.status === 'completed'
-                ? '해당 일자에는 복용이 완료되어 일정이 없습니다.'
-                : currentRxStatus?.status === 'upcoming'
-                ? '해당 일자는 아직 복용 시작 전입니다.'
-                : '등록된 복용 일정이 없습니다.'
-              : !isTargetToday
-              ? `${formatDateWithDay(targetDate)} 기준 복약 루틴을 확인하고 있습니다`
-              : takenCount === totalCount
-              ? '오늘 모든 복약을 완료했습니다!'
-              : '시간대별 탭을 선택하여 간편하게 복용을 체크하세요'}
-          </span>
-        </div>
-
-        {/* 복약 루틴 시간대 탭 (아침, 점심, 저녁, 전체) */}
-        {activeRoutineList.length > 0 && (
-          <div className="routine-slot-tabs" role="tablist">
-            {routineSlotTabs.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                role="tab"
-                aria-selected={activeSlotKey === tab.key}
-                className={`routine-slot-tab ${activeSlotKey === tab.key ? 'active' : ''} ${tab.isAllDone ? 'is-all-done' : ''}`}
-                onClick={() => setSelectedRoutineSlot(tab.key)}
-              >
-                <span className="slot-tab-label">{tab.label}</span>
-                {tab.timeHint && <span className="slot-tab-time">{tab.timeHint}</span>}
-                <span className="slot-tab-badge">
-                  {tab.isAllDone ? '완료' : `${tab.taken}/${tab.total}`}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* 체크리스트 항목들 */}
-        <div className="routine-items-list">
-          {activeRoutineList.length === 0 ? (
-            <div className="routine-empty-box">
-              <div className="routine-empty-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-              </div>
-
-              {hasPrescription ? (
-                <>
-                  <h4 className="routine-empty-title">
-                    {currentRxStatus?.status === 'completed'
-                      ? '복용이 완료된 처방전입니다.'
-                      : currentRxStatus?.status === 'upcoming'
-                      ? '복용 시작 전입니다.'
-                      : '복용 일정이 없습니다.'}
-                  </h4>
-                  <p className="routine-empty-text">
-                    {currentRxStatus?.status === 'completed'
-                      ? '선택하신 날짜에는 복용할 약이 없습니다. 아래 처방 약품 목록에서 약 정보를 확인하시거나, 당시 복약 체크 기록으로 바로 이동하실 수 있습니다.'
-                      : currentRxStatus?.status === 'upcoming'
-                      ? `복용 시작일(${prescriptionData?.dispensedDate || ''})부터 복약 루틴이 표시됩니다.`
-                      : '선택하신 날짜에는 등록된 복약 일정이 없습니다.'}
-                  </p>
-                  {currentRxStatus?.status === 'completed' && prescriptionData?.dispensedDate && (
-                    <button
-                      type="button"
-                      className="routine-jump-past-btn"
-                      onClick={() => handleJumpToDate(prescriptionData.dispensedDate)}
-                    >
-                      당시 복약 기록 확인하기 ({prescriptionData.dispensedDate}) &rarr;
-                    </button>
-                  )}
-                </>
-              ) : (
-                <>
-                  <h4 className="routine-empty-title">등록된 복약 일정이 없습니다.</h4>
-                  <p className="routine-empty-text">
-                    처방전 사진을 등록하거나 상비약, 영양제를 등록하여 매일의 복약 루틴을 편리하게 관리해 보세요.
-                  </p>
-                  <button
-                    type="button"
-                    className="routine-empty-cta-btn"
-                    onClick={() => navigate('/medication/register')}
-                  >
-                    + 내 약 등록하러 가기 →
-                  </button>
-                </>
-              )}
-            </div>
-          ) : activeSlotKey === 'all' ? (
-            /* 전체 보기 모드: 시간대별 섹션으로 그룹화 표시 */
-            <div className="routine-grouped-container">
-              {groupedSlots.map((group) => {
-                const groupTaken = group.units.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length;
-                const groupAllDone = group.units.length > 0 && groupTaken === group.units.length;
-                return (
-                  <div key={group.slot} className="routine-slot-section">
-                    <div className="slot-section-header">
-                      <div className="slot-section-info">
-                        <span className="slot-section-badge">{group.label}</span>
-                        <span className="slot-section-time">{group.time} 복용 예정</span>
-                      </div>
-                      <span className={`slot-section-counter ${groupAllDone ? 'done' : ''}`}>
-                        {groupAllDone ? '복용 완료' : `${groupTaken} / ${group.units.length} 완료`}
-                      </span>
-                    </div>
-
-                    <div className="slot-section-items">
-                      {group.units.map((entry) => renderRoutineEntry(entry))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            /* 개별 시간대 탭 선택 모드: 선택된 시간대의 약품만 표시 */
-            <div className="routine-single-slot-container">
-              <div className="slot-single-header">
-                <span className="slot-single-title">
-                  {routineSlotTabs.find((t) => t.key === activeSlotKey)?.label} 복약 리스트
-                </span>
-                <span className="slot-single-count">
-                  {displayedRoutineUnits.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length} / {displayedRoutineUnits.length} 완료
-                </span>
-              </div>
-
-              {displayedRoutineUnits.map((entry) => renderRoutineEntry(entry))}
-            </div>
-          )}
-        </div>
-
-        {/* 복약 기록 전체 보기 버튼 (와이어프레임 캘린더 연동) */}
-        <div className="routine-footer-action">
-          <button
-            type="button"
-            className="view-all-records-btn"
-            onClick={() => navigate('/calendar')}
-          >
-            복약 기록 전체 보기 <span className="arrow-left">←</span>
-          </button>
-        </div>
-      </section>
+      <TodayRoutineSection
+        targetDate={targetDate}
+        isTargetToday={isTargetToday}
+        routineDateBadge={routineDateBadge}
+        takenCount={takenCount}
+        totalCount={totalCount}
+        currentRxStatus={currentRxStatus}
+        hasPrescription={hasPrescription}
+        prescriptionData={prescriptionData}
+        activeRoutineList={activeRoutineList}
+        routineSlotTabs={routineSlotTabs}
+        activeSlotKey={activeSlotKey}
+        groupedSlots={groupedSlots}
+        displayedRoutineUnits={displayedRoutineUnits}
+        expandedPouches={expandedPouches}
+        selectedRxId={selectedRxId}
+        onResetToday={handleResetToday}
+        onOpenMealModal={() => setIsMealModalOpen(true)}
+        onSelectSlot={setSelectedRoutineSlot}
+        onJumpToDate={handleJumpToDate}
+        onTogglePouch={togglePouch}
+        onTogglePouchExpand={togglePouchExpand}
+        onToggleRoutine={toggleRoutine}
+        onSelectMedDetail={setSelectedMedDetail}
+      />
 
       {/* 4. 처방전 정보 & 주의사항 (처방전 등록 시 상세 표시) */}
       {hasPrescription ? (
