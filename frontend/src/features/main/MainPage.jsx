@@ -20,10 +20,8 @@ import {
   getPrescriptionStatus,
   getMedicineCaution,
   mapPrescriptionToState,
-  addMinutes,
   getIntakeSlots,
   buildRoutineItems,
-  groupRoutineItemsByPouch,
   isSameSlot,
 } from './utils/mainPageUtils';
 import './MainPage.css';
@@ -270,28 +268,7 @@ export default function MainPage({ user }) {
 
   // 약품 상세 모달 상태
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
-  const [medDetailExtra, setMedDetailExtra] = useState(null);
   const [isCautionModalOpen, setIsCautionModalOpen] = useState(false);
-
-  // 약품 상세 모달 열릴 때 AI 요약 및 최신 정보 On-Demand 패치
-  useEffect(() => {
-    if (!selectedMedDetail?.medicationId) {
-      setMedDetailExtra(null);
-      return;
-    }
-    let isCancelled = false;
-    fetch(`/api/guides/medications/${encodeURIComponent(selectedMedDetail.medicationId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!isCancelled && data) {
-          setMedDetailExtra(data);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      isCancelled = true;
-    };
-  }, [selectedMedDetail?.medicationId]);
 
   // 오늘의 복약 루틴 리스트 (DB 처방 데이터 기반 생성)
   const [routineItems, setRoutineItems] = useState([]);
@@ -673,17 +650,6 @@ export default function MainPage({ user }) {
     syncRoutinesWithServer(dateStr);
   };
 
-  // 처방약 봉지 펼침/접힘 상태
-  const [expandedPouches, setExpandedPouches] = useState({});
-
-  const togglePouchExpand = (pouchKey, e) => {
-    if (e) e.stopPropagation();
-    setExpandedPouches((prev) => ({
-      ...prev,
-      [pouchKey]: !prev[pouchKey],
-    }));
-  };
-
   // 처방약 봉지 전체 일괄 복용 체크/해제
   const togglePouch = async (pouch, e) => {
     if (e) e.stopPropagation();
@@ -779,75 +745,6 @@ export default function MainPage({ user }) {
       return true;
     });
   }, [routineItems, selectedRxId, allPrescriptions, targetDate]);
-  const allRoutineUnits = useMemo(() => groupRoutineItemsByPouch(activeRoutineList), [activeRoutineList]);
-  const takenUnitsCount = allRoutineUnits.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length;
-  const totalUnitsCount = allRoutineUnits.length;
-  const takenCount = takenUnitsCount;
-  const totalCount = totalUnitsCount;
-
-  // 복약 루틴 시간대 탭 선택 상태 ('all' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime')
-  const [selectedRoutineSlot, setSelectedRoutineSlot] = useState(() => {
-    const h = new Date().getHours();
-    if (h < 11) return 'breakfast';
-    if (h < 17) return 'lunch';
-    return 'dinner';
-  });
-
-  const slotMeta = [
-    { key: 'breakfast', label: '아침', defaultTime: mealTimes.breakfast || '07:30' },
-    { key: 'lunch', label: '점심', defaultTime: mealTimes.lunch || '12:00' },
-    { key: 'dinner', label: '저녁', defaultTime: mealTimes.dinner || '18:30' },
-    { key: 'bedtime', label: '취침전', defaultTime: mealTimes.bedtime || '22:00' },
-  ];
-
-  const groupedSlots = slotMeta
-    .map((meta) => {
-      const items = activeRoutineList.filter((i) => i.slot === meta.key);
-      const units = groupRoutineItemsByPouch(items);
-      const firstTime = items[0]?.time || addMinutes(meta.defaultTime, 30);
-      return {
-        slot: meta.key,
-        label: meta.label,
-        time: firstTime,
-        items,
-        units,
-      };
-    })
-    .filter((g) => g.items.length > 0);
-
-  const activeSlotKey =
-    selectedRoutineSlot === 'all' || groupedSlots.some((g) => g.slot === selectedRoutineSlot)
-      ? selectedRoutineSlot
-      : (groupedSlots[0]?.slot || 'all');
-
-  const routineSlotTabs = [
-    {
-      key: 'all',
-      label: '전체',
-      timeHint: '',
-      taken: takenUnitsCount,
-      total: totalUnitsCount,
-      isAllDone: totalUnitsCount > 0 && takenUnitsCount === totalUnitsCount,
-    },
-    ...groupedSlots.map((g) => {
-      const tCount = g.units.filter((u) => u.isPouch ? u.items.every((i) => i.taken) : u.taken).length;
-      return {
-        key: g.slot,
-        label: g.label,
-        timeHint: g.time,
-        taken: tCount,
-        total: g.units.length,
-        isAllDone: g.units.length > 0 && tCount === g.units.length,
-      };
-    }),
-  ];
-
-  const displayedRoutineUnits =
-    activeSlotKey === 'all'
-      ? allRoutineUnits
-      : groupRoutineItemsByPouch(activeRoutineList.filter((i) => i.slot === activeSlotKey));
-
-  const routineDateBadge = `${String(targetDate.getMonth() + 1).padStart(2, '0')}.${String(targetDate.getDate()).padStart(2, '0')}`;
 
   return (
     <div className="main-page-wrapper">
@@ -869,25 +766,16 @@ export default function MainPage({ user }) {
       <TodayRoutineSection
         targetDate={targetDate}
         isTargetToday={isTargetToday}
-        routineDateBadge={routineDateBadge}
-        takenCount={takenCount}
-        totalCount={totalCount}
         currentRxStatus={currentRxStatus}
         hasPrescription={hasPrescription}
         prescriptionData={prescriptionData}
         activeRoutineList={activeRoutineList}
-        routineSlotTabs={routineSlotTabs}
-        activeSlotKey={activeSlotKey}
-        groupedSlots={groupedSlots}
-        displayedRoutineUnits={displayedRoutineUnits}
-        expandedPouches={expandedPouches}
+        mealTimes={mealTimes}
         selectedRxId={selectedRxId}
         onResetToday={handleResetToday}
         onOpenMealModal={() => setIsMealModalOpen(true)}
-        onSelectSlot={setSelectedRoutineSlot}
         onJumpToDate={handleJumpToDate}
         onTogglePouch={togglePouch}
-        onTogglePouchExpand={togglePouchExpand}
         onToggleRoutine={toggleRoutine}
         onSelectMedDetail={setSelectedMedDetail}
       />
@@ -944,7 +832,6 @@ export default function MainPage({ user }) {
       <MedicationDetailModal
         isOpen={Boolean(selectedMedDetail)}
         medDetail={selectedMedDetail}
-        medDetailExtra={medDetailExtra}
         onClose={() => setSelectedMedDetail(null)}
         onNavigateGuide={() => {
           setSelectedMedDetail(null);

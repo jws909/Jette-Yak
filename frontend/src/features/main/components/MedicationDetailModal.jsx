@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * 약품 상세 정보 모달 (AI 핵심 복약 요약, 효능, 용법, 주의사항)
@@ -6,10 +6,33 @@ import React from 'react';
 export default function MedicationDetailModal({
   isOpen,
   medDetail,
-  medDetailExtra,
   onClose,
   onNavigateGuide,
 }) {
+  const [medDetailExtra, setMedDetailExtra] = useState(null);
+
+  // 모달이 열릴 때 AI 요약 및 최신 정보 On-Demand 패치
+  useEffect(() => {
+    if (!isOpen || !medDetail?.medicationId) {
+      setMedDetailExtra(null);
+      return;
+    }
+
+    let isCancelled = false;
+    fetch(`/api/guides/medications/${encodeURIComponent(medDetail.medicationId)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isCancelled && data) {
+          setMedDetailExtra(data);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, medDetail?.medicationId]);
+
   if (!isOpen || !medDetail) return null;
 
   return (
@@ -65,38 +88,41 @@ export default function MedicationDetailModal({
           })()}
 
           <div className="detail-field">
-            <label>효능 · 효과</label>
-            <p>
-              {medDetail.efficacy ||
-                medDetailExtra?.medication?.efficacy ||
-                medDetail.className ||
-                '전문의 처방 의약품'}
-            </p>
+            <label>주요 효능 및 효과</label>
+            <p>{medDetail.desc || medDetail.efficacy || '등록된 정보 없음'}</p>
           </div>
-          <div className="detail-field">
-            <label>용법 · 용량</label>
-            <p>
-              {medDetail.dosage ||
-                medDetailExtra?.medication?.usageDosage ||
-                '처방전 용법·용량 준수'}
-            </p>
-          </div>
-          <div className="detail-field">
-            <label>복용 시 주의사항</label>
-            <p className="caution-text">
-              {medDetail.caution ||
-                '정해진 용법과 용량을 준수하여 충분한 물과 함께 복용하세요.'}
-            </p>
-          </div>
+
+          {medDetail.usage && (
+            <div className="detail-field">
+              <label>용법 및 용량</label>
+              <p>{medDetail.usage}</p>
+            </div>
+          )}
+
+          {medDetail.caution && (
+            <div className="detail-field caution-field">
+              <label>복용 시 주의사항</label>
+              <p>{medDetail.caution}</p>
+            </div>
+          )}
+
+          {medDetail.originHospital && (
+            <div className="detail-field">
+              <label>처방 의료기관</label>
+              <p>
+                {medDetail.originHospital}
+                {medDetail.originDispensedDate ? ` · ${medDetail.originDispensedDate} 조제` : ''}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="modal-foot">
-          <button
-            type="button"
-            className="btn-confirm modal-confirm-btn"
-            onClick={onNavigateGuide || onClose}
-          >
-            내 약 관리 보기 →
+          <button type="button" className="btn-guide-link" onClick={onNavigateGuide}>
+            내 약 관리에서 전체 정보 보기 →
+          </button>
+          <button type="button" className="btn-modal-confirm" onClick={onClose}>
+            확인
           </button>
         </div>
       </div>
