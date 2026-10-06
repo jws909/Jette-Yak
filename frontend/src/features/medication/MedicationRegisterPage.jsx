@@ -165,7 +165,7 @@ export default function MedicationRegisterPage({ user }) {
             className="med-register-back-btn"
             onClick={() => navigate('/')}
           >
-            ← 메인 홈으로 가기
+            메인 홈으로 가기 →
           </button>
         </div>
 
