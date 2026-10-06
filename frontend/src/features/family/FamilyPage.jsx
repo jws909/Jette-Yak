@@ -1444,8 +1444,8 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                   이미 제떼약에 가입된 가족의 아이디를 검색하여 복약 일정을 공유하고 승인을 요청합니다.
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', margin: '18px 0' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <label className="family-form-label">
                       가족 로그인 아이디 <span style={{ color: '#c94040' }}>*</span>
                     </label>
@@ -1458,11 +1458,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                       autoFocus
                       required
                     />
+                  </div>
+                  
 
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label className="family-form-label">
+                      관계 구분 <span style={{ color: '#c94040' }}>*</span>
+                    </label>
                     <select 
+                      className="family-form-input"
                       value={inviteRole} 
                       onChange={(e) => setInviteRole(e.target.value)}
-                      style={{ marginLeft: '8px', padding: '6px' }}
+                      style={{ cursor: 'pointer' }}
                     >
                       <option value="BABY">자녀</option>
                       <option value="PARENT">부모님</option>
