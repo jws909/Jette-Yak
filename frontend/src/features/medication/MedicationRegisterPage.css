@@ -1676,6 +1676,78 @@
   line-height: 1.45;
 }
 
+/* 영양제 하루 섭취 횟수 선택 탭 */
+.supp-freq-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fbf9f5;
+  border: 1px solid #eee6db;
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.freq-selector-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3b342e;
+}
+
+.freq-pill-group {
+  display: flex;
+  gap: 5px;
+}
+
+.freq-pill {
+  padding: 5px 11px;
+  background: #ffffff;
+  border: 1px solid #dcd3c5;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #554d44;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.freq-pill:hover {
+  border-color: #bfaea0;
+}
+
+.freq-pill.active {
+  background: #a36800;
+  color: #ffffff;
+  border-color: #a36800;
+  font-weight: 700;
+}
+
+/* 영양제 식사시간 연동 안내 배너 */
+.supplement-meal-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fdfaf3;
+  border: 1px solid #eadfc9;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #635747;
+  line-height: 1.45;
+}
+
+.supplement-meal-notice i {
+  color: #a36800;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.supplement-meal-notice strong {
+  color: #8f4700;
+}
+
 /* 영양제 타이밍 프리셋 6종 그리드 */
 .supplement-timing-grid {
   display: grid;

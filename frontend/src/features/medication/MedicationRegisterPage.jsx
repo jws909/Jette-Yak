@@ -55,24 +55,25 @@ export default function MedicationRegisterPage({ user }) {
       const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
       if (cached) {
         setMealTimes(JSON.parse(cached));
-        return;
       }
     } catch {}
-    fetch(`/api/users/profile?userId=${currentUserId}`)
+    fetch(`/api/users/meal-times?userId=${currentUserId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && (data.breakfastTime || data.lunchTime)) {
+        if (data && data.success) {
           const loaded = {
             breakfast: data.breakfastTime || DEFAULT_MEAL_TIMES.breakfast,
             lunch: data.lunchTime || DEFAULT_MEAL_TIMES.lunch,
             dinner: data.dinnerTime || DEFAULT_MEAL_TIMES.dinner,
-            bedtime: data.bedtimeTime || DEFAULT_MEAL_TIMES.bedtime,
+            bedtime: data.bedtime || DEFAULT_MEAL_TIMES.bedtime,
           };
           setMealTimes(loaded);
-          localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(loaded));
+          try {
+            localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(loaded));
+          } catch {}
         }
       })
-      .catch(() => {});
+      .catch((err) => console.warn('식사 시간 로드 대기:', err));
   }, [currentUserId]);
 
   // 메인 데이터 상태 (서버 데이터)

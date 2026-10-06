@@ -6,11 +6,11 @@ import { DEFAULT_MEAL_TIMES, addMinutes } from '../../main/utils/mainPageUtils';
 // 영양제 타이밍 프리셋 (6종)
 const SUPPLEMENT_PRESETS = [
   { key: 'empty_stomach', label: '기상 직후 (공복)', defaultTime: '07:00', icon: 'fa-sun' },
-  { key: 'breakfast_post', label: '아침 식후', defaultTime: '09:00', icon: 'fa-utensils' },
-  { key: 'lunch_post', label: '점심 식후', defaultTime: '13:00', icon: 'fa-bowl-food' },
+  { key: 'breakfast_post', label: '아침 식후', defaultTime: '07:45', icon: 'fa-utensils' },
+  { key: 'lunch_post', label: '점심 식후', defaultTime: '12:15', icon: 'fa-bowl-food' },
   { key: 'afternoon', label: '오후 활력 충전', defaultTime: '15:30', icon: 'fa-bolt' },
-  { key: 'dinner_post', label: '저녁 식후', defaultTime: '19:30', icon: 'fa-moon' },
-  { key: 'bedtime', label: '취침 전', defaultTime: '22:30', icon: 'fa-bed' },
+  { key: 'dinner_post', label: '저녁 식후', defaultTime: '18:45', icon: 'fa-moon' },
+  { key: 'bedtime', label: '취침 전', defaultTime: '22:00', icon: 'fa-bed' },
 ];
 
 // 영양제 성분/이름별 최적 섭취 가이드 분석 함수
@@ -19,6 +19,7 @@ function getSupplementGuide(name = '') {
   if (/유산균|프로바이오|프리바이오|락토|철분|콜라겐|비피더스/.test(n)) {
     return {
       recommendedKey: 'empty_stomach',
+      recommendedFrequency: 1,
       tag: '공복 섭취 권장',
       tip: '유산균·철분 등은 위산의 영향을 줄이기 위해 기상 직후 공복에 충분한 물과 함께 섭취하는 것이 좋습니다.',
     };
@@ -26,26 +27,57 @@ function getSupplementGuide(name = '') {
   if (/오메가|루테인|비타민d|비타민 d|코엔자임|밀크씨슬|지용성|크릴오일/.test(n)) {
     return {
       recommendedKey: 'lunch_post',
+      recommendedFrequency: 1,
       tag: '식사 직후 권장',
       tip: '지용성 영양소(오메가3, 비타민D, 루테인 등)는 식사 직후 음식물의 지방질과 함께 섭취 시 체내 흡수율이 크게 높아집니다.',
     };
   }
-  if (/비타민b|비타민 b|종합비타민|멀티비타민|비타민c|비타민 c|아르기닌|홍삼|마카/.test(n)) {
+  if (/칼슘|어골칼슘|해조칼슘|구연산칼슘|칼마디/.test(n)) {
     return {
-      recommendedKey: 'breakfast_post',
-      tag: '오전/낮 섭취 권장',
-      tip: '에너지 활력을 돕는 비타민군은 저녁 늦게 섭취하면 수면을 방해할 수 있어 아침 또는 점심 식후 섭취를 권장합니다.',
+      recommendedKey: 'dinner_post',
+      recommendedFrequency: 2,
+      tag: '하루 2회 분할 섭취 권장',
+      tip: '칼슘은 1회 체내 흡수량에 한계가 있어 아침과 저녁으로 나누어 섭취하면 흡수율이 더욱 높아집니다.',
     };
   }
-  if (/마그네슘|칼슘|테아닌|수면|멜라토닌|가바|타트체리/.test(n)) {
+  if (/msm|식이유황|콘드로이친|글루코사민|관절/.test(n)) {
+    return {
+      recommendedKey: 'lunch_post',
+      recommendedFrequency: 2,
+      tag: '하루 2회 분할 섭취 권장',
+      tip: '관절 및 연골 보호 성분은 식사 후 아침/저녁 등으로 나누어 섭취하는 것을 권장합니다.',
+    };
+  }
+  if (/가르시니아|카테킨|다이어트|공액리놀레산/.test(n)) {
+    return {
+      recommendedKey: 'lunch_post',
+      recommendedFrequency: 2,
+      tag: '식사 전후 2회 권장',
+      tip: '탄수화물 및 체지방 대사를 위해 하루 2회(점심/저녁 식전 또는 식후) 섭취를 권장합니다.',
+    };
+  }
+  if (/비타민b|비타민 b|종합비타민|멀티비타민|비타민c|비타민 c|아르기닌|홍삼|마카/.test(n)) {
+    const isMegaC = /고려은단|비타민c|비타민 c/.test(n);
+    return {
+      recommendedKey: 'breakfast_post',
+      recommendedFrequency: isMegaC ? 2 : 1,
+      tag: isMegaC ? '식후 2회 분할 권장' : '오전/낮 섭취 권장',
+      tip: isMegaC
+        ? '수용성 비타민C는 체내 배출이 빠르므로 아침/점심 또는 아침/저녁으로 나누어 드시면 좋습니다.'
+        : '에너지 활력을 돕는 비타민군은 저녁 늦게 섭취하면 수면을 방해할 수 있어 아침 또는 점심 식후 섭취를 권장합니다.',
+    };
+  }
+  if (/마그네슘|테아닌|수면|멜라토닌|가바|타트체리/.test(n)) {
     return {
       recommendedKey: 'bedtime',
+      recommendedFrequency: 1,
       tag: '취침 전 권장',
       tip: '마그네슘과 테아닌은 근육 긴장을 이완하고 신경 안정을 도와 편안한 숙면에 도움을 줍니다.',
     };
   }
   return {
     recommendedKey: 'breakfast_post',
+    recommendedFrequency: 1,
     tag: '규칙적 섭취 권장',
     tip: '영양제는 매일 일정한 시간대에 꾸준히 섭취하는 것이 가장 효과적입니다.',
   };
@@ -85,19 +117,24 @@ export default function ScheduleModal({
     bedtime: baseMeals?.bedtime || '22:00',
   });
 
+  // 영양제 식사시간 패턴 연동 슬롯 시간 (아침/점심/저녁 식사 직후 15분, 공복 등)
+  const getSupplementPresetTimes = () => ({
+    empty_stomach: baseMeals?.breakfast ? addMinutes(baseMeals.breakfast, -30) : '07:00',
+    breakfast_post: baseMeals?.breakfast ? addMinutes(baseMeals.breakfast, 15) : '07:45',
+    lunch_post: baseMeals?.lunch ? addMinutes(baseMeals.lunch, 15) : '12:15',
+    afternoon: '15:30',
+    dinner_post: baseMeals?.dinner ? addMinutes(baseMeals.dinner, 15) : '18:45',
+    bedtime: baseMeals?.bedtime || '22:00',
+  });
+
   // 상비약용 상태
   const [cabinetSlots, setCabinetSlots] = useState({ morning: true, lunch: false, dinner: false, bedtime: false });
   const [cabinetTimes, setCabinetTimes] = useState(getCabinetSlotTimes);
 
   // 영양제용 상태
+  const [suppFrequency, setSuppFrequency] = useState(1); // 1, 2, 3회
   const [suppSelectedKeys, setSuppSelectedKeys] = useState(['breakfast_post']);
-  const [suppTimes, setSuppTimes] = useState(() => {
-    const init = {};
-    SUPPLEMENT_PRESETS.forEach((p) => {
-      init[p.key] = p.defaultTime;
-    });
-    return init;
-  });
+  const [suppTimes, setSuppTimes] = useState(getSupplementPresetTimes);
 
   // 공통 복용 기간
   const [schedDays, setSchedDays] = useState(isCabinet ? 7 : 30);
@@ -117,17 +154,21 @@ export default function ScheduleModal({
       // 영양제인 경우 성분 추천 기반 초기화
       const rec = getSupplementGuide(med.name);
       const recKey = rec.recommendedKey || 'breakfast_post';
-      setSuppSelectedKeys([recKey]);
+      const initialFreq = (med.frequency && Number(med.frequency) >= 1)
+        ? Number(med.frequency)
+        : (rec.recommendedFrequency || 1);
+      setSuppFrequency(initialFreq);
 
-      const initialTimes = {};
-      SUPPLEMENT_PRESETS.forEach((p) => {
-        initialTimes[p.key] = p.defaultTime;
-      });
-
-      // 만약 약에 기존 takeTime이 설정되어 있으면 해당 시간에 반영
-      if (med.takeTime && med.takeTime.includes(':')) {
-        initialTimes[recKey] = med.takeTime;
+      if (initialFreq === 2) {
+        setSuppSelectedKeys(['breakfast_post', 'dinner_post']);
+      } else if (initialFreq === 3) {
+        setSuppSelectedKeys(['breakfast_post', 'lunch_post', 'dinner_post']);
+      } else {
+        setSuppSelectedKeys([recKey]);
       }
+
+      // 식사 시간 연동된 시간 프리셋 적용
+      const initialTimes = getSupplementPresetTimes();
       setSuppTimes(initialTimes);
       setSchedDays(30);
     }
@@ -135,14 +176,44 @@ export default function ScheduleModal({
 
   if (!isOpen || !med) return null;
 
-  // 영양제 타이밍 선택 토글
-  const handleToggleSuppTiming = (key) => {
+  // 하루 섭취 횟수 변경 핸들러
+  const handleChangeFrequency = (freq) => {
+    setSuppFrequency(freq);
+    setSuppSelectedKeys((prev) => {
+      if (freq === 1) {
+        return [prev[0] || guide?.recommendedKey || 'breakfast_post'];
+      }
+      if (freq === 2) {
+        if (prev.length >= 2) return prev.slice(0, 2);
+        const first = prev[0] || guide?.recommendedKey || 'breakfast_post';
+        const second = first === 'breakfast_post' ? 'dinner_post' : first === 'dinner_post' ? 'breakfast_post' : 'lunch_post';
+        return [first, second];
+      }
+      if (freq === 3) {
+        return ['breakfast_post', 'lunch_post', 'dinner_post'];
+      }
+      return prev;
+    });
+  };
+
+  // 영양제 타이밍 선택 핸들러 (단일 또는 다중 선택)
+  const handleSelectSuppTiming = (key) => {
+    if (suppFrequency === 1) {
+      // 하루 1회: 클릭한 칩 1개로 즉시 단일 선택 교체
+      setSuppSelectedKeys([key]);
+      return;
+    }
+    // 하루 2회 이상:
     setSuppSelectedKeys((prev) => {
       if (prev.includes(key)) {
-        if (prev.length === 1) return prev; // 최소 1개 유지
+        if (prev.length <= 1) return prev; // 최소 1개는 유지
         return prev.filter((k) => k !== key);
       }
-      return [...prev, key];
+      if (prev.length < suppFrequency) {
+        return [...prev, key];
+      }
+      // 이미 횟수만큼 찬 경우 가장 먼저 고른 것을 빼고 새로 누른 것을 추가
+      return [...prev.slice(1), key];
     });
   };
 
@@ -312,7 +383,40 @@ export default function ScheduleModal({
               )}
 
               <div className="slots-picker">
-                <label className="picker-title">권장 섭취 타이밍 선택 (클릭하여 선택/변경)</label>
+                {/* 하루 섭취 횟수 선택 */}
+                <div className="supp-freq-selector">
+                  <span className="freq-selector-label">하루 섭취 횟수:</span>
+                  <div className="freq-pill-group">
+                    {[
+                      { value: 1, label: '하루 1회 (기본)' },
+                      { value: 2, label: '하루 2회' },
+                      { value: 3, label: '하루 3회' },
+                    ].map((f) => (
+                      <button
+                        key={f.value}
+                        type="button"
+                        className={`freq-pill ${suppFrequency === f.value ? 'active' : ''}`}
+                        onClick={() => handleChangeFrequency(f.value)}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 식사 시간 연동 안내 배너 */}
+                <div className="supplement-meal-notice">
+                  <i className="fa-solid fa-circle-info" aria-hidden="true" />
+                  <span>
+                    각 시간대는 회원님의 <strong>설정 식사 시간</strong>(아침 {baseMeals.breakfast || '07:30'}, 점심 {baseMeals.lunch || '12:00'}, 저녁 {baseMeals.dinner || '18:30'}, 취침 {baseMeals.bedtime || '22:00'})을 기준으로 자동 계산되었습니다.
+                  </span>
+                </div>
+
+                <label className="picker-title">
+                  {suppFrequency === 1
+                    ? '섭취할 시간대를 선택해 주세요 (1곳 선택)'
+                    : `섭취할 시간대 ${suppFrequency}곳을 선택해 주세요`}
+                </label>
                 <div className="supplement-timing-grid">
                   {SUPPLEMENT_PRESETS.map((p) => {
                     const isSelected = suppSelectedKeys.includes(p.key);
@@ -321,7 +425,7 @@ export default function ScheduleModal({
                       <div
                         key={p.key}
                         className={`timing-card ${isSelected ? 'active' : ''}`}
-                        onClick={() => handleToggleSuppTiming(p.key)}
+                        onClick={() => handleSelectSuppTiming(p.key)}
                         role="button"
                         tabIndex={0}
                       >

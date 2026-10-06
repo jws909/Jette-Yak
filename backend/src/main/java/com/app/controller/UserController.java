@@ -563,6 +563,12 @@ public class UserController {
                     map.put("notes", it.getNotes());
                     map.put("dotColor", "CABINET".equals(it.getSource()) ? "#5c9e76" : "#e09f3e");
                     map.put("useStatus", it.getUseStatus());
+                    if ("ROUTINE".equals(it.getSource()) && supplementRuleBook != null) {
+                        var rule = supplementRuleBook.findRule(it.getItemName());
+                        map.put("frequency", rule != null ? rule.getFrequency() : 1);
+                    } else {
+                        map.put("frequency", 1);
+                    }
                     result.add(map);
                 }
             }
@@ -621,20 +627,36 @@ public class UserController {
                         ? body.get("takeTime").toString().trim() : null;
                 String notes = body.get("notes") != null && !body.get("notes").toString().trim().isEmpty()
                         ? body.get("notes").toString().trim() : null;
+                Integer frequency = 1;
+                if (body.get("frequency") instanceof Number num) {
+                    frequency = num.intValue();
+                } else if (body.get("frequency") != null) {
+                    try { frequency = Integer.parseInt(body.get("frequency").toString()); } catch (Exception ignored) {}
+                }
+
+                User currentUser = (resolvedUserId != null && resolvedUserId > 0L) ? userMapper.findById(resolvedUserId) : null;
 
                 // [초고속 로컬 규칙 즉시 매칭 & 비동기 AI 자가 학습]
                 boolean matchedLocally = false;
-                if (takeTime == null || takeTime.isBlank()) {
-                    if (supplementRuleBook != null) {
-                        var localRule = supplementRuleBook.findRule(name);
-                        if (localRule != null) {
-                            takeTime = localRule.getTakeTime();
-                            if (notes == null || notes.isBlank() || "보관 등록".equals(notes) || "건강기능식품".equals(notes)) {
-                                notes = localRule.getAdvice();
-                            }
-                            matchedLocally = true;
+                if (supplementRuleBook != null) {
+                    var localRule = supplementRuleBook.findRule(name);
+                    if (localRule != null) {
+                        if (takeTime == null || takeTime.isBlank()) {
+                            takeTime = calculateSupplementTakeTime(localRule.getTakeTime(), currentUser);
                         }
+                        if (notes == null || notes.isBlank() || "보관 등록".equals(notes) || "건강기능식품".equals(notes)) {
+                            notes = localRule.getAdvice();
+                        }
+                        if (body.get("frequency") == null) {
+                            frequency = localRule.getFrequency();
+                        }
+                        matchedLocally = true;
                     }
+                }
+
+                if (takeTime == null || takeTime.isBlank()) {
+                    String b = (currentUser != null && currentUser.getBreakfastTime() != null) ? currentUser.getBreakfastTime() : "07:30";
+                    takeTime = addMinutesToTime(b, 15);
                 }
 
                 if (takeTime != null && !takeTime.isBlank()) {
@@ -675,6 +697,7 @@ public class UserController {
                 resMap.put("message", msg);
                 resMap.put("takeTime", takeTime);
                 resMap.put("notes", notes);
+                resMap.put("frequency", frequency);
                 return ResponseEntity.ok(resMap);
             }
             return ResponseEntity.ok(Map.of("success", true, "message", "영양제가 등록되었습니다."));
@@ -762,6 +785,46 @@ public class UserController {
             org.apache.logging.log4j.LogManager.getLogger(getClass()).error("회원 탈퇴 처리 실패: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("success", false, "message", "회원 탈퇴 처리 중 오류가 발생했습니다."));
+        }
+    }
+
+    private String calculateSupplementTakeTime(String ruleTakeTime, User user) {
+        String b = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
+        String l = (user != null && user.getLunchTime() != null) ? user.getLunchTime() : "12:00";
+        String d = (user != null && user.getDinnerTime() != null) ? user.getDinnerTime() : "18:30";
+        String bed = (user != null && user.getBedtime() != null) ? user.getBedtime() : "22:00";
+
+        if ("07:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(b, -30);
+        } else if ("09:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(b, 15);
+        } else if ("13:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(l, 15);
+        } else if ("19:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(d, 15);
+        } else if ("22:00".equals(ruleTakeTime)) {
+            return bed;
+        } else if ("15:30".equals(ruleTakeTime)) {
+            return "15:30";
+        }
+        return ruleTakeTime != null ? ruleTakeTime : addMinutesToTime(b, 15);
+    }
+
+    private String addMinutesToTime(String timeStr, int minutesToAdd) {
+        if (timeStr == null || !timeStr.contains(":")) {
+            return "08:00";
+        }
+        try {
+            String[] parts = timeStr.trim().split(":");
+            int h = Integer.parseInt(parts[0]);
+            int m = Integer.parseInt(parts[1]);
+            int totalM = h * 60 + m + minutesToAdd;
+            totalM = ((totalM % 1440) + 1440) % 1440;
+            int newH = totalM / 60;
+            int newM = totalM % 60;
+            return String.format("%02d:%02d", newH, newM);
+        } catch (Exception e) {
+            return timeStr;
         }
     }
 }

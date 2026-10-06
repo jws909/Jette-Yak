@@ -410,7 +410,13 @@ public class GeminiService {
         if (aiResult != null && Boolean.TRUE.equals(aiResult.get("isSupplement")) && supplementRuleBook != null) {
             String time = aiResult.get("takeTime") != null ? aiResult.get("takeTime").toString().trim() : null;
             String advice = aiResult.get("advice") != null ? aiResult.get("advice").toString().trim() : null;
-            supplementRuleBook.saveDynamicRule(supplementName, time, advice);
+            Integer freq = 1;
+            if (aiResult.get("frequency") instanceof Number num) {
+                freq = num.intValue();
+            } else if (aiResult.get("frequency") != null) {
+                try { freq = Integer.parseInt(aiResult.get("frequency").toString()); } catch (Exception ignored) {}
+            }
+            supplementRuleBook.saveDynamicRule(supplementName, time, advice, freq);
         }
         return aiResult;
     }
@@ -426,12 +432,12 @@ public class GeminiService {
         String instructions = """
             너는 임상 약학 및 건강기능식품 영양 전문가 AI다.
             사용자가 입력한 영양제/건강기능식품/일반식품 품목명을 분석하여,
-            공인된 영양학적·약학적 섭취 가이드라인에 따른 최적의 권장 복용 시간과 복약 조언을 JSON으로 제공한다.
+            공인된 영양학적·약학적 섭취 가이드라인에 따른 최적의 권장 복용 시간, 하루 권장 섭취 횟수, 복약 조언을 JSON으로 제공한다.
 
             [판별 및 작성 규칙]:
             1. 품목 식별:
                - 일반 식품, 젤리/사탕/과자/간식(예: 하리보, 초콜릿, 껌, 젤리), 음료(콜라, 주스, 커피 등), 공산품 등 건강기능식품/영양제가 아닌 경우:
-                 isSupplement: false, takeTime: null, advice: null
+                 isSupplement: false, takeTime: null, advice: null, frequency: 1
                - 영양제/비타민/미네랄/유산균 등 건강기능식품인 경우:
                  isSupplement: true
             2. 권장 복용 시간(takeTime) - 24시간 형식 "HH:mm" (정확히 5자리 문자열) 또는 null:
@@ -439,7 +445,11 @@ public class GeminiService {
                - 아침 식후 ("09:00"): 비타민 B군, 비타민 C, 홍삼, 엽산, 비오틴, 코엔자임Q10, 은행잎
                - 점심 식후 ("13:00"): 오메가3, 루테인, 비타민 D, 종합비타민, 밀크씨슬, 쏘팔메토, MSM, 아연
                - 저녁 식후 / 취침 전 ("21:00" 또는 "22:00"): 마그네슘, 칼슘, 테아닌, 콜라겐, 숙면 보조제
-            3. advice:
+            3. 하루 권장 섭취 횟수(frequency):
+               - 보통 하루 1회 (유산균, 오메가3, 비타민D, 종합비타민 등): 1
+               - 분할 섭취 권장 (칼슘, 관절 MSM, 다이어트보조제, 고용량 비타민C 등): 2
+               - 특수 분할 섭취 (메가도스 등): 3
+            4. advice:
                - 권장 복용 타이밍 및 그 핵심 이유를 환자가 이해하기 쉬운 25자 이내의 간결한 한국어로 작성한다.
             """;
 
@@ -450,9 +460,10 @@ public class GeminiService {
             "properties", Map.of(
                 "isSupplement", Map.of("type", "boolean"),
                 "takeTime", Map.of("type", "string", "nullable", true),
+                "frequency", Map.of("type", "integer", "enum", List.of(1, 2, 3)),
                 "advice", Map.of("type", "string", "nullable", true)
             ),
-            "required", List.of("isSupplement", "takeTime", "advice")
+            "required", List.of("isSupplement", "takeTime", "frequency", "advice")
         );
 
         if (isAvailable()) {
@@ -477,13 +488,13 @@ public class GeminiService {
     /**
      * 최신 인기 건강기능식품 트렌드를 AI로부터 질의받아 로컬 사전을 주기적으로 확장합니다.
      */
-    public List<Map<String, String>> fetchTrendingSupplements() {
+    public List<Map<String, Object>> fetchTrendingSupplements() {
         if (!isAvailable()) return List.of();
 
         String instructions = """
             너는 대한민국 최신 건강기능식품 및 영양제 트렌드 전문가다.
             최근 한국에서 인기 있는 대표적인 신규/트렌드 건강기능식품 성분 5가지를 선정하고,
-            각 성분의 대표 명칭(name), 24시간 형식 최적 권장 복용 시각(takeTime, 예: "09:00", "13:00", "22:00"), 25자 이내 핵심 복약 조언(advice)을 JSON 배열로 반환하라.
+            각 성분의 대표 명칭(name), 24시간 형식 최적 권장 복용 시각(takeTime, 예: "09:00", "13:00", "22:00"), 하루 섭취 횟수(frequency, 1 또는 2), 25자 이내 핵심 복약 조언(advice)을 JSON 배열로 반환하라.
             """;
         String prompt = "최신 인기 건강기능식품 5종 추천";
         Map<String, Object> schema = Map.of(
@@ -493,9 +504,10 @@ public class GeminiService {
                 "properties", Map.of(
                     "name", Map.of("type", "string"),
                     "takeTime", Map.of("type", "string"),
+                    "frequency", Map.of("type", "integer"),
                     "advice", Map.of("type", "string")
                 ),
-                "required", List.of("name", "takeTime", "advice")
+                "required", List.of("name", "takeTime", "frequency", "advice")
             )
         );
 
@@ -508,7 +520,7 @@ public class GeminiService {
             ));
             if (jsonStr != null && !jsonStr.isBlank()) {
                 ObjectMapper mapper = new ObjectMapper();
-                return mapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+                return mapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, Object>>>() {});
             }
         } catch (Exception ex) {
             org.apache.logging.log4j.LogManager.getLogger(getClass()).warn("최신 영양제 트렌드 AI 조회 실패: {}", ex.getMessage());
