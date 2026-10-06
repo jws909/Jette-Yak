@@ -14,6 +14,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [imgError, setImgError] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [myPosts, setMyPosts] = useState([]);
   const [myPostsLoading, setMyPostsLoading] = useState(true);
   const [myPostsError, setMyPostsError] = useState('');
@@ -372,10 +373,10 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       return;
     }
 
-    const confirmed = window.confirm(
+    const confirmed = true; /*
       '정말 회원 탈퇴를 진행하시겠습니까?\n\n' +
       '탈퇴 시 등록된 복약 스케줄, 처방전, 보관함 및 영양제 목록, 커뮤니티 작성 글/댓글, 가족 연동 등 모든 개인 데이터가 영구적으로 완전 삭제되며 복구할 수 없습니다.'
-    );
+    ); */
     if (!confirmed) return;
 
     try {
@@ -612,7 +613,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               <button
                 type="button"
                 className="withdraw-btn"
-                onClick={handleWithdraw}
+                onClick={() => setIsWithdrawModalOpen(true)}
                 disabled={isWithdrawing}
               >
                 {isWithdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
@@ -663,6 +664,20 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
                 <button type="submit" className="action-solid-btn" disabled={isChangingPw}>{isChangingPw ? '변경 중...' : '저장'}</button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {isWithdrawModalOpen && (
+        <div className="withdraw-modal-backdrop" role="presentation" onMouseDown={() => !isWithdrawing && setIsWithdrawModalOpen(false)}>
+          <section className="withdraw-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="withdraw-dialog-title" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="withdraw-modal-icon" aria-hidden="true">!</div>
+            <h2 id="withdraw-dialog-title">회원 탈퇴를 진행할까요?</h2>
+            <p>탈퇴하면 복약 일정, 처방전, 영양제 목록, 커뮤니티 작성글과 댓글, 가족 연동을 포함한 모든 데이터가 영구 삭제됩니다. 삭제된 데이터는 복구할 수 없습니다.</p>
+            <div className="withdraw-modal-actions">
+              <button type="button" className="withdraw-modal-cancel" onClick={() => setIsWithdrawModalOpen(false)} disabled={isWithdrawing}>취소</button>
+              <button type="button" className="withdraw-modal-confirm" onClick={handleWithdraw} disabled={isWithdrawing}>{isWithdrawing ? '탈퇴 처리 중...' : '탈퇴하기'}</button>
+            </div>
           </section>
         </div>
       )}
