@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import MedicationDetailModal from './components/MedicationDetailModal';
+import CautionInfoModal from './components/CautionInfoModal';
+import MealTimeSettingModal from './components/MealTimeSettingModal';
 import './MainPage.css';
 
 // YYYY-MM-DD 또는 YYYY.MM.DD 문자열을 Date 객체로 변환 (타임존 오차 방지)
@@ -939,7 +942,6 @@ export default function MainPage({ user }) {
   const [selectedMedDetail, setSelectedMedDetail] = useState(null);
   const [medDetailExtra, setMedDetailExtra] = useState(null);
   const [isCautionModalOpen, setIsCautionModalOpen] = useState(false);
-  const [showPastMedsInModal, setShowPastMedsInModal] = useState(false);
 
   // 약품 상세 모달 열릴 때 AI 요약 및 최신 정보 On-Demand 패치
   useEffect(() => {
@@ -983,14 +985,11 @@ export default function MainPage({ user }) {
 
   // 식사 시간 설정 모달 상태
   const [isMealModalOpen, setIsMealModalOpen] = useState(false);
-  const [tempMealTimes, setTempMealTimes] = useState(DEFAULT_MEAL_TIMES);
-  const [isSavingMealTimes, setIsSavingMealTimes] = useState(false);
 
   // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
   useEffect(() => {
     if (!currentUserId) {
       setMealTimes(DEFAULT_MEAL_TIMES);
-      setTempMealTimes(DEFAULT_MEAL_TIMES);
       return;
     }
     fetch(`/api/users/meal-times?userId=${currentUserId}`)
@@ -1004,7 +1003,6 @@ export default function MainPage({ user }) {
             bedtime: data.bedtime || '22:00',
           };
           setMealTimes(loaded);
-          setTempMealTimes(loaded);
           try {
             localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(loaded));
           } catch {}
@@ -1272,44 +1270,35 @@ export default function MainPage({ user }) {
   }, [currentUserId, targetDate, syncRoutinesWithServer, reloadPrescriptionAndRoutine]);
 
   // 식사 시간 저장 핸들러
-  const handleSaveMealTimes = async (e) => {
-    e.preventDefault();
+  const handleSaveMealTimes = async (newTimes) => {
     if (!currentUserId) {
       alert('로그인 후 식사 시간을 설정할 수 있습니다.');
       setIsMealModalOpen(false);
       return;
     }
-    setIsSavingMealTimes(true);
 
     try {
-      setMealTimes(tempMealTimes);
+      setMealTimes(newTimes);
       try {
-        localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(tempMealTimes));
+        localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(newTimes));
       } catch {}
 
-      const res = await fetch('/api/users/meal-times', {
+      await fetch('/api/users/meal-times', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: currentUserId,
           username: user?.username,
-          breakfastTime: tempMealTimes.breakfast,
-          lunchTime: tempMealTimes.lunch,
-          dinnerTime: tempMealTimes.dinner,
-          bedtime: tempMealTimes.bedtime,
+          breakfastTime: newTimes.breakfast,
+          lunchTime: newTimes.lunch,
+          dinnerTime: newTimes.dinner,
+          bedtime: newTimes.bedtime,
         }),
       });
-
-      if (res.ok) {
-        setIsMealModalOpen(false);
-      } else {
-        setIsMealModalOpen(false);
-      }
     } catch (err) {
       console.warn('식사 시간 저장 요청 실패:', err);
-      setIsMealModalOpen(false);
     } finally {
-      setIsSavingMealTimes(false);
+      setIsMealModalOpen(false);
     }
   };
 
@@ -1977,10 +1966,7 @@ export default function MainPage({ user }) {
             <button
               type="button"
               className="meal-setting-btn"
-              onClick={() => {
-                setTempMealTimes(mealTimes);
-                setIsMealModalOpen(true);
-              }}
+              onClick={() => setIsMealModalOpen(true)}
               title="아침/점심/저녁 식사 및 취침 시간 설정"
             >
               <svg className="setting-btn-icon" viewBox="0 0 20 20" fill="currentColor">
@@ -2636,397 +2622,38 @@ export default function MainPage({ user }) {
         </section>
       )}
 
-      {/* -------------------------------------------------------------
-         모달 2: 약품 상세 정보 모달
-         ------------------------------------------------------------- */}
-      {selectedMedDetail && (
-        <div className="modal-backdrop" onClick={() => setSelectedMedDetail(null)}>
-          <div className="modal-content-box med-detail-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <div className="detail-head-left">
-                <h3 className="modal-title">{selectedMedDetail.name}</h3>
-                <span className="med-type-pill rx">{selectedMedDetail.badge}</span>
-              </div>
-              <button type="button" className="modal-close" onClick={() => setSelectedMedDetail(null)}>✕</button>
-            </div>
+      {/* 약품 상세 정보 모달 */}
+      <MedicationDetailModal
+        isOpen={Boolean(selectedMedDetail)}
+        medDetail={selectedMedDetail}
+        medDetailExtra={medDetailExtra}
+        onClose={() => setSelectedMedDetail(null)}
+        onNavigateGuide={() => {
+          setSelectedMedDetail(null);
+          navigate('/guide');
+        }}
+      />
 
-            <div className="med-detail-body">
-              {selectedMedDetail?.medicationId && !medDetailExtra && (
-                <div className="ai-summary-loading-hint">
-                  AI 복약 요약 및 상세 정보를 조회하고 있습니다...
-                </div>
-              )}
-
-              {medDetailExtra?.medication?.aiSummaryJson && (() => {
-                try {
-                  const ai = typeof medDetailExtra.medication.aiSummaryJson === 'string'
-                    ? JSON.parse(medDetailExtra.medication.aiSummaryJson)
-                    : medDetailExtra.medication.aiSummaryJson;
-                  return (
-                    <div className="detail-field ai-summary-highlight-box">
-                      <label className="ai-summary-label">AI 핵심 복약 요약</label>
-                      <p className="ai-summary-main-text">{ai.summary}</p>
-                      {ai.tips && <p className="ai-sub-line"><strong>복용 팁:</strong> {ai.tips}</p>}
-                      {ai.warnings && <p className="ai-sub-line ai-warning-line"><strong>주의사항:</strong> {ai.warnings}</p>}
-                      {ai.foodCautions && <p className="ai-sub-line"><strong>음식 주의:</strong> {ai.foodCautions}</p>}
-                    </div>
-                  );
-                } catch {
-                  return null;
-                }
-              })()}
-
-              <div className="detail-field">
-                <label>효능 · 효과</label>
-                <p>{selectedMedDetail.efficacy || medDetailExtra?.medication?.efficacy || selectedMedDetail.className || '전문의 처방 의약품'}</p>
-              </div>
-              <div className="detail-field">
-                <label>용법 · 용량</label>
-                <p>{selectedMedDetail.dosage || medDetailExtra?.medication?.usageDosage || '처방전 용법·용량 준수'}</p>
-              </div>
-              <div className="detail-field">
-                <label>복용 시 주의사항</label>
-                <p className="caution-text">{selectedMedDetail.caution || '정해진 용법과 용량을 준수하여 충분한 물과 함께 복용하세요.'}</p>
-              </div>
-            </div>
-
-            <div className="modal-foot">
-              <button
-                type="button"
-                className="btn-confirm modal-confirm-btn"
-                onClick={() => {
-                  setSelectedMedDetail(null);
-                  navigate('/guide');
-                }}
-              >
-                내 약 관리 보기 →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* -------------------------------------------------------------
-         모달 3: 복용 주의점 자세히 보기 모달
-         ------------------------------------------------------------- */}
-      {isCautionModalOpen && (
-        <div
-          className="modal-backdrop"
-          onClick={() => {
-            setIsCautionModalOpen(false);
-            setShowPastMedsInModal(false);
-          }}
-        >
-          <div className="modal-content-box caution-modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <div className="modal-head-info">
-                <h3 className="modal-title">복용 주의사항 &amp; 성분 안내</h3>
-                <span className="modal-subtitle">
-                  {formatDateShort(targetDate)} 기준 · {selectedRxId === 'all' ? '전체 처방전 통합' : (prescriptionData?.hospitalName || '처방전')}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="modal-close"
-                onClick={() => {
-                  setIsCautionModalOpen(false);
-                  setShowPastMedsInModal(false);
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="caution-modal-body">
-              {/* 복용 중인 약품 중 판매중단 또는 주의 대상 의약품 경고 (현재 복용 약품에 한해 표출) */}
-              {activeMedList.some((item) => item.isDiscontinued) && (
-                <div className="caution-summary-card" style={{ borderColor: '#e5a7ad', background: '#fff8f8' }}>
-                  <strong style={{ color: '#c04b4b' }}>[주의] 판매중단 또는 주의 대상 의약품 포함</strong>
-                  <p>현재 복용 중인 처방 약품 중 주의 또는 재검토 대상 의약품이 포함되어 있습니다. 복용 전 반드시 처방의료진과 재확인하세요.</p>
-                </div>
-              )}
-
-              {activeMedList.length > 0 ? (
-                <div className="caution-guidance">
-                  <div className="caution-section-header">
-                    <h4>현재 복용 처방 약품 ({activeMedList.length}종):</h4>
-                    <span className="caution-status-chip">복용 중</span>
-                  </div>
-                  <ul className="caution-items-list">
-                    {activeMedList.map((item, idx) => (
-                      <li key={item.id || idx} className="caution-item-card">
-                        <div className="caution-item-top">
-                          <strong className="caution-item-name">{item.name}</strong>
-                          {selectedRxId === 'all' && item.originHospital && (
-                            <span className="med-hospital-tag">{item.originHospital}</span>
-                          )}
-                          {item.isDiscontinued && (
-                            <span className="caution-discontinued-tag">주의</span>
-                          )}
-                        </div>
-                        <p className="caution-item-text">
-                          {item.caution || '정해진 용법과 용량을 준수하여 복용하세요.'}
-                        </p>
-                        <div className="caution-item-dosage-info">
-                          용법: {item.dosage}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                /* 복용 완료 또는 대기 상태: 옛날 약들을 기본 노출하지 않고 안내 메시지 표시 */
-                <div className="caution-empty-notice-wrap">
-                  <div className="caution-modal-empty-notice">
-                    <div className="caution-empty-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <strong className="caution-empty-title">
-                      {currentRxStatus?.status === 'completed'
-                        ? '선택하신 날짜에 복용 중인 처방 약품이 없습니다.'
-                        : currentRxStatus?.status === 'upcoming'
-                        ? '복용 시작 전 처방전입니다.'
-                        : '해당 일자에 복용할 처방 약품이 없습니다.'}
-                    </strong>
-                    <p className="caution-empty-desc">
-                      {currentRxStatus?.status === 'completed'
-                        ? '처방전의 복약 기간이 이미 완료되었습니다. 과거 처방 약품의 복용 주의사항을 확인하시려면 아래 접기/펼치기 또는 당시 복약 기록 날짜로 바로 이동해 보세요.'
-                        : currentRxStatus?.status === 'upcoming'
-                        ? `조제일(${prescriptionData?.dispensedDate || ''})부터 처방 약품 주의사항이 표시됩니다.`
-                        : '유효한 복약 일자를 선택해 주세요.'}
-                    </p>
-                    {currentRxStatus?.status === 'completed' && prescriptionData?.dispensedDate && (
-                      <button
-                        type="button"
-                        className="btn-modal-jump-date"
-                        onClick={() => {
-                          handleJumpToDate(prescriptionData.dispensedDate);
-                          setIsCautionModalOpen(false);
-                        }}
-                      >
-                        당시 복약 기록 날짜로 이동 ({prescriptionData.dispensedDate})
-                      </button>
-                    )}
-                  </div>
-
-                  {/* 지난 처방전 기록을 확인하고 싶을 때 접기/펼치기로 볼 수 있는 기능 */}
-                  {prescriptionData?.items && prescriptionData.items.length > 0 && (
-                    <div className="past-meds-toggle-area">
-                      <button
-                        type="button"
-                        className="btn-past-meds-toggle"
-                        onClick={() => setShowPastMedsInModal(!showPastMedsInModal)}
-                      >
-                        {showPastMedsInModal
-                          ? '지난 처방 약품 목록 닫기 ▲'
-                          : `지난 처방 약품 목록 확인하기 (${prescriptionData.items.length}종) ▼`}
-                      </button>
-
-                      {showPastMedsInModal && (
-                        <div className="past-meds-dropdown-list">
-                          <div className="past-meds-header-note">
-                            ※ 아래는 복용이 완료된 지난 처방 기록입니다. (참고용)
-                          </div>
-                          <ul className="caution-items-list past">
-                            {prescriptionData.items.map((item, idx) => (
-                              <li key={idx} className="caution-item-card past">
-                                <div className="caution-item-top">
-                                  <strong className="caution-item-name past">{item.name}</strong>
-                                  <span className="past-status-tag">복용 완료</span>
-                                </div>
-                                <p className="caution-item-text">
-                                  {item.caution || '정해진 용법과 용량을 준수하여 복용하세요.'}
-                                </p>
-                                <div className="caution-item-dosage-info">
-                                  용법: {item.dosage}
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="modal-foot">
-              <button
-                type="button"
-                className="btn-confirm modal-confirm-btn"
-                onClick={() => {
-                  setIsCautionModalOpen(false);
-                  setShowPastMedsInModal(false);
-                  navigate('/guide');
-                }}
-              >
-                내 약 관리에서 전체 확인하기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* -------------------------------------------------------------
-         모달 4: 사용자 맞춤 식사 시간 설정 모달
-         ------------------------------------------------------------- */}
-      {isMealModalOpen && (
-        <div className="modal-backdrop" onClick={() => !isSavingMealTimes && setIsMealModalOpen(false)}>
-          <div className="modal-content-box meal-time-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3 className="modal-title">맞춤 식사 및 취침 시간 설정</h3>
-              <button
-                type="button"
-                className="modal-close"
-                onClick={() => setIsMealModalOpen(false)}
-                disabled={isSavingMealTimes}
-              >
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveMealTimes} className="meal-modal-form">
-              <div className="meal-modal-intro">
-                <p>
-                  평소 식사하시는 시간을 설정해 두시면, 처방전의 <strong>‘식후 30분’</strong>, <strong>‘식전 30분’</strong> 등의 복약 알림 시간이 자동으로 계산되어 딱 맞춰집니다.
-                </p>
-              </div>
-
-              <div className="meal-inputs-grid">
-                <div className="meal-input-group">
-                  <label htmlFor="meal-breakfast">
-                    아침 식사 시간
-                  </label>
-                  <input
-                    id="meal-breakfast"
-                    type="time"
-                    className="styled-time-input"
-                    value={tempMealTimes.breakfast}
-                    onChange={(e) =>
-                      setTempMealTimes((prev) => ({ ...prev, breakfast: e.target.value }))
-                    }
-                    required
-                  />
-                  <span className="meal-calc-hint">
-                    식후 30분 복용 시 <strong>{addMinutes(tempMealTimes.breakfast, 30)}</strong>
-                  </span>
-                </div>
-
-                <div className="meal-input-group">
-                  <label htmlFor="meal-lunch">
-                    점심 식사 시간
-                  </label>
-                  <input
-                    id="meal-lunch"
-                    type="time"
-                    className="styled-time-input"
-                    value={tempMealTimes.lunch}
-                    onChange={(e) =>
-                      setTempMealTimes((prev) => ({ ...prev, lunch: e.target.value }))
-                    }
-                    required
-                  />
-                  <span className="meal-calc-hint">
-                    식후 30분 복용 시 <strong>{addMinutes(tempMealTimes.lunch, 30)}</strong>
-                  </span>
-                </div>
-
-                <div className="meal-input-group">
-                  <label htmlFor="meal-dinner">
-                    저녁 식사 시간
-                  </label>
-                  <input
-                    id="meal-dinner"
-                    type="time"
-                    className="styled-time-input"
-                    value={tempMealTimes.dinner}
-                    onChange={(e) =>
-                      setTempMealTimes((prev) => ({ ...prev, dinner: e.target.value }))
-                    }
-                    required
-                  />
-                  <span className="meal-calc-hint">
-                    식후 30분 복용 시 <strong>{addMinutes(tempMealTimes.dinner, 30)}</strong>
-                  </span>
-                </div>
-
-                <div className="meal-input-group">
-                  <label htmlFor="meal-bedtime">
-                    취침 시간
-                  </label>
-                  <input
-                    id="meal-bedtime"
-                    type="time"
-                    className="styled-time-input"
-                    value={tempMealTimes.bedtime}
-                    onChange={(e) =>
-                      setTempMealTimes((prev) => ({ ...prev, bedtime: e.target.value }))
-                    }
-                    required
-                  />
-                  <span className="meal-calc-hint">
-                    취침 전 복용 시 <strong>{tempMealTimes.bedtime}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {/* 실시간 알림 시간대 미리보기 박스 */}
-              <div className="meal-preview-box">
-                <div className="preview-title">
-                  <span>1일 3회 식후 30분 처방약 기준 복약 스케줄 미리보기</span>
-                </div>
-                <div className="preview-schedule-pills">
-                  <div className="preview-pill">
-                    <span className="pill-badge">아침</span>
-                    <span className="pill-time">{addMinutes(tempMealTimes.breakfast, 30)}</span>
-                  </div>
-                  <span className="preview-arrow">→</span>
-                  <div className="preview-pill">
-                    <span className="pill-badge">점심</span>
-                    <span className="pill-time">{addMinutes(tempMealTimes.lunch, 30)}</span>
-                  </div>
-                  <span className="preview-arrow">→</span>
-                  <div className="preview-pill">
-                    <span className="pill-badge">저녁</span>
-                    <span className="pill-time">{addMinutes(tempMealTimes.dinner, 30)}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="modal-foot">
-                <button
-                  type="button"
-                  className="btn-default-reset"
-                  onClick={() => setTempMealTimes(DEFAULT_MEAL_TIMES)}
-                  disabled={isSavingMealTimes}
-                  title="기본값(07:30, 12:00, 18:30, 22:00)으로 초기화"
-                >
-                  기본값 복원
-                </button>
-                <div className="modal-foot-right">
-                  <button
-                    type="button"
-                    className="btn-cancel modal-cancel-btn"
-                    onClick={() => setIsMealModalOpen(false)}
-                    disabled={isSavingMealTimes}
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn-confirm modal-confirm-btn"
-                    disabled={isSavingMealTimes}
-                  >
-                    {isSavingMealTimes ? '저장 중...' : '저장하기'}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 복용 주의점 자세히 보기 모달 */}
+      <CautionInfoModal
+        isOpen={isCautionModalOpen}
+        onClose={() => setIsCautionModalOpen(false)}
+        targetDate={targetDate}
+        selectedRxId={selectedRxId}
+        prescriptionData={prescriptionData}
+        currentRxStatus={currentRxStatus}
+        activeMedList={activeMedList}
+        onJumpToDate={(dateStr) => handleJumpToDate(dateStr)}
+        onNavigateGuide={() => navigate('/guide')}
+      />
+      {/* 사용자 맞춤 식사 시간 설정 모달 */}
+      <MealTimeSettingModal
+        isOpen={isMealModalOpen}
+        onClose={() => setIsMealModalOpen(false)}
+        mealTimes={mealTimes}
+        defaultMealTimes={DEFAULT_MEAL_TIMES}
+        onSave={handleSaveMealTimes}
+      />
     </div>
   );
 }
