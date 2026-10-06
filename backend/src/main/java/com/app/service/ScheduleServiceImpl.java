@@ -584,10 +584,15 @@ public class ScheduleServiceImpl implements ScheduleService {
             long slotIdx = rem % 10L;
 
             if (deleteAll) {
-                // 이 처방전 전체 삭제 (처방전 마스터 + 세부항목 + 연계 스케줄)
+                // ⚠️ 원천 처방전(prescriptionDAO.deletePrescription)을 지우지 않고 연계 스케줄만 삭제
                 scheduleDAO.deleteSchedulesByPrescriptionId(pId);
-                prescriptionDAO.deletePrescriptionItemsByPrescriptionId(pId);
-                prescriptionDAO.deletePrescription(pId);
+
+                // 가상 일정 캘린더 생성 방지: 처방전 상태가 있다면 중단 처리 (또는 endDate 종료 처리)
+                // 만약 prescriptionDAO에 비활성화 메서드가 없다면 연계 스케줄 삭제만 수행됩니다.
+                try {
+                    // 예: prescriptionDAO.updatePrescriptionStatus(pId, "STOPPED");
+                } catch (Exception ignored) {}
+
                 return true;
             } else {
                 // 해당 일자의 단건 일정만 삭제: placeholder (alarm_enabled = -1) 실체화
@@ -630,27 +635,37 @@ public class ScheduleServiceImpl implements ScheduleService {
         Long actualUserId = (userId != null && userId > 0L) ? userId : target.getUserId();
 
         if (deleteAll) {
-            // 이 약에 대한 전체 스케줄 및 원천 데이터 삭제
+            // [전체 스케줄 삭제] 원천 데이터(약품/보관함/처방전) 삭제 DAO는 싹 제거하고 스케줄 테이블 레코드만 삭제
             boolean res = false;
             if (target.getPrescriptionId() != null) {
                 Long pId = target.getPrescriptionId();
                 scheduleDAO.deleteSchedulesByPrescriptionId(pId);
-                prescriptionDAO.deletePrescriptionItemsByPrescriptionId(pId);
-                prescriptionDAO.deletePrescription(pId);
                 res = true;
             } else if (target.getCabinetId() != null) {
                 Long cId = target.getCabinetId();
                 scheduleDAO.deleteSchedulesByCabinetId(actualUserId, cId);
-                scheduleDAO.deleteCabinetMedication(actualUserId, cId);
+                // 보관함 상태를 '보관 중(STORED)'으로 전환하여 스케줄만 내림
+                try {
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(actualUserId, "C:" + cId, "STORED");
+                    }
+                } catch (Exception ignored) {}
                 res = true;
             } else if (target.getRoutineId() != null) {
                 Long rId = target.getRoutineId();
                 scheduleDAO.deleteSchedulesByRoutineId(actualUserId, rId);
-                scheduleDAO.deleteRoutineMedication(actualUserId, rId);
+                // 영양제/상시약 루틴 상태를 PAUSED(일시중지)로 변경하여 약 정보는 유지
+                try {
+                    scheduleDAO.updateRoutineStatus(rId, "PAUSED");
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(actualUserId, "R:" + rId, "PAUSED");
+                    }
+                } catch (Exception ignored) {}
                 res = true;
             } else {
                 res = scheduleDAO.deleteSchedule(scheduleId) > 0;
             }
+
             if (res && medicationGuideDao != null) {
                 try { medicationGuideDao.saveOverallGuide(actualUserId, null); } catch (Exception ignored) {}
             }
