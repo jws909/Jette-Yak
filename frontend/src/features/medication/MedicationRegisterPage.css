@@ -1361,168 +1361,22 @@
   border-color: #883030;
 }
 
-/* [Tab 3] Supplement Layout */
-.supplement-form-layout {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-@media (max-width: 860px) {
-  .supplement-form-layout {
-    grid-template-columns: 1fr;
-  }
-}
-
-.supplement-input-card,
-.supplement-list-card {
-  background: #ffffff;
-  border: 1px solid #e8e2d8;
-  border-radius: 14px;
-  padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-}
-
-.supplement-input-card h3,
-.supplement-list-card h3 {
-  font-size: 17px;
-  font-weight: 700;
-  margin: 0 0 16px 0;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-group label {
-  display: block;
-  font-size: 13px;
-  font-weight: 600;
-  color: #443c34;
-  margin-bottom: 6px;
-}
-
-.form-group .required {
-  color: #b93333;
-}
-
-.form-input,
-.form-select {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid #dcd3c5;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #faf8f5;
-  color: #2b2520;
-  outline: none;
-}
-
-.form-input:focus,
-.form-select:focus {
-  border-color: #883030;
-  background: #ffffff;
-}
-
-.quick-supplement-tags {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin: -6px 0 16px 0;
-}
-
-.form-row-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-/* 영양제 일정 동시 등록 옵션 */
-.schedule-sync-options {
-  background: #fdfbf7;
-  border: 1px solid #ebdccb;
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin: 14px 0 18px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.sync-checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  user-select: none;
-}
-
-.sync-checkbox-label input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: #a36800;
-  cursor: pointer;
-}
-
-.sync-title {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: #3f362c;
-}
-
-.days-picker-inline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-left: 24px;
-}
-
-.days-label {
-  font-size: 12px;
-  color: #7d7265;
-  font-weight: 600;
-}
-
-.day-btn-mini {
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid #dcd1c1;
-  background: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  color: #4a4034;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.day-btn-mini:hover {
-  border-color: #a36800;
-  color: #a36800;
-}
-
-.day-btn-mini.active {
-  background: #a36800;
-  color: #ffffff;
-  border-color: #a36800;
-}
-
-.supplement-submit-btn {
-  width: 100%;
-  padding: 13px;
+/* [Tab 3] Supplement Layout - 상비약 탭과 완전히 통일된 인라인 등록 & 카드 그리드 */
+.cabinet-inline-submit-btn {
   background: #a36800;
   color: #ffffff;
   border: none;
-  border-radius: 10px;
-  font-size: 14.5px;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
-  margin-top: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
 }
 
-.supplement-submit-btn:hover {
+.cabinet-inline-submit-btn:hover {
   background: #845400;
 }
 
