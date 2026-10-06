@@ -42,23 +42,27 @@ public class RegisteredGuideCheck {
    medications AS (SELECT 'M1' medication_id,'fixture' item_name,'maker' entp_name FROM dual),
    cabinet_medications AS (SELECT 1 cabinet_id,11 user_id,'M1' medication_id FROM dual UNION ALL SELECT 2,22,'M1' FROM dual),
    routine_medications AS (
-     SELECT 1 routine_id,11 user_id,'supplement' supplement_name,'08:00' take_time,'note' notes,'ACTIVE' status FROM dual UNION ALL
-     SELECT 2,11,'paused','08:00','note','PAUSED' FROM dual UNION ALL
-     SELECT 3,22,'other','08:00','note','ACTIVE' FROM dual UNION ALL
-     SELECT 4,11,'ended','08:00','note','ENDED' FROM dual)
+     SELECT 1 routine_id,11 user_id,CAST(NULL AS VARCHAR2(20)) medication_id,'supplement' supplement_name,'08:00' take_time,'note' notes,'ACTIVE' status FROM dual UNION ALL
+     SELECT 2,11,NULL,'paused','08:00','note','PAUSED' FROM dual UNION ALL
+     SELECT 3,22,NULL,'other','08:00','note','ACTIVE' FROM dual UNION ALL
+     SELECT 4,11,NULL,'ended','08:00','note','ENDED' FROM dual),
+   schedules AS (
+     SELECT 1 schedule_id,11 user_id,1 cabinet_id,CAST(NULL AS NUMBER) routine_id FROM dual UNION ALL
+     SELECT 2,11,NULL,1 FROM dual)
    """;
   try(var c=ds.getConnection();var st=c.prepareStatement(fixtures+sql)){
-   for(int i=1;i<=3;i++)st.setLong(i,11L);
+   int pCount=st.getParameterMetaData().getParameterCount();
+   for(int i=1;i<=pCount;i++)st.setLong(i,11L);
    Set<String> ids=new HashSet<>();try(var rs=st.executeQuery()){while(rs.next())ids.add(rs.getString("registration_id"));}
    check(ids.equals(Set.of("P:1","P:5","C:1","R:1")),"owner isolation, start/end inclusivity, expired/future exclusion, active routines");
   }
   final long[] seen={0};
   var dao=new MedicationGuideDao(null){@Override public List<com.app.guide.dto.RegisteredMedicationDto> findRegistered(long id){seen[0]=id;return List.of();}};
   var controller=new MedicationGuideController(dao,null);
-  check(controller.registered(request(null)).getStatusCodeValue()==401,"missing session identity rejected");
-  check(controller.registered(request("11")).getStatusCodeValue()==401,"unverified string identity rejected");
-  check(controller.registered(request(-1L)).getStatusCodeValue()==401,"invalid identity rejected");
-  var response=controller.registered(request(11L));
+  check(controller.registered(null,request(null)).getStatusCodeValue()==401,"missing session identity rejected");
+  check(controller.registered(null,request("11")).getStatusCodeValue()==401,"unverified string identity rejected");
+  check(controller.registered(null,request(-1L)).getStatusCodeValue()==401,"invalid identity rejected");
+  var response=controller.registered(null,request(11L));
   check(response.getStatusCodeValue()==200 && seen[0]==11L,"server identity scopes query");
   check("no-store".equals(response.getHeaders().getCacheControl()),"private results never cached");
  }
