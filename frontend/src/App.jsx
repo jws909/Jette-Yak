@@ -95,6 +95,21 @@ function App() {
     }
   }, [user?.username, user?.userId, user?.role, user?.isAdmin]);
 
+  // 백엔드 세션 만료(401) 감지 시 유령 로그인 상태 자동 초기화
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setIsLoggedIn(false);
+      setUser(null);
+      localStorage.removeItem('user');
+      navigate('/login?expired=1', { replace: true });
+    };
+
+    window.addEventListener('AUTH_SESSION_EXPIRED', handleSessionExpired);
+    return () => {
+      window.removeEventListener('AUTH_SESSION_EXPIRED', handleSessionExpired);
+    };
+  }, [navigate]);
+
   // ★ 2. 로그인 시 브라우저 권한 상태를 확인하고, 미결정('default')이면 안내 모달 띄우기
   useEffect(() => {
     const pushEnabled = user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0';
@@ -333,6 +348,17 @@ function App() {
   };
 
   const handleLoginDemoToggle = async () => {
+    try {
+      const res = await fetch('/api/auth/demo', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        handleLoginSuccess(data);
+        return;
+      }
+    } catch (e) {
+      console.warn('데모 로그인 API 연동 실패, 폴백 진행:', e);
+    }
+
     let targetUsername = 'test12';
     try {
       const mealRes = await fetch('/api/users/meal-times?userId=1');

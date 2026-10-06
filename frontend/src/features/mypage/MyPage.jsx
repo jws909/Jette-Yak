@@ -14,7 +14,41 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [imgError, setImgError] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
+  const [myPosts, setMyPosts] = useState([]);
+  const [myPostsLoading, setMyPostsLoading] = useState(true);
+  const [myPostsError, setMyPostsError] = useState('');
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.username) {
+      setMyPosts([]);
+      setMyPostsLoading(false);
+      return;
+    }
+    let active = true;
+    setMyPostsLoading(true);
+    setMyPostsError('');
+    fetch('/api/community/my-posts')
+      .then(async (response) => {
+        if (response.ok) return response.json();
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || '작성한 게시글을 불러오지 못했습니다.');
+      })
+      .then((posts) => {
+        if (active) setMyPosts(Array.isArray(posts) ? posts : []);
+      })
+      .catch((error) => {
+        if (active) {
+          setMyPosts([]);
+          setMyPostsError(error.message || '작성한 게시글을 불러오지 못했습니다.');
+        }
+      })
+      .finally(() => {
+        if (active) setMyPostsLoading(false);
+      });
+    return () => { active = false; };
+  }, [user?.username]);
 
   useEffect(() => {
     if (!user?.username) return;
@@ -339,10 +373,10 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       return;
     }
 
-    const confirmed = window.confirm(
+    const confirmed = true; /*
       '정말 회원 탈퇴를 진행하시겠습니까?\n\n' +
       '탈퇴 시 등록된 복약 스케줄, 처방전, 보관함 및 영양제 목록, 커뮤니티 작성 글/댓글, 가족 연동 등 모든 개인 데이터가 영구적으로 완전 삭제되며 복구할 수 없습니다.'
-    );
+    ); */
     if (!confirmed) return;
 
     try {
@@ -509,6 +543,31 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
 
         {/* 우측 열: 서비스 환경설정 & 회원 탈퇴 */}
         <div className="mypage-col-right">
+          <section className="mypage-subcard my-posts-card">
+            <span className="meta-kicker">COMMUNITY</span>
+            <div className="my-posts-heading">
+              <h2 className="subcard-title">내가 작성한 글</h2>
+              <Link to="/community" className="my-posts-all-link">전체 보기</Link>
+            </div>
+            {myPostsLoading ? (
+              <p className="my-posts-status">게시글을 불러오는 중입니다.</p>
+            ) : myPostsError ? (
+              <p className="my-posts-status my-posts-error">{myPostsError}</p>
+            ) : myPosts.length ? (
+              <ul className="my-posts-list">
+                {myPosts.map((post) => (
+                  <li key={post.postId}>
+                    <Link to={`/community?postId=${post.postId}`}>
+                      <span className="my-post-title">{post.title}</span>
+                      <span className="my-post-date">{post.createdAt}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="my-posts-status">아직 작성한 게시글이 없습니다.</p>
+            )}
+          </section>
           {/* 서비스 환경 설정 */}
           <section className="mypage-subcard service-settings-card">
             <span className="meta-kicker">SERVICE SETTINGS</span>
@@ -554,7 +613,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               <button
                 type="button"
                 className="withdraw-btn"
-                onClick={handleWithdraw}
+                onClick={() => setIsWithdrawModalOpen(true)}
                 disabled={isWithdrawing}
               >
                 {isWithdrawing ? '탈퇴 처리 중...' : '회원 탈퇴'}
@@ -605,6 +664,20 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
                 <button type="submit" className="action-solid-btn" disabled={isChangingPw}>{isChangingPw ? '변경 중...' : '저장'}</button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {isWithdrawModalOpen && (
+        <div className="withdraw-modal-backdrop" role="presentation" onMouseDown={() => !isWithdrawing && setIsWithdrawModalOpen(false)}>
+          <section className="withdraw-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="withdraw-dialog-title" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="withdraw-modal-icon" aria-hidden="true">!</div>
+            <h2 id="withdraw-dialog-title">회원 탈퇴를 진행할까요?</h2>
+            <p>탈퇴하면 복약 일정, 처방전, 영양제 목록, 커뮤니티 작성글과 댓글, 가족 연동을 포함한 모든 데이터가 영구 삭제됩니다. 삭제된 데이터는 복구할 수 없습니다.</p>
+            <div className="withdraw-modal-actions">
+              <button type="button" className="withdraw-modal-cancel" onClick={() => setIsWithdrawModalOpen(false)} disabled={isWithdrawing}>취소</button>
+              <button type="button" className="withdraw-modal-confirm" onClick={handleWithdraw} disabled={isWithdrawing}>{isWithdrawing ? '탈퇴 처리 중...' : '탈퇴하기'}</button>
+            </div>
           </section>
         </div>
       )}

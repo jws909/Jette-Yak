@@ -36,6 +36,7 @@ public class CommunityService {
         int total=dao.countPosts(p);return Map.of("items",dao.posts(p),"total",total,"page",page,"hasMore",page*12<total);
     }
     // 상세 화면에 게시글, 댓글, 첨부파일을 한 응답으로 구성
+    public List<Map<String,Object>> myPosts(long userId) { return dao.myPosts(userId); }
     public Map<String,Object> post(long id,Long viewerId) { return post(id,viewerId,false); }
     public Map<String,Object> post(long id,Long viewerId,boolean admin) {
         Map<String,Object> post=dao.post(id,viewerId,admin);if(post==null) throw new NoSuchElementException("게시글을 찾을 수 없습니다.");

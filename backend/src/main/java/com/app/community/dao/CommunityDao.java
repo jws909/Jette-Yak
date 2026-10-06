@@ -18,6 +18,7 @@ public class CommunityDao {
 
     // 게시글 목록·상세·작성·수정·삭제
     public List<Map<String,Object>> posts(Map<String,Object> p) { return session.selectList(NS+"posts", p); }
+    public List<Map<String,Object>> myPosts(long userId) { return session.selectList(NS+"myPosts", userId); }
     public int countPosts(Map<String,Object> p) { return session.selectOne(NS+"countPosts", p); }
     public Map<String,Object> post(long id, Long viewerId, boolean admin) { return session.selectOne(NS+"post", Map.of("postId",id,"viewerId",viewerId == null ? -1L : viewerId,"isAdmin",admin?1:0)); }
     public long insertPost(Map<String,Object> p) { session.insert(NS+"insertPost",p); return ((Number)p.get("postId")).longValue(); }
