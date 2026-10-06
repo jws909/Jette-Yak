@@ -135,7 +135,7 @@ export default function SupplementTab({
                   className="schedule-add-btn"
                   onClick={() => onOpenScheduleModal(med)}
                 >
-                  일정 등록
+                  <i className="fa-regular fa-calendar-plus" aria-hidden="true" /> 일정 등록
                 </button>
               </div>
             ))

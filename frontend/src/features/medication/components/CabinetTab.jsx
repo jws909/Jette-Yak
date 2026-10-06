@@ -1,10 +1,11 @@
 import { useMedicationSearch } from '../../../hooks/useMedicationSearch';
 import { useDialog } from '../../../contexts/DialogContext';
-import { addEverydayMed } from '../medicationApi';
+import { addEverydayMed, saveCalendarSchedule } from '../medicationApi';
 
 /**
  * 상비약 / 일반의약품 검색 등록 탭 컴포넌트
  * - 자체 검색 훅(useMedicationSearch) 및 등록 핸들러 관리
+ * - 필요 시 즉시 복용(⚡ 지금 복용) 및 식사시간 연동 주기적 일정 등록 지원
  */
 export default function CabinetTab({
   currentUserId,
@@ -14,7 +15,7 @@ export default function CabinetTab({
   onRemoveMed,
   onOpenScheduleModal,
 }) {
-  const { showAlert } = useDialog();
+  const { showAlert, showConfirm } = useDialog();
 
   const {
     searchText: medSearchText,
@@ -60,6 +61,50 @@ export default function CabinetTab({
     } catch (err) {
       console.error('상비약 등록 오류:', err);
       showAlert(err.message || '상비약 등록 처리 중 오류가 발생했습니다.', '등록 오류');
+    }
+  };
+
+  // 상비약 지금 즉시 1회 복용 기록 (필요 시 복용)
+  const handleQuickTake = async (med) => {
+    if (!currentUserId) {
+      showAlert('로그인이 필요한 기능입니다.');
+      return;
+    }
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const timeStr = `${hours}:${minutes}`;
+
+    const confirmed = await showConfirm(
+      `'${med.name}'을(를) 지금(${timeStr}) 복용하셨나요?\n오늘 복약 기록에 1회 즉시 기록됩니다.`,
+      '상비약 지금 복용 기록'
+    );
+    if (!confirmed) return;
+
+    try {
+      const rawNumericId = med.rawId ? Number(med.rawId) : null;
+      await saveCalendarSchedule({
+        userId: currentUserId,
+        name: med.name,
+        type: 'regular',
+        medicationId: med.medicationId ? String(med.medicationId) : null,
+        cabinetId: rawNumericId,
+        scheduledDate: todayStr,
+        scheduledTime: timeStr,
+        repeatDays: 1, // 오늘 당일 1회 복용
+        alarmEnabled: 0,
+      });
+
+      showAlert(`'${med.name}' 복용이 기록되었습니다! (${timeStr})\n메인 화면과 캘린더에서 확인하실 수 있습니다.`, '복용 기록 완료');
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+        detail: { userId: currentUserId }
+      }));
+      onSuccess?.();
+    } catch (err) {
+      console.error('지금 복용 기록 오류:', err);
+      showAlert(err.message || '복용 기록 저장 중 오류가 발생했습니다.', '오류');
     }
   };
 
@@ -176,13 +221,24 @@ export default function CabinetTab({
                 </div>
                 <strong className="med-name">{med.name}</strong>
                 {med.entpName && <span className="entp-name">{med.entpName}</span>}
-                <button
-                  type="button"
-                  className="schedule-add-btn"
-                  onClick={() => onOpenScheduleModal(med)}
-                >
-                  일정 등록
-                </button>
+                <div className="card-actions-row">
+                  <button
+                    type="button"
+                    className="btn-quick-take"
+                    onClick={() => handleQuickTake(med)}
+                    title="방금 급하게 드셨을 때 지금 시각으로 즉시 기록"
+                  >
+                    <i className="fa-solid fa-bolt" aria-hidden="true" /> 지금 복용
+                  </button>
+                  <button
+                    type="button"
+                    className="schedule-add-btn"
+                    onClick={() => onOpenScheduleModal(med)}
+                    title="비염/알레르기 등 식사시간 기준 주기적 복약 일정 등록"
+                  >
+                    <i className="fa-regular fa-calendar-plus" aria-hidden="true" /> 일정 등록
+                  </button>
+                </div>
               </div>
             ))
           )}

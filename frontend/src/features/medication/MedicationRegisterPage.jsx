@@ -7,6 +7,7 @@ import {
   deletePrescription,
   deleteEverydayMed,
 } from './medicationApi';
+import { DEFAULT_MEAL_TIMES } from '../main/utils/mainPageUtils';
 import PrescriptionTab from './components/PrescriptionTab';
 import CabinetTab from './components/CabinetTab';
 import SupplementTab from './components/SupplementTab';
@@ -37,6 +38,42 @@ export default function MedicationRegisterPage({ user }) {
       setActiveTab(queryTab);
     }
   }, [queryTab]);
+
+  // 유저 식사 시간 설정 로드 (스케줄 모달 연동용)
+  const [mealTimes, setMealTimes] = useState(() => {
+    if (!currentUserId) return DEFAULT_MEAL_TIMES;
+    try {
+      const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
+      if (cached) return JSON.parse(cached);
+    } catch {}
+    return DEFAULT_MEAL_TIMES;
+  });
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    try {
+      const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
+      if (cached) {
+        setMealTimes(JSON.parse(cached));
+        return;
+      }
+    } catch {}
+    fetch(`/api/users/profile?userId=${currentUserId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && (data.breakfastTime || data.lunchTime)) {
+          const loaded = {
+            breakfast: data.breakfastTime || DEFAULT_MEAL_TIMES.breakfast,
+            lunch: data.lunchTime || DEFAULT_MEAL_TIMES.lunch,
+            dinner: data.dinnerTime || DEFAULT_MEAL_TIMES.dinner,
+            bedtime: data.bedtimeTime || DEFAULT_MEAL_TIMES.bedtime,
+          };
+          setMealTimes(loaded);
+          localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(loaded));
+        }
+      })
+      .catch(() => {});
+  }, [currentUserId]);
 
   // 메인 데이터 상태 (서버 데이터)
   const [userPrescriptions, setUserPrescriptions] = useState([]);
@@ -244,6 +281,7 @@ export default function MedicationRegisterPage({ user }) {
         isOpen={Boolean(scheduleModalMed)}
         med={scheduleModalMed}
         currentUserId={currentUserId}
+        mealTimes={mealTimes}
         onClose={() => setScheduleModalMed(null)}
         onSuccess={() => {
           setScheduleModalMed(null);
