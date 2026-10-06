@@ -21,42 +21,93 @@ export function useMainPageData(user, targetDate, selectedRxId) {
   const [routineItems, setRoutineItems] = useState([]);
 
   // 사용자별 식사 및 취침 기준 시간 상태 (기본값: 아침 07:30, 점심 12:00, 저녁 18:30, 취침 22:00)
-  const [mealTimes, setMealTimes] = useState(() => {
+  const FALLBACK_WEEKEND_MEAL_TIMES = useMemo(() => ({
+    breakfast: '09:00',
+    lunch: '13:00',
+    dinner: '19:00',
+    bedtime: '23:00',
+  }), []);
+
+  // 평일 및 주말 식사 기준 스케줄 상태
+  const [mealSchedule, setMealSchedule] = useState(() => {
     try {
       if (currentUserId) {
-        const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
-        if (cached) return JSON.parse(cached);
+        const cachedSched = localStorage.getItem(`jette_meal_schedule_${currentUserId}`);
+        if (cachedSched) return JSON.parse(cachedSched);
+        const cachedLegacy = localStorage.getItem(`jette_meal_times_${currentUserId}`);
+        if (cachedLegacy) {
+          const parsed = JSON.parse(cachedLegacy);
+          return {
+            weekday: parsed,
+            weekend: { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' },
+          };
+        }
       }
     } catch {}
-    return DEFAULT_MEAL_TIMES;
+    return {
+      weekday: DEFAULT_MEAL_TIMES,
+      weekend: { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' },
+    };
   });
+
+  // targetDate 기준으로 평일/주말 맞춤 식사 시간 결정
+  const mealTimes = useMemo(() => {
+    if (!targetDate) return mealSchedule.weekday || DEFAULT_MEAL_TIMES;
+    const d = targetDate instanceof Date ? targetDate : new Date(targetDate);
+    const dow = d.getDay();
+    const isWeekend = (dow === 0 || dow === 6);
+    return isWeekend ? (mealSchedule.weekend || DEFAULT_MEAL_TIMES) : (mealSchedule.weekday || DEFAULT_MEAL_TIMES);
+  }, [mealSchedule, targetDate]);
 
   // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
   useEffect(() => {
     if (!currentUserId) {
-      setMealTimes(DEFAULT_MEAL_TIMES);
+      setMealSchedule({
+        weekday: DEFAULT_MEAL_TIMES,
+        weekend: { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' },
+      });
       return;
     }
     fetch(`/api/users/meal-times?userId=${currentUserId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.success) {
-          const loaded = {
+          const wk = data.weekday ? {
+            breakfast: data.weekday.breakfastTime || '07:30',
+            lunch: data.weekday.lunchTime || '12:00',
+            dinner: data.weekday.dinnerTime || '18:30',
+            bedtime: data.weekday.bedtime || '22:00',
+          } : {
             breakfast: data.breakfastTime || '07:30',
             lunch: data.lunchTime || '12:00',
             dinner: data.dinnerTime || '18:30',
             bedtime: data.bedtime || '22:00',
           };
-          setMealTimes(loaded);
+
+          const we = data.weekend ? {
+            breakfast: data.weekend.breakfastTime || '09:00',
+            lunch: data.weekend.lunchTime || '13:00',
+            dinner: data.weekend.dinnerTime || '19:00',
+            bedtime: data.weekend.bedtime || '23:00',
+          } : {
+            breakfast: '09:00',
+            lunch: '13:00',
+            dinner: '19:00',
+            bedtime: '23:00',
+          };
+
+          const sched = { weekday: wk, weekend: we };
+          setMealSchedule(sched);
           try {
-            localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(loaded));
+            localStorage.setItem(`jette_meal_schedule_${currentUserId}`, JSON.stringify(sched));
+            localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(wk));
           } catch {}
         }
       })
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
   }, [currentUserId]);
 
-  // 식사 시간 저장 핸들러
+  // 식사 시간 저장 핸들러 (평일 / 주말 지원)
   const handleSaveMealTimes = async (newTimes) => {
     if (!currentUserId) {
       alert('로그인 후 식사 시간을 설정할 수 있습니다.');
@@ -64,9 +115,30 @@ export function useMainPageData(user, targetDate, selectedRxId) {
     }
 
     try {
-      setMealTimes(newTimes);
+      const wk = newTimes.weekday ? {
+        breakfast: newTimes.weekday.breakfast || '07:30',
+        lunch: newTimes.weekday.lunch || '12:00',
+        dinner: newTimes.weekday.dinner || '18:30',
+        bedtime: newTimes.weekday.bedtime || '22:00',
+      } : {
+        breakfast: newTimes.breakfast || '07:30',
+        lunch: newTimes.lunch || '12:00',
+        dinner: newTimes.dinner || '18:30',
+        bedtime: newTimes.bedtime || '22:00',
+      };
+
+      const we = newTimes.weekend ? {
+        breakfast: newTimes.weekend.breakfast || '09:00',
+        lunch: newTimes.weekend.lunch || '13:00',
+        dinner: newTimes.weekend.dinner || '19:00',
+        bedtime: newTimes.weekend.bedtime || '23:00',
+      } : wk;
+
+      const sched = { weekday: wk, weekend: we };
+      setMealSchedule(sched);
       try {
-        localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(newTimes));
+        localStorage.setItem(`jette_meal_schedule_${currentUserId}`, JSON.stringify(sched));
+        localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(wk));
       } catch {}
 
       await fetch('/api/users/meal-times', {
@@ -75,10 +147,18 @@ export function useMainPageData(user, targetDate, selectedRxId) {
         body: JSON.stringify({
           userId: currentUserId,
           username: user?.username,
-          breakfastTime: newTimes.breakfast,
-          lunchTime: newTimes.lunch,
-          dinnerTime: newTimes.dinner,
-          bedtime: newTimes.bedtime,
+          weekday: {
+            breakfastTime: wk.breakfast,
+            lunchTime: wk.lunch,
+            dinnerTime: wk.dinner,
+            bedtime: wk.bedtime,
+          },
+          weekend: {
+            breakfastTime: we.breakfast,
+            lunchTime: we.lunch,
+            dinnerTime: we.dinner,
+            bedtime: we.bedtime,
+          },
         }),
       });
     } catch (err) {
@@ -666,6 +746,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
     groupedPrescriptionMeds,
     activeRoutineList,
     mealTimes,
+    mealSchedule,
     handleSaveMealTimes,
     toggleRoutine,
     togglePouch,

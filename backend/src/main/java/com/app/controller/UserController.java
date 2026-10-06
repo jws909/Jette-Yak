@@ -313,6 +313,7 @@ public class UserController {
     public ResponseEntity<?> getMealTimes(
             @RequestParam(value = "userId", required = false) Long userId,
             @RequestParam(value = "username", required = false) String username,
+            @RequestParam(value = "date", required = false) String date,
             javax.servlet.http.HttpServletRequest httpRequest) {
         Long resolvedUserId = resolveUserId(userId, username, httpRequest);
         User user = null;
@@ -322,24 +323,76 @@ public class UserController {
             user = userMapper.findByLoginId(username);
         }
 
-        String bTime = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
-        String lTime = (user != null && user.getLunchTime() != null) ? user.getLunchTime() : "12:00";
-        String dTime = (user != null && user.getDinnerTime() != null) ? user.getDinnerTime() : "18:30";
-        String bedTime = (user != null && user.getBedtime() != null) ? user.getBedtime() : "22:00";
+        Long uid = user != null ? user.getUserId() : (resolvedUserId != null ? resolvedUserId : null);
+
+        com.app.domain.UserMealTime weekdayMeal = null;
+        com.app.domain.UserMealTime weekendMeal = null;
+
+        if (uid != null && uid > 0L) {
+            List<com.app.domain.UserMealTime> list = userMapper.findMealTimesByUserId(uid);
+            if (list != null) {
+                for (var m : list) {
+                    if ("WEEKDAY".equalsIgnoreCase(m.getDayType())) weekdayMeal = m;
+                    else if ("WEEKEND".equalsIgnoreCase(m.getDayType())) weekendMeal = m;
+                }
+            }
+        }
+
+        String wkB = weekdayMeal != null ? weekdayMeal.getBreakfastTime() : (user != null && user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+        String wkL = weekdayMeal != null ? weekdayMeal.getLunchTime() : (user != null && user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+        String wkD = weekdayMeal != null ? weekdayMeal.getDinnerTime() : (user != null && user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+        String wkBed = weekdayMeal != null ? weekdayMeal.getBedtime() : (user != null && user.getBedtime() != null ? user.getBedtime() : "22:00");
+
+        String weB = weekendMeal != null ? weekendMeal.getBreakfastTime() : "09:00";
+        String weL = weekendMeal != null ? weekendMeal.getLunchTime() : "13:00";
+        String weD = weekendMeal != null ? weekendMeal.getDinnerTime() : "19:00";
+        String weBed = weekendMeal != null ? weekendMeal.getBedtime() : "23:00";
+
+        // 날짜(date)가 주어지면 해당 날짜(평일 vs 주말)에 맞추어 최상위 시간 결정
+        boolean isWeekend = false;
+        if (date != null && !date.trim().isEmpty()) {
+            try {
+                java.time.LocalDate d = java.time.LocalDate.parse(date.trim());
+                isWeekend = (d.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || d.getDayOfWeek() == java.time.DayOfWeek.SUNDAY);
+            } catch (Exception ignored) {}
+        } else {
+            java.time.DayOfWeek todayDow = java.time.LocalDate.now().getDayOfWeek();
+            isWeekend = (todayDow == java.time.DayOfWeek.SATURDAY || todayDow == java.time.DayOfWeek.SUNDAY);
+        }
+
+        String curB = isWeekend ? weB : wkB;
+        String curL = isWeekend ? weL : wkL;
+        String curD = isWeekend ? weD : wkD;
+        String curBed = isWeekend ? weBed : wkBed;
+
+        Map<String, Object> weekdayMap = new HashMap<>();
+        weekdayMap.put("breakfastTime", wkB);
+        weekdayMap.put("lunchTime", wkL);
+        weekdayMap.put("dinnerTime", wkD);
+        weekdayMap.put("bedtime", wkBed);
+
+        Map<String, Object> weekendMap = new HashMap<>();
+        weekendMap.put("breakfastTime", weB);
+        weekendMap.put("lunchTime", weL);
+        weekendMap.put("dinnerTime", weD);
+        weekendMap.put("bedtime", weBed);
 
         Map<String, Object> res = new HashMap<>();
         res.put("success", true);
-        res.put("userId", user != null ? user.getUserId() : (resolvedUserId != null ? resolvedUserId : null));
+        res.put("userId", uid);
         res.put("username", user != null ? user.getLoginId() : username);
-        res.put("breakfastTime", bTime);
-        res.put("lunchTime", lTime);
-        res.put("dinnerTime", dTime);
-        res.put("bedtime", bedTime);
+        res.put("isWeekend", isWeekend);
+        res.put("breakfastTime", curB);
+        res.put("lunchTime", curL);
+        res.put("dinnerTime", curD);
+        res.put("bedtime", curBed);
+        res.put("weekday", weekdayMap);
+        res.put("weekend", weekendMap);
         return ResponseEntity.ok(res);
     }
 
     /**
-     * 사용자별 기준 식사/취침 시간 저장 API
+     * 사용자별 기준 식사/취침 시간 저장 API (평일/주말 개별 또는 일괄 저장)
      * POST /api/users/meal-times
      */
     @PostMapping(value = "/meal-times", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -361,29 +414,71 @@ public class UserController {
         if ((resolvedUserId == null || resolvedUserId <= 0L) && (username == null || username.isBlank())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
         }
-
-        String bTime = body.get("breakfastTime") != null ? body.get("breakfastTime").toString().trim() : "07:30";
-        String lTime = body.get("lunchTime") != null ? body.get("lunchTime").toString().trim() : "12:00";
-        String dTime = body.get("dinnerTime") != null ? body.get("dinnerTime").toString().trim() : "18:30";
-        String bedTime = body.get("bedtime") != null ? body.get("bedtime").toString().trim() : "22:00";
+        if (resolvedUserId == null || resolvedUserId <= 0L) {
+            User u = userMapper.findByLoginId(username);
+            if (u != null) resolvedUserId = u.getUserId();
+        }
 
         String timeRegex = "^([01]?[0-9]|2[0-3]):[0-5][0-9]$";
+
+        // Case 1: body에 weekday 및 weekend 객체가 함께 전송된 경우 (신규 모달)
+        if (body.get("weekday") instanceof Map<?, ?> wkMap && body.get("weekend") instanceof Map<?, ?> weMap) {
+            String wkB = parseTimeStr(wkMap.get("breakfastTime") != null ? wkMap.get("breakfastTime") : wkMap.get("breakfast"), "07:30");
+            String wkL = parseTimeStr(wkMap.get("lunchTime") != null ? wkMap.get("lunchTime") : wkMap.get("lunch"), "12:00");
+            String wkD = parseTimeStr(wkMap.get("dinnerTime") != null ? wkMap.get("dinnerTime") : wkMap.get("dinner"), "18:30");
+            String wkBed = parseTimeStr(wkMap.get("bedtime"), "22:00");
+
+            String weB = parseTimeStr(weMap.get("breakfastTime") != null ? weMap.get("breakfastTime") : weMap.get("breakfast"), "09:00");
+            String weL = parseTimeStr(weMap.get("lunchTime") != null ? weMap.get("lunchTime") : weMap.get("lunch"), "13:00");
+            String weD = parseTimeStr(weMap.get("dinnerTime") != null ? weMap.get("dinnerTime") : weMap.get("dinner"), "19:00");
+            String weBed = parseTimeStr(weMap.get("bedtime"), "23:00");
+
+            userMapper.upsertMealTime(resolvedUserId, "WEEKDAY", wkB, wkL, wkD, wkBed);
+            userMapper.upsertMealTime(resolvedUserId, "WEEKEND", weB, weL, weD, weBed);
+
+            Map<String, Object> res = new HashMap<>();
+            res.put("success", true);
+            res.put("message", "평일 및 주말 식사 기준 시간이 성공적으로 저장되었습니다.");
+            res.put("userId", resolvedUserId);
+            res.put("weekday", Map.of("breakfastTime", wkB, "lunchTime", wkL, "dinnerTime", wkD, "bedtime", wkBed));
+            res.put("weekend", Map.of("breakfastTime", weB, "lunchTime", weL, "dinnerTime", weD, "bedtime", weBed));
+            return ResponseEntity.ok(res);
+        }
+
+        // Case 2: 단일 dayType 업데이트 (WEEKDAY 또는 WEEKEND)
+        String dayType = body.get("dayType") != null ? body.get("dayType").toString().trim().toUpperCase() : "WEEKDAY";
+        if (!"WEEKEND".equals(dayType)) dayType = "WEEKDAY";
+
+        String bTime = body.get("breakfastTime") != null ? body.get("breakfastTime").toString().trim() : (body.get("breakfast") != null ? body.get("breakfast").toString().trim() : "07:30");
+        String lTime = body.get("lunchTime") != null ? body.get("lunchTime").toString().trim() : (body.get("lunch") != null ? body.get("lunch").toString().trim() : "12:00");
+        String dTime = body.get("dinnerTime") != null ? body.get("dinnerTime").toString().trim() : (body.get("dinner") != null ? body.get("dinner").toString().trim() : "18:30");
+        String bedTime = body.get("bedtime") != null ? body.get("bedtime").toString().trim() : "22:00";
+
         if (!bTime.matches(timeRegex) || !lTime.matches(timeRegex) || !dTime.matches(timeRegex) || !bedTime.matches(timeRegex)) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "시간 형식이 올바르지 않습니다. (예: 07:30)"));
         }
 
-        userMapper.updateMealTimes(resolvedUserId, username, bTime, lTime, dTime, bedTime);
+        userMapper.upsertMealTime(resolvedUserId, dayType, bTime, lTime, dTime, bedTime);
 
         Map<String, Object> res = new HashMap<>();
         res.put("success", true);
         res.put("message", "식사 기준 시간이 성공적으로 저장되었습니다.");
         res.put("userId", resolvedUserId);
-        res.put("username", username);
+        res.put("dayType", dayType);
         res.put("breakfastTime", bTime);
         res.put("lunchTime", lTime);
         res.put("dinnerTime", dTime);
         res.put("bedtime", bedTime);
         return ResponseEntity.ok(res);
+    }
+
+    private String parseTimeStr(Object val, String fallback) {
+        if (val == null) return fallback;
+        String s = val.toString().trim();
+        if (s.matches("^([01]?[0-9]|2[0-3]):[0-5][0-9]$")) {
+            return s;
+        }
+        return fallback;
     }
 
     @PostMapping(value = "/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
@@ -563,6 +658,12 @@ public class UserController {
                     map.put("notes", it.getNotes());
                     map.put("dotColor", "CABINET".equals(it.getSource()) ? "#5c9e76" : "#e09f3e");
                     map.put("useStatus", it.getUseStatus());
+                    if ("ROUTINE".equals(it.getSource()) && supplementRuleBook != null) {
+                        var rule = supplementRuleBook.findRule(it.getItemName());
+                        map.put("frequency", rule != null ? rule.getFrequency() : 1);
+                    } else {
+                        map.put("frequency", 1);
+                    }
                     result.add(map);
                 }
             }
@@ -621,20 +722,36 @@ public class UserController {
                         ? body.get("takeTime").toString().trim() : null;
                 String notes = body.get("notes") != null && !body.get("notes").toString().trim().isEmpty()
                         ? body.get("notes").toString().trim() : null;
+                Integer frequency = 1;
+                if (body.get("frequency") instanceof Number num) {
+                    frequency = num.intValue();
+                } else if (body.get("frequency") != null) {
+                    try { frequency = Integer.parseInt(body.get("frequency").toString()); } catch (Exception ignored) {}
+                }
+
+                User currentUser = (resolvedUserId != null && resolvedUserId > 0L) ? userMapper.findById(resolvedUserId) : null;
 
                 // [초고속 로컬 규칙 즉시 매칭 & 비동기 AI 자가 학습]
                 boolean matchedLocally = false;
-                if (takeTime == null || takeTime.isBlank()) {
-                    if (supplementRuleBook != null) {
-                        var localRule = supplementRuleBook.findRule(name);
-                        if (localRule != null) {
-                            takeTime = localRule.getTakeTime();
-                            if (notes == null || notes.isBlank() || "보관 등록".equals(notes) || "건강기능식품".equals(notes)) {
-                                notes = localRule.getAdvice();
-                            }
-                            matchedLocally = true;
+                if (supplementRuleBook != null) {
+                    var localRule = supplementRuleBook.findRule(name);
+                    if (localRule != null) {
+                        if (takeTime == null || takeTime.isBlank()) {
+                            takeTime = calculateSupplementTakeTime(localRule.getTakeTime(), currentUser);
                         }
+                        if (notes == null || notes.isBlank() || "보관 등록".equals(notes) || "건강기능식품".equals(notes)) {
+                            notes = localRule.getAdvice();
+                        }
+                        if (body.get("frequency") == null) {
+                            frequency = localRule.getFrequency();
+                        }
+                        matchedLocally = true;
                     }
+                }
+
+                if (takeTime == null || takeTime.isBlank()) {
+                    String b = (currentUser != null && currentUser.getBreakfastTime() != null) ? currentUser.getBreakfastTime() : "07:30";
+                    takeTime = addMinutesToTime(b, 15);
                 }
 
                 if (takeTime != null && !takeTime.isBlank()) {
@@ -675,6 +792,7 @@ public class UserController {
                 resMap.put("message", msg);
                 resMap.put("takeTime", takeTime);
                 resMap.put("notes", notes);
+                resMap.put("frequency", frequency);
                 return ResponseEntity.ok(resMap);
             }
             return ResponseEntity.ok(Map.of("success", true, "message", "영양제가 등록되었습니다."));
@@ -762,6 +880,46 @@ public class UserController {
             org.apache.logging.log4j.LogManager.getLogger(getClass()).error("회원 탈퇴 처리 실패: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("success", false, "message", "회원 탈퇴 처리 중 오류가 발생했습니다."));
+        }
+    }
+
+    private String calculateSupplementTakeTime(String ruleTakeTime, User user) {
+        String b = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
+        String l = (user != null && user.getLunchTime() != null) ? user.getLunchTime() : "12:00";
+        String d = (user != null && user.getDinnerTime() != null) ? user.getDinnerTime() : "18:30";
+        String bed = (user != null && user.getBedtime() != null) ? user.getBedtime() : "22:00";
+
+        if ("07:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(b, -30);
+        } else if ("09:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(b, 15);
+        } else if ("13:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(l, 15);
+        } else if ("19:00".equals(ruleTakeTime)) {
+            return addMinutesToTime(d, 15);
+        } else if ("22:00".equals(ruleTakeTime)) {
+            return bed;
+        } else if ("15:30".equals(ruleTakeTime)) {
+            return "15:30";
+        }
+        return ruleTakeTime != null ? ruleTakeTime : addMinutesToTime(b, 15);
+    }
+
+    private String addMinutesToTime(String timeStr, int minutesToAdd) {
+        if (timeStr == null || !timeStr.contains(":")) {
+            return "08:00";
+        }
+        try {
+            String[] parts = timeStr.trim().split(":");
+            int h = Integer.parseInt(parts[0]);
+            int m = Integer.parseInt(parts[1]);
+            int totalM = h * 60 + m + minutesToAdd;
+            totalM = ((totalM % 1440) + 1440) % 1440;
+            int newH = totalM / 60;
+            int newM = totalM % 60;
+            return String.format("%02d:%02d", newH, newM);
+        } catch (Exception e) {
+            return timeStr;
         }
     }
 }

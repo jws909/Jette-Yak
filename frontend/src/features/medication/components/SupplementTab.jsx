@@ -129,13 +129,14 @@ export default function SupplementTab({
                 <strong className="med-name">{med.name}</strong>
                 <span className="entp-name">
                   {med.notes || '건강기능식품'}
+                  {med.frequency && med.frequency > 1 ? ` · 하루 ${med.frequency}회 권장` : ''}
                 </span>
                 <button
                   type="button"
                   className="schedule-add-btn"
                   onClick={() => onOpenScheduleModal(med)}
                 >
-                  일정 등록
+                  <i className="fa-regular fa-calendar-plus" aria-hidden="true" /> 일정 등록
                 </button>
               </div>
             ))

@@ -1343,6 +1343,10 @@
 }
 
 .schedule-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   margin-top: 6px;
   padding: 7px;
   background: #f4efe8;
@@ -1359,6 +1363,43 @@
   background: #883030;
   color: #ffffff;
   border-color: #883030;
+}
+
+/* 상비약 카드 복용 액션 (지금 복용 / 일정 등록) */
+.card-actions-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.card-actions-row .schedule-add-btn {
+  margin-top: 0;
+  flex: 1;
+}
+
+.btn-quick-take {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 4px;
+  background: #eef7f0;
+  border: 1px solid #cce5d4;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2b7044;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-quick-take:hover {
+  background: #2b7044;
+  color: #ffffff;
+  border-color: #2b7044;
 }
 
 /* [Tab 3] Supplement Layout - 상비약 탭과 완전히 통일된 인라인 등록 & 카드 그리드 */
@@ -1429,6 +1470,10 @@
   line-height: 1.5;
 }
 
+.modal-box.schedule-modal-box {
+  max-width: 530px;
+}
+
 .picker-title {
   display: block;
   font-size: 13px;
@@ -1449,11 +1494,13 @@
   flex-direction: column;
   align-items: center;
   padding: 10px 4px;
-  border: 1px solid #dcd3c5;
+  border: 1.5px solid #dcd3c5;
   border-radius: 8px;
   background: #faf8f5;
   cursor: pointer;
   transition: all 0.15s;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .slot-checkbox-label.checked {
@@ -1473,22 +1520,55 @@
 
 .slot-time-input {
   display: block;
-  font-size: 11px;
+  font-size: 11.5px;
+  font-family: inherit;
+  letter-spacing: -0.3px;
   border: 1px solid #dcd3c5;
   border-radius: 6px;
   background: #ffffff;
-  padding: 3px 4px;
+  padding: 4px 3px;
   margin-top: 6px;
   color: #3e3832;
   text-align: center;
-  width: 82px;
-  cursor: text;
+  width: 100%;
+  max-width: 108px;
+  box-sizing: border-box;
+  cursor: pointer;
   outline: none;
   transition: border-color 0.15s;
 }
 
 .slot-time-input:focus {
   border-color: #a36800;
+}
+
+.slot-time-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  margin: 0;
+  padding: 0;
+  width: 13px;
+  height: 13px;
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+
+.slot-time-input:hover::-webkit-calendar-picker-indicator {
+  opacity: 1;
+}
+
+@media (max-width: 520px) {
+  .slots-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .slot-checkbox-label {
+    padding: 12px 8px;
+  }
+  .slot-time-input {
+    max-width: 120px;
+    font-size: 12px;
+    padding: 5px 6px;
+  }
 }
 
 .slot-checkbox-label small {
@@ -1547,9 +1627,441 @@
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-submit:hover {
+  background: #732626;
+}
+
+.btn-submit.supplement {
+  background: #a36800;
+}
+
+.btn-submit.supplement:hover {
+  background: #845400;
+}
+
+/* 영양제 전용 추천 팁 배너 */
+.supplement-tip-banner {
+  background: #fdf8ee;
+  border: 1px solid #f6d8a8;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+
+.tip-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tip-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fde8c3;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.tip-text {
+  font-size: 12.5px;
+  color: #78350f;
+  margin: 6px 0 0;
+  line-height: 1.45;
+}
+
+/* 영양제 하루 섭취 횟수 선택 탭 */
+.supp-freq-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: #fbf9f5;
+  border: 1px solid #eee6db;
+  border-radius: 8px;
+  gap: 10px;
+}
+
+.freq-selector-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3b342e;
+}
+
+.freq-pill-group {
+  display: flex;
+  gap: 5px;
+}
+
+.freq-pill {
+  padding: 5px 11px;
+  background: #ffffff;
+  border: 1px solid #dcd3c5;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #554d44;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.freq-pill:hover {
+  border-color: #bfaea0;
+}
+
+.freq-pill.active {
+  background: #a36800;
+  color: #ffffff;
+  border-color: #a36800;
+  font-weight: 700;
+}
+
+/* 영양제 식사시간 연동 안내 배너 */
+.supplement-meal-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fdfaf3;
+  border: 1px solid #eadfc9;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  color: #635747;
+  line-height: 1.45;
+}
+
+.supplement-meal-notice i {
+  color: #a36800;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.supplement-meal-notice strong {
+  color: #8f4700;
+}
+
+/* 영양제 타이밍 프리셋 6종 그리드 */
+.supplement-timing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.timing-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 6px;
+  border: 1.5px solid #dcd3c5;
+  border-radius: 10px;
+  background: #faf8f5;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  user-select: none;
+}
+
+.timing-card:hover {
+  border-color: #c4b5a2;
+  background: #f5f2eb;
+}
+
+.timing-card.active {
+  border-color: #a36800;
+  background: #fffdf8;
+  box-shadow: 0 0 0 1px #a36800;
+}
+
+.timing-icon {
+  font-size: 16px;
+  margin-bottom: 5px;
+  color: #8c8275;
+  transition: color 0.15s ease;
+}
+
+.timing-card.active .timing-icon {
+  color: #a36800;
+}
+
+.timing-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2b2520;
+  line-height: 1.25;
+}
+
+.timing-time {
+  font-size: 11.5px;
+  color: #78716c;
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.timing-card.active .timing-time {
+  color: #a36800;
+}
+
+.recommend-badge {
+  position: absolute;
+  top: -6px;
+  right: -3px;
+  background: #b45309;
+  color: #ffffff;
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border-radius: 10px;
+  letter-spacing: -0.2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* =========================================================
+   스케줄 등록 모달: 평일 / 주말 구분 탭 & 동기화 옵션 바
+   ========================================================= */
+.schedule-daytype-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  background: #fbf9f5;
+  border: 1px solid #eee4d5;
+  border-radius: 10px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.schedule-daytype-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.schedule-day-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #ffffff;
+  border: 1.5px solid #ded5c7;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5d5348;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.schedule-day-tab:hover {
+  border-color: #bfaea0;
+}
+
+.schedule-day-tab.active {
+  background: #883030;
+  color: #ffffff;
+  border-color: #883030;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(136, 48, 48, 0.2);
+}
+
+.schedule-sync-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #554a3e;
+  cursor: pointer;
+  user-select: none;
+}
+
+.schedule-sync-label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #883030;
+  cursor: pointer;
+}
+
+.sync-active-note {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #a36800;
+  margin-left: 4px;
+}
+
+.slot-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.slot-name-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #2b2520;
+}
+
+.slot-header-row input[type="checkbox"] {
+  display: inline-block !important;
+  width: 14px;
+  height: 14px;
+  accent-color: #a36800;
+  cursor: pointer;
+}
+
+.slot-daytimes-summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #8c8072;
+  margin-top: 5px;
+  background: #f4ede3;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.2px;
+}
+
+.slot-daytimes-summary .sep {
+  color: #c4b5a2;
+}
+
+.repeat-info-text {
+  font-size: 12px;
+  color: #72685d;
+  margin: -14px 0 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.repeat-info-text i {
+  color: #883030;
+  font-size: 13px;
+}
+
+/* 영양제 평일 / 주말 개별 시간 조정 목록 */
+.timing-custom-container {
+  background: #fbf9f5;
+  border: 1px solid #ebd9c2;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+}
+
+.timing-custom-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #4b4136;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0e6d8;
+}
+
+.timing-custom-header i {
+  color: #a36800;
+}
+
+.timing-custom-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.timing-custom-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #ded5c7;
+  border-radius: 8px;
+  padding: 8px 12px;
+  gap: 12px;
+}
+
+.item-preset-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2b2520;
+  flex-shrink: 0;
+}
+
+.item-preset-label i {
+  color: #a36800;
+}
+
+.item-time-inputs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.time-sub-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #61564b;
+  background: #faf7f2;
+  padding: 3px 8px;
+  border: 1px solid #e0d7c9;
+  border-radius: 6px;
+}
+
+.time-sub-input-wrap input[type="time"] {
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2b2520;
+  outline: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.time-sub-input-wrap input[type="time"]:disabled {
+  color: #9c9285;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .supplement-timing-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .timing-custom-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .item-time-inputs {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
+

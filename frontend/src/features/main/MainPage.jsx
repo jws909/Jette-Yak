@@ -42,6 +42,7 @@ export default function MainPage({ user }) {
     groupedPrescriptionMeds,
     activeRoutineList,
     mealTimes,
+    mealSchedule,
     handleSaveMealTimes,
     toggleRoutine,
     togglePouch,
@@ -195,6 +196,7 @@ export default function MainPage({ user }) {
         isOpen={isMealModalOpen}
         onClose={() => setIsMealModalOpen(false)}
         mealTimes={mealTimes}
+        mealSchedule={mealSchedule}
         defaultMealTimes={DEFAULT_MEAL_TIMES}
         onSave={handleSaveMealTimes}
       />

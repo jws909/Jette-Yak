@@ -1,6 +1,7 @@
 package com.app.service;
 
 import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.app.dao.ScheduleDAO;
 import com.app.domain.User;
+import com.app.domain.UserMealTime;
 import com.app.dto.ScheduleAddDTO;
 import com.app.dto.ScheduleDTO;
 import com.app.mapper.UserMapper;
@@ -223,6 +225,22 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
     }
 
+    private UserMealTime resolveMealTime(Long userId, String dateStr) {
+        if (userId == null) return null;
+        LocalDate targetLocalDate;
+        try {
+            targetLocalDate = (dateStr != null && !dateStr.trim().isEmpty()) ? LocalDate.parse(dateStr.trim()) : LocalDate.now();
+        } catch (Exception e) {
+            targetLocalDate = LocalDate.now();
+        }
+        boolean isWeekend = (targetLocalDate.getDayOfWeek() == DayOfWeek.SATURDAY || targetLocalDate.getDayOfWeek() == DayOfWeek.SUNDAY);
+        UserMealTime mealTime = userMapper.findMealTimeByUserIdAndDayType(userId, isWeekend ? "WEEKEND" : "WEEKDAY");
+        if (mealTime == null) {
+            mealTime = userMapper.findMealTimeByUserIdAndDayType(userId, "WEEKDAY");
+        }
+        return mealTime;
+    }
+
     @Override
     public List<ScheduleDTO> getDailySchedules(Long userId, String date) {
         if (userId == null || userId <= 0L || date == null || date.isBlank()) {
@@ -233,12 +251,13 @@ public class ScheduleServiceImpl implements ScheduleService {
         List<ScheduleDTO> physicalList = scheduleDAO.selectDailySchedules(userId, date);
         if (physicalList == null) physicalList = new ArrayList<>();
 
-        // 2. 사용자별 기준 식사 시간 조회
-        User user = userMapper.findById(userId);
-        String bTime = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
-        String lTime = (user != null && user.getLunchTime() != null) ? user.getLunchTime() : "12:00";
-        String dTime = (user != null && user.getDinnerTime() != null) ? user.getDinnerTime() : "18:30";
-        String bedTime = (user != null && user.getBedtime() != null) ? user.getBedtime() : "22:00";
+        // 2. 사용자별 기준 식사 시간 조회 (평일/주말 구분)
+        UserMealTime mealTime = resolveMealTime(userId, date);
+        User user = (mealTime == null) ? userMapper.findById(userId) : null;
+        String bTime = mealTime != null ? mealTime.getBreakfastTime() : (user != null && user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+        String lTime = mealTime != null ? mealTime.getLunchTime() : (user != null && user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+        String dTime = mealTime != null ? mealTime.getDinnerTime() : (user != null && user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+        String bedTime = mealTime != null ? mealTime.getBedtime() : (user != null && user.getBedtime() != null ? user.getBedtime() : "22:00");
 
         // 3. 해당 날짜에 유효한 사용자의 처방전 목록 조회
         LocalDate targetLocalDate;
@@ -398,11 +417,12 @@ public class ScheduleServiceImpl implements ScheduleService {
                         .filter(it -> it.getItemId() != null && it.getItemId().equals(itemId))
                         .findFirst().orElse(null) : null;
                 if (matched != null) {
-                    User user = userMapper.findById(p.getUserId());
-                    String bTime = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
-                    String lTime = (user != null && user.getLunchTime() != null) ? user.getLunchTime() : "12:00";
-                    String dTime = (user != null && user.getDinnerTime() != null) ? user.getDinnerTime() : "18:30";
-                    String bedTime = (user != null && user.getBedtime() != null) ? user.getBedtime() : "22:00";
+                    UserMealTime mealTime = resolveMealTime(p.getUserId(), date);
+                    User user = (mealTime == null) ? userMapper.findById(p.getUserId()) : null;
+                    String bTime = mealTime != null ? mealTime.getBreakfastTime() : (user != null && user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+                    String lTime = mealTime != null ? mealTime.getLunchTime() : (user != null && user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+                    String dTime = mealTime != null ? mealTime.getDinnerTime() : (user != null && user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+                    String bedTime = mealTime != null ? mealTime.getBedtime() : (user != null && user.getBedtime() != null ? user.getBedtime() : "22:00");
 
                     List<SlotInfo> slots = getIntakeSlots(matched.getDailyFrequency(), matched.getUsageTiming(), bTime, lTime, dTime, bedTime);
                     String time = (slotIdx >= 0 && slotIdx < slots.size()) ? slots.get((int) slotIdx).time : "08:30";
@@ -499,8 +519,11 @@ public class ScheduleServiceImpl implements ScheduleService {
             if(linkedMedicationId!=null&&!linkedMedicationId.isBlank()
                     && !scheduleDAO.checkMedicationExists(linkedMedicationId))
                 throw new IllegalArgumentException("선택한 제품 정보를 찾을 수 없습니다.");
+            String defaultTakeTime = (dto.getWeekdayTime() != null && !dto.getWeekdayTime().isBlank())
+                    ? dto.getWeekdayTime().trim()
+                    : dto.getScheduledTime();
             Long routineId = scheduleDAO.findOrCreateRoutineId(dto.getUserId(), supName.trim(),
-                    dto.getScheduledTime(), "일정에서 등록", linkedMedicationId);
+                    defaultTakeTime, "일정에서 등록", linkedMedicationId);
             dto.setRoutineId(routineId);
             dto.setCabinetId(null);
             dto.setPrescriptionId(null);
@@ -520,8 +543,19 @@ public class ScheduleServiceImpl implements ScheduleService {
         for (int i = 0; i < repeatDays; i++) {
             LocalDate targetDate = startDate.plusDays(i);
             String dateStr = targetDate.toString();
+            boolean isWeekend = (targetDate.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || targetDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY);
 
-            if (!scheduleDAO.checkScheduleExists(dto.getUserId(), dateStr, dto.getScheduledTime(), dto.getRoutineId(), dto.getCabinetId(), dto.getMedicationId())) {
+            // 주중(평일)과 주말 식사 기준 시간에 따른 실제 적용 시간 결정
+            String finalScheduledTime;
+            if (isWeekend && dto.getWeekendTime() != null && !dto.getWeekendTime().isBlank()) {
+                finalScheduledTime = dto.getWeekendTime().trim();
+            } else if (!isWeekend && dto.getWeekdayTime() != null && !dto.getWeekdayTime().isBlank()) {
+                finalScheduledTime = dto.getWeekdayTime().trim();
+            } else {
+                finalScheduledTime = dto.getScheduledTime();
+            }
+
+            if (!scheduleDAO.checkScheduleExists(dto.getUserId(), dateStr, finalScheduledTime, dto.getRoutineId(), dto.getCabinetId(), dto.getMedicationId())) {
                 ScheduleAddDTO dayDto = new ScheduleAddDTO();
                 dayDto.setUserId(dto.getUserId());
                 dayDto.setName(dto.getName());
@@ -532,7 +566,7 @@ public class ScheduleServiceImpl implements ScheduleService {
                 dayDto.setPrescriptionId(dto.getPrescriptionId());
                 dayDto.setAlarmEnabled(dto.getAlarmEnabled() != null ? dto.getAlarmEnabled() : 1);
                 dayDto.setScheduledDate(dateStr);
-                dayDto.setScheduledTime(dto.getScheduledTime());
+                dayDto.setScheduledTime(finalScheduledTime);
 
                 if (scheduleDAO.insertSchedule(dayDto) > 0) {
                     insertedCount++;
@@ -603,11 +637,12 @@ public class ScheduleServiceImpl implements ScheduleService {
                             .filter(it -> it.getItemId() != null && it.getItemId().equals(itemId))
                             .findFirst().orElse(null) : null;
                     if (matched != null) {
-                        User user = userMapper.findById(p.getUserId());
-                        String bTime = (user != null && user.getBreakfastTime() != null) ? user.getBreakfastTime() : "07:30";
-                        String lTime = (user != null && user.getLunchTime() != null) ? user.getLunchTime() : "12:00";
-                        String dTime = (user != null && user.getDinnerTime() != null) ? user.getDinnerTime() : "18:30";
-                        String bedTime = (user != null && user.getBedtime() != null) ? user.getBedtime() : "22:00";
+                        UserMealTime mealTime = resolveMealTime(p.getUserId(), date);
+                        User user = (mealTime == null) ? userMapper.findById(p.getUserId()) : null;
+                        String bTime = mealTime != null ? mealTime.getBreakfastTime() : (user != null && user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+                        String lTime = mealTime != null ? mealTime.getLunchTime() : (user != null && user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+                        String dTime = mealTime != null ? mealTime.getDinnerTime() : (user != null && user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+                        String bedTime = mealTime != null ? mealTime.getBedtime() : (user != null && user.getBedtime() != null ? user.getBedtime() : "22:00");
 
                         List<SlotInfo> slots = getIntakeSlots(matched.getDailyFrequency(), matched.getUsageTiming(), bTime, lTime, dTime, bedTime);
                         String time = (slotIdx >= 0 && slotIdx < slots.size()) ? slots.get((int) slotIdx).time : "08:30";

@@ -41,18 +41,26 @@ public class SupplementRuleBook {
     public static class Rule {
         private String takeTime;
         private String advice;
+        private Integer frequency = 1;
 
         public Rule() {}
 
         public Rule(String takeTime, String advice) {
+            this(takeTime, advice, 1);
+        }
+
+        public Rule(String takeTime, String advice, Integer frequency) {
             this.takeTime = takeTime;
             this.advice = advice;
+            this.frequency = (frequency != null && frequency > 0) ? frequency : 1;
         }
 
         public String getTakeTime() { return takeTime; }
         public void setTakeTime(String takeTime) { this.takeTime = takeTime; }
         public String getAdvice() { return advice; }
         public void setAdvice(String advice) { this.advice = advice; }
+        public Integer getFrequency() { return frequency != null ? frequency : 1; }
+        public void setFrequency(Integer frequency) { this.frequency = frequency; }
     }
 
     private static record RulePattern(Pattern pattern, Rule rule) {}
@@ -102,7 +110,7 @@ public class SupplementRuleBook {
         addRule("(?i).*(비타민\\s*b|비타민b|비맥스|임팩타민|아로나민|엑세라민|활성비타민|티아민|리보플라빈|나이아신|판토텐산|피리독신|코발라민).*",
                 "09:00", "아침 식후 권장 (에너지 대사 및 활력 증진)");
         addRule("(?i).*(비타민\\s*c|비타민c|고려은단|아스코르브산|아세로라).*",
-                "09:00", "아침 식후 권장 (위장 자극 예방 및 항산화)");
+                "09:00", "식후 권장 (위장 자극 예방 및 분할 섭취)", 2);
         addRule("(?i).*(홍삼|인삼|흑삼|산삼|진세노사이드|정관장).*",
                 "08:30", "아침 복용 권장 (면역력 증진 및 피로 회복)");
         addRule("(?i).*(엽산|폴산|메틸엽산).*",
@@ -132,7 +140,7 @@ public class SupplementRuleBook {
         addRule("(?i).*(쏘팔메토|옥타코사놀|로르산|전립선).*",
                 "13:00", "점심 식후 권장 (지용성 기능 성분 흡수 증대)");
         addRule("(?i).*(msm|MSM|식이유황|콘드로이친|글루코사민|보스웰리아|관절).*",
-                "13:00", "식후 권장 (관절 연골 보호 및 속쓰림 예방)");
+                "13:00", "식후 권장 (관절 연골 보호 및 하루 2회 분할 섭취)", 2);
         addRule("(?i).*(아연|징크|zinc|글루콘산아연).*",
                 "13:00", "식후 권장 (공복 복용 시 메스꺼움 예방)");
         addRule("(?i).*(비타민\\s*[aek]|비타민[aek]|토코페롤).*",
@@ -142,7 +150,7 @@ public class SupplementRuleBook {
         addRule("(?i).*(스피루리나|클로렐라).*",
                 "13:00", "식후 권장 (엽록소 및 영양소 흡수)");
         addRule("(?i).*(모로실|시네트롤|가르시니아|카테킨|다이어트|공액리놀레산).*",
-                "12:30", "식사 전후 권장 (탄수화물 및 체지방 대사 지원)");
+                "12:30", "식사 전후 권장 (하루 2회 분할 섭취)", 2);
         addRule("(?i).*(베르베린|바나바|혈당).*",
                 "12:30", "식사 직전 또는 식후 권장 (식후 혈당 상승 억제)");
 
@@ -150,7 +158,7 @@ public class SupplementRuleBook {
         addRule("(?i).*(마그네슘|쌀마그네슘|글리시네이트|말레이트|마그).*",
                 "21:30", "취침 전 권장 (근육 이완, 신경 안정 및 숙면)");
         addRule("(?i).*(칼슘|어골칼슘|해조칼슘|구연산칼슘|칼마디).*",
-                "21:00", "저녁 식후 또는 취침 전 (신경 안정 및 뼈 대사)");
+                "21:00", "저녁 식후 또는 취침 전 (흡수 효율을 위한 하루 2회 분할)", 2);
         addRule("(?i).*(테아닌|락티움|감태|멜라토닌|수면).*",
                 "22:00", "취침 30분~1시간 전 권장 (스트레스 완화 및 숙면)");
         addRule("(?i).*(콜라겐|엘라스틴|히알루론산|이너뷰티).*",
@@ -160,7 +168,11 @@ public class SupplementRuleBook {
     }
 
     private void addRule(String regex, String takeTime, String advice) {
-        staticRules.add(new RulePattern(Pattern.compile(regex), new Rule(takeTime, advice)));
+        addRule(regex, takeTime, advice, 1);
+    }
+
+    private void addRule(String regex, String takeTime, String advice, int frequency) {
+        staticRules.add(new RulePattern(Pattern.compile(regex), new Rule(takeTime, advice, frequency)));
     }
 
     /**
@@ -191,12 +203,16 @@ public class SupplementRuleBook {
      * 동적 캐시에 신규 학습 규칙 추가 및 파일 영속화
      */
     public synchronized void saveDynamicRule(String supplementName, String takeTime, String advice) {
+        saveDynamicRule(supplementName, takeTime, advice, 1);
+    }
+
+    public synchronized void saveDynamicRule(String supplementName, String takeTime, String advice, Integer frequency) {
         if (supplementName == null || supplementName.isBlank()) return;
         String normalizedKey = cleanKey(supplementName);
-        Rule rule = new Rule(takeTime, advice);
+        Rule rule = new Rule(takeTime, advice, frequency);
         dynamicRules.put(normalizedKey, rule);
         saveDynamicRulesToFile();
-        log.info("[SupplementRuleBook] 신규 영양제 규칙 학습 및 저장 완료: {} -> {} / {}", supplementName, takeTime, advice);
+        log.info("[SupplementRuleBook] 신규 영양제 규칙 학습 및 저장 완료: {} -> {} / {} / 하루 {}회", supplementName, takeTime, advice, rule.getFrequency());
     }
 
     private String cleanKey(String str) {
@@ -249,12 +265,20 @@ public class SupplementRuleBook {
                 if (aiRec != null && Boolean.TRUE.equals(aiRec.get("isSupplement"))) {
                     String time = aiRec.get("takeTime") != null ? aiRec.get("takeTime").toString().trim() : null;
                     String advice = aiRec.get("advice") != null ? aiRec.get("advice").toString().trim() : null;
+                    Integer freq = 1;
+                    if (aiRec.get("frequency") instanceof Number num) {
+                        freq = num.intValue();
+                    } else if (aiRec.get("frequency") != null) {
+                        try {
+                            freq = Integer.parseInt(aiRec.get("frequency").toString());
+                        } catch (Exception ignored) {}
+                    }
 
                     if (advice == null || advice.isBlank()) {
                         advice = "식후 권장 (건강기능식품)";
                     }
 
-                    saveDynamicRule(supplementName, time, advice);
+                    saveDynamicRule(supplementName, time, advice, freq);
 
                     // DB routine_medications 레코드 보완
                     if (userId != null && routineId != null && scheduleDAO != null) {
@@ -279,14 +303,22 @@ public class SupplementRuleBook {
             try {
                 if (geminiService == null || !geminiService.isAvailable()) return;
                 log.info("[SupplementRuleBook] 최신 인기 건강기능식품 일일 자동 동기화 시작...");
-                List<Map<String, String>> trendyList = geminiService.fetchTrendingSupplements();
+                List<Map<String, Object>> trendyList = geminiService.fetchTrendingSupplements();
                 if (trendyList != null) {
-                    for (Map<String, String> item : trendyList) {
-                        String name = item.get("name");
-                        String time = item.get("takeTime");
-                        String advice = item.get("advice");
+                    for (Map<String, Object> item : trendyList) {
+                        String name = item.get("name") != null ? item.get("name").toString() : null;
+                        String time = item.get("takeTime") != null ? item.get("takeTime").toString() : null;
+                        String advice = item.get("advice") != null ? item.get("advice").toString() : null;
+                        Integer freq = 1;
+                        if (item.get("frequency") instanceof Number num) {
+                            freq = num.intValue();
+                        } else if (item.get("frequency") != null) {
+                            try {
+                                freq = Integer.parseInt(item.get("frequency").toString());
+                            } catch (Exception ignored) {}
+                        }
                         if (name != null && !name.isBlank()) {
-                            saveDynamicRule(name, time, advice);
+                            saveDynamicRule(name, time, advice, freq);
                         }
                     }
                 }

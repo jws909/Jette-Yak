@@ -1,6 +1,8 @@
 package com.app.mapper;
 
 import com.app.domain.User;
+import com.app.domain.UserMealTime;
+import java.util.List;
 import org.apache.ibatis.annotations.Param;
 
 public interface UserMapper {
@@ -34,6 +36,17 @@ public interface UserMapper {
                         @Param("lunchTime") String lunchTime,
                         @Param("dinnerTime") String dinnerTime,
                         @Param("bedtime") String bedtime);
+
+    List<UserMealTime> findMealTimesByUserId(@Param("userId") Long userId);
+
+    UserMealTime findMealTimeByUserIdAndDayType(@Param("userId") Long userId, @Param("dayType") String dayType);
+
+    int upsertMealTime(@Param("userId") Long userId,
+                       @Param("dayType") String dayType,
+                       @Param("breakfastTime") String breakfastTime,
+                       @Param("lunchTime") String lunchTime,
+                       @Param("dinnerTime") String dinnerTime,
+                       @Param("bedtime") String bedtime);
 
     int insertUser(User user);
 }
