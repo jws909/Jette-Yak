@@ -348,7 +348,7 @@ export default function TodayRoutineSection({
           className="view-all-records-btn"
           onClick={() => navigate('/calendar')}
         >
-          복약 기록 전체 보기 <span className="arrow-left">←</span>
+          복약 기록 전체 보기 <span className="arrow-right">→</span>
         </button>
       </div>
     </section>

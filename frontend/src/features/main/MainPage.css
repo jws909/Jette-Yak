@@ -1502,13 +1502,15 @@
   box-shadow: 0 4px 14px rgba(139, 62, 75, 0.35);
 }
 
+.arrow-right,
 .arrow-left {
   font-size: 15px;
   transition: transform 0.2s ease;
 }
 
+.view-all-records-btn:hover .arrow-right,
 .view-all-records-btn:hover .arrow-left {
-  transform: translateX(-4px);
+  transform: translateX(4px);
 }
 
 /* 시간대별 묶음(그룹) 보기 */

@@ -755,7 +755,7 @@ export default function SignupPage() {
                 건너뛰기
               </button>
               <button type="button" className="signup-submit" onClick={goToStep3}>
-                시작하기 <span aria-hidden="true">←</span>
+                시작하기 <span aria-hidden="true">→</span>
               </button>
             </div>
           </div>
