@@ -4,6 +4,11 @@ import MedicationDetailModal from './components/MedicationDetailModal';
 import CautionInfoModal from './components/CautionInfoModal';
 import MealTimeSettingModal from './components/MealTimeSettingModal';
 import TodayRoutineSection from './components/TodayRoutineSection';
+import RxDropdownSelector from './components/RxDropdownSelector';
+import PrescriptionSummaryCard from './components/PrescriptionSummaryCard';
+import PrescribedMedsCard from './components/PrescribedMedsCard';
+import MedicationNoteCard from './components/MedicationNoteCard';
+import PrescriptionPromoBanner from './components/PrescriptionPromoBanner';
 import {
   DEFAULT_MEAL_TIMES,
   DOT_COLORS,
@@ -15,7 +20,6 @@ import {
   getPrescriptionStatus,
   getMedicineCaution,
   mapPrescriptionToState,
-  generateMedicationNotes,
   addMinutes,
   getIntakeSlots,
   buildRoutineItems,
@@ -32,25 +36,8 @@ export default function MainPage({ user }) {
   const [hasPrescription, setHasPrescription] = useState(false);
   const [allPrescriptions, setAllPrescriptions] = useState([]);
   const [selectedRxId, setSelectedRxId] = useState('all'); // 'all' 또는 개별 prescriptionId
-  const [isRxDropdownOpen, setIsRxDropdownOpen] = useState(false);
-  const rxDropdownRef = useRef(null);
   const [targetDate, setTargetDate] = useState(() => new Date());
   const dateInputRef = useRef(null);
-
-  // 처방전 선택 드롭다운 바깥 클릭 감지하여 닫기
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (rxDropdownRef.current && !rxDropdownRef.current.contains(event.target)) {
-        setIsRxDropdownOpen(false);
-      }
-    }
-    if (isRxDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isRxDropdownOpen]);
 
   // 타겟 날짜가 오늘인지 여부
   const isTargetToday = useMemo(() => {
@@ -1084,498 +1071,49 @@ export default function MainPage({ user }) {
       {/* 4. 처방전 정보 & 주의사항 (처방전 등록 시 상세 표시) */}
       {hasPrescription ? (
         <>
-          {/* 0. 처방전 선택 탭 바 (전체 통합 및 개별 처방전 전환) */}
-          {/* 0. 처방전 선택 드롭다운 셀렉터 (가로 스크롤 제거 및 직관적 선택) */}
-          <section className="rx-selector-section">
-            <div className="rx-selector-header">
-              <div className="rx-selector-header-left">
-                <span className="rx-tabs-title-badge">등록 처방전</span>
-                <span className="rx-tabs-count-title">처방전 선택 ({allPrescriptions.length}건)</span>
-              </div>
-              <button
-                type="button"
-                className="rx-manage-shortcut-btn"
-                onClick={() => navigate('/medication/register?tab=prescription')}
-                title="내 처방전 목록/수정/삭제 관리"
-              >
-                처방전 관리 &gt;
-              </button>
-            </div>
+          {/* 처방전 선택 드롭다운 셀렉터 */}
+          <RxDropdownSelector
+            allPrescriptions={allPrescriptions}
+            selectedRxId={selectedRxId}
+            onSelectRxId={setSelectedRxId}
+            currentPrescriptionView={currentPrescriptionView}
+            currentRxStatus={currentRxStatus}
+            targetDate={targetDate}
+            onSetTargetDate={setTargetDate}
+          />
 
-            <div className="rx-dropdown-container" ref={rxDropdownRef}>
-              <button
-                type="button"
-                className={`rx-dropdown-trigger ${isRxDropdownOpen ? 'open' : ''}`}
-                onClick={() => setIsRxDropdownOpen((prev) => !prev)}
-                aria-expanded={isRxDropdownOpen}
-                aria-haspopup="listbox"
-              >
-                <div className="rx-dropdown-trigger-left">
-                  <span className="rx-dropdown-icon">
-                    <svg viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V7zm3 4a1 1 0 000 2h6a1 1 0 100-2H7z" />
-                    </svg>
-                  </span>
-                  <div className="rx-dropdown-trigger-info">
-                    <strong className="rx-dropdown-trigger-title">
-                      {selectedRxId === 'all'
-                        ? `전체 처방전 통합 (${allPrescriptions.length}건)`
-                        : (currentPrescriptionView?.hospitalName || '의료기관')}
-                    </strong>
-                    <span className="rx-dropdown-trigger-sub">
-                      {selectedRxId === 'all'
-                        ? '모든 등록 처방전 약품 종합 루틴'
-                        : `조제일 ${currentPrescriptionView?.dispensedDate || '미상'} · ${currentPrescriptionView?.totalDays || 0}일분 · 약품 ${currentPrescriptionView?.items?.length || 0}종`}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rx-dropdown-trigger-right">
-                  {currentRxStatus && (
-                    <span className={`rx-tab-badge-chip ${currentRxStatus.status}`}>
-                      {currentRxStatus.badgeText}
-                    </span>
-                  )}
-                  <span className={`rx-dropdown-arrow-icon ${isRxDropdownOpen ? 'rotated' : ''}`}>
-                    <svg viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </span>
-                </div>
-              </button>
-
-              {isRxDropdownOpen && (
-                <div className="rx-dropdown-menu" role="listbox">
-                  {/* 전체 처방전 통합 옵션 */}
-                  <div
-                    role="option"
-                    aria-selected={selectedRxId === 'all'}
-                    className={`rx-dropdown-option ${selectedRxId === 'all' ? 'active' : ''}`}
-                    onClick={() => {
-                      setSelectedRxId('all');
-                      setIsRxDropdownOpen(false);
-                      setTargetDate(new Date());
-                    }}
-                  >
-                    <div className="rx-dropdown-option-left">
-                      <span className="rx-dropdown-option-icon all">
-                        <svg viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 011 1v10a1 1 0 01-1 1H5a1 1 0 01-1-1V7zm3 4a1 1 0 000 2h6a1 1 0 100-2H7z" />
-                        </svg>
-                      </span>
-                      <div className="rx-dropdown-option-info">
-                        <strong className="rx-dropdown-option-title">전체 처방전 ({allPrescriptions.length}건) 통합 조회</strong>
-                        <span className="rx-dropdown-option-sub">등록된 모든 처방전의 약품을 합산하여 루틴을 확인합니다.</span>
-                      </div>
-                    </div>
-                    <span className="rx-tab-badge-chip all">통합</span>
-                  </div>
-
-                  <div className="rx-dropdown-divider" />
-
-                  {/* 개별 처방전 옵션 목록 */}
-                  {allPrescriptions.map((rx) => {
-                    const today = new Date();
-                    const todayStatus = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, today);
-                    const rxStatus = getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDate);
-                    const isSelected = String(selectedRxId) === String(rx.prescriptionId);
-                    return (
-                      <div
-                        key={rx.prescriptionId}
-                        role="option"
-                        aria-selected={isSelected}
-                        className={`rx-dropdown-option ${isSelected ? 'active' : ''}`}
-                        onClick={() => {
-                          setSelectedRxId(rx.prescriptionId);
-                          setIsRxDropdownOpen(false);
-                          if (todayStatus.status === 'taking') {
-                            setTargetDate(today);
-                          }
-                        }}
-                      >
-                        <div className="rx-dropdown-option-left">
-                          <span className="rx-dropdown-option-icon rx">
-                            <svg viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 2a1 1 0 011 1v6h6a1 1 0 110 2h-6v6a1 1 0 11-2 0v-6H3a1 1 0 110-2h6V3a1 1 0 011-1z" clipRule="evenodd" />
-                            </svg>
-                          </span>
-                          <div className="rx-dropdown-option-info">
-                            <div className="rx-dropdown-option-title-row">
-                              <strong className="rx-dropdown-option-title">{rx.hospitalName || '의료기관'}</strong>
-                              {rx.doctorName && <span className="rx-dropdown-option-doctor">{rx.doctorName}</span>}
-                            </div>
-                            <span className="rx-dropdown-option-sub">
-                              조제일 {rx.dispensedDate || '미상'} · {rx.totalDays}일 처방 · 약품 {rx.items?.length || 0}종
-                            </span>
-                          </div>
-                        </div>
-                        <span className={`rx-tab-badge-chip ${rxStatus.status}`}>
-                          {rxStatus.badgeText}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* 처방전 요약 바 (PRESCRIPTION SUMMARY) */}
-          <section className="prescription-summary-card">
-            <div className="summary-col-left">
-              <div className="summary-meta-top-row">
-                <span className="summary-meta-label">
-                  {selectedRxId === 'all' ? 'ALL PRESCRIPTIONS SUMMARY' : 'PRESCRIPTION SUMMARY'}
-                </span>
-                {currentRxStatus && (
-                  <span className={`summary-status-pill ${currentRxStatus.status}`}>
-                    {currentRxStatus.badgeText}
-                  </span>
-                )}
-              </div>
-              <h2 className="summary-date-title">
-                {selectedRxId === 'all'
-                  ? `전체 처방전 (${allPrescriptions.length}건) 통합 조회`
-                  : (prescriptionData?.dispensedDate ? `${prescriptionData.dispensedDate} 조제 처방전` : '처방전 상세')}
-              </h2>
-              <div className="summary-hospital-info-group">
-                <span className="summary-hospital-name">
-                  {prescriptionData?.hospitalName || '의료기관'}
-                </span>
-                {selectedRxId !== 'all' && prescriptionData?.doctorName && (
-                  <>
-                    <span className="summary-info-divider">·</span>
-                    <span className="summary-doctor-name">
-                      {prescriptionData.doctorName}
-                    </span>
-                  </>
-                )}
-                {selectedRxId !== 'all' && currentRxStatus?.startDateStr && (
-                  <span className="summary-period-chip">
-                    기간: {currentRxStatus.startDateStr} ~ {currentRxStatus.endDateStr}
-                  </span>
-                )}
-              </div>
-
-              {/* AI 처방전 가이드: 처방 목적 및 핵심 요약 */}
-              {prescriptionData?.aiGuide?.purpose && (
-                <div className="summary-ai-guide-banner">
-                  <div className="ai-guide-purpose-row">
-                    <span className="ai-guide-tag">
-                      {selectedRxId === 'all' ? '통합 복약 안내' : '이 처방을 받은 이유 (AI)'}
-                    </span>
-                    <strong className="ai-guide-purpose-text">{prescriptionData.aiGuide.purpose}</strong>
-                  </div>
-                  {prescriptionData.aiGuide.summary && (
-                    <p className="ai-guide-summary-text">{prescriptionData.aiGuide.summary}</p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="summary-stats-group">
-              <div className="stat-unit">
-                <span className="stat-number">
-                  {selectedRxId === 'all' ? allPrescriptions.length : (prescriptionData?.totalDays || 0)}
-                </span>
-                <span className="stat-label">
-                  {selectedRxId === 'all' ? '등록 처방전' : (currentRxStatus?.status === 'taking' ? `${currentRxStatus.dayNum}일차 / 총일수` : '총 복용 일수')}
-                </span>
-              </div>
-              <div className="stat-divider" />
-              <div className="stat-unit">
-                <span className="stat-number">{displayedMedList.length}</span>
-                <span className="stat-label">처방 약품</span>
-              </div>
-            </div>
-
-            <div className="summary-col-right">
-              {selectedRxId !== 'all' && currentRxStatus?.status === 'completed' && prescriptionData?.dispensedDate && (
-                <button
-                  type="button"
-                  className="summary-past-jump-btn"
-                  onClick={() => handleJumpToDate(prescriptionData.dispensedDate)}
-                  title="당시 복약 기간으로 이동하여 체크 기록 확인"
-                >
-                  당시 복약 기록 보기
-                </button>
-              )}
-              <button
-                type="button"
-                className="new-prescription-btn"
-                onClick={() => navigate('/medication/register?tab=prescription')}
-              >
-                + 처방전 · 약봉투 등록
-              </button>
-              <button
-                type="button"
-                className="summary-guide-btn"
-                onClick={() => navigate('/guide')}
-              >
-                내 약 관리 등록 →
-              </button>
-            </div>
-          </section>
+          {/* 처방전 요약 카드 (PRESCRIPTION SUMMARY) */}
+          <PrescriptionSummaryCard
+            selectedRxId={selectedRxId}
+            allPrescriptions={allPrescriptions}
+            prescriptionData={prescriptionData}
+            currentRxStatus={currentRxStatus}
+            displayedMedList={displayedMedList}
+            onJumpToDate={handleJumpToDate}
+          />
 
           {/* 2단 그리드: 처방 약품 목록 (좌) + 복용 주의점 (우) */}
           <section className="main-two-column-grid">
-            {/* 좌측: 처방 약품 (PRESCRIBED MEDICINES) */}
-            <div className="prescribed-meds-card">
-              <div className="card-top-row">
-                <div>
-                  <span className="card-sub-label">PRESCRIBED MEDICINES</span>
-                  <h3 className="card-main-title">
-                    처방 약품 <span className="count-num">{String(displayedMedList.length).padStart(2, '0')}</span>
-                  </h3>
-                </div>
-                <button
-                  type="button"
-                  className="card-link-action"
-                  onClick={() => navigate('/medication/register?tab=prescription')}
-                  title="내 처방전 목록 및 수정/삭제 관리"
-                >
-                  처방전 관리 &gt;
-                </button>
-              </div>
+            <PrescribedMedsCard
+              displayedMedList={displayedMedList}
+              currentRxStatus={currentRxStatus}
+              selectedRxId={selectedRxId}
+              prescriptionData={prescriptionData}
+              groupedPrescriptionMeds={groupedPrescriptionMeds}
+              onSelectMedDetail={setSelectedMedDetail}
+              onJumpToDate={handleJumpToDate}
+            />
 
-              {/* 과거 복용 완료 처방전인 경우 안내 배너 및 바로가기 */}
-              {currentRxStatus?.status === 'completed' && selectedRxId !== 'all' && (
-                <div className="past-rx-info-banner">
-                  <div className="past-rx-info-left">
-                    <span className="past-rx-badge">복용 완료 기록</span>
-                    <span className="past-rx-desc">
-                      조제일 {prescriptionData?.dispensedDate} ({prescriptionData?.totalDays}일 처방) 완료 내역입니다.
-                    </span>
-                  </div>
-                  {prescriptionData?.dispensedDate && (
-                    <button
-                      type="button"
-                      className="past-rx-jump-action"
-                      onClick={() => handleJumpToDate(prescriptionData.dispensedDate)}
-                      title="당시 복약 체크 기록 확인"
-                    >
-                      당시 복약 기록 &rarr;
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="meds-list-divider" />
-
-              <div className="meds-vertical-list">
-                {displayedMedList.length === 0 ? (
-                  <div className="meds-empty-notice">
-                    <div className="meds-empty-icon">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <strong className="meds-empty-title">
-                      {currentRxStatus?.status === 'upcoming'
-                        ? '복용 시작 전입니다.'
-                        : '등록된 처방 약품이 없습니다.'}
-                    </strong>
-                    <p className="meds-empty-desc">
-                      {currentRxStatus?.status === 'upcoming'
-                        ? `조제일(${prescriptionData?.dispensedDate || ''})부터 처방 약품 목록이 표시됩니다.`
-                        : '처방전을 등록하시거나 유효한 복약 날짜를 선택해 주세요.'}
-                    </p>
-                  </div>
-                ) : selectedRxId === 'all' ? (
-                  /* 통합 처방전 모드: 처방전별로 묶어서 그룹핑하여 표시 */
-                  groupedPrescriptionMeds.map((group) => {
-                    const groupTitle = group.nickname
-                      ? `${group.nickname} (${group.hospitalName})`
-                      : group.hospitalName;
-                    const dateFormatted = group.dispensedDate
-                      ? `${group.dispensedDate.slice(0, 10).replace(/-/g, '.')} 조제`
-                      : '';
-                    const metaText = [dateFormatted, `총 ${group.items.length}종`].filter(Boolean).join(' · ');
-
-                    return (
-                      <div key={group.prescriptionId} className="prescribed-group-box">
-                        <div className="prescribed-group-header">
-                          <div className="prescribed-group-header-left">
-                            <span className="prescribed-group-icon" title="처방전">
-                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="15" height="15" strokeWidth="2">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                              </svg>
-                            </span>
-                            <strong className="prescribed-group-title" title={groupTitle}>
-                              {groupTitle}
-                            </strong>
-                            {metaText && <span className="prescribed-group-meta">({metaText})</span>}
-                          </div>
-
-                          <div className="prescribed-group-header-right">
-                            {group.status === 'taking' && (
-                              <span className="prescribed-group-status-badge taking">
-                                {group.dayNum ? `복용 중 (${group.dayNum}일차)` : '복용 중'}
-                              </span>
-                            )}
-                            {group.status === 'completed' && (
-                              <span className="prescribed-group-status-badge completed">복용 완료</span>
-                            )}
-                            {group.status === 'upcoming' && (
-                              <span className="prescribed-group-status-badge upcoming">복용 예정</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="prescribed-group-items">
-                          {group.items.map((med, idx) => (
-                            <div
-                              key={med.id || med.medicationId}
-                              className="med-item-row"
-                              onClick={() => setSelectedMedDetail(med)}
-                              title="상세 정보 보기"
-                            >
-                              <div className="med-item-left">
-                                <span className="med-index-num">{String(idx + 1).padStart(2, '0')}</span>
-                                <div className="med-text-group">
-                                  <div className="med-title-hospital-row">
-                                    <strong className="med-item-name">{med.name}</strong>
-                                  </div>
-                                  <p className="med-item-desc">{med.desc}</p>
-                                </div>
-                              </div>
-
-                              <div className="med-item-right">
-                                <span className={`med-type-pill ${med.badge === '처방' ? 'rx' : med.badge === '영양제' ? 'supp' : 'reg'}`}>
-                                  {med.badge || '처방'}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="med-more-btn"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedMedDetail(med);
-                                  }}
-                                  title="상세 복약 정보 보기"
-                                >
-                                  ···
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  /* 개별 처방전 선택 모드: 그룹핑 헤더 없이 해당 처방전 약품들 평면 표시 */
-                  displayedMedList.map((med, idx) => (
-                    <div
-                      key={med.id || med.medicationId}
-                      className="med-item-row"
-                      onClick={() => setSelectedMedDetail(med)}
-                      title="상세 정보 보기"
-                    >
-                      <div className="med-item-left">
-                        <span className="med-index-num">{String(idx + 1).padStart(2, '0')}</span>
-                        <div className="med-text-group">
-                          <div className="med-title-hospital-row">
-                            <strong className="med-item-name">{med.name}</strong>
-                          </div>
-                          <p className="med-item-desc">{med.desc}</p>
-                        </div>
-                      </div>
-
-                      <div className="med-item-right">
-                        <span className={`med-type-pill ${med.badge === '처방' ? 'rx' : med.badge === '영양제' ? 'supp' : 'reg'}`}>
-                          {med.badge || '처방'}
-                        </span>
-                        <button
-                          type="button"
-                          className="med-more-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedMedDetail(med);
-                          }}
-                          title="상세 복약 정보 보기"
-                        >
-                          ···
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* 우측: 복용 전, 잠깐만요. (MEDICATION NOTE) */}
-            {(() => {
-              const medNotes = generateMedicationNotes(prescriptionData, currentRxStatus, activeMedsForTargetDate);
-              return (
-                <div className="medication-note-card">
-                  <div className="card-top-row">
-                    <div>
-                      <span className="card-sub-label">MEDICATION NOTE</span>
-                      <h3 className="card-main-title">복용 전, 잠깐만요.</h3>
-                    </div>
-                    {medNotes && (
-                      <span className={`note-status-badge ${medNotes.badgeType}`}>
-                        {medNotes.badgeText}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="note-points-list">
-                    {medNotes.points.map((pt, idx) => (
-                      <div key={idx} className={`note-point-item ${pt.highlight ? 'highlight' : ''}`}>
-                        <span className={`note-point-num ${pt.highlight ? 'highlight' : ''}`}>
-                          {pt.highlight ? '!' : idx + 1}
-                        </span>
-                        <div className="note-point-content">
-                          <strong className="note-point-category">{pt.category}</strong>
-                          <p className="note-point-text">{pt.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="note-action-footer">
-                    <button
-                      type="button"
-                      className="note-detail-btn"
-                      onClick={() => setIsCautionModalOpen(true)}
-                    >
-                      주의사항 자세히 보기 &gt;
-                    </button>
-                  </div>
-                </div>
-              );
-            })()}
+            <MedicationNoteCard
+              prescriptionData={prescriptionData}
+              currentRxStatus={currentRxStatus}
+              activeMedsForTargetDate={activeMedsForTargetDate}
+              onOpenCautionModal={() => setIsCautionModalOpen(true)}
+            />
           </section>
         </>
       ) : (
-        <section className="prescription-banner-card">
-          <div className="banner-card-content">
-            <div className="banner-card-text">
-              <span className="banner-kicker">PRESCRIPTION & OTC</span>
-              <h3 className="banner-title">처방전 또는 약봉투를 등록해 보세요</h3>
-              <p className="banner-desc">
-                병원 처방전이나 약국 약봉투를 등록하시면 복용 일정과 약품 효능, 주의사항을 자동으로 분석해 드립니다.
-              </p>
-            </div>
-            <div className="banner-card-actions">
-              <button
-                type="button"
-                className="banner-primary-btn"
-                onClick={() => navigate('/medication/register?tab=prescription')}
-              >
-                처방전 · 약봉투 등록 →
-              </button>
-              <button
-                type="button"
-                className="banner-secondary-btn"
-                onClick={() => navigate('/medication/register?tab=prescription')}
-              >
-                내 처방전 목록/관리
-              </button>
-            </div>
-          </div>
-        </section>
+        <PrescriptionPromoBanner />
       )}
 
       {/* 약품 상세 정보 모달 */}
