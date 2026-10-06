@@ -86,6 +86,13 @@ public class UserServiceImpl implements UserService {
 
         userMapper.insertUser(user);
 
+        // 신규 회원 가입 시 기본 식사 시간(평일 및 주말) 자동 등록
+        User createdUser = userMapper.findByLoginId(request.getLoginId());
+        if (createdUser != null && createdUser.getUserId() != null) {
+            userMapper.upsertMealTime(createdUser.getUserId(), "WEEKDAY", "07:30", "12:00", "18:30", "22:00");
+            userMapper.upsertMealTime(createdUser.getUserId(), "WEEKEND", "09:00", "13:00", "19:00", "23:00");
+        }
+
         emailVerificationService.clearVerification(request.getEmail());
     }
 

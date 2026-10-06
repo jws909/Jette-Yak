@@ -478,11 +478,11 @@ public class FamilyController {
 			String insertUserSql = "INSERT INTO USERS ("
 					+ " EMAIL, NICKNAME, PUSH_ENABLED, CREATED_AT, UPDATED_AT, "
 					+ " ROLE, FAMILY_ID, SEX, IS_PREGNANT, BIRTHDATE, "
-					+ " BREAKFAST_TIME, LUNCH_TIME, DINNER_TIME, BEDTIME, IS_VIRTUAL "
+					+ " IS_VIRTUAL "
 					+ ") VALUES ("
 					+ " ?, ?, 1, SYSDATE, SYSDATE, "
 					+ " ?, ?, ?, 0, TO_DATE(?, 'YYYY-MM-DD'), "
-					+ " '08:00', '12:00', '18:00', '22:00', 'Y' "
+					+ " 'Y' "
 					+ ")";
 
 			try (PreparedStatement pstmt = conn.prepareStatement(insertUserSql, new String[] { "USER_ID" })) {
@@ -499,6 +499,28 @@ public class FamilyController {
 						newUserId = rs.getLong(1);
 					}
 				}
+			}
+
+			// (2-1) USER_MEAL_TIMES 에 기본 식사 시간 INSERT
+			if (newUserId != null) {
+				String insertMealSql = "INSERT INTO user_meal_times (USER_ID, DAY_TYPE, BREAKFAST_TIME, LUNCH_TIME, DINNER_TIME, BEDTIME) VALUES (?, ?, ?, ?, ?, ?)";
+				try (PreparedStatement mealPstmt = conn.prepareStatement(insertMealSql)) {
+					mealPstmt.setLong(1, newUserId);
+					mealPstmt.setString(2, "WEEKDAY");
+					mealPstmt.setString(3, "08:00");
+					mealPstmt.setString(4, "12:00");
+					mealPstmt.setString(5, "18:00");
+					mealPstmt.setString(6, "22:00");
+					mealPstmt.executeUpdate();
+
+					mealPstmt.setLong(1, newUserId);
+					mealPstmt.setString(2, "WEEKEND");
+					mealPstmt.setString(3, "09:00");
+					mealPstmt.setString(4, "13:00");
+					mealPstmt.setString(5, "19:00");
+					mealPstmt.setString(6, "23:00");
+					mealPstmt.executeUpdate();
+				} catch (Exception ignored) {}
 			}
 
 			// (3) FAMILY_MEMBERS 테이블에 매핑 INSERT
