@@ -879,9 +879,12 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                       onClick={() => setSelectedMemberId(member.userId)}
                     >
                       {member.name}
-                      <span style={{ fontSize: '0.85em', marginLeft: '4px', opacity: 0.85 }}>
-                        {isMe ? '(본인)' : getRoleLabel(member.role)}
-                      </span>
+                      {/* 본인일 때만 (본인) 표시, 추가한 가족은 호칭 없이 이름만 표시 */}
+                      {isMe && (
+                        <span style={{ fontSize: '0.85em', marginLeft: '4px', opacity: 0.85 }}>
+                          (본인)
+                        </span>
+                      )}
                     </button>
 
                     {/* 초대한 보호자 본인만, 타인 구성원 옆에 삭제(×) 버튼 노출 */}
@@ -1096,23 +1099,21 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
 
                   <div className="chk-main-content">
                     {/* 상단: 점 + 시간대 + 시간 + 실제 복용자 이름/역할 */}
-                    <div className="chk-meta-line">
-                      <span className={`chk-bullet-dot ${catInfo.dotClass}`} />
-                      <span className="chk-slot-text">{slotInfo.slotLabel}</span>
-                      <span className="chk-time-text">{String(item.time || '').substring(0, 5)}</span>
-                      
-                      {/* 전체 탭일 때: '가족' 대신 실제 유저 이름과 역할 표시 */}
-                      {selectedMemberId === 'all' && (
-                        <span className="chk-user-tag">
-                          {(item.userName && item.userName !== '가족') 
-                            ? item.userName 
-                            : (familyMembers?.find(m => Number(m.userId) === Number(item.userId))?.name || '본인')}
-                          {Number(item.userId) === Number(currentUserId) 
-                            ? ' (본인)' 
-                            : (item.userRole || item.role ? ` (${getRoleLabel(item.userRole || item.role)})` : '')}
-                        </span>
-                      )}
-                    </div>
+                      <div className="chk-meta-line">
+                        <span className={`chk-bullet-dot ${catInfo.dotClass}`} />
+                        <span className="chk-slot-text">{slotInfo.slotLabel}</span>
+                        <span className="chk-time-text">{String(item.time || '').substring(0, 5)}</span>
+                        
+                        {/* 전체 탭일 때: 본인만 (본인) 붙이고 가족은 이름만 깔끔하게 표시 */}
+                        {selectedMemberId === 'all' && (
+                          <span className="chk-user-tag">
+                            {(item.userName && item.userName !== '가족') 
+                              ? item.userName 
+                              : (familyMembers?.find(m => Number(m.userId) === Number(item.userId))?.name || '본인')}
+                            {Number(item.userId) === Number(currentUserId) ? ' (본인)' : ''}
+                          </span>
+                        )}
+                      </div>
 
                     {/* 하단: 약 이름 + 처방약/영양제 라벨 (기존 코드 그대로 유지) */}
                     <div className="chk-med-line">
