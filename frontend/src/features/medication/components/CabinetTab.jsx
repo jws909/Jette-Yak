@@ -1,15 +1,22 @@
 import React from 'react';
+import { useMedicationSearch } from '../../../hooks/useMedicationSearch';
+import { useDialog } from '../../../contexts/DialogContext';
+import { addEverydayMed } from '../medicationApi';
 
 /**
  * 상비약 / 일반의약품 검색 등록 탭 컴포넌트
+ * - 자체 검색 훅(useMedicationSearch) 및 등록 핸들러 관리
  */
 export default function CabinetTab({
-  searchProps,
-  onAddCabinetMed,
+  currentUserId,
+  username,
   everydayMeds,
+  onSuccess,
   onRemoveMed,
   onOpenScheduleModal,
 }) {
+  const { showAlert } = useDialog();
+
   const {
     searchText: medSearchText,
     setSearchText: setMedSearchText,
@@ -22,9 +29,40 @@ export default function CabinetTab({
     highlightIndex,
     setHighlightIndex,
     containerRef: searchBoxRef,
-  } = searchProps;
+    clearSearch,
+  } = useMedicationSearch({ debounceMs: 250 });
 
   const cabinetMeds = (everydayMeds || []).filter((m) => m.source === 'CABINET');
+
+  // 상비약 등록 (CABINET)
+  const handleAddCabinetMed = async (item) => {
+    const medId = item?.medicationId || item?.itemSeq;
+    if (!medId) return;
+
+    if (!currentUserId) {
+      showAlert('로그인이 필요한 기능입니다.');
+      return;
+    }
+
+    try {
+      await addEverydayMed({
+        userId: currentUserId,
+        username: username,
+        type: 'CABINET',
+        medicationId: String(medId),
+      });
+
+      showAlert(`'${item.itemName}' 이(가) 상비약으로 등록되었습니다.`, '등록 완료');
+      clearSearch();
+      onSuccess?.();
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+        detail: { userId: currentUserId }
+      }));
+    } catch (err) {
+      console.error('상비약 등록 오류:', err);
+      showAlert(err.message || '상비약 등록 처리 중 오류가 발생했습니다.', '등록 오류');
+    }
+  };
 
   return (
     <section className="tab-section cabinet-section">
@@ -52,7 +90,7 @@ export default function CabinetTab({
               onFocus={() => {
                 if (medSearchText.trim()) setIsDropdownOpen(true);
               }}
-              onKeyDown={(e) => handleMedSearchKeyDown(e, onAddCabinetMed)}
+              onKeyDown={(e) => handleMedSearchKeyDown(e, handleAddCabinetMed)}
               autoFocus
             />
             {isSearching && <span className="searching-spinner" />}
@@ -71,7 +109,7 @@ export default function CabinetTab({
                       <div
                         key={item.medicationId || item.itemSeq || idx}
                         className={`dropdown-med-item ${highlightIndex === idx ? 'highlighted' : ''}`}
-                        onClick={() => onAddCabinetMed(item)}
+                        onClick={() => handleAddCabinetMed(item)}
                         onMouseEnter={() => setHighlightIndex(idx)}
                         role="button"
                         tabIndex={0}

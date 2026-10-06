@@ -1,24 +1,148 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useDialog } from '../../../contexts/DialogContext';
+import { updatePrescription } from '../medicationApi';
 
 /**
  * 처방전 정보 및 처방 약품 수정 모달
+ * - 자체 폼 상태 및 수정 API 처리 관리
  */
 export default function EditPrescriptionModal({
   isOpen,
-  editForm,
-  setEditForm,
-  isSaving,
-  editAlert,
+  prescription,
+  currentUserId,
   onClose,
-  onSave,
-  onAddItem,
-  onRemoveItem,
-  onItemChange,
+  onSuccess,
 }) {
-  if (!isOpen) return null;
+  const { showAlert, showLoading, hideLoading } = useDialog();
+
+  const [editForm, setEditForm] = useState({
+    prescriptionId: null,
+    nickname: '',
+    hospitalName: '',
+    doctorName: '',
+    dispensedDate: '',
+    totalDays: 3,
+    items: [],
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [editAlert, setEditAlert] = useState(null);
+
+  // 대상 처방전이 바뀔 때 초기 폼 데이터 세팅
+  useEffect(() => {
+    if (!prescription) return;
+
+    setEditAlert(null);
+    let dateStr = '';
+    if (prescription.dispensedDate) {
+      if (typeof prescription.dispensedDate === 'string') {
+        dateStr = prescription.dispensedDate.slice(0, 10);
+      } else {
+        const d = new Date(prescription.dispensedDate);
+        if (!isNaN(d.getTime())) {
+          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    setEditForm({
+      prescriptionId: prescription.prescriptionId,
+      nickname: prescription.nickname || '',
+      hospitalName: prescription.hospitalName || '',
+      doctorName: prescription.doctorName || '',
+      dispensedDate: dateStr,
+      totalDays: prescription.totalDays || 3,
+      items: (prescription.items || []).map((it) => ({
+        itemId: it.itemId,
+        medicationId: it.medicationId,
+        itemName: it.itemName || '',
+        dailyDose: it.dailyDose != null ? it.dailyDose : 1,
+        dailyFrequency: it.dailyFrequency || 3,
+        usageTiming: it.usageTiming || '1일 3회 식후 30분',
+        totalDays: it.totalDays || prescription.totalDays || 3,
+      })),
+    });
+  }, [prescription]);
+
+  if (!isOpen || !prescription) return null;
+
+  const handleAddItem = () => {
+    setEditForm((prev) => ({
+      ...prev,
+      items: [
+        ...prev.items,
+        {
+          medicationId: null,
+          itemName: '',
+          dailyDose: 1,
+          dailyFrequency: 3,
+          usageTiming: '1일 3회 식후 30분',
+          totalDays: prev.totalDays || 3,
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveItem = (idx) => {
+    setEditForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== idx),
+    }));
+  };
+
+  const handleItemChange = (idx, field, value) => {
+    setEditForm((prev) => ({
+      ...prev,
+      items: prev.items.map((it, i) => (i === idx ? { ...it, [field]: value } : it)),
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!editForm.hospitalName.trim()) {
+      showAlert('의료기관(병원명)을 입력해주세요.');
+      return;
+    }
+    if (editForm.items.length === 0) {
+      showAlert('최소 1개 이상의 처방 약품이 포함되어야 합니다.');
+      return;
+    }
+    for (let i = 0; i < editForm.items.length; i++) {
+      if (!editForm.items[i].itemName.trim()) {
+        showAlert(`${i + 1}번째 약품의 이름을 입력해주세요.`);
+        return;
+      }
+    }
+
+    setIsSaving(true);
+    showLoading({
+      title: '처방전 정보 수정 중',
+      description: '수정된 처방전과 관련 복약 일정을 안전하게 반영하고 있습니다. 잠시만 기다려 주세요.',
+    });
+    setEditAlert(null);
+
+    try {
+      await updatePrescription(editForm.prescriptionId, editForm);
+      setEditAlert({ type: 'success', message: '처방전 정보가 성공적으로 수정되었습니다.' });
+
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+        detail: { userId: currentUserId }
+      }));
+
+      setTimeout(() => {
+        onSuccess?.();
+        showAlert('처방전 정보가 성공적으로 수정되었습니다.', '수정 완료');
+      }, 600);
+    } catch (err) {
+      console.error('처방전 수정 오류:', err);
+      setEditAlert({ type: 'error', message: err.message || '서버 통신 중 오류가 발생했습니다.' });
+      showAlert(err.message || '서버 통신 중 오류가 발생했습니다.', '수정 오류');
+    } finally {
+      setIsSaving(false);
+      hideLoading();
+    }
+  };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => !isSaving && onClose()}>
       <div className="modal-box rx-edit-modal-box" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -102,7 +226,7 @@ export default function EditPrescriptionModal({
               <button
                 type="button"
                 className="edit-add-item-btn"
-                onClick={onAddItem}
+                onClick={handleAddItem}
               >
                 + 약품 추가
               </button>
@@ -127,7 +251,7 @@ export default function EditPrescriptionModal({
                           type="text"
                           className="table-input"
                           value={item.itemName}
-                          onChange={(e) => onItemChange(idx, 'itemName', e.target.value)}
+                          onChange={(e) => handleItemChange(idx, 'itemName', e.target.value)}
                           placeholder="약품명 입력"
                         />
                       </td>
@@ -135,7 +259,7 @@ export default function EditPrescriptionModal({
                         <select
                           className="table-select"
                           value={item.dailyFrequency}
-                          onChange={(e) => onItemChange(idx, 'dailyFrequency', parseInt(e.target.value, 10))}
+                          onChange={(e) => handleItemChange(idx, 'dailyFrequency', parseInt(e.target.value, 10))}
                         >
                           <option value={1}>1일 1회</option>
                           <option value={2}>1일 2회</option>
@@ -152,7 +276,7 @@ export default function EditPrescriptionModal({
                             max="10"
                             className="table-input number-input"
                             value={item.dailyDose}
-                            onChange={(e) => onItemChange(idx, 'dailyDose', parseFloat(e.target.value) || 1)}
+                            onChange={(e) => handleItemChange(idx, 'dailyDose', parseFloat(e.target.value) || 1)}
                           />
                           <span className="dose-unit">정/포</span>
                         </div>
@@ -162,7 +286,7 @@ export default function EditPrescriptionModal({
                           type="text"
                           className="table-input"
                           value={item.usageTiming}
-                          onChange={(e) => onItemChange(idx, 'usageTiming', e.target.value)}
+                          onChange={(e) => handleItemChange(idx, 'usageTiming', e.target.value)}
                           placeholder="예: 1일 3회 식후 30분"
                         />
                       </td>
@@ -170,7 +294,7 @@ export default function EditPrescriptionModal({
                         <button
                           type="button"
                           className="table-del-btn"
-                          onClick={() => onRemoveItem(idx)}
+                          onClick={() => handleRemoveItem(idx)}
                           title="약품 삭제"
                         >
                           ✕
@@ -196,7 +320,7 @@ export default function EditPrescriptionModal({
           <button
             type="button"
             className="btn-submit"
-            onClick={onSave}
+            onClick={handleSave}
             disabled={isSaving}
           >
             {isSaving ? '저장 중...' : '저장 완료'}

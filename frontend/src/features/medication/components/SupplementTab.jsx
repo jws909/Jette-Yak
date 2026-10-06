@@ -1,25 +1,92 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useDialog } from '../../../contexts/DialogContext';
+import { addEverydayMed, saveCalendarSchedule } from '../medicationApi';
 
 /**
  * 영양제 / 건강기능식품 직접 등록 탭 컴포넌트
+ * - 자체 폼 상태 및 등록 핸들러 관리
  */
 export default function SupplementTab({
-  customSupplementName,
-  setCustomSupplementName,
-  customSupplementSlot,
-  setCustomSupplementSlot,
-  customSupplementTime,
-  setCustomSupplementTime,
-  autoRegisterSchedule,
-  setAutoRegisterSchedule,
-  customSupplementDays,
-  setCustomSupplementDays,
-  onAddCustomSupplement,
+  currentUserId,
+  username,
   everydayMeds,
+  onSuccess,
   onRemoveMed,
   onOpenScheduleModal,
 }) {
+  const { showAlert } = useDialog();
+
+  const [customSupplementName, setCustomSupplementName] = useState('');
+  const [customSupplementSlot, setCustomSupplementSlot] = useState('morning');
+  const [customSupplementTime, setCustomSupplementTime] = useState('08:30');
+  const [autoRegisterSchedule, setAutoRegisterSchedule] = useState(true);
+  const [customSupplementDays, setCustomSupplementDays] = useState(30);
+
   const routineMeds = (everydayMeds || []).filter((m) => m.source === 'ROUTINE');
+
+  // 영양제 직접 등록 (ROUTINE)
+  const handleAddCustomSupplement = async (e) => {
+    if (e) e.preventDefault();
+    const name = customSupplementName.trim();
+    if (!name) {
+      showAlert('영양제 또는 건강기능식품 이름을 입력해 주세요.');
+      return;
+    }
+
+    if (!currentUserId) {
+      showAlert('로그인이 필요한 기능입니다.');
+      return;
+    }
+
+    try {
+      // 1. 평소 복용 영양제 (ROUTINE) 보관함 등록
+      await addEverydayMed({
+        userId: currentUserId,
+        username: username,
+        type: 'ROUTINE',
+        name: name,
+        takeTime: customSupplementTime,
+        notes: `${(customSupplementSlot === 'morning' ? '아침' : (customSupplementSlot === 'lunch' ? '점심' : (customSupplementSlot === 'dinner' || customSupplementSlot === 'evening' ? '저녁' : '취침전')))} 식후`,
+      });
+
+      // 2. 캘린더 복약 일정 동시 등록 (autoRegisterSchedule 체크 시)
+      let scheduleCreated = false;
+      if (autoRegisterSchedule) {
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        try {
+          await saveCalendarSchedule({
+            userId: currentUserId,
+            name: name,
+            type: 'supplement',
+            medicationId: null,
+            scheduledDate: todayStr,
+            scheduledTime: customSupplementTime,
+            repeatDays: Number(customSupplementDays) || 30,
+            alarmEnabled: 1,
+          });
+          scheduleCreated = true;
+        } catch (calErr) {
+          console.warn('캘린더 복약 일정 생성 실패:', calErr);
+        }
+      }
+
+      showAlert(
+        scheduleCreated
+          ? `'${name}' 영양제 및 ${customSupplementDays}일간의 복약 일정이 캘린더에 성공적으로 등록되었습니다!`
+          : `'${name}' 영양제가 성공적으로 등록되었습니다.`,
+        '등록 완료'
+      );
+      setCustomSupplementName('');
+      onSuccess?.();
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+        detail: { userId: currentUserId }
+      }));
+    } catch (err) {
+      console.error('영양제 등록 오류:', err);
+      showAlert(err.message || '영양제 등록 처리 중 오류가 발생했습니다.', '등록 오류');
+    }
+  };
 
   return (
     <section className="tab-section supplement-section">
@@ -36,7 +103,7 @@ export default function SupplementTab({
         {/* 직접 등록 카드 */}
         <div className="supplement-input-card">
           <h3>새 영양제 등록하기</h3>
-          <form onSubmit={onAddCustomSupplement}>
+          <form onSubmit={handleAddCustomSupplement}>
             <div className="form-group">
               <label>영양제 제품명 또는 성분 <span className="required">*</span></label>
               <input

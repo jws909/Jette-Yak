@@ -1,30 +1,102 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
+import { useDialog } from '../../../contexts/DialogContext';
+import { getTransformedFile } from '../../../utils/imageTransform';
+import { uploadPrescription } from '../medicationApi';
 
 /**
  * 처방전 / 약봉투 (AI 스마트 OCR 분석) 탭 컴포넌트
+ * - 자체 파일 업로드, 회전/반전 미리보기 및 AI OCR 분석 요청 관리
  */
 export default function PrescriptionTab({
-  rxFile,
-  setRxFile,
-  rxPreview,
-  setRxPreview,
-  rotation,
-  isFlipped,
-  rotateImage,
-  flipImage,
-  isAnalyzing,
-  isDragging,
-  setIsDragging,
-  fileInputRef,
-  handleRxFileSelect,
-  handleFileSelectDirect,
-  handleRxUploadSubmit,
+  currentUserId,
   userPrescriptions,
   isLoadingRxList,
   fetchPrescriptionList,
   startEditPrescription,
   handleDeleteRx,
 }) {
+  const { showAlert, showLoading, hideLoading } = useDialog();
+
+  const [rxFile, setRxFile] = useState(null);
+  const [rxPreview, setRxPreview] = useState(null);
+  const [rotation, setRotation] = useState(0);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleFileSelectDirect = (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showAlert('이미지 파일(JPG, PNG, WEBP 등)만 등록 가능합니다.', '파일 형식 안내');
+      return;
+    }
+    setRxFile(file);
+    setRotation(0);
+    setIsFlipped(false);
+    const objectUrl = URL.createObjectURL(file);
+    setRxPreview(objectUrl);
+  };
+
+  const handleRxFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    handleFileSelectDirect(file);
+  };
+
+  const rotateImage = () => {
+    setRotation((prev) => (prev + 90) % 360);
+  };
+
+  const flipImage = () => {
+    setIsFlipped((prev) => !prev);
+  };
+
+  // 처방전 업로드 & OCR 요청
+  const handleRxUploadSubmit = async (e) => {
+    e.preventDefault();
+    if (!currentUserId) {
+      showAlert('로그인이 필요한 서비스입니다.');
+      return;
+    }
+    if (!rxFile) {
+      showAlert('처방전 또는 약봉투 사진을 선택해 주세요.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    showLoading({
+      title: 'AI 처방전 자동 분석 및 등록 중',
+      description: '처방전 이미지의 약품명, 용법, 일수를 AI로 분석하고 복약 일정을 생성하고 있습니다. 잠시만 기다려 주세요.',
+    });
+
+    try {
+      const finalFile = await getTransformedFile(rxFile, rotation, isFlipped);
+      const formData = new FormData();
+      formData.append('file', finalFile);
+      formData.append('userId', currentUserId);
+
+      const data = await uploadPrescription(formData);
+      if (data.success && data.prescription) {
+        setRxFile(null);
+        setRxPreview(null);
+        await fetchPrescriptionList();
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId }
+        }));
+        showAlert('처방전 분석 및 등록이 성공적으로 완료되었습니다!\n복약 일정이 자동 생성되었습니다.', '등록 완료');
+        return;
+      }
+      throw new Error(data.message || '처방전 처리 응답 오류');
+    } catch (err) {
+      console.error('처방전 등록 오류:', err);
+      showAlert('처방전 분석에 실패했습니다. 사진이 선명한지 확인 후 다시 시도해 주세요.', '분석 실패');
+    } finally {
+      setIsAnalyzing(false);
+      hideLoading();
+    }
+  };
+
   return (
     <section className="tab-section prescription-section">
       <div className="section-intro-card">
@@ -193,7 +265,6 @@ export default function PrescriptionTab({
 
                 return (
                   <div key={rx.prescriptionId} className={`rx-item-card ${isLatest ? 'is-active-rx' : ''}`}>
-                    {/* 상단 헤더: 의료기관명, 조제 정보, 액션 버튼 */}
                     <div className="rx-card-top-bar">
                       <div className="rx-hospital-meta">
                         <div className="rx-hospital-header-line">
@@ -239,7 +310,6 @@ export default function PrescriptionTab({
                       </div>
                     </div>
 
-                    {/* AI 처방 이유 (있을 때만) */}
                     {purpose && (
                       <div className="rx-purpose-box">
                         <span className="purpose-label">AI 처방 이유</span>
@@ -247,7 +317,6 @@ export default function PrescriptionTab({
                       </div>
                     )}
 
-                    {/* 처방 약품 목록 */}
                     <div className="rx-meds-container">
                       <div className="rx-meds-header-row">
                         <span className="rx-meds-header-title">처방 의약품 ({rx.items?.length || 0}종)</span>

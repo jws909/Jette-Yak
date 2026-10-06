@@ -1,22 +1,113 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useDialog } from '../../../contexts/DialogContext';
+import { saveCalendarSchedule } from '../medicationApi';
 
 /**
  * 상비약 / 영양제 캘린더 복약 일정 등록 모달
+ * - 자체 상태 관리 (슬롯 선택, 알림 시간, 예정 기간)
  */
 export default function ScheduleModal({
   isOpen,
   med,
-  slots,
-  setSlots,
-  times,
-  setTimes,
-  days,
-  setDays,
-  isSaving,
+  currentUserId,
   onClose,
-  onSave,
+  onSuccess,
 }) {
+  const { showAlert } = useDialog();
+
+  const [schedSlots, setSchedSlots] = useState({ morning: true, lunch: false, dinner: false, bedtime: false });
+  const [schedTimes, setSchedTimes] = useState({ morning: '08:30', lunch: '12:30', dinner: '18:30', bedtime: '22:00' });
+  const [schedDays, setSchedDays] = useState(30);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 약 선택 시 복용 시간(takeTime)에 따른 초기값 설정
+  useEffect(() => {
+    if (!med) return;
+
+    let initSlot = 'morning';
+    const timeVal = med.takeTime || '08:30';
+    if (med.takeTime && med.takeTime.includes(':')) {
+      const hour = parseInt(med.takeTime.split(':')[0], 10);
+      if (hour < 11) initSlot = 'morning';
+      else if (hour < 16) initSlot = 'lunch';
+      else if (hour < 21) initSlot = 'dinner';
+      else initSlot = 'bedtime';
+    }
+
+    setSchedSlots({
+      morning: initSlot === 'morning',
+      lunch: initSlot === 'lunch',
+      dinner: initSlot === 'dinner',
+      bedtime: initSlot === 'bedtime',
+    });
+    setSchedTimes((prev) => ({
+      ...prev,
+      [initSlot]: timeVal,
+    }));
+    setSchedDays(30);
+  }, [med]);
+
   if (!isOpen || !med) return null;
+
+  const handleSaveSchedule = async (e) => {
+    e.preventDefault();
+    const selectedSlots = Object.keys(schedSlots).filter((k) => schedSlots[k]);
+    if (selectedSlots.length === 0) {
+      showAlert('최소 1개 이상의 복용 시간대를 선택해 주세요.');
+      return;
+    }
+
+    if (!currentUserId) {
+      showAlert('로그인이 필요한 기능입니다.');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      let allSuccess = true;
+      let lastErrMsg = '';
+
+      const isCabinet = med.source === 'CABINET';
+      const rawNumericId = med.rawId ? Number(med.rawId) : null;
+
+      for (const slot of selectedSlots) {
+        const time = schedTimes[slot] || (slot === 'morning' ? '08:30' : slot === 'lunch' ? '12:30' : slot === 'dinner' ? '18:30' : '22:00');
+        const payload = {
+          userId: currentUserId,
+          name: med.name,
+          type: isCabinet ? 'regular' : 'supplement',
+          medicationId: med.medicationId ? String(med.medicationId) : null,
+          cabinetId: isCabinet ? rawNumericId : null,
+          routineId: !isCabinet ? rawNumericId : null,
+          scheduledDate: todayStr,
+          scheduledTime: time,
+          repeatDays: Number(schedDays) || 30,
+          alarmEnabled: 1,
+        };
+
+        try {
+          await saveCalendarSchedule(payload);
+        } catch (schedErr) {
+          allSuccess = false;
+          lastErrMsg = schedErr.message || '';
+        }
+      }
+
+      if (allSuccess) {
+        showAlert(`${med.name}의 ${schedDays}일 복약 일정이 캘린더에 성공적으로 등록되었습니다!`, '등록 완료');
+        onSuccess?.();
+      } else {
+        showAlert('일정 등록에 실패했습니다.' + (lastErrMsg ? ` (${lastErrMsg})` : ''), '등록 실패');
+      }
+    } catch (err) {
+      console.error('일정 저장 오류:', err);
+      showAlert('일정 저장 중 오류가 발생했습니다.', '오류');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={() => !isSaving && onClose()}>
@@ -33,7 +124,7 @@ export default function ScheduleModal({
           </button>
         </div>
 
-        <form onSubmit={onSave}>
+        <form onSubmit={handleSaveSchedule}>
           <p className="modal-desc">
             캘린더와 메인 화면에 매일 복약 체크를 진행할 시간대와 일수를 설정하세요.
           </p>
@@ -49,23 +140,23 @@ export default function ScheduleModal({
               ].map((s) => (
                 <div
                   key={s.key}
-                  className={`slot-checkbox-label ${slots[s.key] ? 'checked' : ''}`}
-                  onClick={() => setSlots((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
+                  className={`slot-checkbox-label ${schedSlots[s.key] ? 'checked' : ''}`}
+                  onClick={() => setSchedSlots((prev) => ({ ...prev, [s.key]: !prev[s.key] }))}
                 >
                   <input
                     type="checkbox"
-                    checked={Boolean(slots[s.key])}
-                    onChange={(e) => setSlots((prev) => ({ ...prev, [s.key]: e.target.checked }))}
+                    checked={Boolean(schedSlots[s.key])}
+                    onChange={(e) => setSchedSlots((prev) => ({ ...prev, [s.key]: e.target.checked }))}
                     onClick={(e) => e.stopPropagation()}
                   />
                   <span>{s.label}</span>
                   <input
                     type="time"
                     className="slot-time-input"
-                    value={times[s.key] || s.defaultTime}
+                    value={schedTimes[s.key] || s.defaultTime}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setTimes((prev) => ({ ...prev, [s.key]: val }));
+                      setSchedTimes((prev) => ({ ...prev, [s.key]: val }));
                     }}
                     onClick={(e) => e.stopPropagation()}
                     title={`${s.label} 알림 시간 설정`}
@@ -82,8 +173,8 @@ export default function ScheduleModal({
                 <button
                   key={d}
                   type="button"
-                  className={`days-pill ${days === d ? 'active' : ''}`}
-                  onClick={() => setDays(d)}
+                  className={`days-pill ${schedDays === d ? 'active' : ''}`}
+                  onClick={() => setSchedDays(d)}
                 >
                   {d}일분
                 </button>
@@ -105,7 +196,7 @@ export default function ScheduleModal({
               className="btn-submit"
               disabled={isSaving}
             >
-              {isSaving ? '일정 생성 중...' : `${days}일 복약 일정 등록 완료`}
+              {isSaving ? '일정 생성 중...' : `${schedDays}일 복약 일정 등록 완료`}
             </button>
           </div>
         </form>
