@@ -1,13 +1,17 @@
 /**
- * 파일 역할: 게시글 또는 댓글 신고 대상과 사용자가 작성한 사유를 받는 요청 DTO입니다.
- * 핵심 규칙: 신고자는 서버 세션에서 정하며 같은 사용자의 중복 신고 여부는 서비스·DB에서 확인합니다.
+ * 역할: 게시글·댓글 신고 대상과 사용자가 작성한 상세 사유 전달
+ * 보안 기준: 신고자 번호는 DTO에서 받지 않고 서버 세션에서 결정
  */
 package com.app.community.dto;
 
 public class CommunityReportRequest {
+    // POST 또는 COMMENT
     private String targetType;
+    // 신고할 게시글 번호 또는 댓글 번호
     private Long targetId;
+    // 서버 허용 목록에 포함된 분류 코드
     private String reason;
+    // 관리자 화면에 표시할 사용자의 설명
     private String detail;
     public String getTargetType() { return targetType; }
     public void setTargetType(String targetType) { this.targetType = targetType; }

@@ -1,6 +1,6 @@
 /**
- * 로컬 가짜 HTTP 서버로 Gemini 요청 형식, 오류 매핑, JSON 응답 검증을 확인하는 독립 실행 점검 코드입니다.
- * 실제 API 키나 외부 네트워크를 사용하지 않으며 main 메서드로 실행합니다.
+ * 역할: Gemini 요청 형식, 오류 매핑, JSON 응답 검증 점검
+ * 실행 방식: 실제 API 키와 외부 네트워크 없이 로컬 가짜 HTTP 서버 사용
  */
 package com.app.chatbot.client;
 

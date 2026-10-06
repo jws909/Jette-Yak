@@ -1,6 +1,9 @@
+/**
+ * 역할: DB에 저장된 챗봇 메시지 한 건을 화면 응답으로 복원
+ * payloadJson: 답변 근거, 선택 목록, 경고 같은 부가 응답 보관
+ */
 package com.app.chatbot.dto;
 
-/** 저장된 챗봇 메시지 한 건을 복원하기 위한 DTO다. */
 public class ChatHistoryMessageDto {
     private long messageId;
     private String role;

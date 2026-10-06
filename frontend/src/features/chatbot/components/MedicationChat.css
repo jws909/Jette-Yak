@@ -136,3 +136,6 @@
 .chat-history-open strong{-webkit-line-clamp:2}.chat-history-open small{-webkit-line-clamp:2}
 .sources summary,.chat-catalog-results summary,.chat-dur-reports summary,.chat-personal-panel summary{white-space:normal}
 @media(max-width:700px){.question-bubble{max-width:92%;margin-left:auto}.composer-footer small{flex:1 1 180px;max-width:none}.composer-footer button{flex:1 0 auto;min-height:44px;white-space:normal}.conversation-heading-actions{justify-content:flex-end}.conversation-heading-actions button{min-height:38px}.chat-catalog-results summary,.chat-dur-reports summary{align-items:flex-start}}
+
+/* 상담 기록 전체 삭제는 개별 기록과 분리해 실수로 누르지 않도록 보조 동작으로 표시 */
+.chat-history-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;color:#7a7067;font-size:11px}.chat-history-toolbar button{border:0;background:transparent;color:#9b3b49;padding:4px 0;font:inherit;font-weight:700;cursor:pointer}.chat-history-toolbar button:disabled{opacity:.5;cursor:wait}

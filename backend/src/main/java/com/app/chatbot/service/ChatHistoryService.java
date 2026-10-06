@@ -1,3 +1,7 @@
+/**
+ * 역할: 사용자별 상담 대화 생성, 질문·답변 저장, 이전 상담 복원과 삭제 처리
+ * 보안 기준: 대화 조회·갱신·삭제마다 로그인 userId를 DAO 조건에 포함
+ */
 package com.app.chatbot.service;
 
 import java.util.ArrayList;
@@ -13,7 +17,6 @@ import com.app.chatbot.dto.MedicationChatDto;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-/** 사용자별 챗봇 대화방을 저장하고 화면에서 다시 열 수 있는 형태로 복원한다. */
 @Service
 public class ChatHistoryService {
     private final ChatHistoryDao dao;
@@ -79,6 +82,10 @@ public class ChatHistoryService {
         if(conversationId<=0||dao.deleteConversation(userId,conversationId)!=1)
             throw new IllegalArgumentException("삭제할 대화 기록을 찾을 수 없습니다.");
     }
+
+    // 자식 메시지는 FK의 ON DELETE CASCADE로 함께 삭제되고 반환값은 삭제된 대화 수다.
+    @Transactional
+    public int deleteAll(long userId){return dao.deleteAllConversations(userId);}
 
     private void insertMessage(long conversationId,String role,String content,String payload){
         Map<String,Object> values=new LinkedHashMap<>();

@@ -129,6 +129,14 @@ public class ChatController {
         catch(DataAccessException e){log.error("챗봇 대화 삭제 실패",e);return ResponseEntity.status(500).body(Map.of("error","대화 기록을 삭제하지 못했습니다."));}
     }
 
+    @DeleteMapping(value="/api/chat/conversations",produces="application/json")
+    public ResponseEntity<?> deleteAllConversations(javax.servlet.http.HttpServletRequest request){
+        Long userId=authenticatedUser(request);
+        if(userId==null)return ResponseEntity.status(401).body(Map.of("error","로그인이 필요합니다."));
+        try{return ResponseEntity.ok(Map.of("success",true,"deletedCount",history.deleteAll(userId)));}
+        catch(DataAccessException e){log.error("챗봇 대화 전체 삭제 실패",e);return ResponseEntity.status(500).body(Map.of("error","대화 기록을 전체 삭제하지 못했습니다."));}
+    }
+
     private static Long authenticatedUser(javax.servlet.http.HttpServletRequest request){
         var session=request.getSession(false);Object value=session==null?null:session.getAttribute("userId");
         return value instanceof Long&&(Long)value>0?(Long)value:null;

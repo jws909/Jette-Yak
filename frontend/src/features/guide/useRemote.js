@@ -1,6 +1,6 @@
 /**
- * 파일 역할: 가이드 화면의 GET 요청에 공통으로 쓰는 loading/data/error/retry 상태 훅입니다.
- * 핵심 규칙: URL이 없으면 요청하지 않으며 언마운트된 컴포넌트에는 결과를 반영하지 않습니다.
+ * 역할: 가이드 GET 요청의 loading, data, error, retry 상태 공유
+ * 요청 기준: URL이 없으면 요청 생략, 화면 해제 후 도착한 응답은 상태에 반영하지 않음
  */
 import { useEffect, useState } from 'react'
 export default function useRemote(url, refresh = 0) {

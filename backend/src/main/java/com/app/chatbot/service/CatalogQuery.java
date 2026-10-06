@@ -1,6 +1,6 @@
 /**
- * 파일 역할: AI가 해석한 구조화 검색 조건과 DUR 조건을 담는 값 객체입니다.
- * 핵심 규칙: field와 kind는 허용 목록만 사용해 임의 SQL 조건이 만들어지지 않게 합니다.
+ * 역할: AI가 해석한 구조화 의약품·DUR 검색 조건 보관
+ * 보안 기준: field와 kind를 허용 목록으로 제한해 임의 SQL 조건 생성 차단
  */
 package com.app.chatbot.service;
 import java.util.*;

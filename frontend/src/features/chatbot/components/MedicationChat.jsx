@@ -1,6 +1,6 @@
 /**
- * 파일 역할: 약 검색, 선택 약 문맥, 대화 이력, AI 상담 응답을 한 화면에서 관리하는 챗봇 컨테이너입니다.
- * 핵심 규칙: 서버가 반환한 응답 종류에 따라 상담 문장, DB 출처, 검색 결과, 후속 질문을 구분해 표시합니다.
+ * 역할: 약 검색, 선택 약 문맥, 대화 이력, AI 상담 응답을 한 화면에서 관리
+ * 표시 기준: 상담 문장, DB 출처, 검색 결과, 후속 질문을 응답 종류에 따라 분리
  */
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -240,6 +240,19 @@ function MedicationConversation() {
     } catch (err) { setDeleteTarget(null);setError(err.message) }
   }
 
+  // 전체 삭제는 서버에서 로그인 사용자의 대화만 지우고 현재 화면도 새 상담 상태로 초기화한다.
+  async function deleteAllConversations() {
+    if (requestRef.current) return
+    setHistoryLoading(true)
+    try {
+      await readResponse(await fetch('/api/chat/conversations', { method: 'DELETE' }))
+      startNewConversation()
+      setHistoryItems([])
+      setDeleteTarget(null)
+    } catch (err) { setDeleteTarget(null);setError(err.message) }
+    finally { setHistoryLoading(false) }
+  }
+
   async function compareProducts() {
     // 일반 상담 경로로 보내 DB 기록이 없을 때에도 AI 보완 설명과 출처 경고를 받을 수 있게 한다.
     if (!selected || !other || selected.itemSeq===other.itemSeq || requestRef.current || paging) return
@@ -315,6 +328,7 @@ function MedicationConversation() {
         <section className="side-tool-card"><div className="side-tool-heading"><span>03</span><div><strong>조건으로 찾아보기</strong><small>성분·효능·주의 대상을 자세히 검색</small></div></div><CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} /></section>
         <details className="chat-history-panel side-tool-card">
           <summary><span className="side-summary-number">04</span> 지난 상담 이어보기</summary>
+          {!historyLoading&&!historyLoginRequired&&historyItems.length>0&&<div className="chat-history-toolbar"><span>최근 상담 {historyItems.length}개</span><button type="button" disabled={loading} onClick={()=>setDeleteTarget({all:true,title:'모든 상담 기록'})}>전체 삭제</button></div>}
           {historyLoading && <div className="side-loading"><span aria-hidden="true"/>상담 기록을 불러오고 있어요…</div>}
           {historyLoginRequired && <p><Link to="/login?next=/chat">로그인하고 상담 기록 보기 →</Link></p>}
           {!historyLoading && !historyLoginRequired && historyItems.length === 0 && <p>저장된 상담 기록이 없습니다.</p>}
@@ -386,7 +400,7 @@ function MedicationConversation() {
       </div>
     </section>
     <footer className="page-footer">증상 안내는 진단을 대신하지 않습니다. 약 정보는 표시된 DB 근거를 확인하고, 응급 증상은 119 또는 응급실에 도움을 요청하세요.</footer>
-    <UiDialog open={Boolean(deleteTarget)} title="상담 기록을 삭제할까요?" description={`“${deleteTarget?.title||'선택한 대화'}” 기록이 목록에서 삭제됩니다.`} confirmLabel="기록 삭제" tone="danger" busy={historyLoading} onCancel={()=>setDeleteTarget(null)} onConfirm={()=>deleteConversation(deleteTarget.conversationId)}/>
+    <UiDialog open={Boolean(deleteTarget)} title={deleteTarget?.all?'모든 상담 기록을 삭제할까요?':'상담 기록을 삭제할까요?'} description={deleteTarget?.all?'저장된 상담 기록 전체가 영구 삭제되며 되돌릴 수 없습니다. 현재 대화도 새 상담으로 초기화됩니다.':`“${deleteTarget?.title||'선택한 대화'}” 기록이 목록에서 삭제됩니다.`} confirmLabel={deleteTarget?.all?'전체 기록 삭제':'기록 삭제'} tone="danger" busy={historyLoading} onCancel={()=>setDeleteTarget(null)} onConfirm={()=>deleteTarget?.all?deleteAllConversations():deleteConversation(deleteTarget.conversationId)}/>
     <UiDialog open={Boolean(evidenceDialog)} title="AI 참고정보를 확인해주세요" description={evidenceDialog||''} confirmLabel="답변 확인" cancelLabel="" onCancel={()=>setEvidenceDialog(null)} onConfirm={()=>setEvidenceDialog(null)} />
   </main>
 }

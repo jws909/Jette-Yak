@@ -2,8 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.chatbot.dao.ChatbotDao">
 <!--
-  챗봇이 사용하는 제품명 검색과 품목 상세 조회 SQL이다.
-  MedicationChatDto는 자동 매핑하지 않으므로 컬럼 별칭 또는 resultMap 속성을 바꿀 때 Java 필드도 함께 확인한다.
+  역할: 챗봇 제품명 검색과 품목 상세 조회 SQL
+  매핑 기준: 컬럼 별칭 또는 resultMap 변경 시 MedicationChatDto 필드도 함께 확인
 -->
 <resultMap id="medicationChatResult"
 		type="com.app.chatbot.dto.MedicationChatDto" autoMapping="false">

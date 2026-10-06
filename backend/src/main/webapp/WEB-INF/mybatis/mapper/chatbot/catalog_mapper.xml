@@ -2,8 +2,8 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.chatbot.dao.CatalogDao">
 <!--
-  AI가 분류한 허용 필터를 의약품·DUR 조건 검색 SQL로 변환한다.
-  f.field는 CatalogQuery의 허용 목록만 들어와야 하며 otherwise는 알 수 없는 필드를 항상 실패 조건으로 만든다.
+  역할: AI가 분류한 허용 필터를 의약품·DUR 조건 검색 SQL로 변환
+  보안 기준: 허용하지 않은 f.field는 otherwise의 실패 조건으로 차단
 -->
 <sql id="durConditions">
   <if test="tabooType != 0">AND d.taboo_type = #{tabooType}</if>

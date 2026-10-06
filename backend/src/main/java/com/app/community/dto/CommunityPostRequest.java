@@ -1,15 +1,18 @@
 /**
- * 파일 역할: 게시글 내용, 경험 정보, 연결 약품과 첨부파일 메타데이터를 받는 요청 DTO입니다.
- * 핵심 규칙: medicationId가 있을 때만 공식 의약품과 연결되며 표시용 이름만으로는 연결하지 않습니다.
+ * 역할: 게시글 작성·수정 화면에서 전달한 내용과 복용 경험 정보 보관
+ * 약 연결 기준: medicationId가 있을 때만 공식 제품과 연결, medicationName은 표시용 문자열
  */
 package com.app.community.dto;
 
 public class CommunityPostRequest {
+    // 공식 의약품 연결 정보
     private String medicationId;
     private String medicationName;
+    // 게시글 기본 내용
     private String category;
     private String title;
     private String content;
+    // 사용자가 선택적으로 작성하는 복용 경험 정보
     private String experienceDuration;
     private String ageGroup;
     private String purpose;

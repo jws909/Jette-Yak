@@ -1,3 +1,7 @@
+/**
+ * 역할: 표준 성분과 별칭 우선 조회, 기존 원문 조회 호환성을 DB 없이 점검
+ * 실행 방식: 모의 MedicationGuideDao 사용
+ */
 package com.app.guide;
 
 import java.util.ArrayList;
@@ -7,7 +11,6 @@ import com.app.guide.dto.DurInfoDto;
 import com.app.guide.dto.MedicationIngredientDto;
 import com.app.guide.service.DurGuideService;
 
-/** DB 없이 표준 성분/별칭 우선 조회와 기존 조회 호환성을 확인한다. */
 public class IngredientMatchingCheck {
     private static int checks;
     private static void check(boolean condition,String message){if(!condition)throw new AssertionError(message);checks++;}

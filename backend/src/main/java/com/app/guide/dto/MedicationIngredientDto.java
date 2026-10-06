@@ -1,9 +1,8 @@
-package com.app.guide.dto;
-
 /**
- * 제품에 적힌 원문 성분과 내부 표준 성분의 연결 결과다.
- * ingredientId가 null이면 아직 검증된 별칭을 찾지 못한 성분이다.
+ * 역할: 제품 원문 성분과 내부 표준 성분의 연결 결과 전달
+ * matchStatus: 정확 일치, 별칭 일치, 미연결 상태 구분
  */
+package com.app.guide.dto;
 public class MedicationIngredientDto {
     private Long ingredientId;
     private String canonicalName;
