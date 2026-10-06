@@ -5,3 +5,7 @@
 
 /* 처리 사유 입력은 사용자에게 전달될 원문이므로 충분한 높이와 명확한 초점 표시 제공 */
 .admin-reason-label{display:grid;gap:8px;color:#4c433d;font-size:13px;font-weight:700}.admin-reason-label textarea{box-sizing:border-box;width:100%;min-height:120px;resize:vertical;border:1px solid #d8cbc0;border-radius:8px;padding:12px;font:inherit;line-height:1.6}.admin-reason-label textarea:focus{border-color:#873448;outline:2px solid rgba(135,52,72,.12)}
+
+/* 신고 원문과 관리자 처리 사유가 모바일 카드 너비 안에서 자연스럽게 줄바꿈되도록 처리 */
+.admin-page,.admin-section,.admin-item{min-width:0}
+.admin-heading p,.admin-description,.admin-item h4,.admin-item p,.admin-item small,.admin-notice,.admin-error{overflow-wrap:anywhere;word-break:keep-all}

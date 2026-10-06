@@ -406,7 +406,7 @@ function MedicationConversation() {
       </div>
     </section>
     <footer className="page-footer">증상 안내는 진단을 대신하지 않습니다. 약 정보는 표시된 DB 근거를 확인하고, 응급 증상은 119 또는 응급실에 도움을 요청하세요.</footer>
-    <UiDialog open={Boolean(deleteTarget)} title={deleteTarget?.all?'모든 상담 기록을 삭제할까요?':'상담 기록을 삭제할까요?'} description={deleteTarget?.all?'저장된 상담 기록 전체가 영구 삭제되며 되돌릴 수 없습니다. 현재 대화도 새 상담으로 초기화됩니다.':`“${deleteTarget?.title||'선택한 대화'}” 기록이 목록에서 삭제됩니다.`} confirmLabel={deleteTarget?.all?'전체 기록 삭제':'기록 삭제'} tone="danger" busy={historyLoading} onCancel={()=>setDeleteTarget(null)} onConfirm={()=>deleteTarget?.all?deleteAllConversations():deleteConversation(deleteTarget.conversationId)}/>
+    <UiDialog open={Boolean(deleteTarget)} title={deleteTarget?.all?'모든 상담 기록을 삭제할까요?':'상담 기록을 삭제할까요?'} description={deleteTarget?.all?'저장된 상담 기록 전체가 영구 삭제됩니다.\n삭제한 기록은 되돌릴 수 없으며 현재 화면은 새 상담으로 초기화됩니다.':`“${deleteTarget?.title||'선택한 대화'}” 기록이 목록에서 삭제됩니다.\n삭제한 상담 기록은 다시 복구할 수 없습니다.`} confirmLabel={deleteTarget?.all?'전체 기록 삭제':'기록 삭제'} tone="danger" busy={historyLoading} onCancel={()=>setDeleteTarget(null)} onConfirm={()=>deleteTarget?.all?deleteAllConversations():deleteConversation(deleteTarget.conversationId)}/>
     <UiDialog open={Boolean(evidenceDialog)} title="AI 참고정보를 확인해주세요" description={evidenceDialog||''} confirmLabel="답변 확인" cancelLabel="" onCancel={()=>setEvidenceDialog(null)} onConfirm={()=>setEvidenceDialog(null)} />
   </main>
 }

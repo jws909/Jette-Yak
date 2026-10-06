@@ -5,6 +5,12 @@
 import { useEffect, useRef } from 'react'
 import './UiDialog.css'
 
+// 긴 설명을 문장과 명시적 줄바꿈 단위로 나눠 경고 내용이 한 덩어리로 붙지 않게 표시한다.
+function DialogDescription({value}){
+  const paragraphs=String(value||'').split(/(?<=[.!?])\s+|\n+/).map(text=>text.trim()).filter(Boolean)
+  return <div className="ui-dialog-description">{paragraphs.map((paragraph,index)=><p key={`${index}-${paragraph}`}>{paragraph}</p>)}</div>
+}
+
 export default function UiDialog({open,title,description,confirmLabel='확인',cancelLabel='취소',tone='default',busy=false,onConfirm,onCancel,children}){
   const panelRef=useRef(null)
   // 부모가 다시 렌더링돼 콜백 함수가 바뀌어도 포커스 효과를 재실행하지 않도록 최신 값만 ref에 보관
@@ -31,7 +37,7 @@ export default function UiDialog({open,title,description,confirmLabel='확인',c
   return <div className="ui-dialog-backdrop" onMouseDown={()=>!busy&&onCancel?.()}>
     <section className={'ui-dialog ui-dialog-'+tone} role="dialog" aria-modal="true" aria-labelledby="ui-dialog-title" tabIndex="-1" ref={panelRef} onMouseDown={event=>event.stopPropagation()}>
       <div className="ui-dialog-mark" aria-hidden="true">{tone==='danger'?'!':'✦'}</div>
-      <div className="ui-dialog-copy"><h2 id="ui-dialog-title">{title}</h2>{description&&<p>{description}</p>}{children}</div>
+      <div className="ui-dialog-copy"><h2 id="ui-dialog-title">{title}</h2>{description&&<DialogDescription value={description}/>}{children}</div>
       <div className="ui-dialog-actions">
         {cancelLabel&&<button type="button" className="ui-dialog-cancel" disabled={busy} onClick={onCancel}>{cancelLabel}</button>}
         <button type="button" className="ui-dialog-confirm" disabled={busy} onClick={onConfirm}>{busy?'처리 중…':confirmLabel}</button>

@@ -121,3 +121,7 @@
 .community-reply-target{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:7px;background:#f4efe8;color:#665b53;font-size:12px}
 .community-reply-target button{padding:4px 8px}
 @media(max-width:560px){.community-comment{padding-top:16px}.community-comment.is-reply{margin-left:14px;padding-left:12px}.community-comment-actions{position:static;flex-wrap:wrap;margin-top:8px}.community-comment-author>div{min-width:0;flex-wrap:wrap}.community-detail-actions{flex-wrap:wrap}.community-detail-actions button{flex:1 1 auto}.community-reply-target{align-items:flex-start}}
+
+/* 게시글·댓글·안내문에 긴 제품명이나 공백 없는 문자열이 들어와도 화면 밖으로 밀리지 않게 처리 */
+.community-page,.community-card,.community-detail,.community-comment,.community-notice{min-width:0}
+.community-card h2,.community-card>p,.community-content,.community-comment p,.community-notice span,.community-official span{overflow-wrap:anywhere;word-break:keep-all}

@@ -436,17 +436,32 @@ public class UserController {
 
     private ResponseEntity<?> profileImageResponse(User user) throws IOException {
         if (user == null || user.getProfileImageUrl() == null || user.getProfileImageUrl().isBlank()) {
-            return ResponseEntity.notFound().build();
+            return defaultProfileImageResponse();
         }
 
         Path imagePath = profileUploadDirectory().resolve(Path.of(user.getProfileImageUrl()).getFileName());
         if (!Files.isRegularFile(imagePath)) {
-            return ResponseEntity.notFound().build();
+            return defaultProfileImageResponse();
         }
         String contentType = Files.probeContentType(imagePath);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType == null ? MediaType.APPLICATION_OCTET_STREAM_VALUE : contentType))
                 .body(Files.readAllBytes(imagePath));
+    }
+
+    /**
+     * DB에 파일명이 남았지만 실제 파일이 삭제된 경우에도 이미지 요청을 404로 끝내지 않는다.
+     * 커뮤니티와 마이페이지가 같은 기본 프로필 이미지를 받으므로 브라우저 콘솔에도 실패 요청이 남지 않는다.
+     */
+    private ResponseEntity<byte[]> defaultProfileImageResponse() throws IOException {
+        try (var input = UserController.class.getResourceAsStream("/images/default-profile.png")) {
+            if (input == null) {
+                throw new IOException("기본 프로필 이미지 리소스를 찾을 수 없습니다.");
+            }
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_PNG)
+                    .body(input.readAllBytes());
+        }
     }
 
     private String saveProfileImage(String username, MultipartFile file) throws IOException {

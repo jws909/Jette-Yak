@@ -521,3 +521,7 @@
   word-break: keep-all;
 }
 
+
+/* 약 이름과 주의 문구가 길어도 관리 카드와 경고 영역을 밀어내지 않도록 처리 */
+.guide-page-wrapper,.my-med-row,.interaction-summary{min-width:0}
+.guide-page-wrapper p,.my-med-row p,.interaction-summary p{overflow-wrap:anywhere;word-break:keep-all}

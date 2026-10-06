@@ -583,3 +583,6 @@
 .notif-btn-reject:hover {
   background-color: #e9ecef;
 }
+/* 저장형 알림과 긴 사용자 입력이 팝오버 폭을 넘어가지 않도록 줄바꿈 허용 */
+.notif-item-body{min-width:0}
+.notif-item-title,.notif-item-text{white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
