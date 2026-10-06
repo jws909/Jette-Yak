@@ -1393,7 +1393,7 @@
   transition: all 0.2s ease;
 }
 
-.custom-checkbox:hover {
+.custom-checkbox:not(.checked):hover {
   border-color: #8b3e4b;
   background-color: #fdf5f5;
 }
@@ -1403,6 +1403,11 @@
   border-color: #8b3e4b;
   color: #ffffff;
   box-shadow: 0 2px 6px rgba(139, 62, 75, 0.35);
+}
+
+.custom-checkbox.checked:hover {
+  background-color: #732f3c;
+  border-color: #732f3c;
 }
 
 .custom-checkbox svg {
@@ -4557,24 +4562,37 @@
 .custom-checkbox.cabinet-checkbox.checked {
   background-color: #2b7044;
   border-color: #2b7044;
+  color: #ffffff;
   box-shadow: 0 2px 6px rgba(43, 112, 68, 0.35);
 }
 
-.custom-checkbox.regular-checkbox:hover,
-.custom-checkbox.cabinet-checkbox:hover {
+.custom-checkbox.regular-checkbox:not(.checked):hover,
+.custom-checkbox.cabinet-checkbox:not(.checked):hover {
   border-color: #2b7044;
   background-color: #f2f9f4;
+}
+
+.custom-checkbox.regular-checkbox.checked:hover,
+.custom-checkbox.cabinet-checkbox.checked:hover {
+  background-color: #235c38;
+  border-color: #235c38;
 }
 
 .custom-checkbox.supplement-checkbox.checked {
   background-color: #b87b2b;
   border-color: #b87b2b;
+  color: #ffffff;
   box-shadow: 0 2px 6px rgba(184, 123, 43, 0.35);
 }
 
-.custom-checkbox.supplement-checkbox:hover {
+.custom-checkbox.supplement-checkbox:not(.checked):hover {
   border-color: #b87b2b;
   background-color: #fffcf7;
+}
+
+.custom-checkbox.supplement-checkbox.checked:hover {
+  background-color: #9c6722;
+  border-color: #9c6722;
 }
 
 /* 카드 내부 정보 열 */
