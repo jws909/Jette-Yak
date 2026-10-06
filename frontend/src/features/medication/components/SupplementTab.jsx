@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { addEverydayMed } from '../medicationApi';
 

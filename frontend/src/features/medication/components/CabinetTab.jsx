@@ -1,4 +1,3 @@
-import React from 'react';
 import { useMedicationSearch } from '../../../hooks/useMedicationSearch';
 import { useDialog } from '../../../contexts/DialogContext';
 import { addEverydayMed } from '../medicationApi';

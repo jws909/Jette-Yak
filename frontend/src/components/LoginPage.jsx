@@ -290,7 +290,7 @@ export default function LoginPage({ onLoginSuccess, onLoginDemoToggle }) {
 
           <button type="submit" className="login-submit" disabled={isSubmitting}>
             {isSubmitting ? "로그인 중..." : "로그인"}{" "}
-            <span aria-hidden="true">←</span>
+            <span aria-hidden="true">→</span>
           </button>
 
           {onLoginDemoToggle && (

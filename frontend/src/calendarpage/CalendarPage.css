@@ -484,9 +484,38 @@
 .check-box {
   width: 17px;
   height: 17px;
-  accent-color: #7d2638;
+  accent-color: #8b3e4b;
   cursor: pointer;
   flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+/* 상시약 / 상비약 체크박스 (메인 페이지 에메랄드 그린과 일치) */
+.dose-item.regular .check-box,
+.dose-item.regular .check-box:checked,
+.check-box.regular,
+.check-box.regular:checked {
+  accent-color: #2b7044 !important;
+}
+
+/* 영양제 체크박스 (메인 페이지 앰버 골드와 일치) */
+.dose-item.supplement .check-box,
+.dose-item.supplement .check-box:checked,
+.check-box.supplement,
+.check-box.supplement:checked {
+  accent-color: #b87b2b !important;
+}
+
+/* 처방약 체크박스 (메인 페이지 와인 레드와 일치) */
+.dose-item.prescription .check-box,
+.dose-item.prescription .check-box:checked,
+.cal-pouch-card .check-box,
+.cal-pouch-card .check-box:checked,
+.cal-pouch-sub-item .check-box,
+.cal-pouch-sub-item .check-box:checked,
+.check-box.prescription,
+.check-box.prescription:checked {
+  accent-color: #8b3e4b !important;
 }
 
 .dose-info {
