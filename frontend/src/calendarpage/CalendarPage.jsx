@@ -920,7 +920,7 @@ const CalendarPage = (props) => {
                         <div className="cal-pouch-main-row" onClick={(e) => togglePouchTaken(unit, e)}>
                           <input
                             type="checkbox"
-                            className="check-box"
+                            className="check-box prescription"
                             checked={isTaken}
                             onChange={(e) => togglePouchTaken(unit, e)}
                             title={isTaken ? '봉지 복용 취소' : '봉지 전체 복용 완료'}
@@ -1016,7 +1016,7 @@ const CalendarPage = (props) => {
                                 >
                                   <input
                                     type="checkbox"
-                                    className="check-box sub-check"
+                                    className="check-box sub-check prescription"
                                     checked={subTaken}
                                     onChange={() => toggleTaken(subItem)}
                                   />
@@ -1047,7 +1047,7 @@ const CalendarPage = (props) => {
                     >
                       <input
                         type="checkbox"
-                        className="check-box"
+                        className={`check-box ${unit.type || 'regular'}`}
                         checked={isTaken}
                         onChange={() => toggleTaken(unit)}
                         onClick={(e) => e.stopPropagation()}
