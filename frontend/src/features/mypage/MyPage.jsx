@@ -14,7 +14,40 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [imgError, setImgError] = useState(false);
   const [profileMessage, setProfileMessage] = useState('');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [myPosts, setMyPosts] = useState([]);
+  const [myPostsLoading, setMyPostsLoading] = useState(true);
+  const [myPostsError, setMyPostsError] = useState('');
   const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.username) {
+      setMyPosts([]);
+      setMyPostsLoading(false);
+      return;
+    }
+    let active = true;
+    setMyPostsLoading(true);
+    setMyPostsError('');
+    fetch('/api/community/my-posts')
+      .then(async (response) => {
+        if (response.ok) return response.json();
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || '작성한 게시글을 불러오지 못했습니다.');
+      })
+      .then((posts) => {
+        if (active) setMyPosts(Array.isArray(posts) ? posts : []);
+      })
+      .catch((error) => {
+        if (active) {
+          setMyPosts([]);
+          setMyPostsError(error.message || '작성한 게시글을 불러오지 못했습니다.');
+        }
+      })
+      .finally(() => {
+        if (active) setMyPostsLoading(false);
+      });
+    return () => { active = false; };
+  }, [user?.username]);
 
   useEffect(() => {
     if (!user?.username) return;
@@ -509,6 +542,31 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
 
         {/* 우측 열: 서비스 환경설정 & 회원 탈퇴 */}
         <div className="mypage-col-right">
+          <section className="mypage-subcard my-posts-card">
+            <span className="meta-kicker">COMMUNITY</span>
+            <div className="my-posts-heading">
+              <h2 className="subcard-title">내가 작성한 글</h2>
+              <Link to="/community" className="my-posts-all-link">전체 보기</Link>
+            </div>
+            {myPostsLoading ? (
+              <p className="my-posts-status">게시글을 불러오는 중입니다.</p>
+            ) : myPostsError ? (
+              <p className="my-posts-status my-posts-error">{myPostsError}</p>
+            ) : myPosts.length ? (
+              <ul className="my-posts-list">
+                {myPosts.map((post) => (
+                  <li key={post.postId}>
+                    <Link to={`/community?postId=${post.postId}`}>
+                      <span className="my-post-title">{post.title}</span>
+                      <span className="my-post-date">{post.createdAt}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="my-posts-status">아직 작성한 게시글이 없습니다.</p>
+            )}
+          </section>
           {/* 서비스 환경 설정 */}
           <section className="mypage-subcard service-settings-card">
             <span className="meta-kicker">SERVICE SETTINGS</span>

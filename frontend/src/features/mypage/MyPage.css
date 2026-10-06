@@ -292,6 +292,68 @@
   width: 100%;
 }
 
+.my-posts-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.my-posts-all-link {
+  color: #7d2638;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.my-posts-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.my-posts-list li + li {
+  border-top: 1px solid #eee8df;
+}
+
+.my-posts-list a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  color: #2b2523;
+  text-decoration: none;
+}
+
+.my-posts-list a:hover .my-post-title {
+  color: #7d2638;
+  text-decoration: underline;
+}
+
+.my-post-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+
+.my-post-date,
+.my-posts-status {
+  color: #887e75;
+  font-size: 12px;
+}
+
+.my-posts-status {
+  margin: 0;
+  padding: 10px 0 4px;
+}
+
+.my-posts-error {
+  color: #b53838;
+}
+
 .mypage-modal-backdrop {
   position: fixed;
   inset: 0;
