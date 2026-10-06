@@ -38,6 +38,7 @@ export default function MealTimeSettingModal({
   const [activeTab, setActiveTab] = useState('WEEKDAY'); // 'WEEKDAY' | 'WEEKEND'
   const [weekdayTimes, setWeekdayTimes] = useState(FALLBACK_DEFAULT_WEEKDAY);
   const [weekendTimes, setWeekendTimes] = useState(FALLBACK_DEFAULT_WEEKEND);
+  const [originalWeekendTimes, setOriginalWeekendTimes] = useState(FALLBACK_DEFAULT_WEEKEND);
   const [sameAsWeekday, setSameAsWeekday] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -70,6 +71,7 @@ export default function MealTimeSettingModal({
         initWk.bedtime === initWe.bedtime;
 
       setSameAsWeekday(isSame);
+      setOriginalWeekendTimes(isSame ? FALLBACK_DEFAULT_WEEKEND : initWe);
       setActiveTab('WEEKDAY');
       setIsSaving(false);
     }
@@ -87,7 +89,9 @@ export default function MealTimeSettingModal({
         setWeekendTimes(updated);
       }
     } else {
-      setWeekendTimes((prev) => ({ ...prev, [field]: val }));
+      const updated = { ...weekendTimes, [field]: val };
+      setWeekendTimes(updated);
+      setOriginalWeekendTimes(updated);
     }
   };
 
@@ -97,6 +101,7 @@ export default function MealTimeSettingModal({
       if (sameAsWeekday) setWeekendTimes(FALLBACK_DEFAULT_WEEKDAY);
     } else {
       setWeekendTimes(FALLBACK_DEFAULT_WEEKEND);
+      setOriginalWeekendTimes(FALLBACK_DEFAULT_WEEKEND);
       setSameAsWeekday(false);
     }
   };
@@ -169,7 +174,23 @@ export default function MealTimeSettingModal({
                   const checked = e.target.checked;
                   setSameAsWeekday(checked);
                   if (checked) {
+                    const isCurrentlyDifferent =
+                      weekendTimes.breakfast !== weekdayTimes.breakfast ||
+                      weekendTimes.lunch !== weekdayTimes.lunch ||
+                      weekendTimes.dinner !== weekdayTimes.dinner ||
+                      weekendTimes.bedtime !== weekdayTimes.bedtime;
+                    if (isCurrentlyDifferent) {
+                      setOriginalWeekendTimes({ ...weekendTimes });
+                    }
                     setWeekendTimes({ ...weekdayTimes });
+                  } else {
+                    const restored = { ...originalWeekendTimes };
+                    const isRestoredSameAsWk =
+                      restored.breakfast === weekdayTimes.breakfast &&
+                      restored.lunch === weekdayTimes.lunch &&
+                      restored.dinner === weekdayTimes.dinner &&
+                      restored.bedtime === weekdayTimes.bedtime;
+                    setWeekendTimes(isRestoredSameAsWk ? FALLBACK_DEFAULT_WEEKEND : restored);
                   }
                 }}
               />

@@ -152,6 +152,7 @@ export default function ScheduleModal({
   // 상비약 평일 / 주말 슬롯 시간
   const [weekdayCabinetTimes, setWeekdayCabinetTimes] = useState(() => calcCabinetSlotTimes(weekdayMeals));
   const [weekendCabinetTimes, setWeekendCabinetTimes] = useState(() => calcCabinetSlotTimes(weekendMeals));
+  const [originalWeekendCabinetTimes, setOriginalWeekendCabinetTimes] = useState(() => calcCabinetSlotTimes(weekendMeals));
 
   // 영양제용 상태: 하루 섭취 횟수 및 선택된 타이밍
   const [suppFrequency, setSuppFrequency] = useState(1); // 1, 2, 3회
@@ -159,6 +160,7 @@ export default function ScheduleModal({
   // 영양제 평일 / 주말 타이밍 시간
   const [weekdaySuppTimes, setWeekdaySuppTimes] = useState(() => calcSupplementPresetTimes(weekdayMeals));
   const [weekendSuppTimes, setWeekendSuppTimes] = useState(() => calcSupplementPresetTimes(weekendMeals));
+  const [originalWeekendSuppTimes, setOriginalWeekendSuppTimes] = useState(() => calcSupplementPresetTimes(weekendMeals));
 
   // 공통 복용 기간
   const [schedDays, setSchedDays] = useState(isCabinet ? 7 : 30);
@@ -174,11 +176,13 @@ export default function ScheduleModal({
     const weCabinet = calcCabinetSlotTimes(weekendMeals);
     setWeekdayCabinetTimes(wkCabinet);
     setWeekendCabinetTimes(weCabinet);
+    setOriginalWeekendCabinetTimes(weCabinet);
 
     const wkSupp = calcSupplementPresetTimes(weekdayMeals);
     const weSupp = calcSupplementPresetTimes(weekendMeals);
     setWeekdaySuppTimes(wkSupp);
     setWeekendSuppTimes(weSupp);
+    setOriginalWeekendSuppTimes(weSupp);
 
     // 평일/주말 식사시간이 완전히 동일한지 확인하여 sync 기본값 설정
     const isSameMealTimes = (
@@ -257,8 +261,14 @@ export default function ScheduleModal({
     const checked = e.target.checked;
     setSyncWeekend(checked);
     if (checked) {
+      setOriginalWeekendCabinetTimes({ ...weekendCabinetTimes });
+      setOriginalWeekendSuppTimes({ ...weekendSuppTimes });
+
       setWeekendCabinetTimes({ ...weekdayCabinetTimes });
       setWeekendSuppTimes({ ...weekdaySuppTimes });
+    } else {
+      setWeekendCabinetTimes({ ...originalWeekendCabinetTimes });
+      setWeekendSuppTimes({ ...originalWeekendSuppTimes });
     }
   };
 
@@ -463,6 +473,7 @@ export default function ScheduleModal({
                               }
                             } else {
                               setWeekendCabinetTimes((prev) => ({ ...prev, [s.key]: val }));
+                              setOriginalWeekendCabinetTimes((prev) => ({ ...prev, [s.key]: val }));
                               setSyncWeekend(false);
                             }
                           }}
@@ -608,6 +619,7 @@ export default function ScheduleModal({
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setWeekendSuppTimes((prev) => ({ ...prev, [key]: val }));
+                                  setOriginalWeekendSuppTimes((prev) => ({ ...prev, [key]: val }));
                                   setSyncWeekend(false);
                                 }}
                               />
