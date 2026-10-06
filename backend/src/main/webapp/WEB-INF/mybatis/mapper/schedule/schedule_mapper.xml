@@ -316,6 +316,13 @@
          WHERE routine_id = #{routineId}
     </update>
 
+    <!-- 21-1. 루틴 복용 팁/메모 업데이트 -->
+    <update id="updateRoutineNotes" parameterType="map">
+        UPDATE routine_medications
+           SET notes = #{notes}
+         WHERE routine_id = #{routineId}
+    </update>
+
     <!-- 22. 루틴 스케줄 잔여 개수 확인 -->
     <select id="countSchedulesByRoutineId" parameterType="map" resultType="int">
         SELECT COUNT(*)

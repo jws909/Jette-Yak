@@ -28,6 +28,13 @@ public class GeminiService {
     private final String apiKey;
     private final String model;
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private SupplementRuleBook supplementRuleBook;
+
+    public void setSupplementRuleBook(SupplementRuleBook supplementRuleBook) {
+        this.supplementRuleBook = supplementRuleBook;
+    }
+
     private static final String INSTRUCTIONS = """
         너는 DB에 저장된 의약품 정보를 안내하는 도우미다.
         제공된 DB 조회 결과만 근거로 한국어로 짧고 명확하게 답한다.
@@ -74,6 +81,13 @@ public class GeminiService {
 
     public boolean isAvailable() {
         return apiKey != null && !apiKey.isBlank();
+    }
+
+    @javax.annotation.PostConstruct
+    public void startTrendScheduler() {
+        if (supplementRuleBook != null && isAvailable()) {
+            supplementRuleBook.scheduleDailyTrendUpdate(this);
+        }
     }
 
     // 테스트에서 실제 API 키나 외부 요청 없이 모의 RestTemplate을 주입할 수 있는 생성자다.
@@ -370,10 +384,41 @@ public class GeminiService {
     }
 
     /**
-     * 영양제/건강기능식품 품목명을 AI로 분석하여 영양학적·약학적 최적 권장 복용 시간과 조언을 도출합니다.
-     * 일반 식품, 간식(하리보, 과자 등), 음료 등 영양제가 아니거나 권장 시간이 없는 경우 takeTime을 null로 반환합니다.
+     * 영양제/건강기능식품 품목명을 로컬 규칙 및 AI로 분석하여 영양학적·약학적 최적 권장 복용 시간과 조언을 도출합니다.
+     * 1. 50+종 대규모 로컬 규칙 사전 우선 탐색 (0.1ms 미만)
+     * 2. 로컬 규칙에 없는 경우 직접 AI 질의 및 동적 자가 학습 캐싱
      */
     public Map<String, Object> recommendSupplementIntake(String supplementName) {
+        if (supplementName == null || supplementName.isBlank()) {
+            return Map.of("isSupplement", false);
+        }
+
+        // 1. 대규모 로컬 규칙 사전 및 자가 학습 캐시 우선 탐색 (초고속 즉시 반환)
+        if (supplementRuleBook != null) {
+            SupplementRuleBook.Rule rule = supplementRuleBook.findRule(supplementName);
+            if (rule != null) {
+                return Map.of(
+                    "isSupplement", true,
+                    "takeTime", rule.getTakeTime() != null ? rule.getTakeTime() : "13:00",
+                    "advice", rule.getAdvice() != null ? rule.getAdvice() : "식후 권장 (건강기능식품)"
+                );
+            }
+        }
+
+        // 2. 로컬 규칙에 없는 경우 직접 Gemini AI 호출
+        Map<String, Object> aiResult = queryGeminiDirectlyForSupplement(supplementName);
+        if (aiResult != null && Boolean.TRUE.equals(aiResult.get("isSupplement")) && supplementRuleBook != null) {
+            String time = aiResult.get("takeTime") != null ? aiResult.get("takeTime").toString().trim() : null;
+            String advice = aiResult.get("advice") != null ? aiResult.get("advice").toString().trim() : null;
+            supplementRuleBook.saveDynamicRule(supplementName, time, advice);
+        }
+        return aiResult;
+    }
+
+    /**
+     * Gemini AI에 직접 영양제 분석을 질의합니다 (신규/미등록 품목용).
+     */
+    public Map<String, Object> queryGeminiDirectlyForSupplement(String supplementName) {
         if (supplementName == null || supplementName.isBlank()) {
             return Map.of("isSupplement", false);
         }
@@ -390,27 +435,12 @@ public class GeminiService {
                - 영양제/비타민/미네랄/유산균 등 건강기능식품인 경우:
                  isSupplement: true
             2. 권장 복용 시간(takeTime) - 24시간 형식 "HH:mm" (정확히 5자리 문자열) 또는 null:
-               - 아침 기상 직후 공복 ("07:30" 또는 "08:00"):
-                 * 유산균(프로바이오틱스) -> 위산 분비 전 장내 도달률 극대화
-                 * 철분 -> 공복 흡수율 극대화 (비타민C와 복용 권장)
-               - 아침 식후 ("09:00"):
-                 * 비타민 B군 (활력 증진, 야간 복용 시 수면 방해 가능)
-                 * 비타민 C (위장 자극 예방을 위해 식후 복용)
-                 * 코엔자임Q10, 홍삼 등 에너지 대사 보조제
-               - 점심 식후 ("13:00"):
-                 * 지용성 영양제: 오메가3(EPA/DHA), 루테인/지아잔틴, 비타민 D, 비타민 A, 비타민 E
-                 * 음식물 속 지방 성분과 함께 섭취 시 흡수율이 수 배 상승함
-               - 저녁 식후 / 취침 전 ("21:00" 또는 "22:00"):
-                 * 마그네슘, 칼슘 (근육 및 신경 이완, 수면의 질 개선)
-                 * 테아닌, 수면 보조 영양소
-               - 특별히 시간대가 정해지지 않고 하루 중 아무 때나 복용해도 되는 영양제의 경우:
-                 takeTime: null
+               - 아침 기상 직후 공복 ("07:30" 또는 "08:00"): 유산균, 철분, 아르기닌, 글루타치온, 식이섬유
+               - 아침 식후 ("09:00"): 비타민 B군, 비타민 C, 홍삼, 엽산, 비오틴, 코엔자임Q10, 은행잎
+               - 점심 식후 ("13:00"): 오메가3, 루테인, 비타민 D, 종합비타민, 밀크씨슬, 쏘팔메토, MSM, 아연
+               - 저녁 식후 / 취침 전 ("21:00" 또는 "22:00"): 마그네슘, 칼슘, 테아닌, 콜라겐, 숙면 보조제
             3. advice:
                - 권장 복용 타이밍 및 그 핵심 이유를 환자가 이해하기 쉬운 25자 이내의 간결한 한국어로 작성한다.
-               - 예: "점심 식후 권장 (지용성 흡수율 향상)"
-               - 예: "아침 공복 권장 (장내 유익균 정착 도움)"
-               - 예: "취침 전 권장 (신경 이완 및 숙면 도움)"
-               - 영양제가 아니거나 권장 시간이 없는 경우 null 또는 간결한 일반 안내.
             """;
 
         String prompt = "분석할 품목명: " + supplementName.trim();
@@ -442,6 +472,48 @@ public class GeminiService {
             }
         }
         return Map.of("isSupplement", false);
+    }
+
+    /**
+     * 최신 인기 건강기능식품 트렌드를 AI로부터 질의받아 로컬 사전을 주기적으로 확장합니다.
+     */
+    public List<Map<String, String>> fetchTrendingSupplements() {
+        if (!isAvailable()) return List.of();
+
+        String instructions = """
+            너는 대한민국 최신 건강기능식품 및 영양제 트렌드 전문가다.
+            최근 한국에서 인기 있는 대표적인 신규/트렌드 건강기능식품 성분 5가지를 선정하고,
+            각 성분의 대표 명칭(name), 24시간 형식 최적 권장 복용 시각(takeTime, 예: "09:00", "13:00", "22:00"), 25자 이내 핵심 복약 조언(advice)을 JSON 배열로 반환하라.
+            """;
+        String prompt = "최신 인기 건강기능식품 5종 추천";
+        Map<String, Object> schema = Map.of(
+            "type", "array",
+            "items", Map.of(
+                "type", "object",
+                "properties", Map.of(
+                    "name", Map.of("type", "string"),
+                    "takeTime", Map.of("type", "string"),
+                    "advice", Map.of("type", "string")
+                ),
+                "required", List.of("name", "takeTime", "advice")
+            )
+        );
+
+        try {
+            String jsonStr = generate(instructions, prompt, Map.of(
+                "temperature", 0.2,
+                "maxOutputTokens", 512,
+                "responseMimeType", "application/json",
+                "responseJsonSchema", schema
+            ));
+            if (jsonStr != null && !jsonStr.isBlank()) {
+                ObjectMapper mapper = new ObjectMapper();
+                return mapper.readValue(jsonStr, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+            }
+        } catch (Exception ex) {
+            org.apache.logging.log4j.LogManager.getLogger(getClass()).warn("최신 영양제 트렌드 AI 조회 실패: {}", ex.getMessage());
+        }
+        return List.of();
     }
 
     public String summarizeMedication(String itemName, String className, String materialName, String efficacy, String usageDosage) {
