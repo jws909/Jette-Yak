@@ -180,6 +180,13 @@ public class ScheduleDAO {
         return sqlSession.update("schedule.updateRoutineStatus", params);
     }
 
+    public int updateRoutineNotes(Long routineId, String notes) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("routineId", routineId);
+        params.put("notes", notes);
+        return sqlSession.update("schedule.updateRoutineNotes", params);
+    }
+
     public boolean checkScheduleExists(Long userId, String scheduledDate, String scheduledTime, Long routineId, Long cabinetId, String medicationId) {
         Map<String, Object> params = new HashMap<>();
         params.put("userId", userId);

@@ -51,6 +51,9 @@ public class UserController {
     @Autowired(required = false)
     private com.app.chatbot.client.GeminiService geminiService;
 
+    @Autowired(required = false)
+    private com.app.chatbot.client.SupplementRuleBook supplementRuleBook;
+
     @Autowired
     private com.app.service.EverydayMedicationService everydayMedicationService;
 
@@ -604,22 +607,18 @@ public class UserController {
                 String notes = body.get("notes") != null && !body.get("notes").toString().trim().isEmpty()
                         ? body.get("notes").toString().trim() : null;
 
-                // [AI 영양제 권장 복용시간 자동 탐색] 사용자가 직접 지정하지 않은 경우 AI 분석
-                if ((takeTime == null || takeTime.isBlank()) && geminiService != null && geminiService.isAvailable()) {
-                    try {
-                        Map<String, Object> aiRec = geminiService.recommendSupplementIntake(name);
-                        if (aiRec != null && Boolean.TRUE.equals(aiRec.get("isSupplement"))) {
-                            Object recTime = aiRec.get("takeTime");
-                            if (recTime != null && !recTime.toString().isBlank() && !"null".equalsIgnoreCase(recTime.toString())) {
-                                takeTime = recTime.toString().trim();
+                // [초고속 로컬 규칙 즉시 매칭 & 비동기 AI 자가 학습]
+                boolean matchedLocally = false;
+                if (takeTime == null || takeTime.isBlank()) {
+                    if (supplementRuleBook != null) {
+                        var localRule = supplementRuleBook.findRule(name);
+                        if (localRule != null) {
+                            takeTime = localRule.getTakeTime();
+                            if (notes == null || notes.isBlank() || "보관 등록".equals(notes) || "건강기능식품".equals(notes)) {
+                                notes = localRule.getAdvice();
                             }
-                            Object recAdvice = aiRec.get("advice");
-                            if (recAdvice != null && !recAdvice.toString().isBlank() && !"null".equalsIgnoreCase(recAdvice.toString())) {
-                                notes = recAdvice.toString().trim();
-                            }
+                            matchedLocally = true;
                         }
-                    } catch (Exception ex) {
-                        org.apache.logging.log4j.LogManager.getLogger(getClass()).warn("영양제 복용 시간 AI 추천 실패: {}", ex.getMessage());
                     }
                 }
 
@@ -635,15 +634,21 @@ public class UserController {
                 }
 
                 if (notes == null || notes.isBlank()) {
-                    notes = "보관 등록";
+                    notes = "식후 권장 (건강기능식품)";
                 }
 
+                // 1. 즉시 보관함에 등록 (사용자는 대기 없이 0.01초 만에 등록 완료!)
                 Long routineId = scheduleDAO.findOrCreateRoutineId(userId, name, takeTime, notes, medicationId);
                 if (medicationGuideDao != null) {
                     try {
                         medicationGuideDao.updateStatus(userId, "R:" + routineId, "PAUSED");
                         medicationGuideDao.saveOverallGuide(userId, null);
                     } catch (Exception ignored) {}
+                }
+
+                // 2. 로컬 사전에 없었던 신규 영양제인 경우, 백그라운드에서 AI가 학습하여 로컬 규칙과 DB를 보완
+                if (!matchedLocally && supplementRuleBook != null && geminiService != null && geminiService.isAvailable()) {
+                    supplementRuleBook.learnAsync(name, geminiService, userId, routineId, scheduleDAO);
                 }
 
                 Map<String, Object> resMap = new LinkedHashMap<>();
