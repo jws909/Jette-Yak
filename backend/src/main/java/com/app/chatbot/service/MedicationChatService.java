@@ -106,9 +106,9 @@ public class MedicationChatService {
             var registrations=activeRegistrations(management.collection(userId));
             if(analysis.intent()==QuestionAnalysis.Intent.MY_DUR) {
                 if(registrations.isEmpty())
-                    return reply("현재 복용 중으로 등록된 약이 없어요. 내 약 관리에서 복용 중인 약을 등록하면 함께 먹을 때 확인할 내용을 정리해드릴게요.",List.of(),List.of());
+                    return reply("현재 복용 중으로 등록된 약이 없어요. 약 등록 페이지에서 처방전·상비약·영양제를 등록하면 함께 먹을 때 확인할 내용을 정리해드릴게요.",List.of(),List.of());
                 if(registrations.size()==1)
-                    return reply("현재 복용 중으로 등록된 약이 한 가지라서 약 사이의 주의정보를 비교할 수 없어요. 다른 약을 함께 복용 중이라면 내 약 관리에 추가하거나 약 이름을 질문에 적어주세요.",activeMedicationSources(registrations),List.of());
+                    return reply("현재 복용 중으로 등록된 약이 한 가지라서 약 사이의 주의정보를 비교할 수 없어요. 다른 약도 복용 중이라면 약 등록 페이지에서 추가하거나 약 이름을 질문에 적어주세요.",activeMedicationSources(registrations),List.of());
                 var comparison=management.myComparison(userId);
                 List<MedicationChatDto> sources=activeMedicationSources(registrations);
                 if(!hasInteractionEvidence(comparison)) {

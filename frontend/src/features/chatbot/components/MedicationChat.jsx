@@ -310,7 +310,7 @@ function MedicationConversation() {
           {mine.error && (mine.status===401 ? <Link to="/login?next=/chat">로그인하고 내 약 불러오기 →</Link> : <p role="alert">{mine.error}<button onClick={mine.retry}>다시 시도</button></p>)}
           {mine.data && <>{ownProducts.length > 0 && <button type="button" className="side-action-button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion('내가 먹는 약끼리 같이 먹어도 돼?')}>내 약을 함께 먹어도 되는지 확인 <span>→</span></button>}
             {ownProducts.map(item=><button type="button" className="drug-option" key={item.key} disabled={loading || Boolean(paging)} onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>{item.itemName}</button>)}
-            {!ownProducts.length && <p>현재 복용 중인 약이 없습니다. <Link to="/guide">내 약 관리 →</Link></p>}</>}
+            {!ownProducts.length && <p>현재 복용 중인 약이 없습니다. <Link to="/medication/register">약 등록하기 →</Link></p>}</>}
         </details>
         <section className="side-tool-card"><div className="side-tool-heading"><span>03</span><div><strong>조건으로 찾아보기</strong><small>성분·효능·주의 대상을 자세히 검색</small></div></div><CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} /></section>
         <details className="chat-history-panel side-tool-card">

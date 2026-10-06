@@ -17,6 +17,16 @@ import UiDialog from '../../components/ui/UiDialog'
 
 function present(value){return typeof value==='string'&&value.trim()?value.trim():null}
 
+async function readJsonResponse(response) {
+  // 톰캣 오류 HTML을 JSON으로 읽어 SyntaxError를 노출하지 않고 사용자가 이해할 메시지로 바꾼다.
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    throw new Error('서버 응답을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.')
+  }
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.error || '상태 저장에 실패했습니다.')
+  return data
+}
 
 function MedicationInformation({ item, compact, onSelect, onStatus, busy }) {
   // 전체 약 탭(compact)과 제품별 상세 탭이 같은 서버 자료를 사용하도록 표시 로직을 공유한다.
@@ -117,15 +127,17 @@ export default function GuidePage() {
     // 프런트에서 분해하지 않고 서버에 그대로 보내 소유권 확인과 실제 테이블 갱신을 맡긴다.
     setSaving(true);setSaveMessage('');setSaveTone('success')
     try {
-      const response = await fetch('/api/guides/collection/'+encodeURIComponent(id), {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})})
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || '상태 저장에 실패했습니다.')
+      const response = await fetch('/api/guides/collection/'+encodeURIComponent(id), {
+        method:'PATCH', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status}),
+      })
+      await readJsonResponse(response)
       setSaveMessage('복용 상태를 저장했습니다.');setRevision(value=>value+1)
     } catch(error) { setSaveTone('error');setSaveMessage(error.message) } finally {setSaving(false)}
   }
   const [selectedKey, setSelectedKey] = useState('all')
   // 같은 제품이 처방전과 직접 추가 목록에 여러 번 있어도 제품 탭은 하나만 만들고 등록 내역은 묶어서 보여준다.
   const items = groupMedications(filtered)
+  const hasRegistrations = rows.length > 0
   const selected = items.find(item => item.key === selectedKey)
   const activeKey = selected?.key || 'all'
   const tabs = [{ key: 'all', itemName: '전체 약' }, ...items]
@@ -144,7 +156,8 @@ export default function GuidePage() {
   return <div className="guide-page-wrapper">
     <header className="guide-page-header"><div><span className="section-meta-tag">MY MEDICATIONS</span>
       <h1 className="section-title">내 약 관리</h1><p className="guide-note">등록한 약을 한눈에 확인하고, 약별 복용 정보와 주의사항을 살펴보세요.</p></div>
-      <div className="my-med-header-actions"><Link to="/chat">약 검색 · 질문은 챗봇에서 →</Link>
+      <div className="my-med-header-actions"><Link className="my-med-register-action" to="/medication/register">새 약 등록하기 →</Link>
+        <Link to="/chat">약 검색 · 질문은 챗봇에서 →</Link>
         <button className="my-med-action" disabled={registered.loading} onClick={()=>{registered.retry();setRevision(value=>value+1)}}>목록 새로고침</button></div>
     </header>
     {registered.data && <>
@@ -165,7 +178,10 @@ export default function GuidePage() {
       {registered.loading && <p role="status">등록한 약을 불러오고 있어요…</p>}
       {registered.error && (registered.status === 401 ? <p className="guide-empty">로그인하면 내 등록 약을 볼 수 있어요. <Link to="/login?next=/guide">로그인</Link></p>
         : <p className="guide-feedback error" role="alert">{registered.error}</p>)}
-      {registered.data && !items.length && <p className="guide-empty">선택한 상태의 약이 없습니다. <Link className="my-med-action" to="/?register=prescription">처방전 등록하기 →</Link></p>}
+      {registered.data && !items.length && <p className="guide-empty">
+        {hasRegistrations ? '선택한 상태의 약이 없습니다.' : '아직 등록한 약이 없습니다.'}
+        {!hasRegistrations && <Link className="my-med-action" to="/medication/register"> 약 등록하기 →</Link>}
+      </p>}
       {registered.data && items.length > 0 && (selected ? <MedicationInformation key={selected.key} item={selected} onStatus={updateStatus} busy={saving || registered.loading} />
         : <><div className="my-med-overview-heading"><h2>전체 약 <span>{items.length}개</span></h2>
           <p className="guide-note">등록 출처와 복용 상태를 함께 표시합니다. 제품명을 누르면 상세 정보를 볼 수 있어요.</p></div>

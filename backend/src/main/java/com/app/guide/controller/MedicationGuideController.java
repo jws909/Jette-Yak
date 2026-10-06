@@ -26,28 +26,13 @@ public class MedicationGuideController {
         this.dur = dur;
         this.gemini = gemini;
     }
-    // 로그인 성공 시 서버에서 검증한 users.user_id를 Long으로 세션에 저장한다.
-    // 요청 파라미터나 demo-token을 사용자 ID로 사용하지 않는다.
+    // 로그인 성공 시 서버가 세션에 저장한 users.user_id만 신뢰한다.
+    // 클라이언트가 userId를 바꿔 다른 사용자의 등록 약을 조회하지 못하게 한다.
     @GetMapping(value="/api/guides/my-medications", produces="application/json")
-    public ResponseEntity<?> registered(
-            @RequestParam(value = "userId", required = false) Long userId,
-            javax.servlet.http.HttpServletRequest request) {
-        Long targetId = userId;
-        if (targetId == null || targetId <= 0L) {
-            var session = request.getSession(false);
-            Object value = session == null ? null : session.getAttribute("userId");
-            if (value instanceof Long && (Long) value > 0) {
-                targetId = (Long) value;
-            } else if (value instanceof Number && ((Number) value).longValue() > 0) {
-                targetId = ((Number) value).longValue();
-            }
-        }
-        if (targetId == null || targetId <= 0L) {
-            String param = request.getParameter("userId");
-            if (param != null && !param.isBlank()) {
-                try { targetId = Long.parseLong(param.trim()); } catch (Exception ignored) {}
-            }
-        }
+    public ResponseEntity<?> registered(javax.servlet.http.HttpServletRequest request) {
+        var session = request.getSession(false);
+        Object value = session == null ? null : session.getAttribute("userId");
+        Long targetId = value instanceof Number ? ((Number) value).longValue() : null;
         if (targetId == null || targetId <= 0L)
             return ResponseEntity.status(401).header("Cache-Control", "no-store")
                 .body(Map.of("error", "로그인이 필요합니다."));

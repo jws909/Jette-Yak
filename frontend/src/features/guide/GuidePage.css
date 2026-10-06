@@ -373,6 +373,15 @@
   background: #ead9de;
   border-color: #b77b89;
 }
+.my-med-header-actions a.my-med-register-action {
+  border-color: #7d2638;
+  background: #7d2638;
+  color: #ffffff;
+}
+.my-med-header-actions a.my-med-register-action:hover {
+  border-color: #6a1f2e;
+  background: #6a1f2e;
+}
 .my-med-header-actions a:focus-visible {
   outline: 2px solid #7d2638;
   outline-offset: 3px;

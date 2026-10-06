@@ -63,6 +63,8 @@ public class GeminiServiceCheck {
             service.analyzeQuestion("그럼 임산부는?", "텐텐츄정", java.util.List.of("노인이 주의할 약 알려줘"));
             String prompt = sent.path("contents").get(0).path("parts").get(0).path("text").asText();
             check(prompt.contains("노인이 주의할 약 알려줘") && prompt.contains("그럼 임산부는?"), "Classifier receives recent and current questions");
+            String classifierRules = sent.path("systemInstruction").path("parts").get(0).path("text").asText();
+            check(classifierRules.contains("약봉투") && classifierRules.contains("영양제 등록"), "Medication registration questions route to site help");
             check(sent.path("generationConfig").path("responseJsonSchema").path("properties").has("clarificationQuestion"), "Targeted clarification schema");
             check(sent.path("generationConfig").path("responseJsonSchema").path("properties").path("intent").path("enum").toString().contains("SYMPTOM_CONSULTATION"), "Symptom intent in classifier schema");
             check(sent.path("generationConfig").path("responseJsonSchema").path("properties").path("intent").path("enum").toString().contains("SITE_HELP"), "Site-help intent in classifier schema");
@@ -72,6 +74,8 @@ public class GeminiServiceCheck {
             check(counsel.followUpQuestions().size() == 1 && counsel.urgency().equals("ROUTINE"), "Structured counseling response");
             String counselPrompt = sent.path("contents").get(0).path("parts").get(0).path("text").asText();
             check(counselPrompt.contains("어제부터 아파") && counselPrompt.contains("머리가 아파"), "Counselor receives both prior and current context");
+            String counselRules = sent.path("systemInstruction").path("parts").get(0).path("text").asText();
+            check(counselRules.contains("약 등록 페이지") && counselRules.contains("내 약 관리"), "Counselor knows the medication registration flow");
             service.counsel("검색해줘", "[]", java.util.List.of(), "DB 검색 결과가 0건임");
             check(sent.path("contents").get(0).path("parts").get(0).path("text").asText().contains("DB 검색 결과가 0건임"), "Counselor receives trusted server context");
             int before = calls.get();
