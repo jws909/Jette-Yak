@@ -32,6 +32,7 @@ public class CommunityService {
         Map<String,Object> p=new HashMap<>();p.put("keyword",clean(q,100));p.put("category",cat);p.put("medicationId",clean(medicationId,30));p.put("sort",order);p.put("offset",(page-1)*12);p.put("limit",12);p.put("viewerId",viewerId==null?-1L:viewerId);
         int total=dao.countPosts(p);return Map.of("items",dao.posts(p),"total",total,"page",page,"hasMore",page*12<total);
     }
+    public List<Map<String,Object>> myPosts(long userId) { return dao.myPosts(userId); }
     public Map<String,Object> post(long id,Long viewerId) { return post(id,viewerId,false); }
     public Map<String,Object> post(long id,Long viewerId,boolean admin) {
         Map<String,Object> post=dao.post(id,viewerId,admin);if(post==null) throw new NoSuchElementException("게시글을 찾을 수 없습니다.");

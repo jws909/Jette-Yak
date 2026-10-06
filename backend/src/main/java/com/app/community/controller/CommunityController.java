@@ -22,6 +22,7 @@ public class CommunityController {
     @Autowired public CommunityController(CommunityService service){this.service=service;}
 
     @GetMapping("/posts") public Map<String,Object> posts(@RequestParam(value="q",required=false)String q,@RequestParam(value="category",required=false)String category,@RequestParam(value="medicationId",required=false)String medicationId,@RequestParam(value="sort",defaultValue="LATEST")String sort,@RequestParam(value="page",defaultValue="1")int page,HttpServletRequest req){return service.posts(q,category,medicationId,sort,page,userId(req,false));}
+    @GetMapping("/my-posts") public List<Map<String,Object>> myPosts(HttpServletRequest req){return service.myPosts(userId(req,true));}
     @GetMapping("/posts/{id}") public Map<String,Object> post(@PathVariable long id,HttpServletRequest req){return service.post(id,userId(req,false),AdminSession.isAdmin(req));}
     @PostMapping("/posts") public ResponseEntity<?> create(@RequestBody CommunityPostRequest body,HttpServletRequest req){return ResponseEntity.status(201).body(service.create(userId(req,true),body));}
     @PatchMapping("/posts/{id}") public Map<String,Object> update(@PathVariable long id,@RequestBody CommunityPostRequest body,HttpServletRequest req){return service.update(id,userId(req,true),body);}
