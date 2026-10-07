@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { addEverydayMed } from '../medicationApi';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 /**
  * 영양제 / 건강기능식품 등록 탭 컴포넌트
@@ -17,6 +18,7 @@ export default function SupplementTab({
   onOpenScheduleModal,
 }) {
   const { showAlert } = useDialog();
+  const isMobile = useIsMobile(680);
   const [customSupplementName, setCustomSupplementName] = useState('');
 
   const routineMeds = (everydayMeds || []).filter((m) => m.source === 'ROUTINE');
@@ -78,13 +80,13 @@ export default function SupplementTab({
               <input
                 type="text"
                 className="cabinet-search-input"
-                placeholder="영양제 또는 건강기능식품 입력 (예: 고려은단 비타민C 1000, 락토핏 유산균, 오메가3...)"
+                placeholder={isMobile ? '영양제 입력 (예: 비타민C)' : '영양제 또는 건강기능식품 입력 (예: 비타민C, 오메가3...)'}
                 value={customSupplementName}
                 onChange={(e) => setCustomSupplementName(e.target.value)}
                 autoFocus
               />
               <button type="submit" className="cabinet-inline-submit-btn">
-                + 영양제 등록
+                {isMobile ? '+ 등록' : '+ 영양제 등록'}
               </button>
             </div>
           </div>

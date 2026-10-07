@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { updatePrescription } from '../medicationApi';
 import { useMedicationSearch } from '../../../hooks/useMedicationSearch';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 // 식약처 및 임상 처방전 표준 복용 시점 옵션
 const STANDARD_TIMING_OPTIONS = [
@@ -47,6 +48,7 @@ export default function EditPrescriptionModal({
   onSuccess,
 }) {
   const { showAlert, showLoading, hideLoading } = useDialog();
+  const isMobile = useIsMobile(680);
 
   const [editForm, setEditForm] = useState({
     prescriptionId: null,
@@ -414,7 +416,7 @@ export default function EditPrescriptionModal({
                 <input
                   type="text"
                   className="rx-search-input"
-                  placeholder="식약처 DB 의약품 검색하여 추가 (예: 타이레놀, 아모디핀, 세파클러, 뮤코펙트...)"
+                  placeholder={isMobile ? '식약처 의약품 검색 (예: 타이레놀)' : '식약처 DB 의약품 검색하여 추가 (예: 타이레놀, 아모디핀, 세파클러...)'}
                   value={addSearchText}
                   onChange={handleAddSearchChange}
                   onFocus={() => { if (addSearchText.trim()) setIsAddDropdownOpen(true); }}
@@ -485,7 +487,7 @@ export default function EditPrescriptionModal({
                                 <input
                                   type="text"
                                   className="row-change-input"
-                                  placeholder="대체할 식약처 약품명 검색 (예: 타이레놀...)"
+                                  placeholder={isMobile ? '대체 약품 검색 (예: 타이레놀)' : '대체할 식약처 약품명 검색 (예: 타이레놀...)'}
                                   value={rowSearchText}
                                   onChange={(e) => {
                                     const val = e.target.value;

@@ -1,6 +1,7 @@
 import { useMedicationSearch } from '../../../hooks/useMedicationSearch';
 import { useDialog } from '../../../contexts/DialogContext';
 import { addEverydayMed, saveCalendarSchedule } from '../medicationApi';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 
 /**
  * 상비약 / 일반의약품 검색 등록 탭 컴포넌트
@@ -32,6 +33,7 @@ export default function CabinetTab({
     clearSearch,
   } = useMedicationSearch({ debounceMs: 250 });
 
+  const isMobile = useIsMobile(680);
   const cabinetMeds = (everydayMeds || []).filter((m) => m.source === 'CABINET');
 
   // 상비약 등록 (CABINET)
@@ -128,7 +130,7 @@ export default function CabinetTab({
             <input
               type="text"
               className="cabinet-search-input"
-              placeholder="식약처 등록 상비약 검색 (예: 타이레놀, 게보린, 훼스탈, 베아제, 이부프로펜...)"
+              placeholder={isMobile ? '상비약 검색 (예: 타이레놀)' : '상비약 검색 (예: 타이레놀, 훼스탈, 베아제)'}
               value={medSearchText}
               onChange={handleMedSearchChange}
               onFocus={() => {
