@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { PwaInstallButton } from '../features/pwa/PwaControls.jsx';
 import "./LoginPage.css";
 
 /**
@@ -351,6 +352,8 @@ export default function LoginPage({ onLoginSuccess, onLoginDemoToggle }) {
             </button>
           </div>
         </form>
+
+        <PwaInstallButton className="login-install-button" />
 
         {isFindIdOpen && (
           <div className="find-id-backdrop" role="presentation" onMouseDown={closeFindId}>

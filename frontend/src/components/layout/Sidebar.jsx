@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
+import { PwaInstallButton } from '../../features/pwa/PwaControls.jsx';
 import './Sidebar.css';
 
 function getTodayDateStr() {
@@ -212,6 +213,9 @@ function SidebarContent({
             </NavLink>
 
           </nav>
+
+          {/* 휴대폰 홈 화면 설치 안내; 이미 설치한 앱에서는 숨김 */}
+          <PwaInstallButton className="sidebar-install-button" />
 
           {/* 하단 보조 정보: 로그인 상태에서만 실제 오늘의 복용 진척도 표시 */}
           {isLoggedIn && user?.userId && (

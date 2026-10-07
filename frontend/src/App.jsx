@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import UiDialog from './components/ui/UiDialog';
 import { saveIntakeStatus } from './utils/intakeApi';
 import { formatTime24 } from './utils/dateTime.js';
+import { showForegroundNotification } from './features/pwa/foregroundNotifications.js';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import MainPage from './features/main/MainPage';
@@ -147,9 +148,10 @@ function App() {
         const result = await Notification.requestPermission();
         setNotificationPermission(result);
         if (result === 'granted') {
-          new Notification('제때약 복약 알림이 활성화되었습니다', {
-            body: '정해진 복약 시간 30분 전과 정시에 알림을 보내드립니다.',
-            icon: '/favicon.ico',
+          setAppFeedback('복약 알림을 켰어요. 사이트나 앱이 열려 있고 인터넷에 연결되어 있을 때 복약 시간을 확인해 알려드려요.');
+          void showForegroundNotification('제때약 복약 알림을 켰어요', {
+            body: '사이트나 앱이 열려 있고 인터넷에 연결되어 있을 때 복약 시간 30분 전과 정시에 확인해 알려드려요.',
+            data: { type: 'notification-permission', url: '/' },
           });
         }
       } catch (err) {
@@ -238,10 +240,10 @@ function App() {
             alertedTags.add(preTag);
 
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(`⏰ [복약 30분 전 안내]`, {
+              void showForegroundNotification('⏰ [복약 30분 전 안내]', {
                 body: `30분 뒤(${preTimeStr}) ${combinedNames} 복용 시간입니다. 미리 준비하세요!`,
-                icon: '/favicon.ico',
                 tag: preTag,
+                data: { type: 'medication-reminder', url: '/', date: futureDateStr, time: preTimeStr, isPreAlarm: true },
               });
             }
 
@@ -276,10 +278,10 @@ function App() {
             });
 
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification(`[복약 알림] ${combinedNames}`, {
+              void showForegroundNotification(`[복약 알림] ${combinedNames}`, {
                 body: `현재 복용 시간(${currentTimeStr})입니다. 잊지 말고 복용하세요!`,
-                icon: '/favicon.ico',
                 tag: mainTag,
+                data: { type: 'medication-reminder', url: '/', date: todayDateStr, time: currentTimeStr, isPreAlarm: false },
               });
             }
 
@@ -594,8 +596,8 @@ function App() {
               복약 알림을 받아보시겠어요?
             </h4>
             <p style={{ fontSize: '13px', color: '#665f57', margin: '0 0 24px 0', lineHeight: '1.5' }}>
-              정해진 복약 시간 30분 전과 제때에<br />
-              바탕화면 알림으로 잊지 않게 알려드립니다.
+              사이트나 앱이 열려 있고 인터넷에 연결되어 있을 때<br />
+              복약 시간 30분 전과 정시에 확인해 알려드려요.
             </p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button

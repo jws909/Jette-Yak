@@ -1,6 +1,7 @@
 /* 시·분을 한 줄로 유지하고 좁은 화면에서도 선택 영역이 잘리지 않게 구성 */
 .time-input-24{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:112px;max-width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid #d9cfc3;border-radius:8px;background:#fff;color:inherit;font:inherit;font-variant-numeric:tabular-nums;white-space:nowrap}
-.time-input-24 select{flex:1 1 0;width:0;min-width:40px;min-height:36px;margin:0;padding:4px 14px 4px 4px;border:0;border-radius:5px;background-color:transparent;color:inherit;font:inherit;text-align:center;cursor:pointer}
+/* 기본 화살표가 좁은 입력란의 숫자를 가리지 않도록 작은 화살표로 통일 */
+.time-input-24 select{flex:1 1 0;width:0;min-width:40px;min-height:36px;margin:0;padding:4px 14px 4px 4px;border:0;border-radius:5px;appearance:none;background-color:transparent;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='m1 1 3 3 3-3' fill='none' stroke='%2382786d' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 4px center;color:inherit;font:inherit;text-align:center;cursor:pointer}
 .time-input-24 .time-input-24-separator{flex:0 0 auto}
 .time-input-24:focus-within{outline:2px solid #9a4558;outline-offset:2px}
 .time-input-24 select:focus{outline:none}

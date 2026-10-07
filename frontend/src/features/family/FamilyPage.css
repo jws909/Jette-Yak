@@ -1486,6 +1486,16 @@
 }
 
 /* 모바일 화면 컨트롤 배치 최적화 */
+/* 가족 복약 알림 버튼도 작은 화면과 터치 기기에서 충분한 클릭 영역 유지 */
+@media (max-width: 640px), (pointer: coarse) {
+  .family-page-wrapper .chk-icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+}
+
 @media (max-width: 640px) {
   .family-title-wrap {
     gap: 8px;

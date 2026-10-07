@@ -4,6 +4,11 @@ import './index.css'
 import App from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
 import { DialogProvider } from './contexts/DialogContext'
+import PwaControls from './features/pwa/PwaControls.jsx'
+import { initializePwa } from './features/pwa/pwaController.js'
+
+// 설치 요청을 놓치지 않도록 렌더링 전에 연결; 서비스 워커는 빌드 환경에서만 등록
+initializePwa()
 
 // 전역 401(인증 만료/미로그인) 감지 및 로그인 페이지 자동 안내 인터셉터
 const originalFetch = window.fetch;
@@ -33,6 +38,7 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <DialogProvider>
         <App />
+        <PwaControls />
       </DialogProvider>
     </BrowserRouter>
   </StrictMode>,

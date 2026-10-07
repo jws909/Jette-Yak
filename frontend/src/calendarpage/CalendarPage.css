@@ -995,6 +995,17 @@
 }
 
 /* 5. 모달 공통 레이아웃 */
+/* 작은 화면과 터치 기기에서 알림·삭제 아이콘의 누를 수 있는 영역 확보 */
+@media (max-width: 900px), (pointer: coarse) {
+  .calendar-page-wrap .btn-alarm,
+  .calendar-page-wrap .btn-delete-schedule {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    touch-action: manipulation;
+  }
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
