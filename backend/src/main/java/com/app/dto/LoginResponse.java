@@ -13,6 +13,8 @@ public class LoginResponse {
     private String role;
     private boolean isAdmin;
     private String message;
+    // ISO 날짜 문자열로 보내 별도 날짜 모듈 없이 화면의 만 나이 계산에 사용
+    private String birthdate;
 
     public LoginResponse() {
     }
@@ -101,6 +103,14 @@ public class LoginResponse {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getBirthdate() {
+        return birthdate;
+    }
+
+    public void setBirthdate(String birthdate) {
+        this.birthdate = birthdate;
     }
 }
 

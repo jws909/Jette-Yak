@@ -26,7 +26,8 @@
     FROM community_posts p JOIN users u ON u.user_id=p.user_id <include refid="postWhere"/>
     ORDER BY
       <choose><when test="sort == 'HELPFUL'">"helpfulCount" DESC,</when><when test="sort == 'COMMENTS'">"commentCount" DESC,</when></choose>
-      p.created_at DESC OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
+      <!-- 같은 시각에 작성된 글도 게시글 번호로 순서를 고정해 페이지 간 중복·누락 방지 -->
+      p.created_at DESC, p.post_id DESC OFFSET #{offset} ROWS FETCH NEXT #{limit} ROWS ONLY
   </select>
   <select id="myPosts" parameterType="long" resultType="map">
     SELECT * FROM (
@@ -54,7 +55,22 @@
     VALUES(#{postId},#{userId},#{medicationId,jdbcType=VARCHAR},#{medicationName,jdbcType=VARCHAR},#{category},#{title},#{content},#{experienceDuration,jdbcType=VARCHAR},#{ageGroup,jdbcType=VARCHAR},#{purpose,jdbcType=VARCHAR},#{occurrenceTiming,jdbcType=VARCHAR},#{currentlyTaking},CASE WHEN #{category}='INFO_REPORT' THEN 'PENDING' ELSE 'NOT_REQUIRED' END,'VISIBLE',SYSDATE,SYSDATE)
   </insert>
   <update id="updatePost" parameterType="map">UPDATE community_posts SET medication_id=#{medicationId,jdbcType=VARCHAR},medication_name=#{medicationName,jdbcType=VARCHAR},category=#{category},title=#{title},content=#{content},experience_duration=#{experienceDuration,jdbcType=VARCHAR},age_group=#{ageGroup,jdbcType=VARCHAR},purpose=#{purpose,jdbcType=VARCHAR},occurrence_timing=#{occurrenceTiming,jdbcType=VARCHAR},currently_taking=#{currentlyTaking},review_status=CASE WHEN #{category}='INFO_REPORT' THEN 'PENDING' ELSE 'NOT_REQUIRED' END,updated_at=SYSDATE WHERE post_id=#{postId} AND user_id=#{userId} AND status='VISIBLE'</update>
-  <update id="deletePost" parameterType="map">UPDATE community_posts SET status='DELETED',updated_at=SYSDATE WHERE post_id=#{postId} AND user_id=#{userId} AND status&lt;&gt;'DELETED'</update>
+  <!--
+    작성자는 자기 글만 삭제하고 관리자는 다른 작성자의 글도 삭제 가능.
+    사용자 번호는 로그인 세션에서 받고 관리자 여부는 USERS.IS_ADMIN으로 매번 확인.
+    상태만 변경해 댓글·신고와의 연결을 유지하고 다른 글을 삭제한 관리자를 기록.
+  -->
+  <update id="deletePost" parameterType="map">
+    UPDATE community_posts
+    SET status='DELETED',updated_at=SYSDATE,
+        moderated_by=CASE WHEN user_id&lt;&gt;#{userId} THEN #{userId} ELSE moderated_by END,
+        moderated_at=CASE WHEN user_id&lt;&gt;#{userId} THEN SYSDATE ELSE moderated_at END
+    WHERE post_id=#{postId} AND status&lt;&gt;'DELETED'
+      AND (user_id=#{userId} OR EXISTS(
+        SELECT 1 FROM users acting_user
+        WHERE acting_user.user_id=#{userId} AND acting_user.is_admin=1
+      ))
+  </update>
   <select id="comments" parameterType="map" resultType="map">
     SELECT c.comment_id AS "commentId",c.parent_comment_id AS "parentCommentId",c.user_id AS "authorId",u.nickname AS "authorName",
       CASE WHEN u.profile_image_url IS NOT NULL THEN '/api/users/profile-image/user/'||TO_CHAR(u.user_id) END AS "authorProfileImageUrl",

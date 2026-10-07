@@ -45,15 +45,21 @@ public class MedicationGuideController {
                 .body(Map.of("error", "등록한 약을 불러오지 못했습니다. 다시 시도해주세요."));
         }
     }
+    public ResponseEntity<?> get(String id) {
+        return get(id, true);
+    }
+
     @GetMapping(value="/api/guides/medications/{id}", produces="application/json")
-    public ResponseEntity<?> get(@PathVariable("id") String id) {
+    public ResponseEntity<?> get(@PathVariable("id") String id,
+            @RequestParam(value="includeAi", defaultValue="true") boolean includeAi) {
         if (id.isBlank() || id.length() > 20) return ResponseEntity.badRequest().body(Map.of("error", "약 선택 정보를 확인해주세요."));
         try {
             var medication = dao.find(id);
             if (medication == null) return ResponseEntity.status(404).body(Map.of("error", "등록된 약을 찾지 못했습니다. 다시 검색해주세요."));
 
             // [On-Demand Caching] AI 요약 정보가 NULL 또는 빈 값이면 AI 호출 후 DB 영구 캐싱
-            if ((medication.getAiSummaryJson() == null || medication.getAiSummaryJson().isBlank()) && gemini != null) {
+            // 주의사항 선조회는 AI 응답을 기다리지 않고 공식 기록부터 전달
+            if (includeAi && (medication.getAiSummaryJson() == null || medication.getAiSummaryJson().isBlank()) && gemini != null) {
                 try {
                     String generated = gemini.getOrGenerateMedicationSummary(
                         medication.getItemName(),

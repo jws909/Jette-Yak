@@ -125,3 +125,33 @@
 /* 게시글·댓글·안내문에 긴 제품명이나 공백 없는 문자열이 들어와도 화면 밖으로 밀리지 않게 처리 */
 .community-page,.community-card,.community-detail,.community-comment,.community-notice{min-width:0}
 .community-card h2,.community-card>p,.community-content,.community-comment p,.community-notice span,.community-official span{overflow-wrap:anywhere;word-break:keep-all}
+
+/* 페이지 번호와 이동 버튼이 큰 글씨·좁은 화면에서도 겹치지 않게 배치 */
+.community-pagination{display:grid;grid-template-columns:auto minmax(0,1fr) auto;width:100%;max-width:420px;margin:16px auto 0;gap:12px}
+.community-pagination span{text-align:center;overflow-wrap:anywhere;word-break:keep-all}
+.community-pagination button{min-height:44px;min-width:70px;cursor:pointer}
+.community-page-numbers{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;min-width:0}
+.community-page-numbers button{min-width:36px;padding:7px 8px}
+.community-page-numbers button[aria-current=page]{border-color:#7d2638;background:#7d2638;color:#fff;font-weight:700}
+.community-pagination-status{grid-column:1/-1;color:#736b63;font-size:13px}
+.community-pagination button:disabled{background:#f3efe9;color:#9d9288;cursor:not-allowed}
+@media(max-width:560px){.community-pagination{gap:8px}.community-pagination>button{min-width:60px;padding:7px 10px}.community-page-numbers{gap:4px}}
+
+/* 동작 버튼은 작성자·날짜 아래에 배치하고 큰 글씨와 좁은 화면에서도 눌러야 할 항목을 구분 */
+.community-detail-actions{flex-wrap:wrap}
+.community-detail-actions button,.community-comment-actions button{min-height:44px;white-space:normal;overflow-wrap:anywhere;word-break:keep-all}
+.community-detail-actions .community-delete-action{border-color:#bb8c91;background:#fff4f3;color:#8b2838}
+.community-comment-actions{position:static;flex-wrap:wrap;margin-top:10px}
+.community-comment-author>div{min-width:0;flex-wrap:wrap}
+.community-comment-author strong,.community-card footer .community-author{overflow-wrap:anywhere;word-break:keep-all}
+.community-comment.is-reply{margin-left:clamp(8px,3vw,24px);padding-left:12px}
+.community-detail,.community-compose{max-height:calc(100dvh - 40px)}
+@media(max-width:560px){
+  .community-modal{padding:10px}
+  .community-detail,.community-compose{max-height:calc(100dvh - 20px)}
+  .community-detail>.community-card-top{flex-wrap:wrap;align-items:flex-start}
+  .community-detail>.community-card-top time{margin-left:0;white-space:normal;overflow-wrap:anywhere}
+  .community-comment-actions button{flex:1 1 auto}
+  .community-files>div{align-items:flex-start;flex-wrap:wrap}
+  .community-detail-actions button{flex:1 1 120px}
+}

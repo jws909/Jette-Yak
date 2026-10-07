@@ -1,6 +1,6 @@
 /**
  * 역할: 커뮤니티 입력 검증, 권한 확인, 파일 보안, DB 작업 순서 조정
- * 변경 원칙: 작성·수정·삭제 전에 로그인 사용자와 실제 소유자 일치 여부 확인
+ * 변경 원칙: 로그인 사용자와 실제 작성자 확인. 게시글 삭제는 DB에서 현재 관리자 권한도 확인
  */
 package com.app.community.service;
 
@@ -23,17 +23,22 @@ public class CommunityService {
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg","image/png","image/gif","image/webp");
     private static final Set<String> BLOCKED_FILE_EXTENSIONS = Set.of("exe","com","bat","cmd","msi","scr","js","jar","ps1","vbs","sh","dll");
     private static final int MAX_ATTACHMENTS_PER_TYPE = 5;
+    private static final int POSTS_PER_PAGE = 5;
     private final CommunityDao dao;
     private final NotificationService notifications;
     @Autowired public CommunityService(CommunityDao dao,NotificationService notifications) { this.dao=dao;this.notifications=notifications; }
 
-    // 검색 조건을 허용 목록과 최대 길이에 맞춘 뒤 12개 단위 목록 반환
+    // 검색 조건을 검증하고 5개 단위 목록 반환. 삭제 후 마지막 페이지가 사라지면 남은 페이지로 이동
     public Map<String,Object> posts(String q,String category,String medicationId,String sort,int page,Long viewerId) {
         if(page<1) throw new IllegalArgumentException("페이지 번호를 확인해주세요.");
         String cat=clean(category,20); if(!cat.isEmpty()&&!CATEGORIES.contains(cat)) throw new IllegalArgumentException("게시글 유형을 확인해주세요.");
         String order=Set.of("LATEST","HELPFUL","COMMENTS").contains(sort)?sort:"LATEST";
-        Map<String,Object> p=new HashMap<>();p.put("keyword",clean(q,100));p.put("category",cat);p.put("medicationId",clean(medicationId,30));p.put("sort",order);p.put("offset",(page-1)*12);p.put("limit",12);p.put("viewerId",viewerId==null?-1L:viewerId);
-        int total=dao.countPosts(p);return Map.of("items",dao.posts(p),"total",total,"page",page,"hasMore",page*12<total);
+        Map<String,Object> p=new HashMap<>();p.put("keyword",clean(q,100));p.put("category",cat);p.put("medicationId",clean(medicationId,30));p.put("sort",order);p.put("viewerId",viewerId==null?-1L:viewerId);
+        int total=dao.countPosts(p);
+        int totalPages=Math.max(1,(int)(((long)total+POSTS_PER_PAGE-1)/POSTS_PER_PAGE));
+        int currentPage=Math.min(page,totalPages);
+        p.put("offset",(currentPage-1)*POSTS_PER_PAGE);p.put("limit",POSTS_PER_PAGE);
+        return Map.of("items",dao.posts(p),"total",total,"page",currentPage,"pageSize",POSTS_PER_PAGE,"totalPages",totalPages,"hasMore",currentPage<totalPages);
     }
     // 상세 화면에 게시글, 댓글, 첨부파일을 한 응답으로 구성
     public List<Map<String,Object>> myPosts(long userId) { return dao.myPosts(userId); }
@@ -52,7 +57,8 @@ public class CommunityService {
         Map<String,Object> p=values(r);p.put("postId",id);p.put("userId",userId);
         if(dao.updatePost(p)==0) throw new SecurityException("수정할 수 없는 게시글입니다.");return post(id,userId);
     }
-    @Transactional public void delete(long id,long userId) { if(dao.deletePost(id,userId)==0) throw new SecurityException("삭제할 수 없는 게시글입니다."); }
+    // 삭제 SQL에서 작성자 또는 현재 관리자만 허용. 댓글·신고 연결을 보존하는 상태 삭제 사용
+    @Transactional public void delete(long id,long userId) { if(dao.deletePost(id,userId)==0) throw new SecurityException("게시글 작성자 또는 관리자만 삭제할 수 있습니다."); }
     // 댓글·도움 표시 작업. userId는 컨트롤러가 세션에서 추출한 값
     @Transactional public Map<String,Object> comment(long postId,long userId,CommunityCommentRequest r) {
         String content=required(r==null?null:r.getContent(),1000,"댓글을 입력해주세요.");

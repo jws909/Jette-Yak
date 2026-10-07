@@ -53,7 +53,15 @@ public class CommunityController {
     @ExceptionHandler(SecurityException.class) public ResponseEntity<?> forbidden(SecurityException e){return ResponseEntity.status(403).body(Map.of("message",e.getMessage()));}
     @ExceptionHandler(IllegalStateException.class) public ResponseEntity<?> serverError(IllegalStateException e){return ResponseEntity.status(500).body(Map.of("message",e.getMessage()));}
 
-    // 세션이 유일한 사용자 식별 기준. required가 true면 비로그인 요청 즉시 차단
-    private static Long userId(HttpServletRequest req,boolean required){HttpSession s=req.getSession(false);Object v=s==null?null:s.getAttribute("userId");Long id=v instanceof Number?((Number)v).longValue():null;if(required&&id==null)throw new SecurityException("로그인이 필요한 기능입니다.");return id;}
+    // 프로필 조회만으로 만들어진 세션과 실제 로그인 세션 구분. 인증이 끝난 양수 사용자 번호만 신뢰
+    private static Long userId(HttpServletRequest req,boolean required){
+        HttpSession session=req==null?null:req.getSession(false);
+        Object value=session==null?null:session.getAttribute("userId");
+        boolean authenticated=session!=null&&Boolean.TRUE.equals(session.getAttribute("authenticated"));
+        Long id=authenticated&&value instanceof Number?((Number)value).longValue():null;
+        if(id!=null&&id<=0)id=null;
+        if(required&&id==null)throw new SecurityException("로그인이 필요한 기능입니다.");
+        return id;
+    }
     private static long admin(HttpServletRequest req){if(!AdminSession.isAdmin(req))throw new SecurityException("관리자만 사용할 수 있습니다.");return userId(req,true);}
 }
