@@ -357,18 +357,23 @@ export default function Navbar({
   const markAsRead = async (item) => {
     if (item.isInvitation) return;
     if (item.saved && item.notificationId) {
-      if (readLock.current) return;
-      readLock.current = true;
-      try {
-        const response = await fetch('/api/notifications/' + encodeURIComponent(item.notificationId) + '/read', { method: 'PATCH' });
-        if (!response.ok) throw new Error('알림을 읽음으로 저장하지 못했습니다. 다시 시도해주세요.');
-        confirmedRead.current.add(item.id);
-      } catch (error) {
-        setNotificationDialog({ title: '알림을 처리하지 못했습니다.', text: error.message });
-        return;
-      } finally {
-        readLock.current = false;
+      if (!item.read) {
+        if (readLock.current) return;
+        readLock.current = true;
+        try {
+          const response = await fetch('/api/notifications/' + encodeURIComponent(item.notificationId) + '/read', { method: 'PATCH' });
+          if (!response.ok) throw new Error('알림을 읽음으로 저장하지 못했습니다. 다시 시도해주세요.');
+          confirmedRead.current.add(item.id);
+        } catch (error) {
+          setNotificationDialog({ title: '알림을 처리하지 못했습니다.', text: error.message });
+          return;
+        } finally {
+          readLock.current = false;
+        }
       }
+      setNotificationDialog(item);
+      setShowNotification(false);
+    } else {
       setNotificationDialog(item);
       setShowNotification(false);
     }
@@ -505,11 +510,13 @@ export default function Navbar({
                             <div className="notif-item-body">
                               <div className="notif-item-header">
                                 <span className="notif-item-title">{n.title}</span>
-                                {n.isInvitation && (
+                                {n.isInvitation ? (
                                   <span className="notif-pin-badge">
                                     <i className="fa-solid fa-thumbtack" aria-hidden="true" /> 고정
                                   </span>
-                                )}
+                                ) : !n.read ? (
+                                  <span className="notif-unread-dot" title="읽지 않음" />
+                                ) : null}
                               </div>
                               <p className="notif-item-text">{n.text}</p>
                               <span className="notif-item-time">{n.time}</span>

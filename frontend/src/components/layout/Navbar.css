@@ -344,17 +344,37 @@
 }
 
 .notif-item.unread {
-  background-color: #fffaf5;
+  background-color: #fffbf6;
+}
+
+.notif-item.unread .notif-item-title {
+  color: #1e1917;
+  font-weight: 700;
+}
+
+.notif-item.unread .notif-item-text {
+  color: #554d46;
 }
 
 .notif-item.read {
-  opacity: 0.65;
   background-color: #ffffff;
 }
 
 .notif-item.read:hover {
-  opacity: 0.9;
-  background-color: #fcfbfa;
+  background-color: #f9f6f1;
+}
+
+.notif-item.read .notif-item-title {
+  color: #5a524b;
+  font-weight: 500;
+}
+
+.notif-item.read .notif-item-text {
+  color: #8c8278;
+}
+
+.notif-item.read .notif-indicator {
+  opacity: 0.45;
 }
 
 .notif-item.is-invitation {
@@ -367,6 +387,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 6px;
+}
+
+.notif-unread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #c04040;
+  display: inline-block;
+  flex-shrink: 0;
 }
 
 .notif-pin-badge {
