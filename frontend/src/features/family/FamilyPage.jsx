@@ -104,6 +104,9 @@ export default function FamilyPage(props) {
   const month = currentDate.getMonth();
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
 
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+
   // =========================================================================
   // 2. 비동기 백엔드 API 통신 로직
   // =========================================================================
@@ -755,58 +758,57 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   };
 
   // 복약 일정 삭제 처리
-  const handleOpenScheduleDeleteModal = async (item, e) => {
-    if (e) e.stopPropagation();
-
-    // 1. 단순 확인창
-    if (!window.confirm(`[${item.name || '복약 일정'}]을(를) 삭제하시겠습니까?`)) {
+  const openDeleteModal = (item, e) => {
+    e.stopPropagation();
+    if (!currentUserId) {
+      alert('로그인 후 일정을 삭제할 수 있습니다.');
       return;
     }
+    setItemToDelete(item);
+    setIsDeleteModalOpen(true);
+  };
 
-    // 2. 대상 구성원 ID 검증 (400 Bad Request 방어)
-    let targetUid = item.userId || item.memberId;
-    if (!targetUid && selectedMemberId !== 'all') {
-      targetUid = selectedMemberId;
-    }
-    if (!targetUid || targetUid === 'all') {
-      targetUid = currentUserId;
-    }
-
-    if (!targetUid || targetUid === 'all') {
-      alert('삭제할 대상 구성원의 정보를 확인할 수 없습니다.');
-      return;
-    }
-
+  // 삭제 확정 (deleteAll: true면 이 약의 전체 스케줄 및 원천 데이터 삭제, false면 당일 일정만 삭제)
+  const confirmDeleteSchedule = async (deleteAll = false) => {
+    if (!itemToDelete) return;
     try {
-      // 당일 일정만 삭제 (deleteAll=false)
-      const url = `/api/calendar/${item.scheduleId}/delete?deleteAll=false&userId=${targetUid}&date=${encodeURIComponent(selectedDate)}`;
-      console.log('[삭제 요청 URL]', url);
-
-      const res = await fetch(url, { method: 'POST' });
-
-      if (res.ok) {
-        // 목록 및 캘린더 요약 즉시 갱신
-        if (typeof fetchDailySchedules === 'function') {
-          fetchDailySchedules(selectedDate, selectedMemberId);
+      const response = await fetch(
+        `/api/calendar/${itemToDelete.scheduleId}/delete?deleteAll=${deleteAll}&userId=${currentUserId}&date=${encodeURIComponent(selectedDate)}`,
+        {
+          method: 'POST',
         }
-        if (typeof fetchMonthSummary === 'function') {
-          fetchMonthSummary(selectedMemberId);
+      );
+      if (response.ok) {
+        if (deleteAll) {
+          setSchedules((prev) =>
+            prev.filter((s) => {
+              if (itemToDelete.prescriptionId && s.prescriptionId === itemToDelete.prescriptionId) return false;
+              if (itemToDelete.cabinetId && s.cabinetId === itemToDelete.cabinetId) return false;
+              if (itemToDelete.routineId && s.routineId === itemToDelete.routineId) return false;
+              if (s.name === itemToDelete.name) return false;
+              return s.scheduleId !== itemToDelete.scheduleId;
+            })
+          );
+        } else {
+          setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
         }
 
-        // 전역 진척도 갱신 이벤트 전송
-        window.dispatchEvent(
-          new CustomEvent('jette-intake-updated', {
-            detail: { userId: targetUid, date: selectedDate },
-          })
-        );
+        await fetchDailySchedules(selectedDate, true);
+        await fetchMonthSummary();
+
+        // 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId, date: selectedDate }
+        }));
       } else {
-        const errText = await res.text();
-        console.error('삭제 실패 응답:', res.status, errText);
-        alert('일정 삭제에 실패했습니다.');
+        alert("삭제에 실패했습니다.");
       }
     } catch (err) {
-      console.error('일정 삭제 통신 오류:', err);
-      alert('삭제 처리 중 오류가 발생했습니다.');
+      console.error("삭제 통신 실패:", err);
+      alert("삭제 통신 중 오류가 발생했습니다.");
+    } finally {
+      setIsDeleteModalOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -1144,13 +1146,20 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                     {/* 2. 캘린더 스타일 삭제 모달 열기 */}
                     <button
                       type="button"
-                      className="chk-icon-btn delete"
+                      className="btn-delete-schedule"
+                      onClick={(e) => openDeleteModal(item, e)}
                       title="일정 삭제"
-                      onClick={(e) => handleOpenScheduleDeleteModal(item, e)}
                     >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" />
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                       </svg>
                     </button>
                   </div>
@@ -1560,6 +1569,69 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
               {/* 3. saveAlarmSetting -> handleSaveAlarm */}
               <button type="button" className="btn-confirm" onClick={handleSaveAlarm}>
                 확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 모달 3: 삭제 확인 (단건 vs 전체 스케줄 연계 삭제) */}
+      {isDeleteModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsDeleteModalOpen(false)}>
+          <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#7d2638" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '28px', height: '28px' }}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            
+            <h4 className="delete-modal-title">복약 일정 삭제</h4>
+            {itemToDelete && (
+              <div className="delete-modal-target-box">
+                <span className={`target-type-badge ${itemToDelete.type || 'regular'}`}>
+                  {itemToDelete.type === 'prescription' ? '처방약' : itemToDelete.type === 'supplement' ? '영양제' : '상비약'}
+                </span>
+                <span className="target-time-badge">{itemToDelete.time || '시간미정'}</span>
+                <strong className="target-med-name">{itemToDelete.name}</strong>
+              </div>
+            )}
+            <p className="delete-modal-desc">
+              선택한 날짜의 일정만 삭제할 수도 있고,<br />
+              등록된 약 정보는 유지한 채 전체 복약 일정만 삭제할 수 있습니다.
+            </p>
+
+            <div className="delete-modal-choice-group">
+              <button
+                type="button"
+                className="btn-delete-choice btn-choice-single"
+                onClick={() => confirmDeleteSchedule(false)}
+              >
+                <span className="choice-title">이 일정만 삭제</span>
+                <span className="choice-desc">{selectedDate} 일정만 삭제합니다</span>
+              </button>
+              
+              <button
+                type="button"
+                className="btn-delete-choice btn-choice-all"
+                onClick={() => confirmDeleteSchedule(true)}
+              >
+                <span className="choice-title">이 약의 전체 스케줄 삭제</span>
+                <span className="choice-desc">등록된 약의 모든 날짜의 일정을 삭제합니다</span>
+              </button>
+            </div>
+
+            <div className="delete-modal-footer">
+              <button 
+                type="button" 
+                className="btn-modal-cancel" 
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setItemToDelete(null);
+                }}
+              >
+                취소
               </button>
             </div>
           </div>
