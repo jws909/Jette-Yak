@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
 import DatePicker from '../../components/ui/DatePicker';
@@ -33,6 +33,27 @@ export default function FamilyPage(props) {
 
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
+
+  // 연/월 빠른 선택 팝오버 상태
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+  const monthPickerRef = useRef(null);
+  const yearDropdownRef = useRef(null);
+
+  // 빠른 연도 점프 옵션 (현재 연도 기준 -50년 ~ +10년)
+  const calYearOptions = useMemo(() => {
+    const currentY = today.getFullYear();
+    const list = [];
+    for (let y = currentY - 50; y <= currentY + 10; y++) {
+      list.push(y);
+    }
+    return list;
+  }, [today]);
+
+  // 이전/다음 연도 1년 단위 이동
+  const handleJumpYear = (delta) => {
+    setCurrentDate((prev) => new Date(prev.getFullYear() + delta, prev.getMonth(), 1));
+  };
 
   const [monthSummary, setMonthSummary] = useState({});
   const [schedules, setSchedules] = useState([]);
@@ -650,6 +671,55 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     setSelectedDate(getFormattedDate(now));
   };
 
+  // 월 선택 팝오버 외부 클릭 닫기
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+    const handleOutside = (e) => {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target)) {
+        setIsMonthPickerOpen(false);
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setIsMonthPickerOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isMonthPickerOpen]);
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) {
+      setIsYearDropdownOpen(false);
+    }
+  }, [isMonthPickerOpen]);
+
+  // 연도 드롭다운 외부 클릭 닫기
+  useEffect(() => {
+    if (!isYearDropdownOpen) return;
+    const handleOutsideYear = (e) => {
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(e.target)) {
+        setIsYearDropdownOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideYear);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideYear);
+    };
+  }, [isYearDropdownOpen]);
+
+  // 연도 드롭다운 열릴 때 현재 연도로 자동 스크롤
+  useEffect(() => {
+    if (isYearDropdownOpen && yearDropdownRef.current) {
+      const selectedItem = yearDropdownRef.current.querySelector('.custom-year-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [isYearDropdownOpen]);
+
   // 4. 체크리스트 시간대별 카운트 및 필터링
   const totalCount = schedules.length;
   const totalTakenCount = schedules.filter((s) => s.takenAt).length;
@@ -991,16 +1061,170 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       {/* 2. 상단 캘린더 */}
       <div className="family-card">
         <div className="calendar-nav">
-          <div className="calendar-month-selector">
-            <button type="button" className="calendar-arrow-btn" onClick={() => changeMonth(-1)}>
-              &lt;
+          <div className="month-controls" ref={monthPickerRef}>
+            <button
+              type="button"
+              className="cal-nav-arrow-btn"
+              onClick={() => changeMonth(-1)}
+              title="이전 달로 이동"
+              aria-label="이전 달"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
             </button>
-            <span>{year}년 {month + 1}월</span>
-            <button type="button" className="calendar-arrow-btn" onClick={() => changeMonth(1)}>
-              &gt;
+
+            <div className="month-picker-anchor">
+              <button
+                type="button"
+                className={`month-picker-trigger-btn ${isMonthPickerOpen ? 'active' : ''}`}
+                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                title="클릭하여 연도 및 월 선택"
+              >
+                <span className="picker-title-text">{year}년 {month + 1}월</span>
+                <svg
+                  className={`picker-chevron-svg ${isMonthPickerOpen ? 'open' : ''}`}
+                  width="14"
+                  height="14"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {isMonthPickerOpen && (
+                <div className="month-picker-popover" onClick={(e) => e.stopPropagation()}>
+                  {/* 연도 이동 행 */}
+                  <div className="popover-year-row">
+                    <button
+                      type="button"
+                      className="popover-arrow-btn"
+                      onClick={() => handleJumpYear(-1)}
+                      title="이전 연도"
+                      aria-label="이전 연도"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
+
+                    <div className="custom-year-dropdown-wrap" ref={yearDropdownRef}>
+                      <button
+                        type="button"
+                        className={`custom-year-btn ${isYearDropdownOpen ? 'active' : ''}`}
+                        onClick={() => setIsYearDropdownOpen((prev) => !prev)}
+                        title="연도 목록 보기"
+                      >
+                        <span className="year-btn-text">{year}년</span>
+                        <svg
+                          className={`year-chevron-svg ${isYearDropdownOpen ? 'open' : ''}`}
+                          width="12"
+                          height="12"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </button>
+
+                      {isYearDropdownOpen && (
+                        <div className="custom-year-dropdown-menu">
+                          {calYearOptions.map((y) => (
+                            <button
+                              key={y}
+                              type="button"
+                              className={`custom-year-item ${y === year ? 'selected' : ''}`}
+                              onClick={() => {
+                                setCurrentDate(new Date(y, month, 1));
+                                setIsYearDropdownOpen(false);
+                              }}
+                            >
+                              <span>{y}년</span>
+                              {y === year && (
+                                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="popover-arrow-btn"
+                      onClick={() => handleJumpYear(1)}
+                      title="다음 연도"
+                      aria-label="다음 연도"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* 12개월 그리드 */}
+                  <div className="popover-months-grid">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const isCurrentMonth = i === month;
+                      const isThisMonth = i === today.getMonth() && year === today.getFullYear();
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          className={`popover-month-btn ${isCurrentMonth ? 'selected' : ''} ${isThisMonth ? 'is-today' : ''}`}
+                          onClick={() => {
+                            setCurrentDate(new Date(year, i, 1));
+                            setIsMonthPickerOpen(false);
+                          }}
+                        >
+                          {i + 1}월
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 하단 오늘 바로가기 */}
+                  <div className="popover-footer">
+                    <button
+                      type="button"
+                      className="popover-today-btn"
+                      onClick={() => {
+                        handleGoToday();
+                        setIsMonthPickerOpen(false);
+                      }}
+                    >
+                      이번 달로 이동
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="cal-nav-arrow-btn"
+              onClick={() => changeMonth(1)}
+              title="다음 달로 이동"
+              aria-label="다음 달"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </button>
           </div>
-          <button type="button" className="calendar-today-btn" onClick={handleGoToday}>
+
+          <button type="button" className="btn-today" onClick={handleGoToday}>
             Today
           </button>
         </div>

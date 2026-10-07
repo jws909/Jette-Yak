@@ -375,6 +375,16 @@ const CalendarPage = (props) => {
     };
   }, [isYearDropdownOpen]);
 
+  // 연도 드롭다운 열릴 때 현재 연도로 자동 스크롤
+  useEffect(() => {
+    if (isYearDropdownOpen && yearDropdownRef.current) {
+      const selectedItem = yearDropdownRef.current.querySelector('.custom-year-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [isYearDropdownOpen]);
+
   // 복용 체크박스 토글
   const toggleTaken = async (item) => {
     if (!currentUserId) {
