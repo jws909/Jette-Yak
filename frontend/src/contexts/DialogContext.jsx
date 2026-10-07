@@ -12,5 +12,3 @@ export function useDialog() {
   }
   return context;
 }
-
-export { DialogProvider } from './DialogProvider';

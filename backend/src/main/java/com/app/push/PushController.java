@@ -9,6 +9,7 @@ import java.util.Map;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import com.app.util.UserAccess;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -26,7 +27,12 @@ public class PushController {
     static final String CSRF_SESSION = "pushCsrfToken";
     private final UserAccess access;
     private final PushSubscriptionService service;
-    public PushController(UserAccess access, PushSubscriptionService service) { this.access = access; this.service = service; }
+    private final CommunityPushScheduler community;
+    @Autowired public PushController(UserAccess access, PushSubscriptionService service, CommunityPushScheduler community) {
+        this.access = access; this.service = service; this.community = community;
+    }
+    // 기존 복약 API 단위 검사에서도 사용할 수 있도록 두 인자 생성자 유지
+    public PushController(UserAccess access, PushSubscriptionService service) { this(access, service, null); }
 
     @GetMapping("/config") public ResponseEntity<Map<String,Object>> config(HttpServletRequest request) {
         access.currentUser(request);
@@ -44,6 +50,8 @@ public class PushController {
         boolean ready = service.available();
         Map<String,Object> body = new LinkedHashMap<>();
         body.put("enabled", ready); body.put("publicKey", ready ? service.publicKey() : ""); body.put("csrfToken", token);
+        // 새 커뮤니티 테이블 미준비가 복약 알림 연결까지 막지 않도록 상태 분리
+        body.put("communityEnabled", ready && community != null && community.available());
         body.put("message", ready ? "" : "앱을 닫은 뒤 받는 알림은 서버 준비가 필요해요.");
         return ResponseEntity.ok().header("Cache-Control", "no-store").body(body);
     }

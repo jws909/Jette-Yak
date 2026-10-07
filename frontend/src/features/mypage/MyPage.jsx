@@ -530,8 +530,8 @@ function MyPageContent({ user, onUserUpdated, onLogout, backgroundPush }) {
 
             <div className="setting-toggle-row">
               <div className="setting-info">
-                <strong>복약 알림 전체 설정</strong>
-                <p>끄면 연결된 모든 기기에서 복약 알림을 받지 않아요.</p>
+                <strong>복약·커뮤니티 알림 설정</strong>
+                <p>끄면 연결된 모든 기기에서 복약 시간과 커뮤니티 새 소식의 푸시 알림을 받지 않아요.<br />사이트 안의 알림함은 계속 확인할 수 있어요.</p>
                 <div className="browser-perm-status">
                   <span className="perm-label">브라우저 알림 권한:</span>
                   {browserPerm === 'granted' && (

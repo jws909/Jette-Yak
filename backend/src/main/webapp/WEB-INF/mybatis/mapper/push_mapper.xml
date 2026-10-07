@@ -22,10 +22,11 @@
   </select>
   <insert id="insert" parameterType="com.app.push.PushSubscription">
     INSERT INTO user_push_subscriptions(subscription_id,user_id,endpoint,endpoint_hash,public_key,auth_secret,created_at,updated_at)
-    VALUES(push_subscription_seq.NEXTVAL,#{userId},#{endpoint},#{endpointHash},#{publicKey},#{authSecret},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+    <!-- 알림 생성 시각과 같은 UTC 기준. JDBC 세션 시간대가 달라도 구독 이후 여부가 달라지지 않음 -->
+    VALUES(push_subscription_seq.NEXTVAL,#{userId},#{endpoint},#{endpointHash},#{publicKey},#{authSecret},SYS_EXTRACT_UTC(SYSTIMESTAMP),SYS_EXTRACT_UTC(SYSTIMESTAMP))
   </insert>
   <update id="updateOwned">
-    UPDATE user_push_subscriptions SET public_key=#{publicKey},auth_secret=#{authSecret},updated_at=CURRENT_TIMESTAMP
+    UPDATE user_push_subscriptions SET public_key=#{publicKey},auth_secret=#{authSecret},updated_at=SYS_EXTRACT_UTC(SYSTIMESTAMP)
     WHERE endpoint_hash=#{endpointHash} AND user_id=#{userId}
   </update>
   <delete id="removeOwned">

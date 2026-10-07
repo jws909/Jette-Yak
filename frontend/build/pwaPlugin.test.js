@@ -283,7 +283,7 @@ test('a capability handshake replies only on the supplied message port without a
   const replies = []
   const port = { postMessage(message) { replies.push(JSON.parse(JSON.stringify(message))) } }
   await worker.dispatch('message', { data: { type: 'GET_PUSH_CAPABILITIES' }, ports: [port] })
-  assert.deepEqual(replies, [{ push: true, version: 1 }])
+  assert.deepEqual(replies, [{ push: true, community: true, version: 2 }])
   await worker.dispatch('message', { data: { type: 'OTHER' }, ports: [port] })
   await worker.dispatch('message', { data: { type: 'GET_PUSH_CAPABILITIES' } })
   await worker.dispatch('message', { data: { type: 'GET_PUSH_CAPABILITIES' }, ports: [] })
@@ -325,7 +325,7 @@ test('server pushes display a visible branded notification without a running pag
 
 test('all owned notification types support push reception and click handling', async (t) => {
   const files = await fixture(t)
-  for (const type of ['medication-reminder', 'notification-permission', 'notification-test']) {
+  for (const type of ['medication-reminder', 'notification-permission', 'notification-test', 'community-notification']) {
     const worker = workerHarness(await files.build())
     await worker.dispatch('push', { data: pushData({ type, title: '알림 확인', body: '테스트 알림', url: '/' }) })
     const notification = worker.notifications[0]
@@ -358,6 +358,74 @@ test('empty, malformed, oversized, and unrecognized pushes fall back to a generi
     assert.equal(notification.options.tag, 'jette-yak-push')
     assert.equal(notification.options.data.url, '/')
   }
+})
+
+test('community push displays without an open page and opens the linked post on click', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build())
+  await worker.dispatch('push', { data: pushData({
+    type: 'community-notification', notificationId: 123, url: '/community?postId=456',
+    tag: 'jette-yak-notification-123',
+  }) })
+  const { title, options } = worker.notifications[0]
+  assert.equal(title, '제때약 새 알림')
+  assert.match(options.body, /새로운 커뮤니티 알림/)
+  assert.deepEqual(JSON.parse(JSON.stringify(options.data)), {
+    type: 'community-notification', notificationId: 123, url: '/community?postId=456',
+  })
+  assert.equal(worker.fetched.length, 0)
+  assert.equal(worker.stores.size, 0)
+  await worker.dispatch('notificationclick', { notification: { data: options.data, close() {} } })
+  assert.deepEqual(worker.opened, [`${ORIGIN}/community?postId=456`])
+})
+
+test('community notification reuses an existing own window and supports only the admin route', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build(), { windowUrls: [`${ORIGIN}/mypage`] })
+  await worker.dispatch('push', { data: pushData({ type: 'community-notification', url: '/admin' }) })
+  await worker.dispatch('notificationclick', { notification: { data: worker.notifications[0].options.data, close() {} } })
+  assert.deepEqual(worker.focused, [`${ORIGIN}/mypage`])
+  assert.deepEqual(worker.navigated, [{ from: `${ORIGIN}/mypage`, to: `${ORIGIN}/admin` }])
+  assert.equal(worker.opened.length, 0)
+})
+
+test('community payload cannot redirect or copy nested private fields into notification data', async (t) => {
+  const files = await fixture(t)
+  for (const url of [
+    'https://third-party.test/', '//third-party.test/', 'javascript:alert(1)', '/admin?next=external',
+    '/community?postId=0', '/community?postId=-1', '/community?postId=1&next=external',
+    '/community?postId=1#external', '/community?postId=01', '/community?postId=1e2',
+    '/community?postId=' + '1'.repeat(19), '/community?postId=%31', '/community',
+  ]) {
+    const worker = workerHarness(await files.build())
+    await worker.dispatch('push', { data: pushData({
+      type: 'community-notification', url, notificationId: -1,
+      data: { userId: 7, title: 'private post', content: 'private comment', url },
+    }) })
+    const data = worker.notifications[0].options.data
+    assert.deepEqual(JSON.parse(JSON.stringify(data)), { type: 'community-notification', url: '/' })
+    await worker.dispatch('notificationclick', { notification: { data, close() {} } })
+    assert.deepEqual(worker.opened, [`${ORIGIN}/`])
+    // 기존에 만들어진 알림이나 조작한 data에도 동일한 경로 검증 적용
+    const result = await worker.dispatch('notificationclick', {
+      notification: { data: { type: 'community-notification', url }, close() { assert.fail('위험 경로는 무시') } },
+    })
+    assert.equal(result.extended, 0)
+  }
+})
+
+test('unsupported notification options still preserve the safe community destination on the fallback', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build(), {
+    showNotification(_title, _options, attempt) { if (attempt === 1) throw new TypeError('option unsupported') },
+  })
+  await worker.dispatch('push', { data: pushData({ type: 'community-notification', url: '/community?postId=9' }) })
+  assert.equal(worker.notifications.length, 2)
+  const fallback = worker.notifications[1]
+  assert.equal(fallback.title, '제때약 새 알림')
+  assert.match(fallback.options.body, /커뮤니티/)
+  await worker.dispatch('notificationclick', { notification: { data: fallback.options.data, close() {} } })
+  assert.deepEqual(worker.opened, [`${ORIGIN}/community?postId=9`])
 })
 
 test('push text strips control and directional characters and is bounded without splitting emoji', async (t) => {

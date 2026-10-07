@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDialog } from '../contexts/DialogContext';
 import { createIntakeGate, saveIntakeStatus } from '../utils/intakeApi';
 import { createLatestRequest } from '../utils/latestRequest';
@@ -42,7 +42,7 @@ const CalendarPage = (props) => (
 
 const CalendarContent = (props) => {
   const user = props.user;
-  const { showAlert, showConfirm } = useDialog();
+  const { showAlert } = useDialog();
   const [intakeGate] = useState(createIntakeGate);
   const today = new Date();
   const currentUserId = user?.userId || user?.id || null;
@@ -62,6 +62,11 @@ const CalendarContent = (props) => {
   const monthPickerRef = useRef(null);
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
   const yearDropdownRef = useRef(null);
+  // 부모 팝오버를 닫는 이벤트에서 하위 연도 메뉴도 함께 정리
+  const closeMonthPicker = useCallback(() => {
+    setIsMonthPickerOpen(false);
+    setIsYearDropdownOpen(false);
+  }, []);
 
   // 알람 설정 모달 (시간 변경 전용)
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
@@ -93,16 +98,13 @@ const CalendarContent = (props) => {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const todayYear = today.getFullYear();
 
-  const calYearOptions = useMemo(() => {
-    const start = Math.min(2020, year - 3);
-    const end = Math.max(today.getFullYear() + 5, year + 3);
-    const list = [];
-    for (let y = start; y <= end; y++) {
-      list.push(y);
-    }
-    return list;
-  }, [year, today]);
+  // 작은 연도 목록은 현재 날짜와 선택 연도에서 바로 계산해 날짜 객체 의존성 제거
+  const calYearOptions = [];
+  for (let optionYear = Math.min(2020, year - 3); optionYear <= Math.max(todayYear + 5, year + 3); optionYear++) {
+    calYearOptions.push(optionYear);
+  }
 
   // 1. 월별 요약 조회 (비로그인 시 빈 객체 처리)
   const fetchMonthSummary = useCallback(() => {
@@ -341,11 +343,11 @@ const CalendarContent = (props) => {
     if (!isMonthPickerOpen) return;
     const handleOutside = (e) => {
       if (monthPickerRef.current && !monthPickerRef.current.contains(e.target)) {
-        setIsMonthPickerOpen(false);
+        closeMonthPicker();
       }
     };
     const handleEsc = (e) => {
-      if (e.key === 'Escape') setIsMonthPickerOpen(false);
+      if (e.key === 'Escape') closeMonthPicker();
     };
     document.addEventListener('pointerdown', handleOutside);
     window.addEventListener('keydown', handleEsc);
@@ -353,13 +355,7 @@ const CalendarContent = (props) => {
       document.removeEventListener('pointerdown', handleOutside);
       window.removeEventListener('keydown', handleEsc);
     };
-  }, [isMonthPickerOpen]);
-
-  useEffect(() => {
-    if (!isMonthPickerOpen) {
-      setIsYearDropdownOpen(false);
-    }
-  }, [isMonthPickerOpen]);
+  }, [isMonthPickerOpen, closeMonthPicker]);
 
   useEffect(() => {
     if (!isYearDropdownOpen) return;
@@ -827,7 +823,7 @@ const CalendarContent = (props) => {
                 <button
                   type="button"
                   className={`month-picker-trigger-btn ${isMonthPickerOpen ? 'active' : ''}`}
-                  onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                  onClick={() => { setIsMonthPickerOpen((prev) => !prev); setIsYearDropdownOpen(false); }}
                   title="클릭하여 연도 및 월 선택"
                 >
                   <span className="picker-title-text">{year}년 {month + 1}월</span>
@@ -934,7 +930,7 @@ const CalendarContent = (props) => {
                             className={`popover-month-btn ${isCurrentMonth ? 'selected' : ''} ${isThisMonth ? 'is-today' : ''}`}
                             onClick={() => {
                               setCurrentDate(new Date(year, i, 1));
-                              setIsMonthPickerOpen(false);
+                              closeMonthPicker();
                             }}
                           >
                             {i + 1}월
@@ -950,7 +946,7 @@ const CalendarContent = (props) => {
                         className="popover-today-btn"
                         onClick={() => {
                           handleGoToday();
-                          setIsMonthPickerOpen(false);
+                          closeMonthPicker();
                         }}
                       >
                         이번 달로 이동

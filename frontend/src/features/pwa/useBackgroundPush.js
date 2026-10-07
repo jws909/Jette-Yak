@@ -41,7 +41,7 @@ export function useBackgroundPush({ userId, enabled }) {
   const run = useCallback(async (action) => {
     if (operationLock.current) return false;
     if (!userId) throw new PushClientError('로그인한 뒤 다시 시도해 주세요.');
-    if (action === 'enable' && !enabled) throw new PushClientError('복약 알림 전체 설정을 먼저 켜 주세요.');
+    if (action === 'enable' && !enabled) throw new PushClientError('복약·커뮤니티 알림 설정을 먼저 켜 주세요.');
     operationLock.current = true;
     inspectionVersion.current++;
     const epoch = generation.current;

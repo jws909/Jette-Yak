@@ -17,9 +17,17 @@ const CACHE_PREFIX = 'jette-yak-pwa-';
 const CACHE_NAME = CACHE_PREFIX + ${JSON.stringify(version)};
 const OFFLINE_URL = '/offline.html';
 const PRECACHE_URLS = ${JSON.stringify(resourcePaths)};
-const NOTIFICATION_TYPES = ['medication-reminder', 'notification-permission', 'notification-test'];
+const NOTIFICATION_TYPES = ['medication-reminder', 'notification-permission', 'notification-test', 'community-notification'];
 const DEFAULT_NOTIFICATION_TITLE = '제때약 복약 알림';
 const DEFAULT_NOTIFICATION_BODY = '확인할 복약 알림이 있어요. 앱에서 오늘의 복약 일정을 확인해주세요.';
+
+// 서버가 보낸 문자열도 그대로 이동하지 않음. 승인한 화면과 숫자 게시글 번호만 허용
+function notificationPath(type, path) {
+  if (path === '/') return '/';
+  if (type !== 'community-notification' || typeof path !== 'string') return null;
+  if (path === '/admin') return path;
+  return /^\\/community\\?postId=[1-9]\\d{0,17}$/.test(path) ? path : null;
+}
 
 // 푸시 본문만 읽고, 이동 주소·아이콘·동작은 앱에서 정한 값만 사용
 function notificationText(value, fallback, limit) {
@@ -43,8 +51,11 @@ function readPushNotification(event) {
 
   const data = {
     type: valid ? payload.type : 'medication-reminder',
-    url: '/',
+    url: notificationPath(payload.type, payload.url) || '/',
   };
+  // 식별자만 보관. 댓글·게시글 본문은 인증된 화면에서 다시 조회
+  if (data.type === 'community-notification' && Number.isSafeInteger(payload.notificationId)
+      && payload.notificationId > 0) data.notificationId = payload.notificationId;
   if (typeof payload.date === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date)) {
     const date = new Date(payload.date + 'T00:00:00Z');
     if (Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === payload.date) data.date = payload.date;
@@ -55,9 +66,10 @@ function readPushNotification(event) {
   const tag = typeof payload.tag === 'string' && /^[A-Za-z0-9._:-]{1,120}$/.test(payload.tag)
     ? 'jette-yak-' + payload.tag : 'jette-yak-push';
   return {
-    title: notificationText(payload.title, DEFAULT_NOTIFICATION_TITLE, 60),
+    title: notificationText(payload.title, data.type === 'community-notification' ? '제때약 새 알림' : DEFAULT_NOTIFICATION_TITLE, 60),
     options: {
-      body: notificationText(payload.body, DEFAULT_NOTIFICATION_BODY, 240),
+      body: notificationText(payload.body, data.type === 'community-notification'
+        ? '새로운 커뮤니티 알림이 있어요. 제때약에서 확인해 주세요.' : DEFAULT_NOTIFICATION_BODY, 240),
       icon: '/pwa/icon-192.png',
       badge: '/pwa/icon-192.png',
       tag,
@@ -75,9 +87,10 @@ self.addEventListener('push', (event) => {
     } catch {
       // 기기에서 일부 옵션을 거부하면 최소한의 일반 알림으로 한 번 더 시도
       try {
-        await self.registration.showNotification(DEFAULT_NOTIFICATION_TITLE, {
-          body: DEFAULT_NOTIFICATION_BODY,
-          data: { type: 'medication-reminder', url: '/' },
+        const community = notification.options.data.type === 'community-notification';
+        await self.registration.showNotification(community ? '제때약 새 알림' : DEFAULT_NOTIFICATION_TITLE, {
+          body: community ? '새로운 커뮤니티 알림이 있어요. 제때약에서 확인해 주세요.' : DEFAULT_NOTIFICATION_BODY,
+          data: community ? notification.options.data : { type: 'medication-reminder', url: '/' },
         });
       } catch {
         // OS 권한 취소·종료 상태에서 발생한 거부가 작업자 전체 오류로 이어지지 않도록 마무리
@@ -120,7 +133,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   // 이전 버전 작업자는 푸시를 표시할 수 없으므로 구독 전 지원 여부를 확인
   if (event.data && event.data.type === 'GET_PUSH_CAPABILITIES') {
-    event.ports?.[0]?.postMessage({ push: true, version: 1 });
+    event.ports?.[0]?.postMessage({ push: true, community: true, version: 2 });
     return;
   }
   if (event.data && event.data.type === 'SKIP_WAITING') {
@@ -128,15 +141,16 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// 복약 알림을 누르면 같은 사이트의 홈으로만 이동
+// 알림을 누르면 같은 사이트의 승인한 화면으로 이동. 로그인·관리자 권한은 화면 API에서 재확인
 self.addEventListener('notificationclick', (event) => {
   const data = event.notification.data;
-  if (!data || !NOTIFICATION_TYPES.includes(data.type)
-      || data.url !== '/') return;
+  if (!data || !NOTIFICATION_TYPES.includes(data.type)) return;
+  const path = notificationPath(data.type, data.url);
+  if (!path) return;
 
   event.notification.close();
   event.waitUntil((async () => {
-    const target = new URL('/', self.location.origin).href;
+    const target = new URL(path, self.location.origin).href;
     try {
       const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       const ownWindows = windows.filter((client) => {
@@ -153,7 +167,7 @@ self.addEventListener('notificationclick', (event) => {
         return;
       }
     } catch {
-      // 이미 닫힌 창은 새 홈 화면으로 다시 열기
+      // 이미 닫힌 창은 같은 사이트의 대상 화면으로 다시 열기
     }
     try {
       await self.clients.openWindow(target);

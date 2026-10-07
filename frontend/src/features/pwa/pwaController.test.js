@@ -231,9 +231,18 @@ test('manual help recognizes iOS Safari, other iOS browsers, and iPad desktop us
   assert.equal(safari.getSnapshot().helpKind, 'ios-safari')
   const chrome = create({ userAgent: 'iPhone CriOS/130.0 Mobile Safari/604.1' })
   assert.equal(chrome.getSnapshot().helpKind, 'ios-other')
+  const brave = create({ userAgent: 'iPhone Version/18.0 Mobile Safari/604.1', brave: {} })
+  assert.equal(brave.getSnapshot().helpKind, 'ios-other')
   const ipad = create({ userAgent: 'Macintosh Version/18.0 Safari/605.1', maxTouchPoints: 5, standalone: true })
   assert.equal(ipad.getSnapshot().helpKind, 'ios-safari')
   assert.equal(ipad.getSnapshot().installed, true)
+})
+
+test('Brave Android manual help distinguishes app installation from a home screen bookmark', () => {
+  const brave = createEnvironment({ navigator: { userAgent: 'Android Chrome/130.0', brave: {} } }).controller
+  assert.equal(brave.getSnapshot().helpKind, 'android-brave')
+  const chrome = createEnvironment({ navigator: { userAgent: 'Android Chrome/130.0' } }).controller
+  assert.equal(chrome.getSnapshot().helpKind, 'browser')
 })
 
 test('waiting updates are announced and can be postponed without messaging a worker or reloading', async () => {

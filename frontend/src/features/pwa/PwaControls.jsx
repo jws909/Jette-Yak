@@ -7,7 +7,7 @@ function usePwaState() {
   return useSyncExternalStore(pwaController.subscribe, pwaController.getSnapshot, pwaController.getSnapshot)
 }
 
-const reminderNote = '현재 복약 알림은 앱을 열어 둔 동안 동작합니다. 설치해도 앱을 닫았을 때나 인터넷 연결이 끊겼을 때 알림을 보장하지 않습니다.'
+const reminderNote = '앱을 닫아도 알림을 받으려면 설치 후 마이페이지에서 알림 설정과 이 기기 알림을 켜 주세요. 기기마다 따로 연결해야 하며, 서버와 인터넷 연결이 유지되어야 합니다.'
 
 function installDescription(state) {
   if (state.installResult === 'accepted') {
@@ -30,6 +30,9 @@ function installDescription(state) {
   }
   if (state.helpKind === 'ios-other') {
     return '이 브라우저의 공유 메뉴에서 ‘홈 화면에 추가’가 있는지 확인해 주세요. 항목이 없다면 Safari에서 이 주소를 열고 공유 → 홈 화면에 추가를 선택해 주세요.'
+  }
+  if (state.helpKind === 'android-brave') {
+    return 'Brave의 ⋮ 메뉴에서 ‘앱 설치’ 또는 ‘홈 화면에 추가’를 선택해 주세요. 이미 설치했다면 ‘앱 열기’로 보일 수 있어요. 항목이 없으면 최신 Brave의 일반 탭에서 HTTPS 주소를 다시 열거나 Chrome에서 설치해 주세요.'
   }
   return '브라우저의 주소창 설치 아이콘 또는 메뉴에서 ‘앱 설치’, ‘제때약 설치’, ‘홈 화면에 추가’ 항목이 있는지 확인해 주세요. 표시 이름과 지원 여부는 브라우저·기기에 따라 다릅니다. 항목이 없으면 현재 브라우저에서 그대로 이용할 수 있습니다.'
 }

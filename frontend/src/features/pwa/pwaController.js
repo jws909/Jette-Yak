@@ -14,8 +14,11 @@ export function createPwaController({
   const userAgent = browserNavigator?.userAgent || ''
   const isIos = /iPad|iPhone|iPod/i.test(userAgent)
     || (/Macintosh/i.test(userAgent) && browserNavigator?.maxTouchPoints > 1)
-  const isSafari = /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(userAgent)
-  const helpKind = !secureContext ? 'insecure' : isIos ? (isSafari ? 'ios-safari' : 'ios-other') : 'browser'
+  // Brave의 iOS UA에도 Safari가 포함될 수 있어 안내용 브라우저 힌트와 함께 구분
+  const isBrave = Boolean(browserNavigator?.brave) || /Brave/i.test(userAgent)
+  const isSafari = !isBrave && /Safari/i.test(userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(userAgent)
+  const helpKind = !secureContext ? 'insecure' : isIos ? (isSafari ? 'ios-safari' : 'ios-other')
+    : /Android/i.test(userAgent) && isBrave ? 'android-brave' : 'browser'
   const subscribers = new Set()
   const listeners = []
   let registrationListeners = []

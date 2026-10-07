@@ -130,7 +130,7 @@ export function createPushClient(browser = globalThis.window) {
       await new Promise((resolve, reject) => {
         timeout = setTimeout(() => reject(new PushClientError('알림을 지원하는 앱 업데이트가 필요해요. 앱 업데이트를 적용하거나 모든 제때약 창을 닫고 다시 열어 주세요.')), 1500);
         channel.port1.onmessage = event => {
-          if (event.data?.push === true && event.data?.version === 1) resolve();
+          if (event.data?.push === true && event.data?.community === true && event.data?.version === 2) resolve();
           else reject(new PushClientError('앱 업데이트를 적용한 뒤 알림을 다시 켜 주세요.'));
         };
         worker.postMessage({ type: 'GET_PUSH_CAPABILITIES' }, [channel.port2]);

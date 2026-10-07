@@ -24,7 +24,7 @@ function fixture({ permission = 'granted', existing = false, response } = {}) {
   const registration = {
     scope: `${origin}/`, active: { scriptURL: `${origin}/sw.js`, postMessage(message, ports) {
       assert.deepEqual(message, { type: 'GET_PUSH_CAPABILITIES' });
-      ports[0].postMessage({ push: true, version: 1 });
+      ports[0].postMessage({ push: true, community: true, version: 2 });
     } },
     pushManager: {
       async getSubscription() { return current; },
@@ -94,6 +94,20 @@ test('서버 미설정이면 브라우저 구독 조회·권한 요청 없이 �
   assert.deepEqual(f.calls, []);
 });
 
+test('커뮤니티 서버만 준비 중이면 별도 상태를 유지하고 복약 구독·테스트는 허용', async () => {
+  const medicationOnlyConfig = { ...config, communityEnabled: false };
+  const f = fixture({ response: url => ({
+    ok: true, status: 200,
+    json: async () => url.endsWith('/config') ? medicationOnlyConfig : { subscribed: true },
+  }) });
+  const loaded = await f.client.getConfig();
+  assert.equal(loaded.communityEnabled, false);
+  assert.deepEqual(await f.client.enable(loaded), { subscribed: true });
+  assert.deepEqual(await f.client.inspect(loaded), { subscribed: true });
+  await f.client.test(loaded);
+  assert.equal(f.calls.some(call => call.url?.endsWith('/test')), true);
+});
+
 test('클릭에서 즉시 권한을 요청한 다음 활성 워커·서버에 구독 등록', async () => {
   const f = fixture({ permission: 'default' });
   const pending = f.client.enable(config);
@@ -139,6 +153,14 @@ test('기존 sw.js가 푸시 지원을 확인해주지 않으면 구독하지 �
   f.registration.active.postMessage = (_, ports) => ports[0].postMessage({ push: false });
   await assert.rejects(f.client.enable(config), /업데이트/);
   assert.equal(f.subscriptions.length, 0);
+});
+
+test('복약 알림만 지원하는 예전 워커는 커뮤니티 지원으로 오인하지 않고 업데이트 안내', async () => {
+  const f = fixture();
+  f.registration.active.postMessage = (_, ports) => ports[0].postMessage({ push: true, version: 1 });
+  await assert.rejects(f.client.enable(config), /업데이트/);
+  assert.equal(f.subscriptions.length, 0);
+  assert.equal(f.calls.some(call => call.url?.endsWith('/subscriptions')), false);
 });
 
 test('오래된 워커라도 로그아웃·해제는 기능 응답을 기다리지 않음', async () => {

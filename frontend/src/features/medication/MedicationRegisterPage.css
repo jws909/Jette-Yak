@@ -2882,3 +2882,192 @@
   to { transform: rotate(360deg); }
 }
 
+/* 긴 약명·기관명도 카드 폭 안에서 읽을 수 있도록 페이지 안의 축소·줄바꿈 기준 통일 */
+.med-register-page .med-register-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.med-register-page .med-tab-btn {
+  min-width: 0;
+  min-height: 48px;
+  white-space: normal;
+  line-height: 1.45;
+}
+
+.med-register-page .med-tab-btn :is(.tab-text-full, .tab-text-short) {
+  min-width: 0;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.med-register-page .med-tab-btn .tab-svg-icon {
+  flex-shrink: 0;
+}
+
+.med-register-page,
+.med-register-page :is(.med-register-content, .rx-history-section, .rx-hospital-meta,
+  .rx-med-item-row, .med-title-block, .purpose-text, .option-info, .med-info,
+  .result-card, .everyday-card, .table-med-cell, .row-change-input, .edit-field) {
+  min-width: 0;
+}
+
+.med-register-page :is(.med-register-title-row, .rx-history-head, .rx-card-top-bar,
+  .rx-meds-header-row, .edit-items-header, .rx-card-actions, .card-actions-row,
+  .supp-freq-selector, .freq-pill-group, .days-options) {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.med-register-page :is(.med-register-desc, .rx-hospital-name, .med-title-text,
+  .med-name-strong, .option-name, .result-name, .med-name, .med-corp, .option-corp,
+  .med-category-text, .med-danger-text,
+  .purpose-text, .med-freq-dose, .med-timing-text, .res-item-name, .res-entp-name,
+  .modal-desc, .cabinet-modal-desc, .repeat-info-text, .tip-text) {
+  min-width: 0;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+/* 제품 선택 전에 전체 이름을 확인할 수 있도록 검색 결과의 말줄임 해제 */
+.med-register-page :is(.option-name, .dropdown-med-item .med-title,
+  .dropdown-med-item .med-info, .result-efficacy) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+.med-register-page .result-efficacy {
+  display: block;
+  -webkit-line-clamp: unset;
+}
+
+.med-register-page :is(.dropdown-med-item, .rx-add-item-option) {
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.med-register-page .dropdown-med-item .med-info {
+  flex: 1;
+  margin-right: 0;
+}
+
+.med-register-page .results-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+}
+
+.med-register-page .everyday-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+}
+
+.med-register-page :is(.med-target-select, .table-select, .row-change-input,
+  .cabinet-search-input, .rx-add-search-input) {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.med-register-page .row-search-dropdown-menu,
+.med-register-page .row-search-empty-note {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.med-register-page .row-search-dropdown-item {
+  flex-wrap: wrap;
+}
+
+.med-register-page :is(.btn-quick-take, .schedule-add-btn, .btn-add-cabinet,
+  .cabinet-inline-submit-btn, .rx-action-edit, .rx-action-delete, .days-pill,
+  .schedule-day-tab, .freq-pill) {
+  max-width: 100%;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.med-register-page :is(.rx-edit-modal-box, .medication-schedule-dialog) {
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.med-register-page .rx-edit-modal-box .modal-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.med-register-page .rx-edit-modal-box .modal-header h2 {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.med-register-page .rx-edit-modal-box .close-btn {
+  flex: 0 0 36px;
+  min-height: 36px;
+}
+
+.med-register-page :is(.schedule-sync-label, .supplement-meal-notice,
+  .timing-custom-header, .item-preset-label, .slot-daytimes-summary) {
+  min-width: 0;
+  line-height: 1.5;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.med-register-page :is(.schedule-daytype-tabs, .slot-daytimes-summary,
+  .item-time-inputs, .schedule-sync-label) {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  /* 좁은 카드에서는 복용량과 작업 버튼을 다음 줄로 옮겨 약명에 충분한 폭 확보 */
+  .med-register-page :is(.rx-card-top-bar, .rx-med-item-row) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .med-register-page .rx-card-actions {
+    justify-content: flex-end;
+  }
+
+  .med-register-page .med-row-dosage {
+    align-items: flex-start;
+    padding-left: 22px;
+  }
+
+  .med-register-page :is(.cabinet-search-box, .rx-item-card, .rx-edit-modal-box) {
+    padding: 16px;
+  }
+
+  .med-register-page .edit-fields-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .med-register-page .card-actions-row > button {
+    flex: 1 1 110px;
+    min-width: 0;
+    min-height: 44px;
+  }
+
+  .med-register-page .med-target-select {
+    flex: 1 1 160px;
+  }
+
+  .med-register-page .medication-schedule-dialog .days-pill {
+    flex: 1 1 70px;
+    min-height: 40px;
+  }
+
+  .med-register-page .medication-schedule-dialog .supp-freq-selector {
+    align-items: flex-start;
+  }
+}
+

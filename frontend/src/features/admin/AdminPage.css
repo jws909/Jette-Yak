@@ -9,3 +9,73 @@
 /* 신고 원문과 관리자 처리 사유가 모바일 카드 너비 안에서 자연스럽게 줄바꿈되도록 처리 */
 .admin-page,.admin-section,.admin-item{min-width:0}
 .admin-heading p,.admin-description,.admin-item h4,.admin-item p,.admin-item small,.admin-notice,.admin-error{overflow-wrap:anywhere;word-break:keep-all}
+
+/* 처리 원문과 긴 제품명이 각 카드의 폭 안에서 줄바꿈되도록 최소 너비를 해제 */
+.admin-heading > div,
+.admin-heading-actions,
+.admin-summary > article,
+.admin-section-title > div,
+.admin-panel,
+.admin-sync-grid > article,
+.admin-item-meta > *,
+.admin-reason-label { min-width: 0; }
+.admin-heading h1,
+.admin-summary :is(span, strong, small),
+.admin-section-title :is(span, h2, a),
+.admin-panel h3,
+.admin-sync-grid :is(span, h3, p),
+.admin-item-meta,
+.admin-explain,
+.admin-loading,
+.admin-empty {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.admin-summary article { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.admin-summary strong { max-width: 100%; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.admin-summary small { line-height: 1.6; }
+.admin-section-title { flex-wrap: wrap; align-items: flex-start; }
+.admin-section-title > div { flex: 1 1 180px; }
+.admin-section-title h2,
+.admin-item h4,
+.admin-panel h3,
+.admin-sync-grid h3 { line-height: 1.5; }
+.admin-item-meta { flex-wrap: wrap; align-items: flex-start; line-height: 1.6; }
+.admin-item-meta > :first-child { flex: 1 1 140px; }
+.admin-item small { display: block; line-height: 1.7; white-space: pre-wrap; }
+.admin-status { max-width: 100%; }
+.admin-heading-actions { flex-wrap: wrap; }
+.admin-heading button,
+.admin-actions > :is(button, a),
+.admin-tabs button {
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  height: auto;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.admin-actions > :is(button, a) { display: inline-flex; align-items: center; justify-content: center; text-align: center; }
+.admin-tabs { flex-wrap: wrap; overflow: visible; gap: 8px; }
+.admin-tabs button { flex: 0 1 auto; }
+.admin-tabs em { height: auto; min-height: 19px; line-height: 1.5; }
+.admin-panel h3 em { height: auto; min-height: 26px; line-height: 1.5; }
+.admin-sync-grid > article p { min-height: 0; }
+.admin-modal-backdrop { overflow: auto; }
+.admin-modal-shell { min-width: 0; max-height: 100%; overscroll-behavior: contain; }
+.admin-reason-label textarea { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .admin-heading { align-items: stretch; gap: 14px; }
+  .admin-heading-actions { gap: 8px; }
+  .admin-heading-actions button { flex: 1 1 120px; }
+  .admin-summary article { padding: 16px; }
+  .admin-section { padding: 16px 14px; }
+  .admin-panel,
+  .admin-sync-grid > article,
+  .admin-list > .admin-item { padding: 14px; }
+  .admin-item-meta > :first-child { flex-basis: auto; }
+  .admin-actions > :is(button, a) { flex: 1 1 140px; }
+  .admin-tabs button { flex: 1 1 120px; }
+}

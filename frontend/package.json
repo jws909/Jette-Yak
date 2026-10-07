@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "test": "node --test",
-    "test:flows": "node --test ../tools/qa/frontend-flow.test.cjs ../tools/qa/frontend-state.test.cjs ../tools/qa/main-routine.test.cjs ../tools/qa/time-picker.test.cjs",
+    "test:flows": "node --test ../tools/qa/frontend-flow.test.cjs ../tools/qa/frontend-state.test.cjs ../tools/qa/main-routine.test.cjs ../tools/qa/time-picker.test.cjs ../tools/qa/medication-registration.test.cjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

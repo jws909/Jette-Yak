@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
-import { DialogProvider } from './contexts/DialogContext'
+import { DialogProvider } from './contexts/DialogProvider'
 import PwaControls from './features/pwa/PwaControls.jsx'
 import { initializePwa } from './features/pwa/pwaController.js'
 
