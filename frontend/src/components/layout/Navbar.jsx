@@ -1,9 +1,41 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
 import UiDialog from '../ui/UiDialog';
 import './Navbar.css';
 import { mergeNotificationItems } from '../../utils/notificationState';
+
+export function parseDateToMs(dateStr) {
+  if (!dateStr) return Date.now();
+  if (typeof dateStr === 'number') return dateStr;
+  const str = String(dateStr).trim();
+  const normalized = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
+  const ms = new Date(normalized).getTime();
+  return isNaN(ms) ? Date.now() : ms;
+}
+
+export function formatRelativeTime(dateOrMs, fallback) {
+  if (!dateOrMs && fallback) return fallback;
+  const ms = typeof dateOrMs === 'number' ? dateOrMs : parseDateToMs(dateOrMs);
+  const now = Date.now();
+  const diffMs = now - ms;
+  if (diffMs < 0) return fallback || '방금 전';
+
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return '방금 전';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+  const diffDays = Math.floor(diffHour / 24);
+  if (diffDays < 7) return `${diffDays}일 전`;
+
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return fallback || '';
+  const month = d.getMonth() + 1;
+  const date = d.getDate();
+  return `${month}월 ${date}일`;
+}
 
 export default function Navbar({
   onToggleSidebar,
@@ -17,6 +49,7 @@ export default function Navbar({
   const currentUserId = user?.userId || user?.id;
   const isAdmin = user?.isAdmin === true || Number(user?.isAdmin) === 1;
   const [showNotification, setShowNotification] = useState(false);
+  const [activeTab, setActiveTab] = useState('unread');
   const [notifications, setNotifications] = useState([]);
   const [notificationDialog, setNotificationDialog] = useState(null);
 
@@ -44,6 +77,7 @@ export default function Navbar({
       if (res.ok) {
         if (action === 'ACCEPT') {
           setNotificationDialog({title:'가족 초대를 수락했습니다.',text:'가족 약 관리에 새 가족 정보가 반영됩니다.',reload:true});
+          setNotifications((prev) => prev.filter((n) => n.id !== `invitation-${inviteId}`));
         } else {
           setNotificationDialog({title:'가족 초대를 거절했습니다.',text:'해당 초대는 알림 목록에서 제거됐습니다.'});
           setNotifications((prev) => prev.filter((n) => n.id !== `invitation-${inviteId}`));
@@ -81,12 +115,14 @@ export default function Navbar({
           const invList = await invRes.json();
           if (Array.isArray(invList) && invList.length > 0) {
             invList.forEach((inv) => {
+              const tMs = parseDateToMs(inv.createdAt);
               items.push({
                 id: `invitation-${inv.inviteId}`,
                 type: 'routine',
                 title: '가족 연동 초대 요청',
                 text: `'${inv.senderName}'님이 [${inv.familyName}] 그룹으로 초대했습니다.`,
-                time: inv.createdAt || '방금 전',
+                time: formatRelativeTime(tMs, inv.createdAt || '방금 전'),
+                timestamp: tMs,
                 read: false,
                 isInvitation: true,
                 inviteId: inv.inviteId,
@@ -112,6 +148,7 @@ export default function Navbar({
                 title: '복용 주의 알림',
                 text: '처방전에 판매중단 또는 주의 대상 의약품이 포함되어 있습니다. 복용 전 의료진과 상담하세요.',
                 time: '주의',
+                timestamp: now.getTime(),
                 read: false,
               });
             }
@@ -125,6 +162,7 @@ export default function Navbar({
                     title: `${it.name} 복약 주의`,
                     text: it.caution,
                     time: '주의사항',
+                    timestamp: now.getTime(),
                     read: false,
                   });
                 }
@@ -164,6 +202,7 @@ export default function Navbar({
               title: `오늘의 복약 브리핑 (총 ${calList.length}건)`,
               text: summaryParts.join(' · '),
               time: '오늘 일정',
+              timestamp: now.getTime(),
               read: false,
             });
           }
@@ -177,18 +216,22 @@ export default function Navbar({
         const savedRes = await fetch('/api/notifications', { headers: { Accept: 'application/json' } });
         if (savedRes.ok) {
           const savedData = await savedRes.json();
-          const savedItems = (Array.isArray(savedData.items) ? savedData.items : []).map(item => ({
-            id: `saved-${item.notificationId}`,
-            notificationId: item.notificationId,
-            type: item.type === 'ADMIN_REPORT' || item.type === 'REPORT_RESULT' ? 'warning' : 'routine',
-            title: item.title,
-            text: item.content,
-            time: item.createdAt,
-            read: Number(item.read) === 1,
-            saved: true,
-            postId: item.postId,
-            targetType: item.targetType,
-          }));
+          const savedItems = (Array.isArray(savedData.items) ? savedData.items : []).map(item => {
+            const tMs = parseDateToMs(item.createdAt);
+            return {
+              id: `saved-${item.notificationId}`,
+              notificationId: item.notificationId,
+              type: item.type === 'ADMIN_REPORT' || item.type === 'REPORT_RESULT' ? 'warning' : 'routine',
+              title: item.title,
+              text: item.content,
+              time: formatRelativeTime(tMs, item.createdAt),
+              timestamp: tMs,
+              read: Number(item.read) === 1,
+              saved: true,
+              postId: item.postId,
+              targetType: item.targetType,
+            };
+          });
           items.unshift(...savedItems);
         }
       } catch (err) {
@@ -210,6 +253,7 @@ export default function Navbar({
 
       const isPre = Boolean(item.isPreAlarm);
       const newNotifId = `realtime-dose-${isPre ? 'pre' : 'main'}-${item.date || new Date().toLocaleDateString('en-CA')}-${item.time}`;
+      const tMs = parseDateToMs(`${item.date || todayStr}T${item.time}:00`);
 
       setNotifications((prev) => {
         if (prev.some((n) => n.id === newNotifId)) return prev;
@@ -224,6 +268,7 @@ export default function Navbar({
               ? `[${item.time}] '${item.name}' 복약 30분 전입니다. 미리 준비하세요.`
               : `[${item.time}] '${item.name}' 복용 시간입니다. 잊지 말고 복용하세요!`,
             time: item.time,
+            timestamp: tMs,
             read: false,
           },
           ...prev,
@@ -251,7 +296,47 @@ export default function Navbar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+  // 전체 알림 정렬: 가족 연동 초대는 항상 최상단, 그 외에는 최신순
+  const sortedNotifications = useMemo(() => {
+    return [...notifications].sort((a, b) => {
+      if (a.isInvitation && !b.isInvitation) return -1;
+      if (!a.isInvitation && b.isInvitation) return 1;
+      const timeA = a.timestamp || 0;
+      const timeB = b.timestamp || 0;
+      return timeB - timeA;
+    });
+  }, [notifications]);
+
+  // 안 읽음 목록: 가족 초대는 수락/거절 전까지 영구 유지, 커뮤니티/일반 알림은 24시간 이내의 안 읽은 알림만 (최대 5개)
+  const unreadList = useMemo(() => {
+    const now = Date.now();
+    return sortedNotifications.filter((n) => {
+      if (n.isInvitation) return true;
+      if (n.read) return false;
+      const time = n.timestamp || now;
+      return (now - time) < ONE_DAY_MS;
+    }).slice(0, 5);
+  }, [sortedNotifications]);
+
+  // 전체 목록: 가족 초대 최상단 + 전체 알림 (최대 10개)
+  const allList = useMemo(() => {
+    return sortedNotifications.slice(0, 10);
+  }, [sortedNotifications]);
+
+  const displayedNotifications = activeTab === 'unread' ? unreadList : allList;
+
+  // 알림 뱃지 카운트: 가족 초대 + 24시간 이내 안 읽은 알림 총 개수
+  const unreadCount = useMemo(() => {
+    const now = Date.now();
+    return notifications.filter((n) => {
+      if (n.isInvitation) return true;
+      if (n.read) return false;
+      const time = n.timestamp || now;
+      return (now - time) < ONE_DAY_MS;
+    }).length;
+  }, [notifications]);
 
   const markAllAsRead = async () => {
     if (readLock.current) return;
@@ -270,6 +355,7 @@ export default function Navbar({
   };
 
   const markAsRead = async (item) => {
+    if (item.isInvitation) return;
     if (item.saved && item.notificationId) {
       if (readLock.current) return;
       readLock.current = true;
@@ -365,26 +451,51 @@ export default function Navbar({
                 {showNotification && (
                   <div className="notif-popover">
                     <div className="notif-popover-header">
-                      <strong>알림</strong>
-                      {unreadCount > 0 && (
-                        <button type="button" className="mark-read-btn" onClick={markAllAsRead}>
-                          모두 읽음
+                      <div className="notif-header-title-row">
+                        <strong>알림</strong>
+                        {unreadCount > 0 && (
+                          <button type="button" className="mark-read-btn" onClick={markAllAsRead}>
+                            모두 읽음
+                          </button>
+                        )}
+                      </div>
+                      <div className="notif-tabs" role="tablist">
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={activeTab === 'unread'}
+                          className={`notif-tab ${activeTab === 'unread' ? 'active' : ''}`}
+                          onClick={() => setActiveTab('unread')}
+                        >
+                          안 읽음
+                          {unreadCount > 0 && <span className="notif-tab-badge">{unreadCount}</span>}
                         </button>
-                      )}
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={activeTab === 'all'}
+                          className={`notif-tab ${activeTab === 'all' ? 'active' : ''}`}
+                          onClick={() => setActiveTab('all')}
+                        >
+                          전체
+                        </button>
+                      </div>
                     </div>
                     <div className="notif-list">
-                      {notifications.length === 0 ? (
+                      {displayedNotifications.length === 0 ? (
                         <div className="notif-empty">
                           <div className="notif-empty-icon">
                             <i className="fa-regular fa-bell" aria-hidden="true" />
                           </div>
-                          <p className="notif-empty-text">새로운 알림이 없습니다.</p>
+                          <p className="notif-empty-text">
+                            {activeTab === 'unread' ? '새로운 안 읽은 알림이 없습니다.' : '알림 내역이 없습니다.'}
+                          </p>
                         </div>
                       ) : (
-                        notifications.map((n) => (
+                        displayedNotifications.map((n) => (
                           <div
                             key={n.id}
-                            className={`notif-item ${n.read ? 'read' : 'unread'}`}
+                            className={`notif-item ${n.read ? 'read' : 'unread'}${n.isInvitation ? ' is-invitation' : ''}`}
                             onClick={() => markAsRead(n)}
                             onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();markAsRead(n)}}}
                             role="button"
@@ -392,7 +503,14 @@ export default function Navbar({
                           >
                             <div className={`notif-indicator ${n.type}`} />
                             <div className="notif-item-body">
-                              <span className="notif-item-title">{n.title}</span>
+                              <div className="notif-item-header">
+                                <span className="notif-item-title">{n.title}</span>
+                                {n.isInvitation && (
+                                  <span className="notif-pin-badge">
+                                    <i className="fa-solid fa-thumbtack" aria-hidden="true" /> 고정
+                                  </span>
+                                )}
+                              </div>
                               <p className="notif-item-text">{n.text}</p>
                               <span className="notif-item-time">{n.time}</span>
 
