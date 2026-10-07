@@ -586,3 +586,48 @@
 /* 저장형 알림과 긴 사용자 입력이 팝오버 폭을 넘어가지 않도록 줄바꿈 허용 */
 .notif-item-body{min-width:0}
 .notif-item-title,.notif-item-text{white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
+
+/* 관리자 메뉴도 알림과 같은 아이콘·글자 구성. 구분선으로 메뉴 사이를 나누기 */
+.navbar-admin-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #7d3541;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color .15s ease, color .15s ease;
+}
+.navbar-admin-link :is(i, svg) { flex: 0 0 auto; width: 18px; height: 18px; font-size: 16px; }
+.navbar-admin-link:hover { background: #eee7dc; color: #68202f; }
+.navbar-admin-link:is(.active, [aria-current='page']) { color: #68202f; }
+.navbar-admin-link:focus-visible { outline: 2px solid #8b3e4b; outline-offset: 2px; }
+
+@media(max-width:767.98px) {
+  /* 관리자 메뉴가 있으면 브랜드·알림·로그아웃 폭을 먼저 확보해 한 줄에 배치 */
+  .navbar-container:has(.navbar-admin-link) { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 0 12px; }
+  .navbar-container:has(.navbar-admin-link) :is(.navbar-left, .navbar-center, .navbar-right) { min-width: 0; }
+  .navbar-container:has(.navbar-admin-link) .navbar-center { justify-content: flex-start; }
+  .navbar-container:has(.navbar-admin-link) .navbar-brand-text { white-space: nowrap; }
+  /* 좁은 화면에서도 관리자 아이콘·이름·구분선은 유지하고 항목 사이 간격만 축소 */
+  .logged-in-actions:has(.navbar-admin-link) { gap: 2px; }
+  .logged-in-actions:has(.navbar-admin-link) > .nav-divider { flex: 0 0 auto; }
+  .navbar-admin-link { padding: 6px 4px; }
+  .navbar-container:has(.navbar-admin-link) :is(.menu-toggle-btn, .notif-btn, .logout-btn) { flex: 0 0 44px; box-sizing: border-box; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; }
+  .navbar-container:has(.navbar-admin-link) .notif-popover { right: -48px; width: min(320px, calc(100vw - 24px)); }
+}
+@media(max-width:380px) {
+  .navbar-container:has(.navbar-admin-link) { gap: 4px; padding: 0 8px; }
+  .navbar-container:has(.navbar-admin-link) .logo-text { font-size: 18px; letter-spacing: -.7px; }
+}

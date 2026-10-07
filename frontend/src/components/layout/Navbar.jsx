@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
 import UiDialog from '../ui/UiDialog';
 import './Navbar.css';
@@ -14,6 +14,7 @@ export default function Navbar({
 }) {
   const navigate = useNavigate();
   const currentUserId = user?.userId || user?.id;
+  const isAdmin = user?.isAdmin === true || Number(user?.isAdmin) === 1;
   const [showNotification, setShowNotification] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [notificationDialog, setNotificationDialog] = useState(null);
@@ -311,6 +312,18 @@ export default function Navbar({
         <div className="navbar-right">
           {isLoggedIn ? (
             <div className="logged-in-actions">
+              {/* 관리자 진입은 알림 왼쪽에 표시. 모바일 메뉴가 열려 있으면 이동할 때 함께 닫기 */}
+              {isAdmin && <NavLink
+                to="/admin"
+                className={({ isActive }) => `navbar-admin-link${isActive ? ' active' : ''}`}
+                onClick={() => { setShowNotification(false); if (isSidebarOpen) onToggleSidebar?.(); }}
+              >
+                <svg className="navbar-admin-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3l7 4v5c0 4.4-2.9 7.8-7 9-4.1-1.2-7-4.6-7-9V7l7-4zm-3 9l2 2 4-4" />
+                </svg>
+                <span>관리자 센터</span>
+              </NavLink>}
+              {isAdmin && <span className="nav-divider" aria-hidden="true">|</span>}
               {/* 알림 버튼 & 팝오버 */}
               <div className="notif-wrapper" ref={notifBoxRef}>
                 <button
@@ -390,7 +403,7 @@ export default function Navbar({
                 )}
               </div>
 
-              <span className="nav-divider">|</span>
+              <span className="nav-divider" aria-hidden="true">|</span>
 
               {/* 로그아웃 버튼 */}
               <button

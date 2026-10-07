@@ -175,8 +175,7 @@
         JOIN medications m ON m.medication_id=i.medication_id WHERE p.user_id=#{userId}
         UNION ALL
         SELECT 'C:' || TO_CHAR(c.cabinet_id),'CABINET',m.medication_id,m.item_name,m.entp_name,m.material_name,m.item_image_url,
-            NULL,NULL,NULL,NULL,NULL,'CURRENT',
-            CASE WHEN EXISTS (SELECT 1 FROM schedules s WHERE s.cabinet_id = c.cabinet_id AND s.user_id = #{userId}) THEN 'ACTIVE' ELSE 'STORED' END default_status
+            NULL,NULL,NULL,NULL,NULL,'CURRENT','STORED' default_status
         FROM cabinet_medications c JOIN medications m ON m.medication_id=c.medication_id WHERE c.user_id=#{userId}
         UNION ALL
         SELECT 'R:' || TO_CHAR(r.routine_id),'ROUTINE',r.medication_id,
@@ -191,12 +190,13 @@
         WHERE r.user_id=#{userId}
     </sql>
     <select id="collection" resultMap="managed" timeout="15">
-        SELECT r.*, CASE WHEN r.period_state IN ('ENDED','UPCOMING') THEN r.period_state
-                        WHEN r.source IN ('CABINET', 'ROUTINE') AND NOT EXISTS (
+        <!-- 상비약은 기존 상태 저장값이나 일정 연결과 관계없이 보관 중으로 표시 -->
+        SELECT r.*, CASE WHEN r.source='CABINET' THEN 'STORED'
+                        WHEN r.period_state IN ('ENDED','UPCOMING') THEN r.period_state
+                        WHEN r.source='ROUTINE' AND NOT EXISTS (
                             SELECT 1 FROM schedules sch
                             WHERE sch.user_id = #{userId}
-                              AND (('CABINET' = r.source AND sch.cabinet_id = TO_NUMBER(SUBSTR(r.registration_id, 3)))
-                                OR ('ROUTINE' = r.source AND sch.routine_id = TO_NUMBER(SUBSTR(r.registration_id, 3))))
+                              AND sch.routine_id = TO_NUMBER(SUBSTR(r.registration_id, 3))
                         ) THEN r.default_status
                         ELSE NVL(s.use_status,r.default_status) END use_status
         FROM (<include refid="ownedRegistrations"/>) r
@@ -207,7 +207,7 @@
         MERGE INTO medication_use_states s
         USING (SELECT #{userId} user_id,r.registration_id FROM (<include refid="ownedRegistrations"/>) r
                WHERE r.registration_id=#{registrationId} AND r.period_state NOT IN ('ENDED','UPCOMING')
-               AND (#{status} != 'STORED' OR r.source='CABINET')) v
+               AND r.source IN ('PRESCRIPTION','ROUTINE') AND #{status} != 'STORED') v
         ON (s.user_id=v.user_id AND s.registration_id=v.registration_id)
         WHEN MATCHED THEN UPDATE SET s.use_status=#{status},s.updated_at=(SYSDATE + (9/24))
         WHEN NOT MATCHED THEN INSERT (user_id,registration_id,use_status,updated_at)

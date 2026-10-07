@@ -348,22 +348,24 @@ function MedicationConversation() {
         </section>
         {linked.loading && <div className="side-loading" role="status"><span aria-hidden="true"/>선택한 약을 확인하고 있어요…</div>}
         {linked.error && <p role="alert">{linked.error}</p>}
-        <div className="product-note active-medication">
-          <span>지금 이야기하는 약</span>
-          {selected ? <><p><strong>{selected.itemName}</strong><br />{selected.entpName}</p>
-            <button type="button" className="clear-selection" disabled={loading} onClick={() => setSelected(null)}>선택 해제</button></>
-            : <p>선택한 약이 없어요.<br />검색하거나 질문에 약 이름을 적어주세요.</p>}
-        </div>
-        <details className="chat-personal-panel side-tool-card"><summary><span className="side-summary-number">02</span> 내 복용약으로 질문하기</summary>
+        {/* 제목과 여백 전체가 펼치기 영역. 입력창·목록 버튼은 별도 본문에 배치 */}
+        <details className="chat-personal-panel side-tool-card side-tool-disclosure">
+          <summary className="side-tool-summary"><span className="side-summary-number">02</span><span className="side-tool-summary-copy"><strong>내 복용약으로 질문하기</strong><small>먹고 있는 약을 골라 질문해 보세요</small></span></summary>
+          <div className="side-tool-body">
           {mine.loading && <div className="side-loading" role="status"><span aria-hidden="true"/>복용약을 불러오고 있어요…</div>}
           {mine.error && (mine.status===401 ? <Link to="/login?next=/chat">로그인하고 내 약 불러오기 →</Link> : <p role="alert">{mine.error}<button onClick={mine.retry}>다시 시도</button></p>)}
           {mine.data && <>{ownProducts.length > 0 && <button type="button" className="side-action-button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion('내가 먹는 약끼리 같이 먹어도 돼?')}>내 약을 함께 먹어도 되는지 확인 <span>→</span></button>}
             {ownProducts.map(item=><button type="button" className="drug-option" key={item.key} disabled={loading || Boolean(paging)} onClick={()=>selectDrug({...item,itemSeq:item.medicationId})}>{item.itemName}</button>)}
             {!ownProducts.length && <p>현재 복용 중인 약이 없습니다. <Link to="/medication/register">약 등록하기 →</Link></p>}</>}
+          </div>
         </details>
-        <section className="side-tool-card"><div className="side-tool-heading"><span>03</span><div><strong>조건으로 찾아보기</strong><small>약의 성분, 쓰임, 주의할 대상을 골라 찾기</small></div></div><CatalogSearch onSearch={searchCatalog} disabled={loading || Boolean(paging)} /></section>
-        <details className="chat-history-panel side-tool-card">
-          <summary><span className="side-summary-number">04</span> 지난 상담 이어보기</summary>
+        <details className="chat-catalog-panel side-tool-card side-tool-disclosure">
+          <summary className="side-tool-summary"><span className="side-summary-number">03</span><span className="side-tool-summary-copy"><strong>조건으로 찾아보기</strong><small>약의 성분, 쓰임, 주의할 대상을 골라 찾기</small></span></summary>
+          <div className="side-tool-body"><CatalogSearch embedded onSearch={searchCatalog} disabled={loading || Boolean(paging)} /></div>
+        </details>
+        <details className="chat-history-panel side-tool-card side-tool-disclosure">
+          <summary className="side-tool-summary"><span className="side-summary-number">04</span><span className="side-tool-summary-copy"><strong>지난 상담 이어보기</strong><small>이전에 나눈 상담을 다시 보고 이어가세요</small></span></summary>
+          <div className="side-tool-body">
           {!historyLoading&&!historyLoginRequired&&historyItems.length>0&&<div className="chat-history-toolbar"><span>최근 상담 {historyItems.length}개</span><button type="button" disabled={loading} onClick={()=>setDeleteTarget({all:true,title:'모든 상담 기록'})}>전체 삭제</button></div>}
           {historyLoading && <div className="side-loading"><span aria-hidden="true"/>상담 기록을 불러오고 있어요…</div>}
           {historyLoginRequired && <p><Link to="/login?next=/chat">로그인하고 상담 기록 보기 →</Link></p>}
@@ -375,6 +377,7 @@ function MedicationConversation() {
               </button>
               <button type="button" className="chat-history-delete" aria-label={`${item.title} 대화 삭제`} onClick={() => setDeleteTarget(item)}>×</button>
             </div>)}
+          </div>
           </div>
         </details>
         {selected&&<section className="related-community"><div><span>이 약의 커뮤니티</span><Link to={'/community?'+communityQuery}>전체 보기 →</Link></div>{community.loading&&<p>관련 글을 찾고 있어요…</p>}{community.error&&<p>관련 글을 불러오지 못했습니다.</p>}{community.data?.items?.slice(0,3).map(post=><Link className="related-community-post" key={post.postId} to={'/community?'+communityQuery+'&postId='+post.postId}><strong>{post.title}</strong><small>{post.authorName} · 댓글 {post.commentCount||0}</small></Link>)}{community.data&&community.data.total===0&&<p>아직 이 약에 연결된 글이 없어요.</p>}</section>}
@@ -390,7 +393,15 @@ function MedicationConversation() {
         <p className="scope-note">다른 약 이름을 적으면 그 약을 찾아드려요.<br />“어디에 쓰는 약인가요?”라고 물으면 지금 고른 약을 설명해요.</p>
       </aside>
       <div className="conversation">
-        <header className="conversation-heading"><h2>약 상담 AI 도우미</h2><div className="conversation-heading-actions"><span>{conversationId?'이어지는 상담':'새 상담'} · 약 자료와 AI 설명</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div></header>
+        <header className="conversation-heading">
+          <h2>약 상담 AI 도우미</h2>
+          {/* 검색·답변에서 선택한 약을 대화 바로 위에 표시하고, 약 변경·해제도 즉시 반영 */}
+          {selected && <div className="conversation-medication" role="status" aria-label="현재 상담 중인 약">
+            <div className="conversation-medication-copy"><span>지금 이야기하는 약</span><strong>{selected.itemName}</strong>{selected.entpName && <small>{selected.entpName}</small>}</div>
+            <button type="button" className="clear-selection" aria-label="현재 상담 약 선택 해제" disabled={loading} onClick={() => setSelected(null)}>선택 해제</button>
+          </div>}
+          <div className="conversation-heading-actions"><span>{conversationId?'이어지는 상담':'새 상담'} · 약 자료와 AI 설명</span><button type="button" onClick={startNewConversation} disabled={loading || !messages.length}>새 대화</button></div>
+        </header>
         {selected && <div className="suggestions selected-suggestions" aria-label="선택한 약 추천 질문">{copy.selectedQuestions.map(text=><button key={text} type="button" disabled={loading || Boolean(paging)} onClick={()=>sendQuestion(text)}>{text}</button>)}</div>}
         <div className="chat-log" ref={logRef} role="log" aria-label="질문과 답변" aria-live="polite" aria-relevant="additions text">
           {messages.length === 0 && <div className="welcome"><span className="welcome-mark" aria-hidden="true">✦</span><h3>지금 어떤 도움이 필요한가요?</h3>
