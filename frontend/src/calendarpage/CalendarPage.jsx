@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDialog } from '../contexts/DialogContext';
+import { createIntakeGate, saveIntakeStatus } from '../utils/intakeApi';
+import { createLatestRequest } from '../utils/latestRequest';
 import './CalendarPage.css';
 
 function getFormattedDate(targetDate) {
@@ -12,24 +14,19 @@ function getFormattedDate(targetDate) {
 function getTypeStorageMap() {
   try {
     return JSON.parse(localStorage.getItem('cal_type_overrides') || '{}');
-  } catch (e) {
+  } catch {
     return {};
   }
 }
 
-function saveTypeOverride(key, type) {
-  try {
-    const map = getTypeStorageMap();
-    map[key] = type;
-    localStorage.setItem('cal_type_overrides', JSON.stringify(map));
-  } catch (e) {
-    console.warn('Type override save error', e);
-  }
-}
+const CalendarPage = (props) => (
+  <CalendarContent key={props.user?.userId || props.user?.id || props.user?.username || 'guest'} {...props} />
+);
 
-const CalendarPage = (props) => {
-  const { showAlert, showConfirm } = useDialog();
+const CalendarContent = (props) => {
   const user = props.user;
+  const { showAlert, showConfirm } = useDialog();
+  const [intakeGate] = useState(createIntakeGate);
   const today = new Date();
   const currentUserId = user?.userId || user?.id || null;
   
@@ -37,7 +34,10 @@ const CalendarPage = (props) => {
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
   const [schedules, setSchedules] = useState([]);
   const [monthSummary, setMonthSummary] = useState({});
-  const [loading, setLoading] = useState(false);
+  const [dailyRequests] = useState(createLatestRequest);
+  const [dailyLoadedKey, setDailyLoadedKey] = useState(null);
+  const dailyQueryKey = `${currentUserId}|${selectedDate}`;
+  const loading = Boolean(currentUserId) && dailyLoadedKey !== dailyQueryKey;
   const [selectedSlotTab, setSelectedSlotTab] = useState('all'); // 'all' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime'
 
   // 헤더 연/월 빠른 점프 팝오버 상태
@@ -57,7 +57,7 @@ const CalendarPage = (props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newMedName, setNewMedName] = useState('');
   const [selectedMed, setSelectedMed] = useState(null);
-  const [searchResults, setSearchResults] = useState([]);
+  const [storedSearchResults, setSearchResults] = useState([]);
   const [newMedType, setNewMedType] = useState('regular'); // 'regular' | 'supplement'
   const [newAmpm, setNewAmpm] = useState('오전');
   const [newHour, setNewHour] = useState('09');
@@ -67,6 +67,7 @@ const CalendarPage = (props) => {
   // 평소 복용 관리 (마이페이지 상비약/영양제 보관함 연동)
   const [everydayMeds, setEverydayMeds] = useState([]);
   const [selectedShelfMedId, setSelectedShelfMedId] = useState(null);
+  const searchResults = newMedName.trim() && !selectedShelfMedId ? storedSearchResults : [];
   const [isAutoTimeApplied, setIsAutoTimeApplied] = useState(false);
   const [repeatDays, setRepeatDays] = useState(1); // 1, 7, 14, 30, 90일 복용 반복 설정
 
@@ -89,105 +90,98 @@ const CalendarPage = (props) => {
   }, [year, today]);
 
   // 1. 월별 요약 조회 (비로그인 시 빈 객체 처리)
-  const fetchMonthSummary = useCallback(async () => {
-    if (!currentUserId) {
-      setMonthSummary({});
-      return;
-    }
-    try {
-      const res = await fetch(`/api/calendar/summary?userId=${currentUserId}&yearMonth=${currentYearMonth}`);
-      if (res.ok) {
-        const list = await res.json();
-        const map = {};
-        const overrides = getTypeStorageMap();
+  const fetchMonthSummary = useCallback(() => {
+    if (!currentUserId) return;
+    return fetch(`/api/calendar/summary?userId=${currentUserId}&yearMonth=${currentYearMonth}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const list = await res.json();
+          const map = {};
+          const overrides = getTypeStorageMap();
 
-        list.forEach((item) => {
-          map[item.scheduleDate] = {
-            hasPrescription: Number(item.hasPrescription) === 1,
-            hasRegular: Number(item.hasRegular) === 1,
-            hasSupplement: Number(item.hasSupplement) === 1,
-          };
-        });
+          list.forEach((item) => {
+            map[item.scheduleDate] = {
+              hasPrescription: Number(item.hasPrescription) === 1,
+              hasRegular: Number(item.hasRegular) === 1,
+              hasSupplement: Number(item.hasSupplement) === 1,
+            };
+          });
 
-        Object.keys(overrides).forEach((key) => {
-          const parts = key.split('_');
-          const d = parts[0];
-          const t = parts[3];
-          if (t === 'supplement' && d.startsWith(currentYearMonth)) {
-            if (!map[d]) {
-              map[d] = { hasPrescription: false, hasRegular: false, hasSupplement: true };
-            } else {
-              map[d].hasSupplement = true;
+          Object.keys(overrides).forEach((key) => {
+            const parts = key.split('_');
+            const d = parts[0];
+            const t = parts[3];
+            if (t === 'supplement' && d.startsWith(currentYearMonth)) {
+              if (!map[d]) {
+                map[d] = { hasPrescription: false, hasRegular: false, hasSupplement: true };
+              } else {
+                map[d].hasSupplement = true;
+              }
             }
-          }
-        });
+          });
 
-        setMonthSummary(map);
-      }
-    } catch (err) {
-      console.error("월별 요약 조회 실패:", err);
-    }
+          setMonthSummary(map);
+        }
+      })
+      .catch((err) => {
+        console.error("월별 요약 조회 실패:", err);
+      });
   }, [currentYearMonth, currentUserId]);
 
   // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
-  // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
-  // isSilent: true인 경우 화면 깜빡임 방지를 위해 loading 상태를 변경하지 않고 백그라운드 동기화 수행
-  const fetchDailySchedules = useCallback(async (targetDateStr, isSilent = false) => {
-    if (!currentUserId) {
-      setSchedules([]);
-      if (!isSilent) setLoading(false);
-      return;
-    }
-    if (!isSilent) {
-      setLoading(true);
-    }
-    try {
-      const response = await fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`);
-      if (response.ok) {
-        const data = await response.json();
-        const overrides = getTypeStorageMap();
+  // 날짜가 바뀌면 응답 완료 키로 로딩을 표시하고, 같은 날짜의 갱신은 목록을 유지합니다.
+  const fetchDailySchedules = useCallback((targetDateStr, isSilent = false) => {
+    if (!currentUserId) return;
+    const isLatest = dailyRequests.begin();
+    const queryKey = `${currentUserId}|${targetDateStr}`;
+    return fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`)
+      .then(async (response) => {
+        if (response.ok) {
+          const data = await response.json();
+          if (!isLatest()) return;
+          const overrides = getTypeStorageMap();
 
-        const normalized = data.map((item) => {
-          const formattedT = String(item.time || '').substring(0, 5);
-          const overrideKey = `${targetDateStr}_${item.name}_${formattedT}_supplement`;
-          const idKey = `id_${item.scheduleId}`;
+          const normalized = data.map((item) => {
+            const formattedT = String(item.time || '').substring(0, 5);
+            const overrideKey = `${targetDateStr}_${item.name}_${formattedT}_supplement`;
+            const idKey = `id_${item.scheduleId}`;
 
-          const isSup = overrides[overrideKey] === 'supplement' || overrides[idKey] === 'supplement' || item.type === 'supplement';
+            const isSup = overrides[overrideKey] === 'supplement' || overrides[idKey] === 'supplement' || item.type === 'supplement';
 
-          return {
-            ...item,
-            time: formattedT,
-            type: isSup ? 'supplement' : (item.type || 'regular'),
-            takenAt: item.takenAt || null, // 100% DB 단일 진실 공급원 기준
-          };
-        });
-
-        // 불필요한 전체 리렌더링 및 깜빡임 방지: 내용이 실질적으로 변경되었을 때만 새 배열 반영
-        setSchedules((prev) => {
-          if (!prev || prev.length !== normalized.length) return normalized;
-          const isIdentical = prev.every((p, idx) => {
-            const n = normalized[idx];
-            return (
-              p.scheduleId === n.scheduleId &&
-              p.takenAt === n.takenAt &&
-              p.time === n.time &&
-              p.name === n.name
-            );
+            return {
+              ...item,
+              time: formattedT,
+              type: isSup ? 'supplement' : (item.type || 'regular'),
+              takenAt: item.takenAt || null, // 100% DB 단일 진실 공급원 기준
+            };
           });
-          return isIdentical ? prev : normalized;
-        });
-      } else {
-        if (!isSilent) setSchedules([]);
-      }
-    } catch (err) {
-      console.error("데이터 조회 실패:", err);
-      if (!isSilent) setSchedules([]);
-    } finally {
-      if (!isSilent) {
-        setLoading(false);
-      }
-    }
-  }, [currentUserId]);
+
+          // 불필요한 전체 리렌더링 및 깜빡임 방지: 내용이 실질적으로 변경되었을 때만 새 배열 반영
+          setSchedules((prev) => {
+            if (!prev || prev.length !== normalized.length) return normalized;
+            const isIdentical = prev.every((p, idx) => {
+              const n = normalized[idx];
+              return (
+                p.scheduleId === n.scheduleId &&
+                p.takenAt === n.takenAt &&
+                p.time === n.time &&
+                p.name === n.name
+              );
+            });
+            return isIdentical ? prev : normalized;
+          });
+        } else {
+          if (isLatest() && !isSilent) setSchedules([]);
+        }
+      })
+      .catch((err) => {
+        console.error("데이터 조회 실패:", err);
+        if (isLatest() && !isSilent) setSchedules([]);
+      })
+      .finally(() => {
+        if (isLatest()) setDailyLoadedKey(queryKey);
+      });
+  }, [currentUserId, dailyRequests]);
 
   useEffect(() => {
     fetchMonthSummary();
@@ -195,7 +189,8 @@ const CalendarPage = (props) => {
 
   useEffect(() => {
     fetchDailySchedules(selectedDate);
-  }, [selectedDate, fetchDailySchedules]);
+    return () => dailyRequests.cancel();
+  }, [selectedDate, fetchDailySchedules, dailyRequests]);
 
   // 메인 홈 등 외부에서 복약 체크 상태 변경 시 캘린더 실시간 동기화
   useEffect(() => {
@@ -217,20 +212,18 @@ const CalendarPage = (props) => {
   }, [currentUserId, selectedDate, fetchDailySchedules, fetchMonthSummary]);
 
   // 평소 복용 관리 (마이페이지 상비약/영양제) 목록 조회
-  const fetchEverydayMeds = useCallback(async () => {
-    if (!currentUserId) {
-      setEverydayMeds([]);
-      return;
-    }
-    try {
-      const res = await fetch(`/api/users/everyday-meds?userId=${currentUserId}`);
-      if (res.ok) {
-        const list = await res.json();
-        setEverydayMeds(Array.isArray(list) ? list : []);
-      }
-    } catch (err) {
-      console.error("보관함 약품 조회 실패:", err);
-    }
+  const fetchEverydayMeds = useCallback(() => {
+    if (!currentUserId) return;
+    return fetch(`/api/users/everyday-meds?userId=${currentUserId}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const list = await res.json();
+          setEverydayMeds(Array.isArray(list) ? list : []);
+        }
+      })
+      .catch((err) => {
+        console.error("보관함 약품 조회 실패:", err);
+      });
   }, [currentUserId]);
 
   useEffect(() => {
@@ -289,24 +282,23 @@ const CalendarPage = (props) => {
 
   // 약품 자동완성 검색
   useEffect(() => {
-    if (!newMedName.trim() || selectedShelfMedId) {
-      setSearchResults([]);
-      return;
-    }
+    if (!newMedName.trim() || selectedShelfMedId) return;
 
+    let active = true;
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/calendar/search-medications?keyword=${encodeURIComponent(newMedName)}`);
+        const res = await fetch(`/api/calendar/search-medications?keyword=${encodeURIComponent(newMedName)}`, { signal: controller.signal });
         if (res.ok) {
           const list = await res.json();
-          setSearchResults(list);
+          if (active) setSearchResults(Array.isArray(list) ? list : []);
         }
       } catch (err) {
-        console.error("약품 검색 실패:", err);
+        if (active) console.error("약품 검색 실패:", err);
       }
     }, 250);
 
-    return () => clearTimeout(timer);
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [newMedName, selectedShelfMedId]);
 
   const handleSelectMed = (med) => {
@@ -396,33 +388,18 @@ const CalendarPage = (props) => {
     const pad = (n) => String(n).padStart(2, '0');
     const nowIso = isTaken ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : null;
 
-    // 1. UI 즉시 낙관적 업데이트
-    setSchedules((prev) =>
-      prev.map((s) =>
-        s.scheduleId === item.scheduleId
-          ? { ...s, takenAt: nowIso }
-          : s
-      )
-    );
-
-    // 2. 서버 DB 토글 반영
+    if (!intakeGate.acquire()) return;
     try {
-      await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taken: isTaken, date: selectedDate }),
-      });
-      // DB 최신 실체화 scheduleId 및 월간 요약 재조회 (isSilent: true로 깜빡임 방지)
+      await saveIntakeStatus({ scheduleIds: [item.scheduleId], taken: isTaken, date: selectedDate });
+      setSchedules(prev => prev.map(s => s.scheduleId === item.scheduleId ? { ...s, takenAt: nowIso } : s));
       fetchDailySchedules(selectedDate, true);
       fetchMonthSummary();
-    } catch (err) {
-      console.error("체크박스 서버 토글 통신 실패:", err);
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' } }));
+    } catch (error) {
+      showAlert(error.message || '복약 체크를 저장하지 못했습니다.', '복약 체크 실패');
+    } finally {
+      intakeGate.release();
     }
-
-    // 3. 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
-    window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-      detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' }
-    }));
   };
 
   // 처방약 봉지 펼침/접힘 상태
@@ -451,44 +428,18 @@ const CalendarPage = (props) => {
     const scheduleIds = pouch.items.map((i) => i.scheduleId).filter(Boolean);
     const itemIds = new Set(pouch.items.map((i) => i.scheduleId));
 
-    // 1. UI 즉시 낙관적 업데이트
-    setSchedules((prev) =>
-      prev.map((s) =>
-        itemIds.has(s.scheduleId)
-          ? { ...s, takenAt: nowIso }
-          : s
-      )
-    );
-
-    // 2. 서버 DB 반영
+    if (!intakeGate.acquire()) return;
     try {
-      const res = await fetch('/api/calendar/toggle-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scheduleIds, taken: nextTaken, date: selectedDate }),
-      });
-      if (!res.ok) {
-        await Promise.all(
-          scheduleIds.map((sid) =>
-            fetch(`/api/calendar/${sid}/toggle`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ taken: nextTaken, date: selectedDate }),
-            })
-          )
-        );
-      }
-      // DB 최신 실체화 scheduleId 및 월간 요약 재조회 (isSilent: true로 깜빡임 방지)
+      await saveIntakeStatus({ scheduleIds, taken: nextTaken, date: selectedDate });
+      setSchedules(prev => prev.map(s => itemIds.has(s.scheduleId) ? { ...s, takenAt: nowIso } : s));
       fetchDailySchedules(selectedDate, true);
       fetchMonthSummary();
-    } catch (err) {
-      console.error("봉지 체크 서버 토글 통신 실패:", err);
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' } }));
+    } catch (error) {
+      showAlert(error.message || '봉지 복약 체크를 저장하지 못했습니다.', '복약 체크 실패');
+    } finally {
+      intakeGate.release();
     }
-
-    // 3. 전역 UI 이벤트 발송
-    window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-      detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' }
-    }));
   };
 
   // 삭제 모달 열기

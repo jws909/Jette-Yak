@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
+import { saveIntakeStatus } from '../../../utils/intakeApi';
 import {
   DEFAULT_MEAL_TIMES,
   parseDateOnly,
@@ -16,20 +17,19 @@ import {
 export function useMainPageData(user, targetDate, selectedRxId) {
   const { showAlert } = useDialog();
   const currentUserId = user?.userId || user?.id;
+  const intakeLock = useRef(false);
 
   // 처방전 데이터 및 등록 여부 상태 (DB 조회 결과에 따라 실시간 반영)
   const [hasPrescription, setHasPrescription] = useState(false);
   const [allPrescriptions, setAllPrescriptions] = useState([]);
-  const [routineItems, setRoutineItems] = useState([]);
+  // 화면의 루틴은 계산하고 서버 결과와 저장한 복용 표시만 기준별로 보관합니다.
+  const [routineSnapshots, setRoutineSnapshots] = useState({});
+  const routineRequests = useRef(new Map());
+  const routineChangeVersions = useRef(new Map());
+  const routineDate = formatDateToHyphen(targetDate);
+  const routineScopeKey = JSON.stringify([currentUserId, routineDate, selectedRxId]);
 
   // 사용자별 식사 및 취침 기준 시간 상태 (기본값: 아침 07:30, 점심 12:00, 저녁 18:30, 취침 22:00)
-  const FALLBACK_WEEKEND_MEAL_TIMES = useMemo(() => ({
-    breakfast: '09:00',
-    lunch: '13:00',
-    dinner: '19:00',
-    bedtime: '23:00',
-  }), []);
-
   // 평일 및 주말 식사 기준 스케줄 상태
   const [mealSchedule, setMealSchedule] = useState(() => {
     try {
@@ -45,7 +45,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
           };
         }
       }
-    } catch {}
+    } catch { /* 로컬 캐시 오류는 기본 설정으로 대체 */ }
     return {
       weekday: DEFAULT_MEAL_TIMES,
       weekend: { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' },
@@ -63,13 +63,8 @@ export function useMainPageData(user, targetDate, selectedRxId) {
 
   // 컴포넌트 마운트 시 사용자별 식사 기준 시간 DB 조회
   useEffect(() => {
-    if (!currentUserId) {
-      setMealSchedule({
-        weekday: DEFAULT_MEAL_TIMES,
-        weekend: { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' },
-      });
-      return;
-    }
+    // 사용자 전환 시 페이지가 새로 생성되어 초기값을 사용합니다.
+    if (!currentUserId) return;
     fetch(`/api/users/meal-times?userId=${currentUserId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
@@ -103,7 +98,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
           try {
             localStorage.setItem(`jette_meal_schedule_${currentUserId}`, JSON.stringify(sched));
             localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(wk));
-          } catch {}
+          } catch { /* 로컬 캐시 오류는 기본 설정으로 대체 */ }
         }
       })
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
@@ -112,60 +107,63 @@ export function useMainPageData(user, targetDate, selectedRxId) {
   // 식사 시간 저장 핸들러 (평일 / 주말 지원)
   const handleSaveMealTimes = async (newTimes) => {
     if (!currentUserId) {
-      showAlert('로그인 후 식사 시간을 설정할 수 있습니다.', '안내');
-      return;
+      showAlert?.('로그인 후 식사 시간을 설정할 수 있습니다.', '안내');
+      throw new Error('로그인 후 식사 시간을 설정할 수 있습니다.');
     }
 
+    const wk = newTimes.weekday ? {
+      breakfast: newTimes.weekday.breakfast || '07:30',
+      lunch: newTimes.weekday.lunch || '12:00',
+      dinner: newTimes.weekday.dinner || '18:30',
+      bedtime: newTimes.weekday.bedtime || '22:00',
+    } : {
+      breakfast: newTimes.breakfast || '07:30',
+      lunch: newTimes.lunch || '12:00',
+      dinner: newTimes.dinner || '18:30',
+      bedtime: newTimes.bedtime || '22:00',
+    };
+
+    const we = newTimes.weekend ? {
+      breakfast: newTimes.weekend.breakfast || '09:00',
+      lunch: newTimes.weekend.lunch || '13:00',
+      dinner: newTimes.weekend.dinner || '19:00',
+      bedtime: newTimes.weekend.bedtime || '23:00',
+    } : wk;
+
+    const response = await fetch('/api/users/meal-times', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: currentUserId,
+        username: user?.username,
+        weekday: {
+          breakfastTime: wk.breakfast,
+          lunchTime: wk.lunch,
+          dinnerTime: wk.dinner,
+          bedtime: wk.bedtime,
+        },
+        weekend: {
+          breakfastTime: we.breakfast,
+          lunchTime: we.lunch,
+          dinnerTime: we.dinner,
+          bedtime: we.bedtime,
+        },
+      }),
+    }).catch((error) => {
+      throw new Error('서버에 연결하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.', { cause: error });
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok || result?.success !== true) {
+      throw new Error(result?.message || '식사 시간을 저장하지 못했습니다. 다시 시도해 주세요.');
+    }
+
+    // 저장이 확인된 뒤 부모 상태를 변경하여 저장 중 폼이 다시 생성되지 않게 합니다.
+    const sched = { weekday: wk, weekend: we };
+    setMealSchedule(sched);
     try {
-      const wk = newTimes.weekday ? {
-        breakfast: newTimes.weekday.breakfast || '07:30',
-        lunch: newTimes.weekday.lunch || '12:00',
-        dinner: newTimes.weekday.dinner || '18:30',
-        bedtime: newTimes.weekday.bedtime || '22:00',
-      } : {
-        breakfast: newTimes.breakfast || '07:30',
-        lunch: newTimes.lunch || '12:00',
-        dinner: newTimes.dinner || '18:30',
-        bedtime: newTimes.bedtime || '22:00',
-      };
-
-      const we = newTimes.weekend ? {
-        breakfast: newTimes.weekend.breakfast || '09:00',
-        lunch: newTimes.weekend.lunch || '13:00',
-        dinner: newTimes.weekend.dinner || '19:00',
-        bedtime: newTimes.weekend.bedtime || '23:00',
-      } : wk;
-
-      const sched = { weekday: wk, weekend: we };
-      setMealSchedule(sched);
-      try {
-        localStorage.setItem(`jette_meal_schedule_${currentUserId}`, JSON.stringify(sched));
-        localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(wk));
-      } catch {}
-
-      await fetch('/api/users/meal-times', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUserId,
-          username: user?.username,
-          weekday: {
-            breakfastTime: wk.breakfast,
-            lunchTime: wk.lunch,
-            dinnerTime: wk.dinner,
-            bedtime: wk.bedtime,
-          },
-          weekend: {
-            breakfastTime: we.breakfast,
-            lunchTime: we.lunch,
-            dinnerTime: we.dinner,
-            bedtime: we.bedtime,
-          },
-        }),
-      });
-    } catch (err) {
-      console.warn('식사 시간 저장 요청 실패:', err);
-    }
+      localStorage.setItem(`jette_meal_schedule_${currentUserId}`, JSON.stringify(sched));
+      localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(wk));
+    } catch { /* 로컬 캐시 오류는 서버에 저장한 설정에 영향을 주지 않습니다. */ }
   };
 
   // 현재 선택된 처방전 또는 전체 통합 뷰 계산
@@ -353,237 +351,165 @@ export function useMainPageData(user, targetDate, selectedRxId) {
     return Array.from(map.values());
   }, [selectedRxId, displayedMedList, allPrescriptions, targetDate]);
 
-  // 사용자의 등록 처방전 전체 목록 및 복약 루틴 새로고침
-  const reloadPrescriptionAndRoutine = useCallback(async () => {
-    if (!currentUserId) {
-      setAllPrescriptions([]);
-      setHasPrescription(false);
-      setRoutineItems([]);
-      return;
-    }
+  // 요청은 목록을 반환하고 응답이 도착했을 때 화면 상태에 반영합니다.
+  const fetchPrescriptionList = useCallback(async () => {
+    if (!currentUserId) return null;
     try {
       const res = await fetch(`/api/prescriptions/list?userId=${currentUserId}`);
       if (res.ok) {
         const data = await res.json();
-        const rawList = data.prescriptions || [];
-        if (rawList.length > 0) {
-          const mappedList = rawList.map(mapPrescriptionToState);
-          setAllPrescriptions(mappedList);
-          setHasPrescription(true);
-        } else {
-          setAllPrescriptions([]);
-          setHasPrescription(false);
-          setRoutineItems([]);
-        }
-      } else {
-        setAllPrescriptions([]);
-        setHasPrescription(false);
-        setRoutineItems([]);
+        return (data.prescriptions || []).map(mapPrescriptionToState);
       }
     } catch (err) {
       console.warn('처방전 목록 로드 실패:', err);
-      setAllPrescriptions([]);
-      setHasPrescription(false);
-      setRoutineItems([]);
     }
+    return [];
   }, [currentUserId]);
+
+  const applyPrescriptionList = useCallback((prescriptions) => {
+    if (!prescriptions) return;
+    setAllPrescriptions(prescriptions);
+    setHasPrescription(prescriptions.length > 0);
+  }, []);
+
+  // 사용자의 등록 처방전 전체 목록 새로고침
+  const reloadPrescriptionAndRoutine = useCallback(async () => {
+    applyPrescriptionList(await fetchPrescriptionList());
+  }, [fetchPrescriptionList, applyPrescriptionList]);
 
   // 컴포넌트 마운트 및 currentUserId 변경 시 최신 처방전 DB 조회
   useEffect(() => {
-    reloadPrescriptionAndRoutine();
-  }, [reloadPrescriptionAndRoutine]);
+    let active = true;
+    fetchPrescriptionList().then((prescriptions) => {
+      if (active) applyPrescriptionList(prescriptions);
+    });
+    return () => { active = false; };
+  }, [fetchPrescriptionList, applyPrescriptionList]);
+
+  // 날짜나 처방전이 바뀌면 해당 기준의 서버 결과만 사용합니다.
+  const routineItems = useMemo(() => {
+    if (!currentUserId) return [];
+    const baseList = buildRoutineItems(activeMedsForTargetDate, mealTimes);
+    const snapshot = routineSnapshots[routineScopeKey];
+    const schedules = snapshot?.schedules || [];
+    const targetDateObj = parseDateOnly(routineDate) || new Date();
+    const activeRxIdSet = new Set(
+      allPrescriptions
+        .filter((rx) => getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDateObj).status === 'taking')
+        .map((rx) => String(rx.prescriptionId))
+    );
+    const matchesSchedule = (item, schedule) => {
+      // 약 이름이 같아도 다른 처방전의 복용 표시를 섞지 않습니다.
+      if (String(item.prescriptionId || '') !== String(schedule.prescriptionId || '')) return false;
+      const sameMed =
+        (schedule.medicationId && item.medicationId && String(schedule.medicationId) === String(item.medicationId)) ||
+        (schedule.name && item.name && (schedule.name.includes(item.name) || item.name.includes(schedule.name)));
+      if (!sameMed) return false;
+      if (schedule.slot && item.slot) return isSameSlot(schedule.slot, item.slot);
+      if (schedule.time && item.time) return schedule.time === item.time;
+      return true;
+    };
+    const updated = baseList.map((item) => {
+      const schedule = schedules.find((candidate) => matchesSchedule(item, candidate));
+      if (!schedule) return item;
+      return {
+        ...item,
+        scheduleId: schedule.scheduleId,
+        taken: Boolean(schedule.takenAt),
+        takenAt: schedule.takenAt || null,
+        originHospital: schedule.hospitalName || item.originHospital,
+        originDispensedDate: schedule.dispensedDate || item.originDispensedDate,
+        prescriptionNickname: schedule.prescriptionNickname || item.prescriptionNickname,
+        prescriptionPurpose: schedule.prescriptionPurpose || item.prescriptionPurpose,
+      };
+    });
+    const extraItems = schedules
+      .filter((schedule) => {
+        if (updated.some((item) => matchesSchedule(item, schedule))) return false;
+        if (!schedule.prescriptionId) return selectedRxId === 'all';
+        return (selectedRxId === 'all' || String(schedule.prescriptionId) === String(selectedRxId)) &&
+          activeRxIdSet.has(String(schedule.prescriptionId));
+      })
+      .map((schedule, idx) => {
+        const timeStr = schedule.time || schedule.scheduledTime || '09:00';
+        let slot = schedule.slot;
+        if (!slot) {
+          const hour = parseInt(timeStr.slice(0, 2), 10);
+          slot = hour < 11 ? 'breakfast' : hour < 16 ? 'lunch' : hour < 21 ? 'dinner' : 'bedtime';
+        }
+        const slotLabel = slot === 'breakfast' || slot === 'morning' ? '아침' :
+          slot === 'lunch' ? '점심' : slot === 'dinner' || slot === 'evening' ? '저녁' : '취침 전';
+        return {
+          id: `sched-${schedule.scheduleId || idx}`,
+          scheduleId: schedule.scheduleId,
+          slot,
+          slotLabel,
+          time: timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr,
+          name: schedule.name || '복용약',
+          dotColor: schedule.type === 'supplement' ? '#e09f3e' : '#5c9e76',
+          taken: Boolean(schedule.takenAt),
+          takenAt: schedule.takenAt || null,
+          type: schedule.type === 'supplement' ? '영양제' : schedule.type === 'regular' ? '상비약' : '일반',
+          rawType: schedule.type,
+          notes: schedule.notes || schedule.memo,
+          orderIndex: 100 + idx,
+          medicationId: schedule.medicationId || '',
+          prescriptionId: schedule.prescriptionId,
+          originHospital: schedule.hospitalName,
+          originDispensedDate: schedule.dispensedDate,
+          prescriptionNickname: schedule.prescriptionNickname,
+          prescriptionPurpose: schedule.prescriptionPurpose,
+        };
+      });
+    const slotOrder = { breakfast: 1, lunch: 2, dinner: 3, bedtime: 4 };
+    const merged = extraItems.length ? [...updated, ...extraItems].sort((a, b) => {
+      const orderDiff = (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99);
+      return orderDiff || (a.time || '').localeCompare(b.time || '');
+    }) : updated;
+    return merged.map((item) => snapshot?.checks?.[item.id] ? { ...item, ...snapshot.checks[item.id] } : item);
+  }, [currentUserId, activeMedsForTargetDate, mealTimes, routineSnapshots, routineScopeKey, routineDate, allPrescriptions, selectedRxId]);
+
+  // 저장 성공 후의 복용 표시를 해당 날짜와 선택 처방전에만 반영합니다.
+  const setRoutineItems = useCallback((update) => {
+    routineChangeVersions.current.set(routineScopeKey, (routineChangeVersions.current.get(routineScopeKey) || 0) + 1);
+    setRoutineSnapshots((previous) => {
+      const snapshot = previous[routineScopeKey] || {};
+      const currentItems = routineItems.map((item) => ({ ...item, ...snapshot.checks?.[item.id] }));
+      const nextItems = typeof update === 'function' ? update(currentItems) : update;
+      const checks = Object.fromEntries(nextItems.map((item) => [item.id, { taken: item.taken, takenAt: item.takenAt || null }]));
+      return { ...previous, [routineScopeKey]: { ...snapshot, checks } };
+    });
+  }, [routineItems, routineScopeKey]);
 
   // 서버 DB의 당일 캘린더 스케줄과 복약 루틴 동기화
-  const syncRoutinesWithServer = useCallback(
-    async (dateStr) => {
-      if (!currentUserId) return;
-      try {
-        const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${dateStr}`);
-        if (!res.ok) return;
-        const schedules = await res.json();
-        if (!Array.isArray(schedules)) return;
+  const syncRoutinesWithServer = useCallback(async (dateStr) => {
+    if (!currentUserId) return;
+    const scopeKey = JSON.stringify([currentUserId, dateStr, selectedRxId]);
+    const requestVersion = (routineRequests.current.get(scopeKey) || 0) + 1;
+    const changeVersion = routineChangeVersions.current.get(scopeKey) || 0;
+    routineRequests.current.set(scopeKey, requestVersion);
+    try {
+      const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${dateStr}`);
+      if (!res.ok) return;
+      const schedules = await res.json();
+      if (!Array.isArray(schedules) || routineRequests.current.get(scopeKey) !== requestVersion) return;
+      const preserveChecks = (routineChangeVersions.current.get(scopeKey) || 0) !== changeVersion;
+      setRoutineSnapshots((previous) => ({
+        ...previous,
+        [scopeKey]: { schedules, checks: preserveChecks ? previous[scopeKey]?.checks : undefined },
+      }));
+    } catch (err) {
+      console.warn('스케줄 DB 동기화 실패:', err);
+    }
+  }, [currentUserId, selectedRxId]);
 
-        const targetDateObj = parseDateOnly(dateStr) || new Date();
-        const activeRxIdSet = new Set(
-          allPrescriptions
-            .filter((rx) => getPrescriptionStatus(rx.dispensedDate, rx.totalDays, targetDateObj).status === 'taking')
-            .map((rx) => String(rx.prescriptionId))
-        );
-
-        setRoutineItems((currentItems) => {
-          let hasChanges = false;
-          const updated = currentItems.map((item) => {
-            const matchedSchedule = schedules.find((s) => {
-              const sameMed =
-                (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
-                (s.name && item.name && (s.name.includes(item.name) || item.name.includes(s.name)));
-              if (!sameMed) return false;
-              if (s.slot && item.slot) return isSameSlot(s.slot, item.slot);
-              if (s.time && item.time) return s.time === item.time;
-              return true;
-            });
-
-            if (matchedSchedule) {
-              const scheduleTaken = Boolean(matchedSchedule.takenAt);
-              if (
-                item.scheduleId !== matchedSchedule.scheduleId ||
-                item.taken !== scheduleTaken ||
-                item.takenAt !== (matchedSchedule.takenAt || null) ||
-                item.originHospital !== (matchedSchedule.hospitalName || item.originHospital) ||
-                item.originDispensedDate !== (matchedSchedule.dispensedDate || item.originDispensedDate)
-              ) {
-                hasChanges = true;
-                return {
-                  ...item,
-                  scheduleId: matchedSchedule.scheduleId,
-                  taken: scheduleTaken,
-                  takenAt: matchedSchedule.takenAt || null,
-                  originHospital: matchedSchedule.hospitalName || item.originHospital,
-                  originDispensedDate: matchedSchedule.dispensedDate || item.originDispensedDate,
-                  prescriptionNickname: matchedSchedule.prescriptionNickname || item.prescriptionNickname,
-                  prescriptionPurpose: matchedSchedule.prescriptionPurpose || item.prescriptionPurpose,
-                };
-              }
-            }
-            return item;
-          });
-
-          const unmatchedSchedules = schedules.filter((s) => {
-            const alreadyInRoutine = updated.some((item) => {
-              const sameMed =
-                (s.medicationId && item.medicationId && String(s.medicationId) === String(item.medicationId)) ||
-                (s.name && item.name && (s.name.includes(item.name) || item.name.includes(s.name)));
-              if (!sameMed) return false;
-              if (s.slot && item.slot) return isSameSlot(s.slot, item.slot);
-              if (s.time && item.time) return s.time === item.time;
-              return true;
-            });
-            if (alreadyInRoutine) return false;
-
-            if (s.prescriptionId) {
-              if (selectedRxId !== 'all' && String(s.prescriptionId) !== String(selectedRxId)) {
-                return false;
-              }
-              if (!activeRxIdSet.has(String(s.prescriptionId))) {
-                return false;
-              }
-            } else {
-              if (selectedRxId !== 'all') {
-                return false;
-              }
-            }
-
-            return true;
-          });
-
-          if (unmatchedSchedules.length > 0) {
-            hasChanges = true;
-            const extraItems = unmatchedSchedules.map((s, idx) => {
-              const timeStr = s.time || s.scheduledTime || '09:00';
-              let slot = s.slot;
-              let slotLabel = '아침';
-              if (!slot) {
-                const hour = parseInt(timeStr.slice(0, 2), 10);
-                if (hour < 11) { slot = 'breakfast'; slotLabel = '아침'; }
-                else if (hour < 16) { slot = 'lunch'; slotLabel = '점심'; }
-                else if (hour < 21) { slot = 'dinner'; slotLabel = '저녁'; }
-                else { slot = 'bedtime'; slotLabel = '취침 전'; }
-              } else {
-                slotLabel =
-                  slot === 'breakfast' || slot === 'morning'
-                    ? '아침'
-                    : slot === 'lunch'
-                    ? '점심'
-                    : slot === 'dinner' || slot === 'evening'
-                    ? '저녁'
-                    : '취침 전';
-              }
-              return {
-                id: `sched-${s.scheduleId || idx}`,
-                scheduleId: s.scheduleId,
-                slot,
-                slotLabel,
-                time: timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr,
-                name: s.name || '복용약',
-                dotColor: s.type === 'supplement' ? '#e09f3e' : '#5c9e76',
-                taken: Boolean(s.takenAt),
-                takenAt: s.takenAt || null,
-                type: s.type === 'supplement' ? '영양제' : s.type === 'regular' ? '상비약' : '일반',
-                rawType: s.type,
-                notes: s.notes || s.memo,
-                orderIndex: 100 + idx,
-                medicationId: s.medicationId || '',
-                prescriptionId: s.prescriptionId,
-                originHospital: s.hospitalName,
-                originDispensedDate: s.dispensedDate,
-                prescriptionNickname: s.prescriptionNickname,
-                prescriptionPurpose: s.prescriptionPurpose,
-              };
-            });
-            const slotOrder = { breakfast: 1, lunch: 2, dinner: 3, bedtime: 4 };
-            return [...updated, ...extraItems].sort((a, b) => {
-              const orderDiff = (slotOrder[a.slot] || 99) - (slotOrder[b.slot] || 99);
-              if (orderDiff !== 0) return orderDiff;
-              return (a.time || '').localeCompare(b.time || '');
-            });
-          }
-
-          return hasChanges ? updated : currentItems;
-        });
-      } catch (err) {
-        console.warn('스케줄 DB 동기화 실패:', err);
-      }
-    },
-    [currentUserId, allPrescriptions, selectedRxId]
-  );
-
-  // 식사 시간이나 기준 일자별 유효 복약 약품 변경 시 루틴 재계산
+  // 루틴 재계산은 렌더링에서 하고 effect는 서버 조회만 수행합니다.
   useEffect(() => {
-    if (!currentUserId) {
-      setRoutineItems([]);
-      return;
+    if (!currentUserId) return;
+    if (activeMedsForTargetDate.length > 0 || selectedRxId === 'all') {
+      syncRoutinesWithServer(routineDate);
     }
-
-    const dateStr = formatDateToHyphen(targetDate);
-    if (activeMedsForTargetDate && activeMedsForTargetDate.length > 0) {
-      const baseList = buildRoutineItems(activeMedsForTargetDate, mealTimes);
-      setRoutineItems((prev) => {
-        if (!prev || prev.length === 0) return baseList;
-        const prevMap = new Map();
-        prev.forEach((p) => {
-          if (p.id) prevMap.set(p.id, p);
-          if (p.scheduleId) prevMap.set(`sid_${p.scheduleId}`, p);
-          if (p.medicationId && p.slot) prevMap.set(`${p.medicationId}_${p.slot}`, p);
-        });
-
-        return baseList.map((item) => {
-          const existing =
-            prevMap.get(item.id) ||
-            (item.scheduleId ? prevMap.get(`sid_${item.scheduleId}`) : null) ||
-            prevMap.get(`${item.medicationId}_${item.slot}`);
-          if (existing) {
-            return {
-              ...item,
-              scheduleId: existing.scheduleId || item.scheduleId,
-              taken: existing.taken ?? false,
-              takenAt: existing.takenAt ?? null,
-              originHospital: existing.originHospital || item.originHospital,
-              originDispensedDate: existing.originDispensedDate || item.originDispensedDate,
-              prescriptionNickname: existing.prescriptionNickname || item.prescriptionNickname,
-              prescriptionPurpose: existing.prescriptionPurpose || item.prescriptionPurpose,
-            };
-          }
-          return item;
-        });
-      });
-      syncRoutinesWithServer(dateStr);
-    } else {
-      setRoutineItems([]);
-      if (selectedRxId === 'all') {
-        syncRoutinesWithServer(dateStr);
-      }
-    }
-  }, [mealTimes, activeMedsForTargetDate, targetDate, currentUserId, syncRoutinesWithServer, selectedRxId]);
+  }, [mealTimes, activeMedsForTargetDate, routineDate, currentUserId, syncRoutinesWithServer, selectedRxId]);
 
   // 전역 복약 변경 이벤트 수신
   useEffect(() => {
@@ -625,31 +551,18 @@ export function useMainPageData(user, targetDate, selectedRxId) {
 
     const nextTaken = !targetItem.taken;
 
-    setRoutineItems((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, taken: nextTaken, takenAt: nextTaken ? nowIso : null } : item
-      )
-    );
-
-    if (targetItem.scheduleId) {
-      try {
-        await fetch(`/api/calendar/${targetItem.scheduleId}/toggle`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taken: nextTaken, date: dateStr }),
-        });
-      } catch (err) {
-        console.warn('스케줄 서버 동기화 실패:', err);
-      }
+    if (intakeLock.current) return;
+    intakeLock.current = true;
+    try {
+      await saveIntakeStatus({ scheduleIds: [targetItem.scheduleId], taken: nextTaken, date: dateStr });
+      setRoutineItems(prev => prev.map(item => item.id === id ? { ...item, taken: nextTaken, takenAt: nextTaken ? nowIso : null } : item));
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { userId: currentUserId, date: dateStr, origin: 'main' } }));
+      syncRoutinesWithServer(dateStr);
+    } catch (error) {
+      showAlert(error.message || '복약 체크를 저장하지 못했습니다.', '복약 체크 실패');
+    } finally {
+      intakeLock.current = false;
     }
-
-    window.dispatchEvent(
-      new CustomEvent('jette-intake-updated', {
-        detail: { userId: currentUserId, date: dateStr, origin: 'main' },
-      })
-    );
-
-    syncRoutinesWithServer(dateStr);
   };
 
   // 처방약 봉지 전체 일괄 복용 체크/해제
@@ -671,42 +584,18 @@ export function useMainPageData(user, targetDate, selectedRxId) {
     const pouchItemIds = new Set(pouch.items.map((i) => i.id));
     const scheduleIds = pouch.items.map((i) => i.scheduleId).filter(Boolean);
 
-    setRoutineItems((prev) =>
-      prev.map((item) =>
-        pouchItemIds.has(item.id) ? { ...item, taken: nextTaken, takenAt: nextTaken ? nowIso : null } : item
-      )
-    );
-
-    if (scheduleIds.length > 0) {
-      try {
-        const res = await fetch('/api/calendar/toggle-batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scheduleIds, taken: nextTaken, date: dateStr }),
-        });
-        if (!res.ok) {
-          await Promise.all(
-            scheduleIds.map((sid) =>
-              fetch(`/api/calendar/${sid}/toggle`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ taken: nextTaken, date: dateStr }),
-              })
-            )
-          );
-        }
-      } catch (err) {
-        console.warn('봉지 복약 서버 동기화 실패:', err);
-      }
+    if (intakeLock.current) return;
+    intakeLock.current = true;
+    try {
+      await saveIntakeStatus({ scheduleIds, taken: nextTaken, date: dateStr });
+      setRoutineItems(prev => prev.map(item => pouchItemIds.has(item.id) ? { ...item, taken: nextTaken, takenAt: nextTaken ? nowIso : null } : item));
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { userId: currentUserId, date: dateStr, origin: 'main' } }));
+      syncRoutinesWithServer(dateStr);
+    } catch (error) {
+      showAlert(error.message || '봉지 복약 체크를 저장하지 못했습니다.', '복약 체크 실패');
+    } finally {
+      intakeLock.current = false;
     }
-
-    window.dispatchEvent(
-      new CustomEvent('jette-intake-updated', {
-        detail: { userId: currentUserId, date: dateStr, origin: 'main' },
-      })
-    );
-
-    syncRoutinesWithServer(dateStr);
   };
 
   // DB에 등록된 활성 복약 루틴 리스트

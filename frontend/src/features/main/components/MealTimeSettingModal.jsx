@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 
 const FALLBACK_DEFAULT_WEEKDAY = {
   breakfast: '07:30',
@@ -27,57 +27,34 @@ function addMinutes(timeStr, mins) {
 /**
  * 맞춤 식사 및 취침 시간 설정 모달 (평일 / 주말 분리 지원)
  */
-export default function MealTimeSettingModal({
-  isOpen,
+export default function MealTimeSettingModal(props) {
+  if (!props.isOpen) return null;
+  const initialWeekday = props.mealSchedule?.weekday || props.mealTimes || props.defaultMealTimes || FALLBACK_DEFAULT_WEEKDAY;
+  const initialWeekend = props.mealSchedule?.weekend || FALLBACK_DEFAULT_WEEKEND;
+  // 설정값이 바뀌면 새 기준값으로 폼을 열고, 닫으면 임시 입력을 버립니다.
+  return <MealTimeForm key={JSON.stringify([initialWeekday, initialWeekend])} {...props} />;
+}
+
+function MealTimeForm({
   onClose,
   mealTimes,
   mealSchedule,
   defaultMealTimes = FALLBACK_DEFAULT_WEEKDAY,
   onSave,
 }) {
-  const [activeTab, setActiveTab] = useState('WEEKDAY'); // 'WEEKDAY' | 'WEEKEND'
-  const [weekdayTimes, setWeekdayTimes] = useState(FALLBACK_DEFAULT_WEEKDAY);
-  const [weekendTimes, setWeekendTimes] = useState(FALLBACK_DEFAULT_WEEKEND);
-  const [originalWeekendTimes, setOriginalWeekendTimes] = useState(FALLBACK_DEFAULT_WEEKEND);
-  const [sameAsWeekday, setSameAsWeekday] = useState(false);
+  const wk = mealSchedule?.weekday || mealTimes || defaultMealTimes;
+  const we = mealSchedule?.weekend || FALLBACK_DEFAULT_WEEKEND;
+  const initWk = Object.fromEntries(Object.entries(FALLBACK_DEFAULT_WEEKDAY).map(([field, fallback]) => [field, wk[field] || fallback]));
+  const initWe = Object.fromEntries(Object.entries(FALLBACK_DEFAULT_WEEKEND).map(([field, fallback]) => [field, we[field] || fallback]));
+  const initiallySame = Object.keys(initWk).every(field => initWk[field] === initWe[field]);
+  const [activeTab, setActiveTab] = useState('WEEKDAY');
+  const [weekdayTimes, setWeekdayTimes] = useState(() => initWk);
+  const [weekendTimes, setWeekendTimes] = useState(() => initWe);
+  const [originalWeekendTimes, setOriginalWeekendTimes] = useState(() => initiallySame ? FALLBACK_DEFAULT_WEEKEND : initWe);
+  const [sameAsWeekday, setSameAsWeekday] = useState(initiallySame);
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      const wk = mealSchedule?.weekday || mealTimes || defaultMealTimes;
-      const we = mealSchedule?.weekend || FALLBACK_DEFAULT_WEEKEND;
-
-      const initWk = {
-        breakfast: wk.breakfast || '07:30',
-        lunch: wk.lunch || '12:00',
-        dinner: wk.dinner || '18:30',
-        bedtime: wk.bedtime || '22:00',
-      };
-
-      const initWe = {
-        breakfast: we.breakfast || '09:00',
-        lunch: we.lunch || '13:00',
-        dinner: we.dinner || '19:00',
-        bedtime: we.bedtime || '23:00',
-      };
-
-      setWeekdayTimes(initWk);
-      setWeekendTimes(initWe);
-
-      const isSame =
-        initWk.breakfast === initWe.breakfast &&
-        initWk.lunch === initWe.lunch &&
-        initWk.dinner === initWe.dinner &&
-        initWk.bedtime === initWe.bedtime;
-
-      setSameAsWeekday(isSame);
-      setOriginalWeekendTimes(isSame ? FALLBACK_DEFAULT_WEEKEND : initWe);
-      setActiveTab('WEEKDAY');
-      setIsSaving(false);
-    }
-  }, [isOpen, mealTimes, mealSchedule, defaultMealTimes]);
-
-  if (!isOpen) return null;
+  const [saveError, setSaveError] = useState('');
+  const saveLock = useRef(false);
 
   const currentTimes = activeTab === 'WEEKDAY' ? weekdayTimes : (sameAsWeekday ? weekdayTimes : weekendTimes);
 
@@ -108,14 +85,22 @@ export default function MealTimeSettingModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (saveLock.current) return;
+    saveLock.current = true;
     setIsSaving(true);
+    setSaveError('');
     try {
+      if (!onSave) throw new Error('저장 기능을 준비하지 못했습니다. 창을 닫은 뒤 다시 시도해주세요.');
       const finalWeekend = sameAsWeekday ? { ...weekdayTimes } : { ...weekendTimes };
-      await onSave?.({
-        weekday: weekdayTimes,
+      await onSave({
+        weekday: { ...weekdayTimes },
         weekend: finalWeekend,
       });
+      onClose?.();
+    } catch (error) {
+      setSaveError(error.message || '식사 시간을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.');
     } finally {
+      saveLock.current = false;
       setIsSaving(false);
     }
   };
@@ -152,6 +137,7 @@ export default function MealTimeSettingModal({
               type="button"
               className={`meal-tab-btn ${activeTab === 'WEEKDAY' ? 'active' : ''}`}
               onClick={() => setActiveTab('WEEKDAY')}
+              disabled={isSaving}
             >
               <i className="fa-solid fa-briefcase" aria-hidden="true" /> 평일 (월~금)
             </button>
@@ -159,6 +145,7 @@ export default function MealTimeSettingModal({
               type="button"
               className={`meal-tab-btn ${activeTab === 'WEEKEND' ? 'active' : ''}`}
               onClick={() => setActiveTab('WEEKEND')}
+              disabled={isSaving}
             >
               <i className="fa-solid fa-mug-hot" aria-hidden="true" /> 주말 (토~일)
             </button>
@@ -170,6 +157,7 @@ export default function MealTimeSettingModal({
               <input
                 type="checkbox"
                 checked={sameAsWeekday}
+                disabled={isSaving}
                 onChange={(e) => {
                   const checked = e.target.checked;
                   setSameAsWeekday(checked);
@@ -207,7 +195,7 @@ export default function MealTimeSettingModal({
                 className="styled-time-input"
                 value={currentTimes.breakfast}
                 onChange={(e) => handleTimeChange('breakfast', e.target.value)}
-                disabled={activeTab === 'WEEKEND' && sameAsWeekday}
+                disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}
                 required
               />
               <span className="meal-calc-hint">
@@ -223,7 +211,7 @@ export default function MealTimeSettingModal({
                 className="styled-time-input"
                 value={currentTimes.lunch}
                 onChange={(e) => handleTimeChange('lunch', e.target.value)}
-                disabled={activeTab === 'WEEKEND' && sameAsWeekday}
+                disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}
                 required
               />
               <span className="meal-calc-hint">
@@ -239,7 +227,7 @@ export default function MealTimeSettingModal({
                 className="styled-time-input"
                 value={currentTimes.dinner}
                 onChange={(e) => handleTimeChange('dinner', e.target.value)}
-                disabled={activeTab === 'WEEKEND' && sameAsWeekday}
+                disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}
                 required
               />
               <span className="meal-calc-hint">
@@ -255,7 +243,7 @@ export default function MealTimeSettingModal({
                 className="styled-time-input"
                 value={currentTimes.bedtime}
                 onChange={(e) => handleTimeChange('bedtime', e.target.value)}
-                disabled={activeTab === 'WEEKEND' && sameAsWeekday}
+                disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}
                 required
               />
               <span className="meal-calc-hint">
@@ -288,6 +276,8 @@ export default function MealTimeSettingModal({
               </div>
             </div>
           </div>
+
+          {saveError && <p className="form-feedback error" role="alert">{saveError}</p>}
 
           <div className="modal-foot">
             <button

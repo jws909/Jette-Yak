@@ -1,8 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { saveCalendarSchedule } from '../medicationApi';
 import { DEFAULT_MEAL_TIMES, addMinutes } from '../../main/utils/mainPageUtils';
 import DatePicker from '../../../components/ui/DatePicker';
+
+const DEFAULT_WEEKEND_MEALS = { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' };
 
 // 영양제 타이밍 프리셋 (6종)
 const SUPPLEMENT_PRESETS = [
@@ -121,8 +123,14 @@ function calcSupplementPresetTimes(meals) {
  * - 상비약: 식사 시간(식후 30분) 기준 평일/주말 4개 슬롯 시간 개별 관리
  * - 영양제: 6종 프리셋 및 평일/주말 세부 알림 시간 개별 조정
  */
-export default function ScheduleModal({
-  isOpen,
+export default function ScheduleModal(props) {
+  if (!props.isOpen || !props.med) return null;
+  const weekdays = props.mealSchedule?.weekday || props.mealTimes || DEFAULT_MEAL_TIMES;
+  const weekends = props.mealSchedule?.weekend || DEFAULT_WEEKEND_MEALS;
+  return <ScheduleForm key={JSON.stringify([props.med, weekdays, weekends])} {...props} />;
+}
+
+function ScheduleForm({
   med,
   currentUserId,
   mealTimes,
@@ -136,17 +144,12 @@ export default function ScheduleModal({
 
   // 평일/주말 기준 식사시간 추출
   const weekdayMeals = mealSchedule?.weekday || mealTimes || DEFAULT_MEAL_TIMES;
-  const weekendMeals = mealSchedule?.weekend || {
-    breakfast: '09:00',
-    lunch: '13:00',
-    dinner: '19:00',
-    bedtime: '23:00',
-  };
+  const weekendMeals = mealSchedule?.weekend || DEFAULT_WEEKEND_MEALS;
 
   // 평일/주말 탭 상태 ('weekday' | 'weekend')
   const [dayTypeTab, setDayTypeTab] = useState('weekday');
   // 주말도 평일 시간과 동일하게 사용 여부
-  const [syncWeekend, setSyncWeekend] = useState(false);
+  const [syncWeekend, setSyncWeekend] = useState(() => ['breakfast', 'lunch', 'dinner', 'bedtime'].every(field => weekdayMeals[field] === weekendMeals[field]));
 
   // 상비약용 상태: 슬롯 선택 여부
   const [cabinetSlots, setCabinetSlots] = useState({ morning: true, lunch: false, dinner: false, bedtime: false });
@@ -156,8 +159,12 @@ export default function ScheduleModal({
   const [originalWeekendCabinetTimes, setOriginalWeekendCabinetTimes] = useState(() => calcCabinetSlotTimes(weekendMeals));
 
   // 영양제용 상태: 하루 섭취 횟수 및 선택된 타이밍
-  const [suppFrequency, setSuppFrequency] = useState(1); // 1, 2, 3회
-  const [suppSelectedKeys, setSuppSelectedKeys] = useState(['breakfast_post']);
+  const recommended = getSupplementGuide(med.name);
+  const initialFrequency = Number(med.frequency) >= 1 ? Number(med.frequency) : (recommended.recommendedFrequency || 1);
+  const [suppFrequency, setSuppFrequency] = useState(initialFrequency);
+  const [suppSelectedKeys, setSuppSelectedKeys] = useState(() => initialFrequency === 2
+    ? ['breakfast_post', 'dinner_post'] : initialFrequency === 3
+      ? ['breakfast_post', 'lunch_post', 'dinner_post'] : [recommended.recommendedKey || 'breakfast_post']);
   // 영양제 평일 / 주말 타이밍 시간
   const [weekdaySuppTimes, setWeekdaySuppTimes] = useState(() => calcSupplementPresetTimes(weekdayMeals));
   const [weekendSuppTimes, setWeekendSuppTimes] = useState(() => calcSupplementPresetTimes(weekendMeals));
@@ -174,55 +181,9 @@ export default function ScheduleModal({
 
   const guide = isCabinet ? null : getSupplementGuide(med?.name);
 
-  // 약 변경 또는 식사시간 업데이트 시 상태 초기화
-  useEffect(() => {
-    if (!med) return;
+  // 폼 초기값은 마운트 시 준비하고 변경은 사용자 입력에서 처리합니다.
 
-    const wkCabinet = calcCabinetSlotTimes(weekdayMeals);
-    const weCabinet = calcCabinetSlotTimes(weekendMeals);
-    setWeekdayCabinetTimes(wkCabinet);
-    setWeekendCabinetTimes(weCabinet);
-    setOriginalWeekendCabinetTimes(weCabinet);
 
-    const wkSupp = calcSupplementPresetTimes(weekdayMeals);
-    const weSupp = calcSupplementPresetTimes(weekendMeals);
-    setWeekdaySuppTimes(wkSupp);
-    setWeekendSuppTimes(weSupp);
-    setOriginalWeekendSuppTimes(weSupp);
-
-    // 평일/주말 식사시간이 완전히 동일한지 확인하여 sync 기본값 설정
-    const isSameMealTimes = (
-      weekdayMeals.breakfast === weekendMeals.breakfast &&
-      weekdayMeals.lunch === weekendMeals.lunch &&
-      weekdayMeals.dinner === weekendMeals.dinner &&
-      weekdayMeals.bedtime === weekendMeals.bedtime
-    );
-    setSyncWeekend(isSameMealTimes);
-    setDayTypeTab('weekday');
-
-    if (isCabinet) {
-      setCabinetSlots({ morning: true, lunch: false, dinner: false, bedtime: false });
-      setSchedDays(7);
-    } else {
-      const rec = getSupplementGuide(med.name);
-      const recKey = rec.recommendedKey || 'breakfast_post';
-      const initialFreq = (med.frequency && Number(med.frequency) >= 1)
-        ? Number(med.frequency)
-        : (rec.recommendedFrequency || 1);
-      setSuppFrequency(initialFreq);
-
-      if (initialFreq === 2) {
-        setSuppSelectedKeys(['breakfast_post', 'dinner_post']);
-      } else if (initialFreq === 3) {
-        setSuppSelectedKeys(['breakfast_post', 'lunch_post', 'dinner_post']);
-      } else {
-        setSuppSelectedKeys([recKey]);
-      }
-      setSchedDays(30);
-    }
-  }, [med, isCabinet, weekdayMeals, weekendMeals]);
-
-  if (!isOpen || !med) return null;
 
   // 하루 섭취 횟수 변경 핸들러
   const handleChangeFrequency = (freq) => {

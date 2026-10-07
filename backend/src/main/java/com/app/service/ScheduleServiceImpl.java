@@ -8,6 +8,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -250,6 +253,7 @@ public class ScheduleServiceImpl implements ScheduleService {
         // 1. DB에 실체화된 스케줄 조회 (상시약, 영양제, 실체화된 처방약)
         List<ScheduleDTO> physicalList = scheduleDAO.selectDailySchedules(userId, date);
         if (physicalList == null) physicalList = new ArrayList<>();
+        Set<Long> inactiveItems = new HashSet<>(scheduleDAO.selectInactivePrescriptionItemIds(userId));
 
         // 2. 사용자별 기준 식사 시간 조회 (평일/주말 구분)
         UserMealTime mealTime = resolveMealTime(userId, date);
@@ -277,10 +281,10 @@ public class ScheduleServiceImpl implements ScheduleService {
         List<ScheduleDTO> combinedList = new ArrayList<>();
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         for (ScheduleDTO ps : physicalList) {
+            assignSlotByTime(ps);
             if (Boolean.TRUE.equals(ps.getIsCancelled())) {
                 continue;
             }
-            assignSlotByTime(ps);
             if (ps.getPrescriptionId() != null && rxList != null) {
                 for (PrescriptionDTO p : rxList) {
                     if (p.getPrescriptionId() != null && p.getPrescriptionId().equals(ps.getPrescriptionId())) {
@@ -314,6 +318,8 @@ public class ScheduleServiceImpl implements ScheduleService {
                     if (items == null) continue;
 
                     for (PrescriptionItemDTO pi : items) {
+                        // 전체 일정 삭제로 중지한 처방약은 가상 일정도 다시 만들지 않음
+                        if (inactiveItems.contains(pi.getItemId())) continue;
                         List<SlotInfo> slots = getIntakeSlots(pi.getDailyFrequency(), pi.getUsageTiming(), bTime, lTime, dTime, bedTime);
                         for (int slotIdx = 0; slotIdx < slots.size(); slotIdx++) {
                             SlotInfo s = slots.get(slotIdx);
@@ -403,8 +409,9 @@ public class ScheduleServiceImpl implements ScheduleService {
     public boolean toggleTaken(Long scheduleId, boolean isTaken, String date) {
         if (scheduleId == null) return false;
 
-        // 가상 처방전 스케줄 ID인 경우 실체화 INSERT 수행
-        if (scheduleId >= 100000L) {
+        // 숫자가 가상 ID 범위여도 실제 일정이 있으면 해당 행을 우선 처리
+        ScheduleDTO physical = scheduleDAO.selectScheduleById(scheduleId);
+        if (physical == null && scheduleId >= 100000L) {
             long pId = scheduleId / 100000L;
             long rem = scheduleId % 100000L;
             long itemId = rem / 10L;
@@ -446,6 +453,22 @@ public class ScheduleServiceImpl implements ScheduleService {
 
     @Override
     @Transactional
+    public boolean toggleTakenBatch(List<Long> scheduleIds, boolean isTaken, String date) {
+        if (scheduleIds == null || scheduleIds.isEmpty()
+                || scheduleIds.stream().anyMatch(id -> id == null || id <= 0L)) {
+            throw new IllegalArgumentException("복용 체크할 일정을 확인해 주세요.");
+        }
+        // 한 건이라도 실패하면 같은 트랜잭션의 앞선 변경도 취소
+        for (Long scheduleId : new LinkedHashSet<>(scheduleIds)) {
+            if (!toggleTaken(scheduleId, isTaken, date)) {
+                throw new IllegalStateException("일괄 복용 체크를 완료하지 못했어요.");
+            }
+        }
+        return true;
+    }
+
+    @Override
+    @Transactional
     public boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled) {
         return updateAlarmTime(scheduleId, newTime, alarmEnabled, null);
     }
@@ -455,7 +478,8 @@ public class ScheduleServiceImpl implements ScheduleService {
     public boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled, String date) {
         if (scheduleId == null) return false;
 
-        if (scheduleId >= 100000L) {
+        ScheduleDTO physical = scheduleDAO.selectScheduleById(scheduleId);
+        if (physical == null && scheduleId >= 100000L) {
             long pId = scheduleId / 100000L;
             long rem = scheduleId % 100000L;
             long itemId = rem / 10L;
@@ -488,12 +512,14 @@ public class ScheduleServiceImpl implements ScheduleService {
     @Transactional
     public boolean addSchedule(ScheduleAddDTO dto) {
         if ("regular".equalsIgnoreCase(dto.getType())) {
-            if ((dto.getMedicationId() == null || dto.getMedicationId().trim().isEmpty())
-                    && dto.getCabinetId() != null && dto.getCabinetId() > 0L) {
+            if (dto.getCabinetId() != null && dto.getCabinetId() > 0L) {
                 String foundMedId = scheduleDAO.findMedicationIdByCabinetId(dto.getUserId(), dto.getCabinetId());
-                if (foundMedId != null && !foundMedId.isBlank()) {
-                    dto.setMedicationId(foundMedId);
+                if (foundMedId == null || foundMedId.isBlank()
+                        || (dto.getMedicationId() != null && !dto.getMedicationId().isBlank()
+                            && !foundMedId.equals(dto.getMedicationId().trim()))) {
+                    throw new IllegalArgumentException("선택한 보관 약 정보를 확인해 주세요.");
                 }
+                dto.setMedicationId(foundMedId);
             }
             if (dto.getMedicationId() == null || dto.getMedicationId().trim().isEmpty()) {
                 throw new IllegalArgumentException("상시약은 의약품 목록에서 약을 선택해야 등록할 수 있습니다.");
@@ -610,24 +636,16 @@ public class ScheduleServiceImpl implements ScheduleService {
     public boolean removeSchedule(Long scheduleId, boolean deleteAll, Long userId, String date) {
         if (scheduleId == null) return false;
 
-        // 1. 가상 처방전 스케줄 ID (>= 100000L) 처리
-        if (scheduleId >= 100000L) {
+        ScheduleDTO target = scheduleDAO.selectScheduleById(scheduleId);
+        // 1. 같은 번호의 실제 일정이 없는 가상 처방전 스케줄 처리
+        if (target == null && scheduleId >= 100000L) {
             long pId = scheduleId / 100000L;
             long rem = scheduleId % 100000L;
             long itemId = rem / 10L;
             long slotIdx = rem % 10L;
 
             if (deleteAll) {
-                // ⚠️ 원천 처방전(prescriptionDAO.deletePrescription)을 지우지 않고 연계 스케줄만 삭제
-                scheduleDAO.deleteSchedulesByPrescriptionId(pId);
-
-                // 가상 일정 캘린더 생성 방지: 처방전 상태가 있다면 중단 처리 (또는 endDate 종료 처리)
-                // 만약 prescriptionDAO에 비활성화 메서드가 없다면 연계 스케줄 삭제만 수행됩니다.
-                try {
-                    // 예: prescriptionDAO.updatePrescriptionStatus(pId, "STOPPED");
-                } catch (Exception ignored) {}
-
-                return true;
+                return removePrescriptionSchedules(pId, userId);
             } else {
                 // 해당 일자의 단건 일정만 삭제: placeholder (alarm_enabled = -1) 실체화
                 PrescriptionDTO p = prescriptionDAO.getPrescriptionById(pId);
@@ -662,7 +680,6 @@ public class ScheduleServiceImpl implements ScheduleService {
         }
 
         // 2. 실체화된 스케줄 단건 정보 조회
-        ScheduleDTO target = scheduleDAO.selectScheduleById(scheduleId);
         if (target == null) {
             return scheduleDAO.deleteSchedule(scheduleId) > 0;
         }
@@ -673,9 +690,7 @@ public class ScheduleServiceImpl implements ScheduleService {
             // [전체 스케줄 삭제] 원천 데이터(약품/보관함/처방전) 삭제 DAO는 싹 제거하고 스케줄 테이블 레코드만 삭제
             boolean res = false;
             if (target.getPrescriptionId() != null) {
-                Long pId = target.getPrescriptionId();
-                scheduleDAO.deleteSchedulesByPrescriptionId(pId);
-                res = true;
+                return removePrescriptionSchedules(target.getPrescriptionId(), actualUserId);
             } else if (target.getCabinetId() != null) {
                 Long cId = target.getCabinetId();
                 scheduleDAO.deleteSchedulesByCabinetId(actualUserId, cId);
@@ -706,8 +721,10 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
             return res;
         } else {
-            // 단건 일정만 삭제
-            boolean res = scheduleDAO.deleteSchedule(scheduleId) > 0;
+            // 처방 일정은 취소 표식을 남겨 같은 슬롯의 가상 일정 재생성을 차단
+            boolean res = target.getPrescriptionId() != null
+                    ? scheduleDAO.cancelPrescriptionSchedule(scheduleId) > 0
+                    : scheduleDAO.deleteSchedule(scheduleId) > 0;
             if (res) {
                 try {
                     if (target.getCabinetId() != null) {
@@ -731,5 +748,19 @@ public class ScheduleServiceImpl implements ScheduleService {
             }
             return res;
         }
+    }
+
+    private boolean removePrescriptionSchedules(Long prescriptionId, Long userId) {
+        PrescriptionDTO prescription = prescriptionDAO.getPrescriptionById(prescriptionId);
+        if (prescription == null || prescription.getUserId() == null
+                || (userId != null && !userId.equals(prescription.getUserId()))) return false;
+        Long ownerId = prescription.getUserId();
+        // 원본 처방전·약은 보존하고 기존 P:항목 상태로 가상 일정 재생성을 차단
+        scheduleDAO.pausePrescriptionItems(ownerId, prescriptionId);
+        scheduleDAO.deleteSchedulesByPrescriptionId(prescriptionId);
+        if (medicationGuideDao != null) {
+            try { medicationGuideDao.saveOverallGuide(ownerId, null); } catch (Exception ignored) {}
+        }
+        return true;
     }
 }
