@@ -563,14 +563,19 @@ public class FamilyController {
 			String targetLoginId = (String) req.get("targetLoginId");
 			String role = req.get("role") != null ? (String) req.get("role") : "BABY";
 
-			// 1) 대상 회원 존재 여부 및 USER_ID 확인
+			// 1) 대상 회원 존재 여부 및 USER_ID, FAMILY_ID 확인
 			Long targetUserId = null;
-			String findUserSql = "SELECT USER_ID FROM USERS WHERE LOGIN_ID = ?";
+			Long targetFamilyId = null;
+			String findUserSql = "SELECT USER_ID, FAMILY_ID FROM USERS WHERE LOGIN_ID = ?";
 			try (PreparedStatement pstmt = conn.prepareStatement(findUserSql)) {
 				pstmt.setString(1, targetLoginId);
 				try (ResultSet rs = pstmt.executeQuery()) {
 					if (rs.next()) {
 						targetUserId = rs.getLong("USER_ID");
+						long fId = rs.getLong("FAMILY_ID");
+						if (!rs.wasNull() && fId > 0) {
+							targetFamilyId = fId;
+						}
 					} else {
 						return ResponseEntity.badRequest().body(Collections.singletonMap("message", "해당 아이디를 가진 회원을 찾을 수 없습니다."));
 					}
@@ -580,6 +585,11 @@ public class FamilyController {
 			// 자기 자신 초대 방지
 			if (senderId.equals(targetUserId)) {
 				return ResponseEntity.badRequest().body(Collections.singletonMap("message", "본인은 초대할 수 없습니다."));
+			}
+
+			// 이미 가족 그룹에 소속된 회원인지 검증
+			if (targetFamilyId != null) {
+				return ResponseEntity.badRequest().body(Collections.singletonMap("message", "해당 회원은 이미 가족 그룹에 소속되어 있어 초대할 수 없습니다."));
 			}
 
 			// 2) 보낸 사람의 FAMILY_ID 확인 (없으면 새로 생성)
@@ -732,6 +742,20 @@ public class FamilyController {
 
 			if ("ACCEPT".equalsIgnoreCase(action)) {
 				// [승인 시]
+				// 이미 다른 가족 그룹에 소속되어 있는지 검증
+				String checkCurFamSql = "SELECT FAMILY_ID FROM USERS WHERE USER_ID = ?";
+				try (PreparedStatement pstmt = conn.prepareStatement(checkCurFamSql)) {
+					pstmt.setLong(1, userId);
+					try (ResultSet rs = pstmt.executeQuery()) {
+						if (rs.next()) {
+							long curFamId = rs.getLong("FAMILY_ID");
+							if (!rs.wasNull() && curFamId > 0 && curFamId != familyId) {
+								return ResponseEntity.badRequest().body(Collections.singletonMap("message", "이미 다른 가족 그룹에 소속되어 있어 초대를 수락할 수 없습니다."));
+							}
+						}
+					}
+				}
+
 				// 2) USERS 테이블의 FAMILY_ID 갱신
 				// 화면에서 넘어오는 상세 관계 -> DB 제약조건('GUAR', 'PROT')으로 변환
 				String safeRole = "PROT"; // 자녀, 부모님, 배우자 등은 모두 피보호자(PROT)

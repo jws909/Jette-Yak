@@ -1480,7 +1480,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
               /* [Track 2] 기존 가입 회원 연동 */
               <form onSubmit={handleInviteFamilyMember}>
                 <div className="family-add-notice">
-                  이미 제떼약에 가입된 가족의 아이디를 검색하여 복약 일정을 공유하고 승인을 요청합니다.
+                  이미 제떼약에 가입된 가족의 아이디로 연동 초대를 보냅니다. (단, 이미 가족 그룹에 소속되어 있는 회원은 초대할 수 없습니다.)
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', margin: '18px 0' }}>
