@@ -1,11 +1,10 @@
-import { useRef } from 'react';
 import {
   formatDateWithDay,
   getTargetDateDiffText,
   formatDateToHyphen,
   parseDateOnly,
 } from '../utils/mainPageUtils';
-
+import DatePicker from '../../../components/ui/DatePicker';
 const DAY_NAMES = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 const MONTH_NAMES = [
   'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
@@ -24,8 +23,6 @@ export default function MainGreetingHeader({
   onResetToday,
   onSetTargetDate,
 }) {
-  const dateInputRef = useRef(null);
-
   const greetingDateStr = `${DAY_NAMES[targetDate.getDay()]}, ${targetDate.getDate()} ${MONTH_NAMES[targetDate.getMonth()]}`;
 
   return (
@@ -49,33 +46,34 @@ export default function MainGreetingHeader({
           >
             ‹
           </button>
-          <div
-            className="date-nav-display-box"
-            onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.focus()}
-            title="클릭하여 달력에서 날짜 직접 선택"
-          >
-            <span className="date-nav-calendar-icon">
-              <svg viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <span className="date-nav-date-text">{formatDateWithDay(targetDate)}</span>
-            {isTargetToday ? (
-              <span className="date-nav-today-tag">오늘</span>
-            ) : (
-              <span className="date-nav-diff-tag">{getTargetDateDiffText(targetDate)}</span>
+          <DatePicker
+            value={formatDateToHyphen(targetDate)}
+            onChange={(e) => {
+              const parsed = parseDateOnly(e.target.value);
+              if (parsed) onSetTargetDate(parsed);
+            }}
+            title="복약 기준 날짜 선택"
+            showClear={false}
+            customTrigger={({ open }) => (
+              <div
+                className="date-nav-display-box"
+                onClick={open}
+                title="클릭하여 달력에서 날짜 직접 선택"
+              >
+                <span className="date-nav-calendar-icon">
+                  <svg viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                  </svg>
+                </span>
+                <span className="date-nav-date-text">{formatDateWithDay(targetDate)}</span>
+                {isTargetToday ? (
+                  <span className="date-nav-today-tag">오늘</span>
+                ) : (
+                  <span className="date-nav-diff-tag">{getTargetDateDiffText(targetDate)}</span>
+                )}
+              </div>
             )}
-            <input
-              ref={dateInputRef}
-              type="date"
-              className="date-nav-hidden-picker"
-              value={formatDateToHyphen(targetDate)}
-              onChange={(e) => {
-                const parsed = parseDateOnly(e.target.value);
-                if (parsed) onSetTargetDate(parsed);
-              }}
-            />
-          </div>
+          />
           <button
             type="button"
             className="date-nav-arrow-btn"

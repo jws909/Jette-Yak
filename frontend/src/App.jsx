@@ -12,7 +12,7 @@ import AdminPage from './features/admin/AdminPage';
 import LoginPage from './components/LoginPage';
 import SignupPage from './components/SignupPage';
 import MedicationRegisterPage from './features/medication/MedicationRegisterPage';
-import { DialogProvider } from './contexts/DialogContext';
+import { useDialog } from './contexts/DialogContext';
 import { ReadingProvider } from './contexts/ReadingContext';
 import './App.css';
 
@@ -51,6 +51,7 @@ function PublicOnlyRoute({ isLoggedIn, children }) {
 
 function App() {
   const navigate = useNavigate();
+  const { showAlert } = useDialog();
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(
     localStorage.getItem('user')
@@ -333,7 +334,7 @@ function App() {
       const response = await fetch('/api/auth/logout', { method: 'POST' });
       if (!response.ok) throw new Error();
     } catch {
-      window.alert('로그아웃하지 못했습니다. 다시 시도해주세요.');
+      await showAlert('로그아웃하지 못했습니다. 다시 시도해주세요.', '로그아웃 실패');
       return;
     }
     setIsLoggedIn(false);
@@ -408,7 +409,6 @@ function App() {
 
   return (
     <ReadingProvider user={user}>
-    <DialogProvider>
       <Routes>
         {/* 비로그인 전용 라우트 (이미 로그인된 상태면 메인으로 튕겨냄) */}
         <Route
@@ -730,7 +730,6 @@ function App() {
           </div>
         </div>
       )}
-    </DialogProvider>
     </ReadingProvider>
   );
 }

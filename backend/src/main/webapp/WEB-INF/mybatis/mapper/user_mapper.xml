@@ -23,7 +23,7 @@
     <select id="findByLoginId" resultType="com.app.domain.User">
         SELECT u.user_id AS userId, u.login_id AS loginId, u.password_hash AS passwordHash,
                u.email, u.nickname, u.profile_image_url AS profileImageUrl, NVL(u.push_enabled, 1) AS pushEnabled, NVL(u.role,'USER') AS role,
-               u.family_id AS familyId, u.birthdate, u.sex, NVL(u.is_pregnant, 0) AS isPregnant,
+               u.family_id AS familyId, u.birthdate, u.sex, NVL(u.is_pregnant, 0) AS isPregnant, NVL(u.is_virtual, 'N') AS isVirtual,
                CASE
                    WHEN UPPER(TRIM(u.is_admin)) IN ('Y', 'YES', 'TRUE', '1', 'ADMIN') THEN 1
                    ELSE 0
@@ -40,7 +40,7 @@
     <select id="findById" resultType="com.app.domain.User">
         SELECT u.user_id AS userId, u.login_id AS loginId, u.password_hash AS passwordHash,
                u.email, u.nickname, u.profile_image_url AS profileImageUrl, NVL(u.push_enabled, 1) AS pushEnabled, NVL(u.role,'USER') AS role,
-               u.family_id AS familyId, u.birthdate, u.sex, NVL(u.is_pregnant, 0) AS isPregnant,
+               u.family_id AS familyId, u.birthdate, u.sex, NVL(u.is_pregnant, 0) AS isPregnant, NVL(u.is_virtual, 'N') AS isVirtual,
                CASE
                    WHEN UPPER(TRIM(u.is_admin)) IN ('Y', 'YES', 'TRUE', '1', 'ADMIN') THEN 1
                    ELSE 0

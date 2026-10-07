@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
 import { BrowserRouter } from 'react-router-dom'
+import { DialogProvider } from './contexts/DialogContext'
 
 // 전역 401(인증 만료/미로그인) 감지 및 로그인 페이지 자동 안내 인터셉터
 const originalFetch = window.fetch;
@@ -30,7 +31,9 @@ window.fetch = async (...args) => {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
-      <App />
+      <DialogProvider>
+        <App />
+      </DialogProvider>
     </BrowserRouter>
   </StrictMode>,
 )

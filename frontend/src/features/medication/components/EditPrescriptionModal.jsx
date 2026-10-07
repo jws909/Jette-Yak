@@ -3,6 +3,7 @@ import { useDialog } from '../../../contexts/DialogContext';
 import { updatePrescription } from '../medicationApi';
 import { useMedicationSearch } from '../../../hooks/useMedicationSearch';
 import { useIsMobile } from '../../../hooks/useIsMobile';
+import DatePicker from '../../../components/ui/DatePicker';
 
 // 식약처 및 임상 처방전 표준 복용 시점 옵션
 const STANDARD_TIMING_OPTIONS = [
@@ -379,10 +380,11 @@ export default function EditPrescriptionModal({
               </div>
               <div className="edit-field-group">
                 <label>처방 / 조제 일자</label>
-                <input
-                  type="date"
+                <DatePicker
                   value={editForm.dispensedDate}
                   onChange={(e) => setEditForm({ ...editForm, dispensedDate: e.target.value })}
+                  placeholder="조제 일자 선택"
+                  title="조제 일자 선택"
                 />
               </div>
               <div className="edit-field-group">

@@ -1,4 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDialog } from '../../contexts/DialogContext';
+import DatePicker from '../../components/ui/DatePicker';
 import './FamilyPage.css';
 
 function getFormattedDate(targetDate) {
@@ -18,6 +21,8 @@ function getSlotFromTime(t) {
 }
 
 export default function FamilyPage(props) {
+  const navigate = useNavigate();
+  const { showAlert, showConfirm } = useDialog();
   const user = props.user;
   const currentUserId = user?.userId || null;
   const today = new Date();
@@ -28,6 +33,27 @@ export default function FamilyPage(props) {
 
   const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
+
+  // 연/월 빠른 선택 팝오버 상태
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+  const monthPickerRef = useRef(null);
+  const yearDropdownRef = useRef(null);
+
+  // 빠른 연도 점프 옵션 (현재 연도 기준 -50년 ~ +10년)
+  const calYearOptions = useMemo(() => {
+    const currentY = today.getFullYear();
+    const list = [];
+    for (let y = currentY - 50; y <= currentY + 10; y++) {
+      list.push(y);
+    }
+    return list;
+  }, [today]);
+
+  // 이전/다음 연도 1년 단위 이동
+  const handleJumpYear = (delta) => {
+    setCurrentDate((prev) => new Date(prev.getFullYear() + delta, prev.getMonth(), 1));
+  };
 
   const [monthSummary, setMonthSummary] = useState({});
   const [schedules, setSchedules] = useState([]);
@@ -43,13 +69,18 @@ export default function FamilyPage(props) {
     if (!role) return '';
     const r = String(role).trim().toUpperCase();
 
-    // 보호자 / 관리자 (GUAR, PROT 등)
-    if (['GUAR', 'GUARDIAN', 'PROT', 'PROTECTOR', '보호자'].includes(r)) {
+    // 보호자 / 관리자 (GUAR 등)
+    if (['GUAR', 'GUARDIAN', '보호자'].includes(r)) {
       return '(보호자)';
     }
 
+    // 피보호자 (PROT 등)
+    if (['PROT', 'PROTECTED', '피보호자'].includes(r)) {
+      return '(피보호자)';
+    }
+
     // 부모님
-    if (['PARENT', 'FATHER', 'MOTHER', 'PARENTS', '부모님', '부모', '아빠', '엄마'].includes(r)) {
+    if (['PARENT', 'FATHER', 'MOTHER', 'PARENTS', '부모님', '부모', '아빠', '엄마', 'PROT_SENIOR'].includes(r)) {
       return '(부모님)';
     }
 
@@ -99,6 +130,7 @@ export default function FamilyPage(props) {
   const [newMemberSex, setNewMemberSex] = useState('M');      // 남아 'M', 여아 'F'
   const [newMemberBirth, setNewMemberBirth] = useState('');    // 생년월일
   const [inviteLoginId, setInviteLoginId] = useState('');      // 회원 연동용 ID
+  const [pendingInvitations, setPendingInvitations] = useState([]); // 도착한 초대 목록
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -111,6 +143,23 @@ export default function FamilyPage(props) {
   // 2. 비동기 백엔드 API 통신 로직
   // =========================================================================
 
+  // 나에게 온 초대 목록 조회 (가족이 없을 때 수락할 수 있도록 안내)
+  const fetchPendingInvitations = useCallback(async () => {
+    if (!currentUserId) {
+      setPendingInvitations([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/family/invitations?userId=${currentUserId}`);
+      if (res.ok) {
+        const list = await res.json();
+        setPendingInvitations(Array.isArray(list) ? list : []);
+      }
+    } catch (err) {
+      console.warn('초대 목록 조회 실패:', err);
+    }
+  }, [currentUserId]);
+
   // (1) 가족 구성원 목록 조회
   const fetchFamilyMembers = useCallback(async () => {
     if (!currentUserId) return;
@@ -122,14 +171,16 @@ export default function FamilyPage(props) {
         setFamilyMembers(list);
         if (list.length > 0 && list[0].familyName) {
           setFamilyName(list[0].familyName);
+          setPendingInvitations([]);
         } else {
           setFamilyName('');
+          fetchPendingInvitations();
         }
       }
     } catch (err) {
       console.error('가족 구성원 조회 오류:', err);
     }
-  }, [currentUserId]);
+  }, [currentUserId, fetchPendingInvitations]);
 
   // (2) 월별 요약 조회 (달력 인디케이터용)
   const fetchMonthSummary = useCallback(async () => {
@@ -218,7 +269,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   // (4) 복약 체크박스 토글
   const toggleTaken = async (item) => {
     if (!currentUserId) {
-      alert('로그인 후 이용할 수 있습니다.');
+      showAlert('로그인 후 이용할 수 있습니다.', '안내');
       return;
     }
     const isTaken = !item.takenAt;
@@ -274,9 +325,9 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       if (selectedMemberId === 'all') {
         currentTargetName = '가족 전체';
       } else if (targetMemberObj) {
-        // role 매핑 (PROT: 자녀/부모님, GUAR: 배우자 등 프로젝트에 맞춤)
+        // role 매핑 (PROT: 피보호자, GUAR: 보호자)
         const roleLabel = targetMemberObj.relation || targetMemberObj.roleLabel || 
-          (targetMemberObj.role === 'GUAR' ? '배우자' : targetMemberObj.role === 'PROT' ? '자녀' : targetMemberObj.role);
+          (targetMemberObj.role === 'GUAR' ? '보호자' : targetMemberObj.role === 'PROT' ? '피보호자' : targetMemberObj.role);
         currentTargetName = roleLabel ? `${targetMemberObj.name} (${roleLabel})` : targetMemberObj.name;
       } else {
         currentTargetName = user?.name ? `${user.name} (본인)` : '본인';
@@ -421,7 +472,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const handleCreateFamily = async (e) => {
     if (e) e.preventDefault();
     if (!currentUserId) {
-      alert('로그인이 필요한 서비스입니다.');
+      showAlert('로그인이 필요한 서비스입니다.', '로그인 필요');
       return;
     }
     setIsCreatingFamily(true);
@@ -442,7 +493,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         throw new Error('서버 응답 오류가 발생했습니다. (HTTP ' + res.status + ')');
       }
       if (res.ok && data.success) {
-        alert(data.message || '가족 그룹이 성공적으로 생성되었습니다.');
+        showAlert(data.message || '가족 그룹이 성공적으로 생성되었습니다.', '가족 그룹 생성');
         setIsCreateFamilyModalOpen(false);
         setNewFamilyName('');
         if (data.familyName) {
@@ -458,11 +509,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         fetchDailySchedules(selectedDate);
         fetchMonthSummary();
       } else {
-        alert(data.message || '가족 생성에 실패했습니다.');
+        showAlert(data.message || '가족 생성에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('가족 생성 통신 오류:', err);
-      alert(err.message || '서버 통신 중 오류가 발생했습니다.');
+      showAlert(err.message || '서버 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsCreatingFamily(false);
     }
@@ -472,7 +523,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const handleRenameFamily = async (e) => {
     if (e) e.preventDefault();
     if (!editFamilyName.trim()) {
-      alert('가족 이름을 입력해주세요.');
+      showAlert('가족 이름을 입력해주세요.', '입력 안내');
       return;
     }
     setIsRenaming(true);
@@ -491,11 +542,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         setIsRenameModalOpen(false);
         fetchFamilyMembers();
       } else {
-        alert(data.message || '가족 이름 변경에 실패했습니다.');
+        showAlert(data.message || '가족 이름 변경에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('가족 이름 변경 오류:', err);
-      alert('서버 통신 중 오류가 발생했습니다.');
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsRenaming(false);
     }
@@ -505,7 +556,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const handleAddFamilyMember = async (e) => {
     e.preventDefault();
     if (!newMemberName.trim()) {
-      alert('가족 구성원의 이름을 입력해주세요.');
+      showAlert('가족 구성원의 이름을 입력해주세요.', '입력 안내');
       return;
     }
     try {
@@ -521,17 +572,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         }),
       });
       if (res.ok) {
-        alert('가족이 성공적으로 등록되었습니다.');
+        showAlert('가족이 성공적으로 등록되었습니다.', '등록 완료');
         setNewMemberName('');
         setNewMemberSex('M');
         setNewMemberBirth('');
         setIsAddFamilyModalOpen(false);
         fetchFamilyMembers();
       } else {
-        alert('가족 등록에 실패했습니다.');
+        showAlert('가족 등록에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('가족 등록 통신 오류:', err);
+      showAlert('가족 등록 통신 중 오류가 발생했습니다.', '오류');
     }
   };
 
@@ -540,12 +592,12 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     if (e) e.preventDefault();
 
     if (!currentUserId) {
-      alert("로그인이 필요한 서비스입니다.");
+      showAlert('로그인이 필요한 서비스입니다.', '로그인 필요');
       return;
     }
 
     if (!inviteLoginId.trim()) {
-      alert("초대할 가족의 아이디를 입력해주세요.");
+      showAlert('초대할 가족의 아이디를 입력해주세요.', '입력 안내');
       return;
     }
 
@@ -562,53 +614,175 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         }),
       });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (response.ok) {
-      alert("가족 연동 초대를 보냈습니다!");
-      setInviteLoginId("");
-      setIsAddFamilyModalOpen(false);
-    } else {
-      // 400, 404 등 백엔드에서 던진 구체적인 에러 메시지 출력
-      alert(data.message || "연동 요청에 실패했습니다.");
+      if (response.ok) {
+        showAlert('가족 연동 초대를 보냈습니다!', '초대 완료');
+        setInviteLoginId('');
+        setIsAddFamilyModalOpen(false);
+      } else {
+        // 400, 404 등 백엔드에서 던진 구체적인 에러 메시지 출력
+        showAlert(data.message || '연동 요청에 실패했습니다.', '초대 실패');
+      }
+    } catch (error) {
+      console.error('초대 요청 에러:', error);
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     }
-  } catch (error) {
-    console.error("초대 요청 에러:", error);
-    alert("서버 통신 중 오류가 발생했습니다.");
-  }
-};
+  };
 
-  const handleRemoveMember = async (member) => {
+  const handleRemoveMember = (member) => {
     const memberName = member.name || member.nickname || '구성원';
-    if (!window.confirm(`'${memberName}' 님을 가족 목록에서 삭제하시겠습니까?`)) {
-      return;
-    }
+    const isVirtual = member.isVirtual === 'Y';
+    showConfirm({
+      title: isVirtual ? '가상 구성원 삭제' : '가족 구성원 내보내기',
+      description: isVirtual
+        ? `'${memberName}' 님의 모든 복약 정보 및 가상 계정이 영구 삭제됩니다. 계속하시겠습니까?`
+        : `'${memberName}' 님을 가족 목록에서 내보내시겠습니까? (해당 회원의 개인 계정 및 복약 정보는 유지됩니다.)`,
+      confirmLabel: '삭제',
+      cancelLabel: '취소',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/family/members/${member.userId}/remove?userId=${currentUserId || ''}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ userId: currentUserId }),
+          });
 
+          const data = await response.json();
+
+          if (response.ok && data.success) {
+            showAlert(`${memberName} 님이 삭제되었습니다.`, '삭제 완료');
+            if (String(selectedMemberId) === String(member.userId)) {
+              setSelectedMemberId('all');
+            }
+            await fetchFamilyMembers();
+            fetchMonthSummary();
+            fetchDailySchedules(selectedDate);
+          } else {
+            showAlert(data.message || '가족 삭제 처리에 실패했습니다.', '오류');
+          }
+        } catch (err) {
+          console.error('가족 삭제 실패:', err);
+          showAlert('삭제 처리 중 오류가 발생했습니다.', '오류');
+        }
+      },
+    });
+  };
+
+  // 도착한 초대 수락/거절 핸들러 (가족이 없을 때 바로 수락 가능)
+  const handleRespondInvitation = async (inviteId, action) => {
+    if (!currentUserId) return;
     try {
-      const response = await fetch(`/api/family/members/${member.userId}/remove`, {
+      const res = await fetch('/api/family/invitations/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ userId: currentUserId }),
+        body: JSON.stringify({
+          inviteId,
+          userId: currentUserId,
+          action,
+        }),
       });
-
-      const data = await response.json();
-
-      if (response.ok && data.success) {
-        alert(`${memberName} 님이 삭제되었습니다.`);
-        if (String(selectedMemberId) === String(member.userId)) {
-          setSelectedMemberId('all');
+      const data = await res.json();
+      if (res.ok) {
+        if (action === 'ACCEPT') {
+          showAlert('가족 연동 초대를 수락했습니다!', '초대 수락');
+          if (props.onUserUpdated) {
+            props.onUserUpdated({ role: 'PROT' });
+          }
+          await fetchFamilyMembers();
+          fetchMonthSummary();
+          fetchDailySchedules(selectedDate);
+        } else {
+          showAlert('가족 초대를 거절했습니다.', '초대 거절');
+          fetchPendingInvitations();
         }
-        await fetchFamilyMembers();
-        fetchMonthSummary();
-        fetchDailySchedules(selectedDate);
       } else {
-        alert(data.message || '가족 삭제 처리에 실패했습니다.');
+        showAlert(data.message || '초대 처리에 실패했습니다.', '오류');
       }
     } catch (err) {
-      console.error('가족 삭제 실패:', err);
-      alert('삭제 처리 중 오류가 발생했습니다.');
+      console.error('초대 응답 오류:', err);
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     }
+  };
+
+  // 가족 나가기 / 가족 그룹 해체 핸들러
+  const handleLeaveFamily = () => {
+    if (!currentUserId) {
+      showAlert('로그인이 필요합니다.', '안내');
+      return;
+    }
+
+    const myMemberInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
+    const isUserRoleManager = myMemberInfo?.role === 'GUAR' || myMemberInfo?.role === '보호자' || myMemberInfo?.role === 'USER' || familyMembers.every((m) => m.role !== 'GUAR');
+    const remainingRealMembers = familyMembers.filter((m) => m.isVirtual !== 'Y' && Number(m.userId) !== Number(currentUserId));
+    const isOnlyRealUser = remainingRealMembers.length === 0;
+
+    let confirmTitle = '가족 그룹 해체';
+    let confirmDesc = '가족 그룹을 해체하시겠습니까? 등록된 가상 프로필과 가족 그룹이 삭제되며, 이후 다른 가족의 연동 초대를 받을 수 있게 됩니다.';
+    let btnLabel = '그룹 해체';
+    let forceDissolve = false;
+
+    if (isOnlyRealUser) {
+      confirmTitle = '가족 그룹 해체';
+      confirmDesc = '가족 그룹을 해체하시겠습니까? 등록된 가상 프로필과 가족 그룹이 삭제되며, 이후 다른 가족의 연동 초대를 받을 수 있게 됩니다.';
+      btnLabel = '그룹 해체';
+      forceDissolve = true;
+    } else if (isUserRoleManager) {
+      confirmTitle = '가족 그룹 해체';
+      confirmDesc = '보호자가 나가면 가족 그룹 전체가 해체되며 다른 구성원들의 가족 연동도 함께 해제됩니다. 정말 해체하시겠습니까?';
+      btnLabel = '가족 해체';
+      forceDissolve = true;
+    } else {
+      confirmTitle = '가족 나가기';
+      confirmDesc = '가족 그룹에서 나가시겠습니까? 본인만 가족 목록에서 제외되며, 개인 복약 정보와 계정은 그대로 유지됩니다.';
+      btnLabel = '가족 나가기';
+      forceDissolve = false;
+    }
+
+    showConfirm({
+      title: confirmTitle,
+      description: confirmDesc,
+      confirmLabel: btnLabel,
+      cancelLabel: '취소',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/family/leave?userId=${currentUserId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              userId: currentUserId,
+              forceDissolve,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            showAlert(data.message || '가족 그룹에서 정상적으로 나갔습니다.', '완료');
+            if (props.onUserUpdated) {
+              props.onUserUpdated({
+                familyId: null,
+                role: 'PROT',
+              });
+            }
+            setFamilyName('');
+            setFamilyMembers([]);
+            setSelectedMemberId('all');
+            await fetchFamilyMembers();
+            fetchMonthSummary();
+            fetchDailySchedules(selectedDate);
+          } else {
+            showAlert(data.message || '가족 나가기 처리에 실패했습니다.', '오류');
+          }
+        } catch (err) {
+          console.error('가족 나가기 오류:', err);
+          showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
+        }
+      },
+    });
   };
 
 
@@ -633,6 +807,55 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
     setSelectedDate(getFormattedDate(now));
   };
+
+  // 월 선택 팝오버 외부 클릭 닫기
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+    const handleOutside = (e) => {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target)) {
+        setIsMonthPickerOpen(false);
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setIsMonthPickerOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isMonthPickerOpen]);
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) {
+      setIsYearDropdownOpen(false);
+    }
+  }, [isMonthPickerOpen]);
+
+  // 연도 드롭다운 외부 클릭 닫기
+  useEffect(() => {
+    if (!isYearDropdownOpen) return;
+    const handleOutsideYear = (e) => {
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(e.target)) {
+        setIsYearDropdownOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideYear);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideYear);
+    };
+  }, [isYearDropdownOpen]);
+
+  // 연도 드롭다운 열릴 때 현재 연도로 자동 스크롤
+  useEffect(() => {
+    if (isYearDropdownOpen && yearDropdownRef.current) {
+      const selectedItem = yearDropdownRef.current.querySelector('.custom-year-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [isYearDropdownOpen]);
 
   // 4. 체크리스트 시간대별 카운트 및 필터링
   const totalCount = schedules.length;
@@ -738,7 +961,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       );
 
       if (res.ok) {
-        alert('알람 설정이 변경되었습니다.');
+        showAlert('알람 설정이 변경되었습니다.', '알람 설정');
         setAlarmModalOpen(false);
         setTargetScheduleForAlarm(null);
 
@@ -749,11 +972,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       } else {
         const errText = await res.text();
         console.error('알람 설정 실패:', res.status, errText);
-        alert('알람 설정 변경에 실패했습니다.');
+        showAlert('알람 설정 변경에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('알람 변경 오류:', err);
-      alert('알람 변경 중 오류가 발생했습니다.');
+      showAlert('알람 변경 중 오류가 발생했습니다.', '오류');
     }
   };
 
@@ -761,7 +984,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const openDeleteModal = (item, e) => {
     e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 일정을 삭제할 수 있습니다.');
+      showAlert('로그인 후 일정을 삭제할 수 있습니다.', '안내');
       return;
     }
     setItemToDelete(item);
@@ -801,16 +1024,31 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
           detail: { userId: currentUserId, date: selectedDate }
         }));
       } else {
-        alert("삭제에 실패했습니다.");
+        showAlert('삭제에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error("삭제 통신 실패:", err);
-      alert("삭제 통신 중 오류가 발생했습니다.");
+      showAlert('삭제 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsDeleteModalOpen(false);
       setItemToDelete(null);
     }
   };
+
+  const myInfo = useMemo(() => {
+    return familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
+  }, [familyMembers, currentUserId]);
+
+  const isManager = useMemo(() => {
+    if (!myInfo) return true;
+    return myInfo.role === 'GUAR' || myInfo.role === '보호자' || myInfo.role === 'USER' || familyMembers.every((m) => m.role !== 'GUAR');
+  }, [myInfo, familyMembers]);
+
+  const otherRealMembers = useMemo(() => {
+    return familyMembers.filter((m) => m.isVirtual !== 'Y' && Number(m.userId) !== Number(currentUserId));
+  }, [familyMembers, currentUserId]);
+
+  const isSoleRealMember = otherRealMembers.length === 0;
 
   return (
     <div className="family-page-wrapper">
@@ -865,10 +1103,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
               familyMembers.map((member) => {
                 // 현재 로그인한 본인 계정인지 확인
                 const isMe = Number(member.userId) === Number(currentUserId);
-
-                // 현재 로그인한 사용자 본인이 보호자(방장)인지 확인
-                const myInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
-                const isManager = myInfo?.role === 'GUAR' || myInfo?.role === '보호자';
+                const canDelete = !isMe && (isManager || member.isVirtual === 'Y');
 
                 return (
                   <div
@@ -889,10 +1124,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                       )}
                     </button>
 
-                    {/* 초대한 보호자 본인만, 타인 구성원 옆에 삭제(×) 버튼 노출 */}
-                    {isManager && !isMe && (
+                    {/* 초대한 보호자 또는 가상 계정 등 타인 구성원 옆에 삭제(×) 버튼 노출 */}
+                    {canDelete && (
                       <button
                         type="button"
+                        className="btn-family-member-delete"
                         title="가족 구성원 삭제"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -948,10 +1184,31 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                 </button>
                 <button
                   type="button"
+                  className="family-btn-med"
+                  onClick={() => {
+                    const targetId = selectedMemberId === 'all'
+                      ? (familyMembers[0]?.userId || currentUserId)
+                      : selectedMemberId;
+                    navigate(`/medication/register?userId=${targetId}`);
+                  }}
+                  title="선택된 구성원의 복용 약(처방전, 상비약, 영양제) 등록"
+                >
+                  + 약 등록
+                </button>
+                <button
+                  type="button"
                   className="family-btn-primary"
                   onClick={handleOpenReportModal}
                 >
                   보고서
+                </button>
+                <button
+                  type="button"
+                  className="family-btn-leave"
+                  onClick={handleLeaveFamily}
+                  title={isSoleRealMember || isManager ? '가족 그룹 해체' : '가족 나가기'}
+                >
+                  {isSoleRealMember ? '가족 그룹 해체' : isManager ? '가족 해체' : '가족 나가기'}
                 </button>
               </>
             )}
@@ -959,19 +1216,210 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         </div>
       </div>
 
+      {/* 도착한 가족 연동 초대 배너 (소속된 가족이 없을 때 표시) */}
+      {familyMembers.length === 0 && pendingInvitations.length > 0 && (
+        <div className="family-invite-banner">
+          <div className="family-invite-banner-header">
+            <span className="family-invite-banner-badge">초대 도착</span>
+            <span className="family-invite-banner-title">도착한 가족 연동 초대가 있습니다</span>
+          </div>
+          <div className="family-invite-list">
+            {pendingInvitations.map((inv) => (
+              <div key={inv.inviteId} className="family-invite-item">
+                <div className="family-invite-item-info">
+                  <span className="family-invite-sender"><strong>{inv.senderName}</strong> 님</span>께서{' '}
+                  <span className="family-invite-target"><strong>[{inv.familyName}]</strong></span> 그룹으로 초대했습니다.
+                  {inv.createdAt && <span className="family-invite-date">{inv.createdAt}</span>}
+                </div>
+                <div className="family-invite-item-actions">
+                  <button
+                    type="button"
+                    className="family-invite-btn-accept"
+                    onClick={() => handleRespondInvitation(inv.inviteId, 'ACCEPT')}
+                  >
+                    수락
+                  </button>
+                  <button
+                    type="button"
+                    className="family-invite-btn-reject"
+                    onClick={() => handleRespondInvitation(inv.inviteId, 'REJECT')}
+                  >
+                    거절
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 2. 상단 캘린더 */}
       <div className="family-card">
         <div className="calendar-nav">
-          <div className="calendar-month-selector">
-            <button type="button" className="calendar-arrow-btn" onClick={() => changeMonth(-1)}>
-              &lt;
+          <div className="month-controls" ref={monthPickerRef}>
+            <button
+              type="button"
+              className="cal-nav-arrow-btn"
+              onClick={() => changeMonth(-1)}
+              title="이전 달로 이동"
+              aria-label="이전 달"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
             </button>
-            <span>{year}년 {month + 1}월</span>
-            <button type="button" className="calendar-arrow-btn" onClick={() => changeMonth(1)}>
-              &gt;
+
+            <div className="month-picker-anchor">
+              <button
+                type="button"
+                className={`month-picker-trigger-btn ${isMonthPickerOpen ? 'active' : ''}`}
+                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                title="클릭하여 연도 및 월 선택"
+              >
+                <span className="picker-title-text">{year}년 {month + 1}월</span>
+                <svg
+                  className={`picker-chevron-svg ${isMonthPickerOpen ? 'open' : ''}`}
+                  width="14"
+                  height="14"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </button>
+
+              {isMonthPickerOpen && (
+                <div className="month-picker-popover" onClick={(e) => e.stopPropagation()}>
+                  {/* 연도 이동 행 */}
+                  <div className="popover-year-row">
+                    <button
+                      type="button"
+                      className="popover-arrow-btn"
+                      onClick={() => handleJumpYear(-1)}
+                      title="이전 연도"
+                      aria-label="이전 연도"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                    </button>
+
+                    <div className="custom-year-dropdown-wrap" ref={yearDropdownRef}>
+                      <button
+                        type="button"
+                        className={`custom-year-btn ${isYearDropdownOpen ? 'active' : ''}`}
+                        onClick={() => setIsYearDropdownOpen((prev) => !prev)}
+                        title="연도 목록 보기"
+                      >
+                        <span className="year-btn-text">{year}년</span>
+                        <svg
+                          className={`year-chevron-svg ${isYearDropdownOpen ? 'open' : ''}`}
+                          width="12"
+                          height="12"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </button>
+
+                      {isYearDropdownOpen && (
+                        <div className="custom-year-dropdown-menu">
+                          {calYearOptions.map((y) => (
+                            <button
+                              key={y}
+                              type="button"
+                              className={`custom-year-item ${y === year ? 'selected' : ''}`}
+                              onClick={() => {
+                                setCurrentDate(new Date(y, month, 1));
+                                setIsYearDropdownOpen(false);
+                              }}
+                            >
+                              <span>{y}년</span>
+                              {y === year && (
+                                <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className="popover-arrow-btn"
+                      onClick={() => handleJumpYear(1)}
+                      title="다음 연도"
+                      aria-label="다음 연도"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* 12개월 그리드 */}
+                  <div className="popover-months-grid">
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const isCurrentMonth = i === month;
+                      const isThisMonth = i === today.getMonth() && year === today.getFullYear();
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          className={`popover-month-btn ${isCurrentMonth ? 'selected' : ''} ${isThisMonth ? 'is-today' : ''}`}
+                          onClick={() => {
+                            setCurrentDate(new Date(year, i, 1));
+                            setIsMonthPickerOpen(false);
+                          }}
+                        >
+                          {i + 1}월
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 하단 오늘 바로가기 */}
+                  <div className="popover-footer">
+                    <button
+                      type="button"
+                      className="popover-today-btn"
+                      onClick={() => {
+                        handleGoToday();
+                        setIsMonthPickerOpen(false);
+                      }}
+                    >
+                      이번 달로 이동
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              className="cal-nav-arrow-btn"
+              onClick={() => changeMonth(1)}
+              title="다음 달로 이동"
+              aria-label="다음 달"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </button>
           </div>
-          <button type="button" className="calendar-today-btn" onClick={handleGoToday}>
+
+          <button type="button" className="btn-today" onClick={handleGoToday}>
             Today
           </button>
         </div>
@@ -1074,7 +1522,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
           {loading ? (
             <div className="chk-empty-message">일정을 불러오는 중입니다...</div>
           ) : filteredSchedules.length === 0 ? (
-            <div className="chk-empty-message">해당 시간대에 등록된 복약 일정이 없습니다.</div>
+            <div className="chk-empty-message">
+              <p style={{ margin: '0 0 8px 0' }}>해당 시간대에 등록된 복약 일정이 없습니다.</p>
+              {selectedMemberId !== 'all' && (
+                <button
+                  type="button"
+                  className="family-chk-add-med-btn"
+                  onClick={() => navigate(`/medication/register?userId=${selectedMemberId}`)}
+                >
+                  + {familyMembers.find((m) => String(m.userId) === String(selectedMemberId))?.name || '구성원'} 복용 약 등록하기
+                </button>
+              )}
+            </div>
           ) : (
             filteredSchedules.map((item) => {
               const isTaken = Boolean(item.takenAt);
@@ -1393,10 +1852,8 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                         value={newMemberRole}
                         onChange={(e) => setNewMemberRole(e.target.value)}
                       >
-                        <option value="PROT">자녀</option>
-                        <option value="PROT_SENIOR">부모님</option>
-                        <option value="GUAR">배우자</option>
-                        <option value="ETC">기타</option>
+                        <option value="PROT">피보호자</option>
+                        <option value="GUAR">보호자</option>
                       </select>
                     </div>
 
@@ -1429,11 +1886,12 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
 
                   <div>
                     <label className="family-form-label">생년월일 (선택)</label>
-                    <input
-                      type="date"
-                      className="family-form-input"
+                    <DatePicker
                       value={newMemberBirth}
                       onChange={(e) => setNewMemberBirth(e.target.value)}
+                      placeholder="생년월일 선택"
+                      max={getFormattedDate(today)}
+                      title="생년월일 선택"
                     />
                   </div>
                 </div>
@@ -1451,7 +1909,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
               /* [Track 2] 기존 가입 회원 연동 */
               <form onSubmit={handleInviteFamilyMember}>
                 <div className="family-add-notice">
-                  이미 제떼약에 가입된 가족의 아이디를 검색하여 복약 일정을 공유하고 승인을 요청합니다.
+                  이미 제떼약에 가입된 가족의 아이디로 연동 초대를 보냅니다. (단, 이미 가족 그룹에 소속되어 있는 회원은 초대할 수 없습니다.)
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', margin: '18px 0' }}>

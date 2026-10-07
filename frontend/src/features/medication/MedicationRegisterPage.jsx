@@ -15,19 +15,31 @@ import EditPrescriptionModal from './components/EditPrescriptionModal';
 import ScheduleModal from './components/ScheduleModal';
 import './MedicationRegisterPage.css';
 
+function getMemberRoleName(role) {
+  if (!role) return '';
+  const r = String(role).trim().toUpperCase();
+  if (['GUAR', 'GUARDIAN', '보호자'].includes(r)) return '보호자';
+  if (['PROT', 'PROTECTED', '피보호자'].includes(r)) return '피보호자';
+  if (['PARENT', 'FATHER', 'MOTHER', 'PARENTS', '부모님', 'PROT_SENIOR'].includes(r)) return '부모님';
+  if (['BABY', 'CHILD', 'KID', '자녀'].includes(r)) return '자녀';
+  if (['SPOUSE', '배우자'].includes(r)) return '배우자';
+  return role;
+}
+
 /**
  * 약 등록 메인 페이지 (Orchestrator)
  * - 탭 전환 및 메인 데이터(처방전 목록, 상비약/영양제 목록) 조회/삭제 관리
+ * - 가족 구성원(영유아, 노인 등 가상 프로필 포함) 선택 및 대리 등록 완벽 지원
  * - 세부 폼 상태 및 입력은 각 탭과 모달 내부에서 자율 관리
  */
 export default function MedicationRegisterPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const currentUserId = user?.userId || user?.id;
+  const loggedInUserId = user?.userId || user?.id;
 
   const { showAlert, showConfirm, showLoading, hideLoading } = useDialog();
 
-  // 탭 네비게이션 상태 (prescription | cabinet | supplement)
+  // 1. 탭 네비게이션 상태 (prescription | cabinet | supplement)
   const queryTab = new URLSearchParams(location.search).get('tab');
   const [activeTab, setActiveTab] = useState(
     ['prescription', 'cabinet', 'supplement'].includes(queryTab) ? queryTab : 'prescription'
@@ -39,42 +51,80 @@ export default function MedicationRegisterPage({ user }) {
     }
   }, [queryTab]);
 
-  // 유저 식사 시간 설정 로드 (스케줄 모달 연동용: 평일/주말 구분)
+  // 2. 가족 구성원 및 복용 대상자 관리
+  const [familyMembers, setFamilyMembers] = useState([]);
+  const queryUserId = new URLSearchParams(location.search).get('userId');
+  const [effectiveUserId, setEffectiveUserId] = useState(() => {
+    return queryUserId ? Number(queryUserId) : (loggedInUserId || null);
+  });
+
+  // 가족 구성원 목록 로드
+  useEffect(() => {
+    if (!loggedInUserId) return;
+    fetch(`/api/family/members?userId=${loggedInUserId}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((list) => {
+        if (Array.isArray(list) && list.length > 0) {
+          setFamilyMembers(list);
+          if (queryUserId) {
+            const matched = list.find((m) => Number(m.userId) === Number(queryUserId));
+            if (matched) {
+              setEffectiveUserId(Number(matched.userId));
+            }
+          }
+        }
+      })
+      .catch((err) => console.warn('가족 구성원 목록 조회 대기:', err));
+  }, [loggedInUserId, queryUserId]);
+
+  const handleTargetUserChange = (newUid) => {
+    setEffectiveUserId(newUid);
+    navigate(`/medication/register?tab=${activeTab}&userId=${newUid}`, { replace: true });
+  };
+
+  const currentTargetMember = familyMembers.find((m) => Number(m.userId) === Number(effectiveUserId)) || {
+    userId: effectiveUserId || loggedInUserId,
+    name: user?.name || user?.nickname || '본인',
+    role: 'SELF',
+    isVirtual: 'N',
+  };
+
+  // 3. 유저 식사 시간 설정 로드 (스케줄 모달 연동용: 평일/주말 구분)
   const [mealSchedule, setMealSchedule] = useState(() => {
     const defaultSched = {
       weekday: { ...DEFAULT_MEAL_TIMES },
       weekend: { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' },
     };
-    if (!currentUserId) return defaultSched;
+    if (!effectiveUserId) return defaultSched;
     try {
-      const cachedSched = localStorage.getItem(`jette_meal_schedule_${currentUserId}`);
+      const cachedSched = localStorage.getItem(`jette_meal_schedule_${effectiveUserId}`);
       if (cachedSched) return JSON.parse(cachedSched);
     } catch {}
     return defaultSched;
   });
 
   const [mealTimes, setMealTimes] = useState(() => {
-    if (!currentUserId) return DEFAULT_MEAL_TIMES;
+    if (!effectiveUserId) return DEFAULT_MEAL_TIMES;
     try {
-      const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
+      const cached = localStorage.getItem(`jette_meal_times_${effectiveUserId}`);
       if (cached) return JSON.parse(cached);
     } catch {}
     return DEFAULT_MEAL_TIMES;
   });
 
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!effectiveUserId) return;
     try {
-      const cachedSched = localStorage.getItem(`jette_meal_schedule_${currentUserId}`);
+      const cachedSched = localStorage.getItem(`jette_meal_schedule_${effectiveUserId}`);
       if (cachedSched) {
         setMealSchedule(JSON.parse(cachedSched));
       }
-      const cached = localStorage.getItem(`jette_meal_times_${currentUserId}`);
+      const cached = localStorage.getItem(`jette_meal_times_${effectiveUserId}`);
       if (cached) {
         setMealTimes(JSON.parse(cached));
       }
     } catch {}
-    fetch(`/api/users/meal-times?userId=${currentUserId}`)
+    fetch(`/api/users/meal-times?userId=${effectiveUserId}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && data.success) {
@@ -94,15 +144,15 @@ export default function MedicationRegisterPage({ user }) {
           setMealSchedule(sched);
           setMealTimes(data.isWeekend ? loadedWeekend : loadedWeekday);
           try {
-            localStorage.setItem(`jette_meal_schedule_${currentUserId}`, JSON.stringify(sched));
-            localStorage.setItem(`jette_meal_times_${currentUserId}`, JSON.stringify(data.isWeekend ? loadedWeekend : loadedWeekday));
+            localStorage.setItem(`jette_meal_schedule_${effectiveUserId}`, JSON.stringify(sched));
+            localStorage.setItem(`jette_meal_times_${effectiveUserId}`, JSON.stringify(data.isWeekend ? loadedWeekend : loadedWeekday));
           } catch {}
         }
       })
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
-  }, [currentUserId]);
+  }, [effectiveUserId]);
 
-  // 메인 데이터 상태 (서버 데이터)
+  // 4. 메인 데이터 상태 (서버 데이터)
   const [userPrescriptions, setUserPrescriptions] = useState([]);
   const [isLoadingRxList, setIsLoadingRxList] = useState(false);
   const [everydayMeds, setEverydayMeds] = useState([]);
@@ -114,13 +164,13 @@ export default function MedicationRegisterPage({ user }) {
 
   // 처방전 목록 불러오기
   const fetchPrescriptionList = useCallback(async () => {
-    if (!currentUserId) {
+    if (!effectiveUserId) {
       setUserPrescriptions([]);
       return;
     }
     setIsLoadingRxList(true);
     try {
-      const list = await fetchPrescriptions(currentUserId);
+      const list = await fetchPrescriptions(effectiveUserId);
       setUserPrescriptions(list);
     } catch (err) {
       console.warn('처방전 목록 조회 실패:', err);
@@ -128,21 +178,21 @@ export default function MedicationRegisterPage({ user }) {
     } finally {
       setIsLoadingRxList(false);
     }
-  }, [currentUserId]);
+  }, [effectiveUserId]);
 
   // 상비약 & 영양제 목록 불러오기
   const fetchEverydayMedsList = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!effectiveUserId) return;
     setIsLoadingEverydayMeds(true);
     try {
-      const list = await fetchEverydayMeds(currentUserId);
+      const list = await fetchEverydayMeds(effectiveUserId);
       setEverydayMeds(list);
     } catch (err) {
       console.warn('평소 복용 약 목록 조회 실패:', err);
     } finally {
       setIsLoadingEverydayMeds(false);
     }
-  }, [currentUserId]);
+  }, [effectiveUserId]);
 
   useEffect(() => {
     fetchPrescriptionList();
@@ -151,32 +201,29 @@ export default function MedicationRegisterPage({ user }) {
 
   // 처방전 삭제
   const handleDeleteRx = (prescriptionId) => {
-    if (!currentUserId) {
+    if (!effectiveUserId) {
       showAlert('로그인이 필요한 기능입니다.');
       return;
     }
 
     showConfirm({
       title: '처방전 삭제 확인',
-      description: '정말 이 처방전을 삭제하시겠습니까?\n포함된 처방 약품 및 오늘의 복약 루틴이 함께 삭제됩니다.',
-      confirmLabel: '삭제',
-      cancelLabel: '취소',
-      tone: 'danger',
+      message: '이 처방전과 관련된 모든 복약 일정이 캘린더에서 함께 삭제됩니다. 정말 삭제하시겠습니까?',
+      confirmText: '삭제',
+      cancelText: '취소',
+      isDestructive: true,
       onConfirm: async () => {
-        showLoading({
-          title: '처방전 삭제 처리 중',
-          description: '선택하신 처방전 및 관련 복약 기록을 삭제하고 있습니다. 잠시만 기다려 주세요.',
-        });
+        showLoading({ title: '처방전 삭제 중...' });
         try {
-          await deletePrescription(prescriptionId, currentUserId);
+          await deletePrescription(prescriptionId, effectiveUserId);
           await fetchPrescriptionList();
           window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-            detail: { userId: currentUserId }
+            detail: { userId: effectiveUserId }
           }));
-          showAlert('처방전이 삭제되었습니다.', '삭제 완료');
+          showAlert('처방전 및 관련 일정이 성공적으로 삭제되었습니다.', '삭제 완료');
         } catch (err) {
           console.error('처방전 삭제 오류:', err);
-          showAlert(err.message || '삭제 처리 중 오류가 발생했습니다.', '삭제 오류');
+          showAlert(err.message || '삭제 중 오류가 발생했습니다.', '삭제 오류');
         } finally {
           hideLoading();
         }
@@ -186,7 +233,7 @@ export default function MedicationRegisterPage({ user }) {
 
   // 평소 복용 약(상비약/영양제) 삭제
   const handleRemoveEverydayMed = (med) => {
-    if (!currentUserId) {
+    if (!effectiveUserId) {
       showAlert('로그인이 필요한 기능입니다.');
       return;
     }
@@ -199,10 +246,10 @@ export default function MedicationRegisterPage({ user }) {
       onConfirm: async () => {
         try {
           const rawId = med.rawId || (med.id ? String(med.id).replace(/^[A-Za-z]:/, '') : '');
-          await deleteEverydayMed(med.source, rawId, currentUserId);
+          await deleteEverydayMed(med.source, rawId, effectiveUserId);
           await fetchEverydayMedsList();
           window.dispatchEvent(new CustomEvent('jette-intake-updated', {
-            detail: { userId: currentUserId }
+            detail: { userId: effectiveUserId }
           }));
         } catch (err) {
           console.error('삭제 오류:', err);
@@ -232,6 +279,29 @@ export default function MedicationRegisterPage({ user }) {
             메인 홈으로 가기 →
           </button>
         </div>
+
+        {/* 가족 구성원 복용 대상자 선택 영역 */}
+        {familyMembers.length > 1 && (
+          <div className="med-target-selector-box">
+            <div className="med-target-label-wrap">
+              <svg className="med-target-icon" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+              </svg>
+              <span className="med-target-label">복용 대상자:</span>
+            </div>
+            <select
+              className="med-target-select"
+              value={effectiveUserId || loggedInUserId}
+              onChange={(e) => handleTargetUserChange(Number(e.target.value))}
+            >
+              {familyMembers.map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.name} {Number(m.userId) === Number(loggedInUserId) ? '(본인)' : `(${getMemberRoleName(m.role)})`}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="med-register-tabs">
           <button
@@ -274,7 +344,7 @@ export default function MedicationRegisterPage({ user }) {
       <main className="med-register-content">
         {activeTab === 'prescription' && (
           <PrescriptionTab
-            currentUserId={currentUserId}
+            currentUserId={effectiveUserId}
             userPrescriptions={userPrescriptions}
             isLoadingRxList={isLoadingRxList}
             fetchPrescriptionList={fetchPrescriptionList}
@@ -285,8 +355,8 @@ export default function MedicationRegisterPage({ user }) {
 
         {activeTab === 'cabinet' && (
           <CabinetTab
-            currentUserId={currentUserId}
-            username={user?.username}
+            currentUserId={effectiveUserId}
+            username={currentTargetMember?.name || user?.name || user?.username}
             everydayMeds={everydayMeds}
             onSuccess={fetchEverydayMedsList}
             onRemoveMed={handleRemoveEverydayMed}
@@ -296,8 +366,8 @@ export default function MedicationRegisterPage({ user }) {
 
         {activeTab === 'supplement' && (
           <SupplementTab
-            currentUserId={currentUserId}
-            username={user?.username}
+            currentUserId={effectiveUserId}
+            username={currentTargetMember?.name || user?.name || user?.username}
             everydayMeds={everydayMeds}
             onSuccess={fetchEverydayMedsList}
             onRemoveMed={handleRemoveEverydayMed}
@@ -310,7 +380,7 @@ export default function MedicationRegisterPage({ user }) {
       <ScheduleModal
         isOpen={Boolean(scheduleModalMed)}
         med={scheduleModalMed}
-        currentUserId={currentUserId}
+        currentUserId={effectiveUserId}
         mealTimes={mealTimes}
         mealSchedule={mealSchedule}
         onClose={() => setScheduleModalMed(null)}
@@ -323,7 +393,7 @@ export default function MedicationRegisterPage({ user }) {
       <EditPrescriptionModal
         isOpen={Boolean(editingPrescription)}
         prescription={editingPrescription}
-        currentUserId={currentUserId}
+        currentUserId={effectiveUserId}
         onClose={() => setEditingPrescription(null)}
         onSuccess={() => {
           setEditingPrescription(null);

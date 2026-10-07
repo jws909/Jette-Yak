@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useDialog } from '../contexts/DialogContext';
 import './CalendarPage.css';
 
 function getFormattedDate(targetDate) {
@@ -27,6 +28,7 @@ function saveTypeOverride(key, type) {
 }
 
 const CalendarPage = (props) => {
+  const { showAlert, showConfirm } = useDialog();
   const user = props.user;
   const today = new Date();
   const currentUserId = user?.userId || user?.id || null;
@@ -37,6 +39,12 @@ const CalendarPage = (props) => {
   const [monthSummary, setMonthSummary] = useState({});
   const [loading, setLoading] = useState(false);
   const [selectedSlotTab, setSelectedSlotTab] = useState('all'); // 'all' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime'
+
+  // 헤더 연/월 빠른 점프 팝오버 상태
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const monthPickerRef = useRef(null);
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+  const yearDropdownRef = useRef(null);
 
   // 알람 설정 모달 (시간 변경 전용)
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
@@ -69,6 +77,16 @@ const CalendarPage = (props) => {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+  const calYearOptions = useMemo(() => {
+    const start = Math.min(2020, year - 3);
+    const end = Math.max(today.getFullYear() + 5, year + 3);
+    const list = [];
+    for (let y = start; y <= end; y++) {
+      list.push(y);
+    }
+    return list;
+  }, [year, today]);
 
   // 1. 월별 요약 조회 (비로그인 시 빈 객체 처리)
   const fetchMonthSummary = useCallback(async () => {
@@ -316,10 +334,61 @@ const CalendarPage = (props) => {
     setSelectedDate(getFormattedDate(now));
   };
 
+  const handleJumpYear = (delta) => {
+    setCurrentDate(new Date(year + delta, month, 1));
+  };
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+    const handleOutside = (e) => {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target)) {
+        setIsMonthPickerOpen(false);
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') setIsMonthPickerOpen(false);
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isMonthPickerOpen]);
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) {
+      setIsYearDropdownOpen(false);
+    }
+  }, [isMonthPickerOpen]);
+
+  useEffect(() => {
+    if (!isYearDropdownOpen) return;
+    const handleOutsideYear = (e) => {
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(e.target)) {
+        setIsYearDropdownOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideYear);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideYear);
+    };
+  }, [isYearDropdownOpen]);
+
+  // 연도 드롭다운 열릴 때 현재 연도로 자동 스크롤
+  useEffect(() => {
+    if (isYearDropdownOpen && yearDropdownRef.current) {
+      const selectedItem = yearDropdownRef.current.querySelector('.custom-year-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [isYearDropdownOpen]);
+
   // 복용 체크박스 토글
   const toggleTaken = async (item) => {
     if (!currentUserId) {
-      alert('로그인 후 복약 체크 기능을 이용할 수 있습니다.');
+      showAlert('로그인 후 복약 체크 기능을 이용할 수 있습니다.', '안내');
       return;
     }
     const isTaken = !item.takenAt;
@@ -371,7 +440,7 @@ const CalendarPage = (props) => {
   const togglePouchTaken = async (pouch, e) => {
     if (e) e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 복약 체크 기능을 이용할 수 있습니다.');
+      showAlert('로그인 후 복약 체크 기능을 이용할 수 있습니다.', '안내');
       return;
     }
     const allTaken = pouch.items.every((i) => Boolean(i.takenAt));
@@ -426,7 +495,7 @@ const CalendarPage = (props) => {
   const openDeleteModal = (item, e) => {
     e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 일정을 삭제할 수 있습니다.');
+      showAlert('로그인 후 일정을 삭제할 수 있습니다.', '안내');
       return;
     }
     setItemToDelete(item);
@@ -466,11 +535,11 @@ const CalendarPage = (props) => {
           detail: { userId: currentUserId, date: selectedDate }
         }));
       } else {
-        alert("삭제에 실패했습니다.");
+        showAlert('삭제에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error("삭제 통신 실패:", err);
-      alert("삭제 통신 중 오류가 발생했습니다.");
+      showAlert('삭제 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsDeleteModalOpen(false);
       setItemToDelete(null);
@@ -508,7 +577,7 @@ const CalendarPage = (props) => {
   const openAlarmModal = (item, e) => {
     if (e) e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 알람 시간을 수정할 수 있습니다.');
+      showAlert('로그인 후 알람 시간을 수정할 수 있습니다.', '안내');
       return;
     }
     setActiveItem(item);
@@ -548,11 +617,11 @@ const CalendarPage = (props) => {
           )
         );
       } else {
-        alert('알람 시간을 저장하지 못했습니다.');
+        showAlert('알람 시간을 저장하지 못했습니다.', '오류');
       }
     } catch (err) {
       console.error("알람 시간 수정 실패:", err);
-      alert('서버 통신 중 오류가 발생했습니다.');
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsAlarmModalOpen(false);
     }
@@ -562,21 +631,21 @@ const CalendarPage = (props) => {
   const handleAddMedication = async (e) => {
     e.preventDefault();
     if (!currentUserId) {
-      alert('로그인 후 복약 일정을 등록할 수 있습니다.');
+      showAlert('로그인 후 복약 일정을 등록할 수 있습니다.', '안내');
       return;
     }
 
     if (newMedType === 'regular') {
       // 상시약: medications에 존재하는 약을 검색하여 선택 필수!
       if (!selectedMed || !selectedMed.id) {
-        alert('상시약은 의약품 검색 목록에서 약을 선택해야 등록할 수 있습니다.\n목록에 없는 약품은 상시약으로 등록할 수 없습니다.');
+        showAlert('상시약은 의약품 검색 목록에서 약을 선택해야 등록할 수 있습니다.\n목록에 없는 약품은 상시약으로 등록할 수 없습니다.', '입력 안내');
         return;
       }
     } else if (newMedType === 'supplement') {
       // 영양제: 검색 선택 또는 직접 입력
       const supName = selectedMed ? selectedMed.name : newMedName.trim();
       if (!supName) {
-        alert('영양제 이름을 입력하거나 검색하여 선택해 주세요.');
+        showAlert('영양제 이름을 입력하거나 검색하여 선택해 주세요.', '입력 안내');
         return;
       }
     }
@@ -632,11 +701,11 @@ const CalendarPage = (props) => {
         fetchEverydayMeds();
       } else {
         const errorText = await response.text().catch(() => '');
-        alert('일정 등록에 실패했습니다.' + (errorText ? ` (${errorText})` : ''));
+        showAlert('일정 등록에 실패했습니다.' + (errorText ? ` (${errorText})` : ''), '오류');
       }
     } catch (err) {
       console.error("일정 등록 실패:", err);
-      alert("서버 통신 중 오류가 발생했습니다.");
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     }
   };
 
@@ -788,10 +857,167 @@ const CalendarPage = (props) => {
         {/* 달력 영역 */}
         <div className="calendar-left">
           <div className="cal-nav">
-            <div className="month-controls">
-              <button onClick={() => changeMonth(-1)}>&lt;</button>
-              <h2>{year}년 {month + 1}월</h2>
-              <button onClick={() => changeMonth(1)}>&gt;</button>
+            <div className="month-controls" ref={monthPickerRef}>
+              <button
+                type="button"
+                className="cal-nav-arrow-btn"
+                onClick={() => changeMonth(-1)}
+                title="이전 달로 이동"
+                aria-label="이전 달"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+
+              <div className="month-picker-anchor">
+                <button
+                  type="button"
+                  className={`month-picker-trigger-btn ${isMonthPickerOpen ? 'active' : ''}`}
+                  onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                  title="클릭하여 연도 및 월 선택"
+                >
+                  <span className="picker-title-text">{year}년 {month + 1}월</span>
+                  <svg
+                    className={`picker-chevron-svg ${isMonthPickerOpen ? 'open' : ''}`}
+                    width="14"
+                    height="14"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+                {isMonthPickerOpen && (
+                  <div className="month-picker-popover" onClick={(e) => e.stopPropagation()}>
+                    {/* 연도 이동 행 */}
+                    <div className="popover-year-row">
+                      <button
+                        type="button"
+                        className="popover-arrow-btn"
+                        onClick={() => handleJumpYear(-1)}
+                        title="이전 연도"
+                        aria-label="이전 연도"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                      </button>
+
+                      <div className="custom-year-dropdown-wrap" ref={yearDropdownRef}>
+                        <button
+                          type="button"
+                          className={`custom-year-btn ${isYearDropdownOpen ? 'active' : ''}`}
+                          onClick={() => setIsYearDropdownOpen((prev) => !prev)}
+                          title="연도 목록 보기"
+                        >
+                          <span className="year-btn-text">{year}년</span>
+                          <svg
+                            className={`year-chevron-svg ${isYearDropdownOpen ? 'open' : ''}`}
+                            width="12"
+                            height="12"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+
+                        {isYearDropdownOpen && (
+                          <div className="custom-year-dropdown-menu">
+                            {calYearOptions.map((y) => (
+                              <button
+                                key={y}
+                                type="button"
+                                className={`custom-year-item ${y === year ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setCurrentDate(new Date(y, month, 1));
+                                  setIsYearDropdownOpen(false);
+                                }}
+                              >
+                                <span>{y}년</span>
+                                {y === year && (
+                                  <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="popover-arrow-btn"
+                        onClick={() => handleJumpYear(1)}
+                        title="다음 연도"
+                        aria-label="다음 연도"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* 12개월 그리드 */}
+                    <div className="popover-months-grid">
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const isCurrentMonth = i === month;
+                        const isThisMonth = i === today.getMonth() && year === today.getFullYear();
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            className={`popover-month-btn ${isCurrentMonth ? 'selected' : ''} ${isThisMonth ? 'is-today' : ''}`}
+                            onClick={() => {
+                              setCurrentDate(new Date(year, i, 1));
+                              setIsMonthPickerOpen(false);
+                            }}
+                          >
+                            {i + 1}월
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* 하단 오늘 바로가기 */}
+                    <div className="popover-footer">
+                      <button
+                        type="button"
+                        className="popover-today-btn"
+                        onClick={() => {
+                          handleGoToday();
+                          setIsMonthPickerOpen(false);
+                        }}
+                      >
+                        이번 달로 이동
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="cal-nav-arrow-btn"
+                onClick={() => changeMonth(1)}
+                title="다음 달로 이동"
+                aria-label="다음 달"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
             </div>
             <button className="btn-today" onClick={handleGoToday}>Today</button>
           </div>
@@ -1124,7 +1350,7 @@ const CalendarPage = (props) => {
             className="btn-add-dose"
             onClick={() => {
               if (!currentUserId) {
-                alert('로그인 후 복약 일정을 추가할 수 있습니다.');
+                showAlert('로그인 후 복약 일정을 추가할 수 있습니다.', '안내');
                 return;
               }
               setIsAddModalOpen(true);

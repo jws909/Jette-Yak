@@ -152,6 +152,23 @@
   background: #f8f4ed;
 }
 
+.family-btn-med {
+  background: #ffffff;
+  color: #883030;
+  border: 1px solid #d4a4a4;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.family-btn-med:hover {
+  background: #fdf5f5;
+  border-color: #883030;
+}
+
 .family-btn-primary {
   background: #631c2b;
   color: #ffffff;
@@ -165,6 +182,137 @@
 
 .family-btn-primary:hover {
   background: #4f1421;
+}
+
+.family-btn-leave {
+  background: #ffffff;
+  color: #c93b3b;
+  border: 1px solid #ecc5c5;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.family-btn-leave:hover {
+  background: #fff5f5;
+  color: #ad2828;
+  border-color: #c93b3b;
+}
+
+/* 가족 연동 초대 알림 배너 */
+.family-invite-banner {
+  background: #fdfbf7;
+  border: 1px solid #ebd8be;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.family-invite-banner-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.family-invite-banner-badge {
+  background: #631c2b;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: -0.2px;
+}
+
+.family-invite-banner-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #3b2c22;
+}
+
+.family-invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.family-invite-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #eee2cf;
+  border-radius: 8px;
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+.family-invite-item-info {
+  font-size: 13.5px;
+  color: #4a3e35;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.family-invite-sender strong {
+  color: #631c2b;
+}
+
+.family-invite-target strong {
+  color: #1e293b;
+}
+
+.family-invite-date {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-left: 6px;
+}
+
+.family-invite-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.family-invite-btn-accept {
+  background: #631c2b;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.family-invite-btn-accept:hover {
+  background: #4f1421;
+}
+
+.family-invite-btn-reject {
+  background: #ffffff;
+  color: #786b59;
+  border: 1px solid #ded6c9;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.family-invite-btn-reject:hover {
+  background: #f8f4ed;
+  color: #4a413a;
 }
 
 /* 2. 카드 공통 박스 */
@@ -186,42 +334,365 @@
   margin-bottom: 20px;
 }
 
-.calendar-month-selector {
+.month-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #faf8f5;
+  border: 1.5px solid #ebdcd9;
+  border-radius: 28px;
+  padding: 4px 6px;
+  box-shadow: 0 1px 4px rgba(125, 38, 56, 0.05);
+}
+
+/* 둥근 형태의 모던 화살표 버튼 */
+.cal-nav-arrow-btn {
+  background: #ffffff;
+  border: 1px solid #e5dbd4;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6a5a52;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.cal-nav-arrow-btn:hover {
+  background: #7d2638;
+  color: #ffffff;
+  border-color: #7d2638;
+  transform: scale(1.05);
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.2);
+}
+
+.cal-nav-arrow-btn:active {
+  transform: scale(0.95);
+}
+
+.month-picker-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.month-picker-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  color: #2b2523;
+  user-select: none;
+}
+
+.month-picker-trigger-btn:hover {
+  background: #ffffff;
+  border-color: #ebdcd9;
+  color: #7d2638;
+  box-shadow: 0 1px 4px rgba(125, 38, 56, 0.08);
+}
+
+.month-picker-trigger-btn.active {
+  background: #ffffff;
+  border-color: #7d2638;
+  color: #7d2638;
+  box-shadow: 0 0 0 3px rgba(125, 38, 56, 0.12);
+}
+
+.month-picker-trigger-btn .picker-title-text {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.picker-chevron-svg {
+  color: #7d2638;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.picker-chevron-svg.open {
+  transform: rotate(180deg);
+}
+
+/* 팝오버 컨테이너 */
+.month-picker-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 250px;
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.04);
+  padding: 14px;
+  z-index: 100;
+  box-sizing: border-box;
+  animation: monthPickerPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes monthPickerPop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* 팝오버 연도 행 */
+.popover-year-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f2ede4;
 }
 
-.calendar-month-selector span {
-  font-size: 19px;
-  font-weight: 700;
-  color: #2b2523;
-  min-width: 110px;
-}
-
-.calendar-arrow-btn {
+.popover-arrow-btn {
   background: #ffffff;
-  border: 1px solid #d5cec5;
-  border-radius: 4px;
-  width: 32px;
-  height: 30px;
+  border: 1px solid #ded6c9;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  color: #6d635b;
+  color: #5a4f47;
   cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
+.popover-arrow-btn:hover {
+  background: #7d2638;
+  color: #ffffff;
+  border-color: #7d2638;
+}
+
+/* 커스텀 연도 드롭다운 */
+.custom-year-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.custom-year-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #faf8f5;
+  border: 1px solid #ded6c9;
+  border-radius: 16px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.custom-year-btn:hover {
+  background: #fbf5f4;
+  border-color: #7d2638;
+}
+
+.custom-year-btn.active {
+  background: #ffffff;
+  border-color: #7d2638;
+  box-shadow: 0 0 0 2.5px rgba(125, 38, 56, 0.12);
+}
+
+.year-btn-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.year-chevron-svg {
+  color: #7d2638;
+  transition: transform 0.18s ease;
+}
+
+.year-chevron-svg.open {
+  transform: rotate(180deg);
+}
+
+/* 커스텀 연도 드롭다운 메뉴 */
+.custom-year-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #ebdcd9;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 3px 8px rgba(0, 0, 0, 0.05);
+  padding: 5px;
+  z-index: 200;
+  box-sizing: border-box;
+  animation: yearMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes yearMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* 커스텀 스크롤바 */
+.custom-year-dropdown-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-year-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #ded6c9;
+  border-radius: 10px;
+}
+
+.custom-year-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: #b5a999;
+}
+
+/* 연도 아이템 */
+.custom-year-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.custom-year-item:hover {
+  background: #fbf5f4;
+  color: #7d2638;
+}
+
+.custom-year-item.selected {
+  background: #7d2638;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.custom-year-item.selected svg {
+  color: #ffffff;
+}
+
+/* 12개월 그리드 */
+.popover-months-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.popover-month-btn {
+  background: #faf8f5;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: center;
+  font-family: inherit;
+}
+
+.popover-month-btn:hover {
+  background: #f4ecea;
+  color: #7d2638;
+  border-color: #e5cfcd;
+}
+
+.popover-month-btn.selected {
+  background: #7d2638 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  border-color: #7d2638 !important;
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.25);
+}
+
+.popover-month-btn.is-today:not(.selected) {
+  border: 1.5px solid #7d2638;
+  color: #7d2638;
+  font-weight: 700;
+}
+
+/* 팝오버 푸터 */
+.popover-footer {
+  padding-top: 8px;
+  border-top: 1px solid #f2ede4;
+  text-align: center;
+}
+
+.popover-today-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7d2638;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.popover-today-btn:hover {
+  background: #fbf5f4;
+}
+
+.btn-today,
 .calendar-today-btn {
   background: #ffffff;
-  border: 1px solid #d5cec5;
-  border-radius: 4px;
-  padding: 5px 14px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #524942;
+  border: 1.5px solid #ebdcd9;
+  padding: 6px 14px;
+  border-radius: 20px;
   cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5c4e46;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.btn-today:hover,
+.calendar-today-btn:hover {
+  background: #7d2638;
+  color: #ffffff;
+  border-color: #7d2638;
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.2);
 }
 
 .calendar-weekdays {
@@ -426,6 +897,25 @@
   font-size: 13.5px;
 }
 
+.family-chk-add-med-btn {
+  display: inline-block;
+  background: #fdf5f5;
+  color: #883030;
+  border: 1px solid #e0b6b6;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.family-chk-add-med-btn:hover {
+  background: #883030;
+  color: #ffffff;
+  border-color: #883030;
+}
+
 /* 리스트 한 줄 행 (하단 디바이더 선) */
 .chk-list-row {
   display: flex;
@@ -604,9 +1094,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000 !important;
   padding: 40px 20px; 
   box-sizing: border-box;
+  overflow-y: auto;
 }
 
 /* 1. 모달창 기본 폭 확장 (480px -> 680px) 및 여백 개선 */
@@ -622,7 +1113,7 @@
   flex-direction: column;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .modal-header {
@@ -1023,8 +1514,10 @@
   }
 
   .family-btn-outline,
-  .family-btn-primary {
-    padding: 7px 14px;
-    font-size: 12.5px;
+  .family-btn-med,
+  .family-btn-primary,
+  .family-btn-leave {
+    padding: 7px 12px;
+    font-size: 12px;
   }
 }

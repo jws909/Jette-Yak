@@ -5,6 +5,7 @@ import com.app.dto.SignupRequest;
 import com.app.mapper.UserMapper;
 import com.app.util.PasswordUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -35,6 +36,7 @@ public class UserServiceImpl implements UserService {
     private EmailVerificationService emailVerificationService;
 
     @Autowired
+    @Qualifier("data_source")
     private DataSource dataSource;
 
     @Override
@@ -147,171 +149,31 @@ public class UserServiceImpl implements UserService {
             throw new IllegalStateException("체험용 계정은 탈퇴할 수 없습니다.");
         }
 
+        deleteUserAccount(userId);
+    }
+
+    @Override
+    public void deleteUserAccount(Long userId) {
+        if (userId == null || userId <= 0L) {
+            throw new IllegalArgumentException("유효하지 않은 회원 식별자입니다.");
+        }
+
+        User user = userMapper.findById(userId);
+        if (user == null) {
+            return;
+        }
+
         List<String> filesToDelete = new ArrayList<>();
         Connection conn = null;
         try {
             conn = dataSource.getConnection();
             conn.setAutoCommit(false);
 
-            // 0. 삭제 전 물리 파일 경로 수집 (처방전 이미지 & 커뮤니티 첨부파일)
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "SELECT prescription_image_url FROM prescriptions WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        String url = rs.getString(1);
-                        if (url != null && url.startsWith("/uploads/prescriptions/") && !url.contains("default")) {
-                            String fileName = url.substring(url.lastIndexOf("/") + 1);
-                            filesToDelete.add(System.getProperty("user.home") + File.separator + ".jette_yak" + File.separator + "uploads" + File.separator + "prescriptions" + File.separator + fileName);
-                        }
-                    }
-                }
-            }
+            boolean isVirtual = "Y".equalsIgnoreCase(user.getIsVirtual());
+            Long familyId = user.getFamilyId();
 
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "SELECT stored_name FROM community_attachments WHERE uploader_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
-                ps.setLong(1, userId);
-                ps.setLong(2, userId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        String storedName = rs.getString(1);
-                        if (storedName != null && !storedName.isBlank()) {
-                            filesToDelete.add(System.getProperty("user.home") + File.separator + ".jette_yak" + File.separator + "uploads" + File.separator + "community" + File.separator + storedName);
-                        }
-                    }
-                }
-            }
-
-            // 1. 처방전 세부 약품 항목 삭제 (2단계 자식)
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM prescription_items WHERE prescription_id IN (SELECT prescription_id FROM prescriptions WHERE user_id = ?)")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 2. 복약 일정 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM schedules WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 3. 처방전 마스터 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM prescriptions WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 4. 보관함 상시약 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM cabinet_medications WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 5. 영양제/루틴 약 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM routine_medications WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 6. 복약 상태 관리 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM medication_use_states WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 7. AI 종합 복약 가이드 캐시 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM medication_overall_guide WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 8. 커뮤니티 데이터 삭제
-            // 8-1. 첨부파일 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM community_attachments WHERE uploader_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
-                ps.setLong(1, userId);
-                ps.setLong(2, userId);
-                ps.executeUpdate();
-            }
-
-            // 8-2. 댓글 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM community_comments WHERE user_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
-                ps.setLong(1, userId);
-                ps.setLong(2, userId);
-                ps.executeUpdate();
-            }
-
-            // 8-3. 도움돼요(추천) 삭제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM community_post_helpful WHERE user_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
-                ps.setLong(1, userId);
-                ps.setLong(2, userId);
-                ps.executeUpdate();
-            }
-
-            // 8-4. 신고 내역 삭제 및 관리자 참조 해제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM community_reports WHERE reporter_id = ? OR (target_type = 'POST' AND target_id IN (SELECT post_id FROM community_posts WHERE user_id = ?))")) {
-                ps.setLong(1, userId);
-                ps.setLong(2, userId);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE community_reports SET resolved_by = NULL WHERE resolved_by = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 8-5. 게시글 삭제 및 관리자 참조 해제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE community_posts SET moderated_by = NULL WHERE moderated_by = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM community_posts WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 9. 가족 연동 데이터 정리
-            // 9-1. 초대장 삭제 (내가 발송했거나 수신한 초대장)
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM family_invitations WHERE sender_id = ? OR receiver_id = ?")) {
-                ps.setLong(1, userId);
-                ps.setLong(2, userId);
-                ps.executeUpdate();
-            }
-
-            // 9-2. 가족 구성원 매핑 해제
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM family_members WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
-
-            // 9-3. 가족 그룹 확인 및 정리
-            Long familyId = null;
-            try (PreparedStatement ps = conn.prepareStatement("SELECT family_id FROM users WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        long fid = rs.getLong("family_id");
-                        if (!rs.wasNull() && fid > 0) {
-                            familyId = fid;
-                        }
-                    }
-                }
-            }
-
-            if (familyId != null) {
+            // 실제 회원이고 가족에 속해 있는 경우: 가족에 다른 실제 회원이 없다면 가상 유저들과 가족 그룹 정리
+            if (!isVirtual && familyId != null && familyId > 0L) {
                 int otherRealMembers = 0;
                 try (PreparedStatement ps = conn.prepareStatement(
                         "SELECT COUNT(*) FROM users WHERE family_id = ? AND NVL(is_virtual, 'N') = 'N' AND user_id != ?")) {
@@ -337,42 +199,16 @@ public class UserServiceImpl implements UserService {
                     }
 
                     for (Long vId : virtualUserIds) {
-                        try (PreparedStatement ps = conn.prepareStatement(
-                                "DELETE FROM prescription_items WHERE prescription_id IN (SELECT prescription_id FROM prescriptions WHERE user_id = ?)")) {
-                            ps.setLong(1, vId);
-                            ps.executeUpdate();
-                        }
-                        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM schedules WHERE user_id = ?")) {
-                            ps.setLong(1, vId);
-                            ps.executeUpdate();
-                        }
-                        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM prescriptions WHERE user_id = ?")) {
-                            ps.setLong(1, vId);
-                            ps.executeUpdate();
-                        }
-                        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM cabinet_medications WHERE user_id = ?")) {
-                            ps.setLong(1, vId);
-                            ps.executeUpdate();
-                        }
-                        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM routine_medications WHERE user_id = ?")) {
-                            ps.setLong(1, vId);
-                            ps.executeUpdate();
-                        }
-                        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM medication_use_states WHERE user_id = ?")) {
-                            ps.setLong(1, vId);
-                            ps.executeUpdate();
-                        }
-                        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM medication_overall_guide WHERE user_id = ?")) {
-                            ps.setLong(1, vId);
-                            ps.executeUpdate();
-                        }
+                        deleteSingleUserData(conn, vId, filesToDelete);
                     }
 
-                    try (PreparedStatement ps = conn.prepareStatement("DELETE FROM family_members WHERE family_id = ?")) {
+                    // 가족 내 모든 사용자의 family_id 연결 해제 (FK_USERS_FAMILY 위배 방지)
+                    try (PreparedStatement ps = conn.prepareStatement("UPDATE users SET family_id = NULL WHERE family_id = ?")) {
                         ps.setLong(1, familyId);
                         ps.executeUpdate();
                     }
-                    try (PreparedStatement ps = conn.prepareStatement("DELETE FROM users WHERE family_id = ? AND is_virtual = 'Y'")) {
+
+                    try (PreparedStatement ps = conn.prepareStatement("DELETE FROM family_members WHERE family_id = ?")) {
                         ps.setLong(1, familyId);
                         ps.executeUpdate();
                     }
@@ -383,33 +219,233 @@ public class UserServiceImpl implements UserService {
                 }
             }
 
-            // 10. 유저 본인 레코드 삭제
-            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM users WHERE user_id = ?")) {
-                ps.setLong(1, userId);
-                ps.executeUpdate();
-            }
+            // 본인 데이터 삭제
+            deleteSingleUserData(conn, userId, filesToDelete);
 
             conn.commit();
 
-            // 11. 로컬 프로필 이미지 및 수집된 물리 파일 삭제
-            if (user.getProfileImageUrl() != null && !user.getProfileImageUrl().isBlank()) {
-                filesToDelete.add(System.getProperty("user.home") + File.separator + ".jette_yak" + File.separator + "uploads" + File.separator + "profiles" + File.separator + Path.of(user.getProfileImageUrl()).getFileName().toString());
-            }
+            // 트랜잭션 커밋 완료 후 물리 파일 일괄 삭제
             for (String fPath : filesToDelete) {
-                try {
-                    Files.deleteIfExists(Path.of(fPath));
-                } catch (Exception ignored) {}
+                if (fPath != null && !fPath.isBlank()) {
+                    try {
+                        Files.deleteIfExists(Path.of(fPath));
+                    } catch (Exception ignored) {}
+                }
             }
 
         } catch (Exception e) {
             if (conn != null) {
                 try { conn.rollback(); } catch (Exception ignored) {}
             }
-            throw new RuntimeException("회원 탈퇴 처리 중 오류가 발생했습니다: " + e.getMessage(), e);
+            throw new RuntimeException("회원 계정 데이터 삭제 중 오류가 발생했습니다: " + e.getMessage(), e);
         } finally {
             if (conn != null) {
                 try { conn.close(); } catch (Exception ignored) {}
             }
+        }
+    }
+
+    private void deleteSingleUserData(Connection conn, Long targetId, List<String> filesToDelete) throws Exception {
+        // 0. 삭제 전 물리 파일 경로 수집 (처방전 이미지, 커뮤니티 첨부파일, 프로필 이미지)
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT prescription_image_url FROM prescriptions WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String url = rs.getString(1);
+                    if (url != null && url.startsWith("/uploads/prescriptions/") && !url.contains("default")) {
+                        String fileName = url.substring(url.lastIndexOf("/") + 1);
+                        filesToDelete.add(System.getProperty("user.home") + File.separator + ".jette_yak" + File.separator + "uploads" + File.separator + "prescriptions" + File.separator + fileName);
+                    }
+                }
+            }
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT stored_name FROM community_attachments WHERE uploader_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String storedName = rs.getString(1);
+                    if (storedName != null && !storedName.isBlank()) {
+                        filesToDelete.add(System.getProperty("user.home") + File.separator + ".jette_yak" + File.separator + "uploads" + File.separator + "community" + File.separator + storedName);
+                    }
+                }
+            }
+        }
+
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT profile_image_url FROM users WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String pUrl = rs.getString(1);
+                    if (pUrl != null && !pUrl.isBlank()) {
+                        filesToDelete.add(System.getProperty("user.home") + File.separator + ".jette_yak" + File.separator + "uploads" + File.separator + "profiles" + File.separator + Path.of(pUrl).getFileName().toString());
+                    }
+                }
+            }
+        }
+
+        // 1. 맞춤 식사 시간 삭제 (USER_MEAL_TIMES - FK_MEAL_TIMES_USER)
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM user_meal_times WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 2. 처방전 세부 약품 항목 삭제 (2단계 자식)
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM prescription_items WHERE prescription_id IN (SELECT prescription_id FROM prescriptions WHERE user_id = ?)")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 3. 복약 일정 삭제
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM schedules WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 4. 처방전 마스터 삭제
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM prescriptions WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 5. 보관함 상시약 삭제 (FK_CABINET_USER NO ACTION)
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM cabinet_medications WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 6. 영양제/루틴 약 삭제
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM routine_medications WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 7. 복약 상태 관리 삭제
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM medication_use_states WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 8. AI 종합 복약 가이드 캐시 삭제
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM medication_overall_guide WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 9. 챗봇 대화 메시지 및 대화방 삭제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM chat_messages WHERE conversation_id IN (SELECT conversation_id FROM chat_conversations WHERE user_id = ?)")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM chat_conversations WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 10. 커뮤니티 데이터 삭제
+        // 10-1. 사용자 알림 삭제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM user_notifications WHERE user_id = ? OR actor_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.setLong(3, targetId);
+            ps.executeUpdate();
+        }
+
+        // 10-2. 댓글 좋아요 삭제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM community_comment_helpful WHERE user_id = ? OR comment_id IN (" +
+                "  SELECT comment_id FROM community_comments WHERE user_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?))")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.setLong(3, targetId);
+            ps.executeUpdate();
+        }
+
+        // 10-3. 첨부파일 삭제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM community_attachments WHERE uploader_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.executeUpdate();
+        }
+
+        // 10-4. 게시글 도움돼요(추천) 삭제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM community_post_helpful WHERE user_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.executeUpdate();
+        }
+
+        // 10-5. 신고 내역 삭제 및 관리자 처리 해제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM community_reports WHERE reporter_id = ? OR (target_type = 'POST' AND target_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)) " +
+                "OR (target_type = 'COMMENT' AND target_id IN (SELECT comment_id FROM community_comments WHERE user_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)))")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.setLong(3, targetId);
+            ps.setLong(4, targetId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE community_reports SET resolved_by = NULL WHERE resolved_by = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 10-6. 대댓글 부모 참조 해제 후 댓글 삭제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE community_comments SET parent_comment_id = NULL WHERE post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?) OR user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM community_comments WHERE user_id = ? OR post_id IN (SELECT post_id FROM community_posts WHERE user_id = ?)")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.executeUpdate();
+        }
+
+        // 10-7. 게시글 삭제 및 관리자 참조 해제
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE community_posts SET moderated_by = NULL WHERE moderated_by = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM community_posts WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 11. 가족 연동 데이터 정리
+        // 11-1. 초대장 삭제 (내가 발송했거나 수신한 초대장)
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM family_invitations WHERE sender_id = ? OR receiver_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.setLong(2, targetId);
+            ps.executeUpdate();
+        }
+
+        // 11-2. 가족 구성원 매핑 해제 (FK_FM_USER NO ACTION)
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM family_members WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
+        }
+
+        // 12. 유저 본인 레코드 삭제
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM users WHERE user_id = ?")) {
+            ps.setLong(1, targetId);
+            ps.executeUpdate();
         }
     }
 }

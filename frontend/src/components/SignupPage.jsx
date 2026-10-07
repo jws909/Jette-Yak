@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import DatePicker from "./ui/DatePicker";
 import "./SignupPage.css";
 
 const SUPPLEMENTS = ["오메가-3", "유산균", "비타민D", "마그네슘", "철분", "루테인"];
@@ -562,12 +563,14 @@ export default function SignupPage() {
 
             <label className="signup-field" htmlFor="birthdate">
               생년월일
-              <input
+              <DatePicker
                 id="birthdate"
-                type="date"
+                name="birthdate"
                 max={TODAY}
                 value={form.birthdate}
                 onChange={(e) => updateField("birthdate", e.target.value)}
+                placeholder="생년월일 선택"
+                title="생년월일 선택"
               />
             </label>
 

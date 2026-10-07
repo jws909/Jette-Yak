@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useDialog } from '../../../contexts/DialogContext';
 import {
   DEFAULT_MEAL_TIMES,
   parseDateOnly,
@@ -13,6 +14,7 @@ import {
  * 메인 페이지 복약 및 처방전 데이터 관리/서버 동기화 커스텀 훅
  */
 export function useMainPageData(user, targetDate, selectedRxId) {
+  const { showAlert } = useDialog();
   const currentUserId = user?.userId || user?.id;
 
   // 처방전 데이터 및 등록 여부 상태 (DB 조회 결과에 따라 실시간 반영)
@@ -110,7 +112,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
   // 식사 시간 저장 핸들러 (평일 / 주말 지원)
   const handleSaveMealTimes = async (newTimes) => {
     if (!currentUserId) {
-      alert('로그인 후 식사 시간을 설정할 수 있습니다.');
+      showAlert('로그인 후 식사 시간을 설정할 수 있습니다.', '안내');
       return;
     }
 
@@ -608,7 +610,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
   // 단일 약 복용 체크 토글
   const toggleRoutine = async (id) => {
     if (!currentUserId) {
-      alert('로그인 후 복약 체크를 이용하실 수 있습니다.');
+      showAlert('로그인 후 복약 체크를 이용하실 수 있습니다.', '안내');
       return;
     }
     const dateStr = formatDateToHyphen(targetDate);
@@ -654,7 +656,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
   const togglePouch = async (pouch, e) => {
     if (e) e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 복약 체크를 이용하실 수 있습니다.');
+      showAlert('로그인 후 복약 체크를 이용하실 수 있습니다.', '안내');
       return;
     }
     const dateStr = formatDateToHyphen(targetDate);
