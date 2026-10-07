@@ -309,12 +309,13 @@ export default function Navbar({
     });
   }, [notifications]);
 
-  // 안 읽음 목록: 가족 초대는 수락/거절 전까지 영구 유지, 커뮤니티/일반 알림은 24시간 이내의 안 읽은 알림만 (최대 5개)
+  // 안 읽음 목록: 가족 초대 및 커뮤니티 알림은 사용자가 직접 처리/읽을 때까지 유지, 당일 복약/주의 알림은 24시간 이내 유지 (최대 5개)
   const unreadList = useMemo(() => {
     const now = Date.now();
     return sortedNotifications.filter((n) => {
       if (n.isInvitation) return true;
       if (n.read) return false;
+      if (n.saved) return true;
       const time = n.timestamp || now;
       return (now - time) < ONE_DAY_MS;
     }).slice(0, 5);
@@ -327,12 +328,13 @@ export default function Navbar({
 
   const displayedNotifications = activeTab === 'unread' ? unreadList : allList;
 
-  // 알림 뱃지 카운트: 가족 초대 + 24시간 이내 안 읽은 알림 총 개수
+  // 알림 뱃지 카운트: 가족 초대 + 미확인 커뮤니티 알림 + 24시간 이내 미확인 당일 복약 알림 총 개수
   const unreadCount = useMemo(() => {
     const now = Date.now();
     return notifications.filter((n) => {
       if (n.isInvitation) return true;
       if (n.read) return false;
+      if (n.saved) return true;
       const time = n.timestamp || now;
       return (now - time) < ONE_DAY_MS;
     }).length;
