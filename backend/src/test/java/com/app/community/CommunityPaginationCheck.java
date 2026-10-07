@@ -1,5 +1,5 @@
 /**
- * 역할: DB 연결 없이 커뮤니티의 5개 단위 페이지 경계와 목록 조회 범위를 점검
+ * 역할: DB 연결 없이 커뮤니티의 페이지 경계와 약명·성분 검색 범위 점검
  */
 package com.app.community;
 
@@ -66,13 +66,24 @@ public class CommunityPaginationCheck {
             throw new AssertionError("invalid page did not fail");
         } catch(IllegalArgumentException expected) { checks++; }
         check(dao.countCalls==calls,"invalid page fails before DAO access");
-        checkMappedOrdering(args.length==0?Path.of("backend"):Path.of(args[0]));
-        System.out.println("PASS: "+checks+" community pagination checks (mock DAO, offline mapper, no DB writes)");
+        dao.total=5;
+        service.posts("  텐%_'  ","","","LATEST",1,null);
+        check("텐%_'".equals(dao.params.get("keyword")),"search trims outer spaces and preserves literal punctuation");
+        service.posts("x".repeat(100),"","","LATEST",1,null);
+        check(String.valueOf(dao.params.get("keyword")).length()==100,"search accepts the existing 100-character limit");
+        calls=dao.countCalls;
+        try {
+            service.posts("x".repeat(101),"","","LATEST",1,null);
+            throw new AssertionError("overlong search accepted");
+        } catch(IllegalArgumentException expected) { checks++; }
+        check(dao.countCalls==calls,"overlong search fails before DAO access");
+        checkMappedOrdering(args.length==0?Path.of("backend"):Path.of(args[0]),args.length>1?Path.of(args[1]):null);
+        System.out.println("PASS: "+checks+" community pagination and search checks (mock DAO, offline mapper, no DB access)");
     }
 
-    private static void checkMappedOrdering(Path backend) throws Exception {
+    private static void checkMappedOrdering(Path backend,Path mapperOverride) throws Exception {
         Configuration config=new Configuration();
-        Path mapper=backend.resolve("src/main/webapp/WEB-INF/mybatis/mapper/community/community_mapper.xml");
+        Path mapper=mapperOverride==null?backend.resolve("src/main/webapp/WEB-INF/mybatis/mapper/community/community_mapper.xml"):mapperOverride;
         try(var in=Files.newInputStream(mapper)) {
             new XMLMapperBuilder(in,config,mapper.toString(),config.getSqlFragments()).parse();
         }
@@ -86,7 +97,38 @@ public class CommunityPaginationCheck {
                 &&bindings.equals(List.of("viewerId","offset","limit")),
                 sort+" uses a unique final post order and bound offset/limit pagination");
         }
+        checkMappedSearch(config);
     }
+
+    private static void checkMappedSearch(Configuration config) {
+        String namespace="com.app.community.CommunityMapper.";
+        String keyword="텐%_' OR 1=1--";
+        var params=Map.of("keyword",keyword,"category","QUESTION","medicationId","M1","sort","LATEST","offset",0,"limit",5,"viewerId",-1L);
+        var count=config.getMappedStatement(namespace+"countPosts").getBoundSql(params);
+        var posts=config.getMappedStatement(namespace+"posts").getBoundSql(params);
+        String countSql=compact(count.getSql()),postsSql=compact(posts.getSql());
+        String scope="WHEREp.status='VISIBLE'ANDp.category=?ANDp.medication_id=?AND(";
+        check(countSql.contains(scope)&&postsSql.contains(scope),"search alternatives stay inside visible, category and medication filters");
+        check(countSql.contains("INSTR(LOWER(p.title),LOWER(?))>0")
+            &&countSql.contains("INSTR(LOWER(p.medication_name),LOWER(?))>0")
+            &&countSql.contains("DBMS_LOB.INSTR(LOWER(p.content),LOWER(?))>0"),"existing title, saved medication name and full-content search preserved");
+        check(countSql.contains("EXISTS(SELECT1FROMmedicationssearch_medWHEREsearch_med.medication_id=p.medication_idAND("),"official search matches the linked medication without multiplying post rows");
+        check(countSql.contains("INSTR(LOWER(search_med.item_name),LOWER(?))>0")
+            &&countSql.contains("INSTR(LOWER(search_med.material_name),LOWER(?))>0"),"official name and ingredient both support case-insensitive partial search");
+        check(count.getParameterMappings().stream().filter(mapping->"keyword".equals(mapping.getProperty())).count()==5
+            &&!countSql.contains(keyword)&&!countSql.contains("LIKE"),"all search terms are bound and percent, underscore and quote remain literal");
+        String postWhere=postsSql.substring(postsSql.indexOf("WHEREp.status='VISIBLE'"),postsSql.lastIndexOf("ORDERBY"));
+        check(countSql.endsWith(postWhere),"count and list share exactly the same search predicate");
+        String blank=compact(config.getMappedStatement(namespace+"countPosts").getBoundSql(Map.of("keyword","","category","","medicationId","")).getSql());
+        check(blank.equals("SELECTCOUNT(*)FROMcommunity_postspWHEREp.status='VISIBLE'"),"empty keyword keeps the public list without extra medication lookups");
+        var detail=config.getMappedStatement(namespace+"post").getBoundSql(Map.of("postId",1L,"viewerId",-1L,"isAdmin",0));
+        String detailSql=compact(detail.getSql());
+        String fallback="NVL(p.medication_name,(SELECTlinked.item_nameFROMmedicationslinkedWHERElinked.medication_id=p.medication_id))AS\"medicationName\"";
+        check(postsSql.contains(fallback)&&detailSql.contains(fallback),"list and detail fill only missing saved medication names from the official product");
+        check(detailSql.contains("WHEREp.post_id=?ANDp.status<>'DELETED'AND(p.status='VISIBLE'OR?=1)"),"detail retains deleted exclusion and hidden-content administrator guard");
+    }
+
+    private static String compact(String sql) { return sql.replaceAll("\\s+",""); }
 
     private static long number(Map<String,Object> values,String key) { return ((Number)values.get(key)).longValue(); }
     @SuppressWarnings("unchecked")

@@ -10,13 +10,19 @@
     <if test="category != null and category != ''">AND p.category=#{category}</if>
     <if test="medicationId != null and medicationId != ''">AND p.medication_id=#{medicationId}</if>
     <if test="keyword != null and keyword != ''">
-      AND (INSTR(LOWER(p.title),LOWER(#{keyword}))&gt;0 OR INSTR(LOWER(p.medication_name),LOWER(#{keyword}))&gt;0 OR DBMS_LOB.INSTR(LOWER(p.content),LOWER(#{keyword}))&gt;0)
+      AND (INSTR(LOWER(p.title),LOWER(#{keyword}))&gt;0
+        OR INSTR(LOWER(p.medication_name),LOWER(#{keyword}))&gt;0
+        OR DBMS_LOB.INSTR(LOWER(p.content),LOWER(#{keyword}))&gt;0
+        <!-- 공식 제품명·성분도 부분 검색하고, 같은 글이 중복되지 않도록 EXISTS 사용 -->
+        OR EXISTS (SELECT 1 FROM medications search_med WHERE search_med.medication_id=p.medication_id
+          AND (INSTR(LOWER(search_med.item_name),LOWER(#{keyword}))&gt;0
+            OR INSTR(LOWER(search_med.material_name),LOWER(#{keyword}))&gt;0)))
     </if>
   </sql>
   <select id="countPosts" parameterType="map" resultType="int">SELECT COUNT(*) FROM community_posts p <include refid="postWhere"/></select>
   <select id="posts" parameterType="map" resultType="map">
     SELECT p.post_id AS "postId",p.category AS "category",p.title AS "title",DBMS_LOB.SUBSTR(p.content,260,1) AS "summary",
-      p.medication_id AS "medicationId",p.medication_name AS "medicationName",p.review_status AS "reviewStatus",
+      p.medication_id AS "medicationId",NVL(p.medication_name,(SELECT linked.item_name FROM medications linked WHERE linked.medication_id=p.medication_id)) AS "medicationName",p.review_status AS "reviewStatus",
       u.nickname AS "authorName",p.user_id AS "authorId",
       CASE WHEN u.profile_image_url IS NOT NULL THEN '/api/users/profile-image/user/'||TO_CHAR(u.user_id) END AS "authorProfileImageUrl",
       TO_CHAR(p.created_at + (9/24),'YYYY-MM-DD HH24:MI') AS "createdAt",
@@ -40,7 +46,7 @@
     ) WHERE ROWNUM &lt;= 5
   </select>
   <select id="post" parameterType="map" resultType="map">
-    SELECT p.post_id AS "postId",p.category AS "category",p.title AS "title",DBMS_LOB.SUBSTR(p.content,4000,1) AS "content",p.medication_id AS "medicationId",p.medication_name AS "medicationName",
+    SELECT p.post_id AS "postId",p.category AS "category",p.title AS "title",DBMS_LOB.SUBSTR(p.content,4000,1) AS "content",p.medication_id AS "medicationId",NVL(p.medication_name,(SELECT linked.item_name FROM medications linked WHERE linked.medication_id=p.medication_id)) AS "medicationName",
       p.experience_duration AS "experienceDuration",p.age_group AS "ageGroup",p.purpose AS "purpose",p.occurrence_timing AS "occurrenceTiming",p.currently_taking AS "currentlyTaking",
       p.review_status AS "reviewStatus",p.status AS "status",p.user_id AS "authorId",u.nickname AS "authorName",
       CASE WHEN u.profile_image_url IS NOT NULL THEN '/api/users/profile-image/user/'||TO_CHAR(u.user_id) END AS "authorProfileImageUrl",

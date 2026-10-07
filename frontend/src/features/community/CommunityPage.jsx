@@ -12,27 +12,11 @@ import { useReadingProfile } from '../../contexts/ReadingContext'
 import { validatePost, validateAttachments } from './communityValidation'
 import CommunityPostComposer from './CommunityPostComposer'
 import CommunityFieldCount from './CommunityFieldCount'
+import CommunityPostSearch from './CommunityPostSearch'
+import { communityApi as api } from './communityApi'
 
 const categories={ALL:'전체',EXPERIENCE:'복용 경험',QUESTION:'질문',SIDE_EFFECT:'부작용 경험',INFO_REPORT:'정보 제보'}
 const emptyForm={category:'EXPERIENCE',title:'',content:'',medicationId:'',medicationName:'',experienceDuration:'',ageGroup:'',purpose:'',occurrenceTiming:'',currentlyTaking:false}
-
-// 빈 삭제 응답은 성공으로 처리하고, HTML 오류 페이지나 통신 실패도 사용자가 이해할 안내로 변환
-async function api(url,options){
-  let response
-  try { response=await fetch(url,options) }
-  catch(error){
-    if(error.name==='AbortError')throw error
-    throw new Error('서버에 연결하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해주세요.',{cause:error})
-  }
-  if(response.status===204)return {}
-  const data=await response.json().catch(()=>null)
-  if(!response.ok){
-    const fallback=response.status===413?'첨부파일 용량이 너무 커요. 파일 크기를 확인해주세요.':response.status===401?'로그인이 만료됐어요. 다시 로그인한 뒤 시도해주세요.':'요청을 완료하지 못했어요. 잠시 후 다시 시도해주세요.'
-    throw new Error(typeof data?.message==='string'?data.message:fallback)
-  }
-  if(data===null)throw new Error('서버 응답을 확인하지 못했어요. 잠시 후 다시 시도해주세요.')
-  return data
-}
 
 function UserAvatar({name,imageUrl,size='small'}){
   const [imageFailed,setImageFailed]=useState(false)
@@ -65,6 +49,7 @@ export default function CommunityPage({user}){
   const linkedMedicationName=initialParams.get('medicationName')||''
   // 목록 검색 조건과 서버에서 받은 페이지 결과
   const [filters,setFilters]=useState({q:'',category:'ALL',sort:'LATEST',page:1})
+  const [searchText,setSearchText]=useState('')
   const [result,setResult]=useState({items:[],total:0,page:1,pageSize:5,totalPages:1,hasMore:false})
   const [loadedQuery,setLoadedQuery]=useState(null)
   const [refreshing,setRefreshing]=useState(false)
@@ -118,6 +103,12 @@ export default function CommunityPage({user}){
   const medSearchError=needsMedSearch&&medSearchResult.query===medKeyword?medSearchResult.error:''
 
   function showFeedback(title,message,field,scope='compose'){setFeedback({title,message,field,scope})}
+  function searchPosts(keyword){setFilters(previous=>({...previous,q:keyword,page:1}))}
+  function changeSearchText(value){
+    setSearchText(value)
+    // 검색어를 모두 지우면 남아 있는 목록 검색도 해제
+    if(!value.trim())searchPosts('')
+  }
   function closeFeedback(){
     const target=feedback
     setFeedback(null)
@@ -272,11 +263,16 @@ export default function CommunityPage({user}){
     <header className="community-header"><div><span className="section-meta-tag">약 경험 나누기</span><h1 className="section-title">약 이야기</h1><p>{reading.isChild?'궁금한 약이나 약을 먹은 경험을 나눠요. 다른 사람의 글은 보호자와 함께 읽어주세요.':'약을 먹은 경험이나 궁금한 점을 나눠보세요. 같은 약을 먹는 사람들의 이야기를 볼 수 있어요.'}</p>{linkedMedicationId&&<p className="community-linked-filter">챗봇에서 선택한 {linkedMedicationName||'약'}의 글을 보고 있어요. <Link to="/community">전체 글 보기</Link></p>}</div><button className="community-primary" disabled={busy} onClick={()=>{if(!canWrite){showFeedback('로그인이 필요해요','로그인 후 글을 작성할 수 있습니다.');return}setEditingId(null);setForm({...emptyForm,medicationId:linkedMedicationId,medicationName:linkedMedicationName});setMedQuery(linkedMedicationName);setMedSearchResult({query:'',items:[],error:''});setImageFiles([]);setDocumentFiles([]);setExistingAttachmentCounts({IMAGE:0,FILE:0});setCompose(true)}}>경험·질문 작성</button></header>
     <section className="community-safety"><strong>다른 사람의 경험을 내 약에 그대로 적용하지 마세요.</strong><div className="community-safety-copy"><p>글은 개인의 경험이에요.</p><p>약을 바꾸거나 먹는 양을 정할 때는 의사·약사와 확인해주세요.</p><p>약을 먹고 생긴 부작용은 공식 신고할 수 있어요.</p></div><a href="https://kaers.drugsafe.or.kr/kaers/report/EgovPubReportReg.do" target="_blank" rel="noreferrer">부작용 공식 신고 ↗</a></section>
     {notice&&<div className="community-notice" role="status"><span>{notice}</span><button type="button" onClick={()=>setNotice('')} aria-label="알림 닫기">×</button></div>}
-    <div className="community-toolbar"><form onSubmit={e=>{e.preventDefault();setFilters(v=>({...v,q:e.currentTarget.q.value,page:1}))}}><input name="q" defaultValue={filters.q} placeholder="약 이름, 성분, 경험 내용 검색"/><button>검색</button></form><select value={filters.sort} onChange={e=>setFilters(v=>({...v,sort:e.target.value,page:1}))}><option value="LATEST">최신순</option><option value="HELPFUL">도움순</option><option value="COMMENTS">댓글순</option></select></div>
+    <div className="community-toolbar">
+      <CommunityPostSearch value={searchText} onChange={changeSearchText} onSearch={searchPosts} onSelect={openPost}
+        category={filters.category} sort={filters.sort} medicationId={linkedMedicationId} categories={categories} busy={busy}/>
+      <select aria-label="게시글 정렬" value={filters.sort} onChange={event=>{const sort=event.target.value;setFilters(previous=>({...previous,sort,page:1}))}}><option value="LATEST">최신순</option><option value="HELPFUL">도움순</option><option value="COMMENTS">댓글순</option></select>
+    </div>
     <div className="community-tabs">{Object.entries(categories).map(([key,label])=><button key={key} aria-pressed={filters.category===key} onClick={()=>setFilters(v=>({...v,category:key,page:1}))}>{label}</button>)}</div>
     <div className="community-layout"><main className="community-feed" aria-busy={loading}>
+      {filters.q&&<div className="community-applied-search"><p><strong>“{filters.q}”</strong> 검색 결과</p><button type="button" onClick={()=>changeSearchText('')}>검색 해제</button></div>}
       <div className="community-count">게시글 <strong>{result.total}</strong>건 <span>· 한 페이지에 5개씩</span></div>{loading&&<p className="community-submit-status" role="status"><span className="community-spinner" aria-hidden="true"/>글을 불러오고 있어요…</p>}{!loading&&error&&<p className="community-error" role="alert">{error}</p>}
-      {!loading&&!error&&!result.items.length&&<div className="community-empty">아직 등록된 이야기가 없습니다. 첫 경험을 공유해보세요.</div>}
+      {!loading&&!error&&!result.items.length&&<div className="community-empty">{filters.q?'일치하는 글을 찾지 못했어요. 약 이름을 더 짧게 입력하거나 다른 검색어로 찾아보세요.':'아직 등록된 이야기가 없습니다. 첫 경험을 공유해보세요.'}</div>}
       {!loading&&result.items.map(post=><article key={post.postId} className="community-card" role="button" tabIndex={busy?-1:0} aria-disabled={busy} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openPost(post.postId)}}} onClick={()=>openPost(post.postId)}><div className="community-card-top"><span className={'community-type '+post.category}>{categories[post.category]}</span>{post.reviewStatus==='PENDING'&&<span className="community-review">관리자 검토 중</span>}<time>{post.createdAt}</time></div><h2>{post.title}</h2>{post.medicationName&&<button className="community-med" type="button">{post.medicationName}</button>}<p>{post.summary}</p><footer><span className="community-author"><UserAvatar name={post.authorName} imageUrl={post.authorProfileImageUrl}/><span>{post.authorName}</span></span><span>도움 {post.helpfulCount||0}</span><span>댓글 {post.commentCount||0}</span></footer></article>)}
       <nav className="community-pagination" aria-label="게시글 페이지"><button type="button" disabled={loading||result.page<=1} onClick={()=>setFilters(v=>({...v,page:result.page-1}))}>이전</button><div className="community-page-numbers">{pageNumbers.map(pageNumber=><button key={pageNumber} type="button" aria-label={`${pageNumber} 페이지`} aria-current={pageNumber===result.page?'page':undefined} disabled={loading} onClick={()=>setFilters(v=>({...v,page:pageNumber}))}>{pageNumber}</button>)}</div><button type="button" disabled={loading||!result.hasMore} onClick={()=>setFilters(v=>({...v,page:result.page+1}))}>다음</button><span className="community-pagination-status" aria-live="polite" aria-atomic="true">{loading?'불러오는 중…':`${result.page} / ${result.totalPages} 페이지`}</span></nav>
     </main><aside className="community-side"><h3>안전한 약 이야기</h3><ul><li>효과와 부작용은 개인마다 달라요.</li><li>약을 먹는 양을 바꾸기 전에 의사·약사에게 물어보세요.</li><li>약을 팔거나 다른 사람에게 주고받으면 안 돼요.</li><li>처방전 사진의 이름·전화번호 같은 개인정보는 가려주세요.</li></ul><Link to="/chat">약 정보 물어보기 →</Link>{isAdmin&&<button className="community-admin-open" onClick={()=>setAdminOpen(true)}>관리자 신고함 열기</button>}</aside></div>
