@@ -236,7 +236,7 @@ export default function MedicationRegisterPage({ user }) {
         <div className="med-register-tabs">
           <button
             type="button"
-            className={`med-tab-btn ${activeTab === 'prescription' ? 'active' : ''}`}
+            className={`med-tab-btn tab-prescription ${activeTab === 'prescription' ? 'active' : ''}`}
             onClick={() => setActiveTab('prescription')}
           >
             <svg className="tab-svg-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
@@ -246,7 +246,7 @@ export default function MedicationRegisterPage({ user }) {
           </button>
           <button
             type="button"
-            className={`med-tab-btn ${activeTab === 'cabinet' ? 'active' : ''}`}
+            className={`med-tab-btn tab-cabinet ${activeTab === 'cabinet' ? 'active' : ''}`}
             onClick={() => setActiveTab('cabinet')}
           >
             <svg className="tab-svg-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
@@ -256,7 +256,7 @@ export default function MedicationRegisterPage({ user }) {
           </button>
           <button
             type="button"
-            className={`med-tab-btn ${activeTab === 'supplement' ? 'active' : ''}`}
+            className={`med-tab-btn tab-supplement ${activeTab === 'supplement' ? 'active' : ''}`}
             onClick={() => setActiveTab('supplement')}
           >
             <svg className="tab-svg-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">

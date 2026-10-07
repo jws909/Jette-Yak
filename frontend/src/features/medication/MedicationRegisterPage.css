@@ -86,12 +86,27 @@
 }
 
 .med-tab-btn:hover {
-  color: #883030;
+  color: #2b2520;
 }
 
-.med-tab-btn.active {
+.med-tab-btn.tab-prescription:hover,
+.med-tab-btn.tab-prescription.active {
   color: #883030;
   border-bottom-color: #883030;
+  font-weight: 700;
+}
+
+.med-tab-btn.tab-cabinet:hover,
+.med-tab-btn.tab-cabinet.active {
+  color: #2b7a4b;
+  border-bottom-color: #2b7a4b;
+  font-weight: 700;
+}
+
+.med-tab-btn.tab-supplement:hover,
+.med-tab-btn.tab-supplement.active {
+  color: #a36800;
+  border-bottom-color: #a36800;
   font-weight: 700;
 }
 
@@ -117,6 +132,16 @@
   padding: 4px 10px;
   border-radius: 20px;
   margin-bottom: 10px;
+}
+
+.cabinet-section .intro-badge {
+  color: #2b7a4b;
+  background: #eef7f0;
+}
+
+.supplement-section .intro-badge {
+  color: #a36800;
+  background: #fdf5e6;
 }
 
 .section-intro-card h2 {
@@ -886,7 +911,7 @@
 .edit-items-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 12px;
 }
 
@@ -894,22 +919,167 @@
   margin-bottom: 0;
 }
 
-.edit-add-item-btn {
-  background: #f1ede6;
-  border: 1px solid #d4cab9;
-  border-radius: 5px;
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  color: #3b322c;
+.edit-section-sub {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: #7a6f66;
+  font-weight: 500;
+}
+
+/* 처방전 약품 검색 및 추가 바 */
+.rx-item-add-box {
+  position: relative;
+  background: #ffffff;
+  border: 1.5px solid #dcd4c7;
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin: 10px 0 16px;
+  transition: all 0.2s ease;
+}
+
+.rx-item-add-box:focus-within {
+  border-color: #883030;
+  box-shadow: 0 0 0 3px rgba(136, 48, 48, 0.12);
+}
+
+.rx-search-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rx-search-input-row .search-icon {
+  font-size: 14px;
+  color: #8c8278;
+  margin-right: 2px;
+}
+
+.rx-search-input {
+  flex: 1;
+  border: none !important;
+  outline: none !important;
+  font-size: 13px;
+  color: #2b2520;
+  background: transparent !important;
+  padding: 6px 0;
+  box-shadow: none !important;
+}
+
+.rx-search-input-row .searching-spinner {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #e0d8cc;
+  border-top-color: #883030;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.clear-search-btn {
+  background: none;
+  border: none;
+  color: #9c9285;
+  font-size: 14px;
   cursor: pointer;
+  padding: 0 4px;
+}
+
+.clear-search-btn:hover {
+  color: #443c35;
+}
+
+/* 추가 검색 드롭다운 */
+.rx-add-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #dcd5c9;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(43, 37, 35, 0.14);
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.rx-add-dropdown-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8c8278;
+  background: #f7f3ec;
+  padding: 7px 12px;
+  border-bottom: 1px solid #ede7dc;
+}
+
+.rx-add-results-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.rx-add-item-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 12px;
+  border-bottom: 1px solid #f6f0e7;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.rx-add-item-option:last-child {
+  border-bottom: none;
+}
+
+.rx-add-item-option:hover,
+.rx-add-item-option.highlighted {
+  background: #fdf5f5;
+}
+
+.option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.option-name {
+  font-size: 13px;
+  color: #2b2520;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-corp {
+  font-size: 11px;
+  color: #8a7e72;
+}
+
+.option-add-badge {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #883030;
+  background: #fceeee;
+  padding: 4px 9px;
+  border-radius: 12px;
+  margin-left: 8px;
   transition: all 0.15s ease;
 }
 
-.edit-add-item-btn:hover {
+.rx-add-item-option:hover .option-add-badge,
+.rx-add-item-option.highlighted .option-add-badge {
   background: #883030;
   color: #ffffff;
-  border-color: #883030;
+}
+
+.rx-add-empty-hint {
+  padding: 16px 12px;
+  font-size: 12.5px;
+  color: #8a7e72;
+  text-align: center;
 }
 
 .edit-items-table-wrapper {
@@ -933,9 +1103,198 @@
 }
 
 .edit-items-table td {
-  padding: 6px 6px;
+  padding: 8px 6px;
   border-bottom: 1px solid #ede5da;
   vertical-align: middle;
+}
+
+.table-empty-row {
+  text-align: center;
+  padding: 24px 12px !important;
+  color: #8a7e72;
+  font-size: 13px;
+  background: #ffffff;
+}
+
+/* 개별 행 약품명 & DB 인증 뱃지 & 약품 변경 버튼 */
+.table-med-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.med-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.med-name-strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2b2520;
+}
+
+.med-badge-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1e6b36;
+  background: #e9f6ec;
+  border: 1px solid #c2e6cb;
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.med-badge-unverified {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #b52a2a;
+  background: #fdf0f0;
+  border: 1px solid #f6caca;
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+.med-entp-sub {
+  font-size: 11px;
+  color: #8a7e72;
+}
+
+.btn-change-drug {
+  align-self: flex-start;
+  margin-top: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f6f1ea;
+  border: 1px solid #dfd6c8;
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #63584e;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-change-drug:hover {
+  background: #883030;
+  color: #ffffff;
+  border-color: #883030;
+}
+
+/* 개별 행 대체 약품 검색 */
+.row-change-search-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.row-change-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.row-change-input {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1.5px solid #883030;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #2b2520;
+  background: #ffffff;
+}
+
+.row-change-input:focus {
+  outline: none;
+}
+
+.row-change-cancel-btn {
+  background: #ede6dc;
+  border: 1px solid #d8cec0;
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  color: #554a40;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.row-change-cancel-btn:hover {
+  background: #ded6cb;
+}
+
+.row-search-loading {
+  font-size: 11px;
+  color: #8c8278;
+  margin-top: 4px;
+}
+
+.row-search-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 120%;
+  min-width: 260px;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #dcd5c9;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  z-index: 1050;
+}
+
+.row-search-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border-bottom: 1px solid #f6f0e7;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.row-search-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.row-search-dropdown-item:hover {
+  background: #fdf5f5;
+}
+
+.res-item-name {
+  color: #2b2520;
+  font-weight: 700;
+}
+
+.res-entp-name {
+  color: #8c8278;
+  font-size: 11px;
+}
+
+.row-search-empty-note {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid #dcd5c9;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  color: #8c8278;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 1050;
 }
 
 .table-input {
@@ -945,7 +1304,7 @@
   border: 1px solid #dcd4c7;
   border-radius: 5px;
   font-size: 12px;
-  color: #2b2522;
+  color: #2b2520;
   background: #ffffff;
 }
 
@@ -960,13 +1319,32 @@
   border: 1px solid #dcd4c7;
   border-radius: 5px;
   font-size: 12px;
-  color: #2b2522;
+  color: #2b2520;
   background: #ffffff;
 }
 
 .table-select:focus {
   outline: none;
   border-color: #883030;
+}
+
+.table-timing-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.custom-timing-input {
+  font-size: 11.5px !important;
+  padding: 4px 6px !important;
+  border-color: #c7b9a5 !important;
+  background: #fdfaf6 !important;
+}
+
+.custom-timing-input:focus {
+  border-color: #883030 !important;
+  background: #ffffff !important;
 }
 
 .dose-input-group {
@@ -1032,6 +1410,16 @@
   border-color: #883030;
   box-shadow: 0 0 0 3px rgba(136, 48, 48, 0.12);
   background: #ffffff;
+}
+
+.cabinet-section .search-input-row:focus-within {
+  border-color: #2b7a4b;
+  box-shadow: 0 0 0 3px rgba(43, 122, 75, 0.12);
+}
+
+.supplement-section .search-input-row:focus-within {
+  border-color: #a36800;
+  box-shadow: 0 0 0 3px rgba(163, 104, 0, 0.12);
 }
 
 .search-icon {
@@ -1196,6 +1584,18 @@
   background: #883030;
   color: #ffffff;
   border-color: #883030;
+}
+
+.cabinet-section .tag-chip:hover {
+  background: #2b7a4b;
+  border-color: #2b7a4b;
+  color: #ffffff;
+}
+
+.supplement-section .tag-chip:hover {
+  background: #a36800;
+  border-color: #a36800;
+  color: #ffffff;
 }
 
 /* Search Results Grid */
@@ -1365,6 +1765,30 @@
   border-color: #883030;
 }
 
+.everyday-card.cabinet .schedule-add-btn {
+  background: #f5f9f6;
+  border: 1px solid #cfe0d5;
+  color: #2d5a3c;
+}
+
+.everyday-card.cabinet .schedule-add-btn:hover {
+  background: #2b7a4b;
+  border-color: #2b7a4b;
+  color: #ffffff;
+}
+
+.everyday-card.supplement .schedule-add-btn {
+  background: #fdfaf3;
+  border: 1px solid #ebd9c2;
+  color: #7d4e00;
+}
+
+.everyday-card.supplement .schedule-add-btn:hover {
+  background: #a36800;
+  border-color: #a36800;
+  color: #ffffff;
+}
+
 /* 상비약 카드 복용 액션 (지금 복용 / 일정 등록) */
 .card-actions-row {
   display: flex;
@@ -1455,6 +1879,18 @@
   margin: 0;
 }
 
+.schedule-modal-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schedule-modal-title-row h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
 .modal-header .close-btn {
   background: none;
   border: none;
@@ -1468,6 +1904,23 @@
   color: #6a6259;
   margin: 0 0 18px 0;
   line-height: 1.5;
+}
+
+.cabinet-modal-desc {
+  font-size: 13px;
+  color: #55504a;
+  margin: 0 0 16px 0;
+  line-height: 1.5;
+}
+
+.cabinet-modal-desc i {
+  color: #2b7a4b;
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+.cabinet-modal-desc strong {
+  color: #1e5c35;
 }
 
 .modal-box.schedule-modal-box {
@@ -1504,8 +1957,13 @@
 }
 
 .slot-checkbox-label.checked {
-  background: #fdf5e6;
-  border-color: #a36800;
+  background: #f0f8f3;
+  border-color: #2b7a4b;
+  box-shadow: 0 0 0 1px #2b7a4b;
+}
+
+.slot-checkbox-label.checked .slot-name-text {
+  color: #1e5c35;
 }
 
 .slot-checkbox-label input[type="checkbox"] {
@@ -1539,7 +1997,7 @@
 }
 
 .slot-time-input:focus {
-  border-color: #a36800;
+  border-color: #2b7a4b;
 }
 
 .slot-time-input::-webkit-calendar-picker-indicator {
@@ -1601,6 +2059,26 @@
   border-color: #883030;
 }
 
+.theme-cabinet .days-pill.active {
+  background: #2b7a4b;
+  color: #ffffff;
+  border-color: #2b7a4b;
+}
+
+.theme-supplement .days-pill.active {
+  background: #a36800;
+  color: #ffffff;
+  border-color: #a36800;
+}
+
+.theme-cabinet .days-pill:hover {
+  border-color: #2b7a4b;
+}
+
+.theme-supplement .days-pill:hover {
+  border-color: #a36800;
+}
+
 .modal-actions {
   display: flex;
   gap: 10px;
@@ -1634,11 +2112,23 @@
   background: #732626;
 }
 
-.btn-submit.supplement {
+.btn-submit.cabinet,
+.theme-cabinet .btn-submit {
+  background: #2b7a4b;
+}
+
+.btn-submit.cabinet:hover,
+.theme-cabinet .btn-submit:hover {
+  background: #23633d;
+}
+
+.btn-submit.supplement,
+.theme-supplement .btn-submit {
   background: #a36800;
 }
 
-.btn-submit.supplement:hover {
+.btn-submit.supplement:hover,
+.theme-supplement .btn-submit:hover {
   background: #845400;
 }
 
@@ -1873,6 +2363,20 @@
   box-shadow: 0 2px 6px rgba(136, 48, 48, 0.2);
 }
 
+.theme-cabinet .schedule-day-tab.active {
+  background: #2b7a4b;
+  color: #ffffff;
+  border-color: #2b7a4b;
+  box-shadow: 0 2px 6px rgba(43, 122, 75, 0.25);
+}
+
+.theme-supplement .schedule-day-tab.active {
+  background: #a36800;
+  color: #ffffff;
+  border-color: #a36800;
+  box-shadow: 0 2px 6px rgba(163, 104, 0, 0.25);
+}
+
 .schedule-sync-label {
   display: inline-flex;
   align-items: center;
@@ -1891,11 +2395,58 @@
   cursor: pointer;
 }
 
+.theme-cabinet .schedule-sync-label input[type="checkbox"] {
+  accent-color: #2b7a4b;
+}
+
+.theme-supplement .schedule-sync-label input[type="checkbox"] {
+  accent-color: #a36800;
+}
+
 .sync-active-note {
   font-size: 11.5px;
   font-weight: 700;
   color: #a36800;
   margin-left: 4px;
+}
+
+.theme-cabinet .sync-active-note {
+  color: #2b7a4b;
+}
+
+/* 현재 선택 탭 식사 시간 연동 안내 배너 - 테마별 분기 */
+.supplement-meal-notice.cabinet,
+.theme-cabinet .supplement-meal-notice {
+  background: #f0f8f3;
+  border: 1px solid #cbe4d3;
+  color: #3b5143;
+}
+
+.supplement-meal-notice.cabinet i,
+.theme-cabinet .supplement-meal-notice i {
+  color: #2b7a4b;
+}
+
+.supplement-meal-notice.cabinet strong,
+.theme-cabinet .supplement-meal-notice strong {
+  color: #1e5c35;
+}
+
+.supplement-meal-notice.supplement,
+.theme-supplement .supplement-meal-notice {
+  background: #fdfaf3;
+  border: 1px solid #eadfc9;
+  color: #635747;
+}
+
+.supplement-meal-notice.supplement i,
+.theme-supplement .supplement-meal-notice i {
+  color: #a36800;
+}
+
+.supplement-meal-notice.supplement strong,
+.theme-supplement .supplement-meal-notice strong {
+  color: #8f4700;
 }
 
 .slot-header-row {
@@ -1915,7 +2466,7 @@
   display: inline-block !important;
   width: 14px;
   height: 14px;
-  accent-color: #a36800;
+  accent-color: #2b7a4b;
   cursor: pointer;
 }
 
@@ -1932,6 +2483,12 @@
   padding: 2px 6px;
   border-radius: 4px;
   letter-spacing: -0.2px;
+}
+
+.slot-checkbox-label.checked .slot-daytimes-summary,
+.theme-cabinet .slot-checkbox-label.checked .slot-daytimes-summary {
+  background: #e2f0e6;
+  color: #246039;
 }
 
 .slot-daytimes-summary .sep {
@@ -1951,6 +2508,14 @@
 .repeat-info-text i {
   color: #883030;
   font-size: 13px;
+}
+
+.theme-cabinet .repeat-info-text i {
+  color: #2b7a4b;
+}
+
+.theme-supplement .repeat-info-text i {
+  color: #a36800;
 }
 
 /* 영양제 평일 / 주말 개별 시간 조정 목록 */
