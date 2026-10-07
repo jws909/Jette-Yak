@@ -3,6 +3,8 @@ import { useDialog } from '../../../contexts/DialogContext';
 import { saveCalendarSchedule } from '../medicationApi';
 import { DEFAULT_MEAL_TIMES, addMinutes } from '../../main/utils/mainPageUtils';
 import DatePicker from '../../../components/ui/DatePicker';
+import TimeInput24 from '../../../components/ui/TimeInput24';
+import { formatTime24 } from '../../../utils/dateTime.js';
 
 const DEFAULT_WEEKEND_MEALS = { breakfast: '09:00', lunch: '13:00', dinner: '19:00', bedtime: '23:00' };
 
@@ -100,7 +102,7 @@ function calcCabinetSlotTimes(meals) {
     morning: addMinutes(meals?.breakfast || '07:30', 30),
     lunch: addMinutes(meals?.lunch || '12:00', 30),
     dinner: addMinutes(meals?.dinner || '18:30', 30),
-    bedtime: meals?.bedtime || '22:00',
+    bedtime: formatTime24(meals?.bedtime) || '22:00',
   };
 }
 
@@ -112,7 +114,7 @@ function calcSupplementPresetTimes(meals) {
     lunch_post: meals?.lunch ? addMinutes(meals.lunch, 15) : '12:15',
     afternoon: '15:30',
     dinner_post: meals?.dinner ? addMinutes(meals.dinner, 15) : '18:45',
-    bedtime: meals?.bedtime || '22:00',
+    bedtime: formatTime24(meals?.bedtime) || '22:00',
   };
 }
 
@@ -261,8 +263,8 @@ function ScheduleForm({
         return;
       }
       selected.forEach((slot) => {
-        const wkTime = weekdayCabinetTimes[slot] || '08:30';
-        const weTime = syncWeekend ? wkTime : (weekendCabinetTimes[slot] || '09:30');
+        const wkTime = formatTime24(weekdayCabinetTimes[slot]) || '08:30';
+        const weTime = syncWeekend ? wkTime : (formatTime24(weekendCabinetTimes[slot]) || '09:30');
         targets.push({
           slot,
           weekdayTime: wkTime,
@@ -276,8 +278,8 @@ function ScheduleForm({
       }
       suppSelectedKeys.forEach((key) => {
         const preset = SUPPLEMENT_PRESETS.find((p) => p.key === key);
-        const wkTime = weekdaySuppTimes[key] || preset?.defaultTime || '09:00';
-        const weTime = syncWeekend ? wkTime : (weekendSuppTimes[key] || preset?.defaultTime || '09:00');
+        const wkTime = formatTime24(weekdaySuppTimes[key]) || preset?.defaultTime || '09:00';
+        const weTime = syncWeekend ? wkTime : (formatTime24(weekendSuppTimes[key]) || preset?.defaultTime || '09:00');
         targets.push({
           key,
           weekdayTime: wkTime,
@@ -390,7 +392,7 @@ function ScheduleForm({
           <div className={`supplement-meal-notice ${isCabinet ? 'cabinet' : 'supplement'}`}>
             <i className="fa-solid fa-circle-info" aria-hidden="true" />
             <span>
-              현재 <strong>{dayTypeTab === 'weekday' ? '평일 (월~금)' : '주말 (토~일)'}</strong> 식사 시간(아침 {currentMeals.breakfast || '07:30'}, 점심 {currentMeals.lunch || '12:00'}, 저녁 {currentMeals.dinner || '18:30'}, 취침 {currentMeals.bedtime || '22:00'})을 기준으로 시간이 계산되었습니다.
+              현재 <strong>{dayTypeTab === 'weekday' ? '평일 (월~금)' : '주말 (토~일)'}</strong> 식사 시간(아침 {formatTime24(currentMeals.breakfast) || '07:30'}, 점심 {formatTime24(currentMeals.lunch) || '12:00'}, 저녁 {formatTime24(currentMeals.dinner) || '18:30'}, 취침 {formatTime24(currentMeals.bedtime) || '22:00'})을 기준으로 시간이 계산되었습니다.
               {syncWeekend && <span className="sync-active-note"> (주말 동일 적용 중)</span>}
             </span>
           </div>
@@ -431,9 +433,9 @@ function ScheduleForm({
                           />
                           <span className="slot-name-text">{s.label}</span>
                         </div>
-                        <input
-                          type="time"
+                        <TimeInput24
                           className="slot-time-input"
+                          aria-label={`${s.label} ${dayTypeTab === 'weekday' ? '평일' : '주말'} 알림 시간`}
                           value={currentVal}
                           disabled={dayTypeTab === 'weekend' && syncWeekend}
                           onChange={(e) => {
@@ -453,9 +455,9 @@ function ScheduleForm({
                           title={`${s.label} 알림 시간 설정`}
                         />
                         <div className="slot-daytimes-summary" onClick={(e) => e.stopPropagation()}>
-                          <span>평일 {wkVal}</span>
+                          <span>평일 {formatTime24(wkVal)}</span>
                           <span className="sep">·</span>
-                          <span>주말 {weVal}</span>
+                          <span>주말 {formatTime24(weVal)}</span>
                         </div>
                       </div>
                     );
@@ -553,7 +555,7 @@ function ScheduleForm({
                         {isRec && <span className="recommend-badge">추천</span>}
                         <i className={`timing-icon fa-solid ${p.icon}`} aria-hidden="true" />
                         <span className="timing-label">{p.label}</span>
-                        <span className="timing-time">{dispTime}</span>
+                        <span className="timing-time">{formatTime24(dispTime)}</span>
                       </div>
                     );
                   })}
@@ -581,8 +583,9 @@ function ScheduleForm({
                           <div className="item-time-inputs">
                             <label className="time-sub-input-wrap">
                               <span className="time-sub-label">평일:</span>
-                              <input
-                                type="time"
+                              <TimeInput24
+                                className="time-sub-input"
+                                aria-label={`${preset.label} 평일 알림 시간`}
                                 value={wkTime}
                                 onChange={(e) => {
                                   const val = e.target.value;
@@ -595,8 +598,9 @@ function ScheduleForm({
                             </label>
                             <label className="time-sub-input-wrap">
                               <span className="time-sub-label">주말:</span>
-                              <input
-                                type="time"
+                              <TimeInput24
+                                className="time-sub-input"
+                                aria-label={`${preset.label} 주말 알림 시간`}
                                 value={weTime}
                                 disabled={syncWeekend}
                                 onChange={(e) => {

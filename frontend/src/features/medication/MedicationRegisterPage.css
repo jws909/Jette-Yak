@@ -2144,7 +2144,7 @@
 }
 
 .slot-time-input {
-  display: block;
+  display: flex;
   font-size: 11.5px;
   font-family: inherit;
   letter-spacing: -0.3px;
@@ -2163,22 +2163,18 @@
   transition: border-color 0.15s;
 }
 
-.slot-time-input:focus {
+.slot-time-input:focus-within {
   border-color: #2b7a4b;
 }
 
-.slot-time-input::-webkit-calendar-picker-indicator {
-  cursor: pointer;
-  margin: 0;
-  padding: 0;
-  width: 13px;
-  height: 13px;
-  opacity: 0.65;
-  transition: opacity 0.15s;
+/* 24시간 선택기가 들어가는 슬롯은 화면 폭에 맞춰 줄을 바꿉니다. */
+.slots-grid:has(.time-input-24) {
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
 }
 
-.slot-time-input:hover::-webkit-calendar-picker-indicator {
-  opacity: 1;
+.time-input-24.slot-time-input {
+  min-width: 112px;
+  max-width: 120px;
 }
 
 @media (max-width: 520px) {
@@ -2760,7 +2756,8 @@
   border-radius: 6px;
 }
 
-.time-sub-input-wrap input[type="time"] {
+.time-sub-input-wrap .time-input-24.time-sub-input {
+  width: 112px;
   border: none;
   background: transparent;
   font-family: inherit;
@@ -2772,9 +2769,15 @@
   padding: 0;
 }
 
-.time-sub-input-wrap input[type="time"]:disabled {
+.time-sub-input-wrap .time-input-24.time-sub-input:has(select:disabled) {
   color: #9c9285;
   cursor: not-allowed;
+}
+
+.timing-custom-item:has(.time-input-24),
+.item-time-inputs:has(.time-input-24) {
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 @media (max-width: 520px) {

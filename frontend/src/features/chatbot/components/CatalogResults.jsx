@@ -2,6 +2,8 @@
  * 역할: 구조화된 의약품·DUR 검색 결과를 카드와 근거 목록으로 표시
  * 표시 기준: 값이 있는 필드와 실제로 연결된 주의 기록만 출력
  */
+import { formatDateTime24 } from '../../../utils/dateTime.js'
+
 const types={1:'임신 중 복용 주의',2:'어르신 복용 주의',3:'나이에 따라 조심할 점',4:'함께 먹으면 안 되는 성분'}
 const fields=[['materialName','성분'],['efficacy','효능·효과'],['usageDosage','복용 방법'],['className','분류'],['etcOtcCode','전문·일반'],['ediCode','보험 코드'],['updatedAt','자료 수정일']]
 const hasValue=value=>value!==null&&value!==undefined&&String(value).trim()!==''
@@ -12,7 +14,7 @@ export function DurRecord({record}){
     {Number(record.tabooType)===1&&record.grade&&<p>임신 중 주의 등급: {record.grade}</p>}
     {Number(record.tabooType)===3&&record.ageBase&&<p>이 나이에 해당하면 확인하세요: {record.ageBase}</p>}
     {record.tabooEffect&&<p>{record.tabooEffect}</p>}
-    {record.updatedAt&&<small>자료 수정일 {record.updatedAt}</small>}
+    {record.updatedAt&&<small>자료 수정일 {formatDateTime24(record.updatedAt)}</small>}
   </article>
 }
 
@@ -31,7 +33,7 @@ export default function CatalogResults({data,onMore,onSelect,busy}){
     {data.kind==='DUR'?data.items.map((record,index)=><DurRecord key={index} record={record}/>):data.items.map(item=><article key={item.itemSeq} className="chat-catalog-product">
       <strong>{item.itemName}</strong>{item.entpName&&<p>{item.entpName}</p>}
       <button type="button" className="load-more" disabled={busy} onClick={()=>onSelect(item)}>이 약으로 질문하기</button>
-      {fields.some(([key])=>hasValue(item[key]))&&<details><summary>상세 정보 보기</summary><dl className="details-reveal">{fields.filter(([key])=>hasValue(item[key])).map(([key,label])=><div key={key}><dt>{label}</dt><dd>{item[key]}</dd></div>)}</dl></details>}
+      {fields.some(([key])=>hasValue(item[key]))&&<details><summary>상세 정보 보기</summary><dl className="details-reveal">{fields.filter(([key])=>hasValue(item[key])).map(([key,label])=><div key={key}><dt>{label}</dt><dd>{key==='updatedAt'?formatDateTime24(item[key]):item[key]}</dd></div>)}</dl></details>}
       {item.durEvidence?.length>0&&<div className="catalog-warning-list">{item.durEvidence.map((record,index)=><DurRecord key={index} record={record}/>)}</div>}
     </article>)}
     {data.hasMore&&<button type="button" className="load-more" disabled={busy} onClick={onMore}>결과 더 보기 ({data.items.length}/{data.total})</button>}

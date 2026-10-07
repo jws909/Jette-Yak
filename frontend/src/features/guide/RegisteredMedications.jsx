@@ -4,6 +4,8 @@
  * 상비약은 보관 상태만 표시, 처방이 끝났거나 시작 전인 기록도 상태 변경 제외
  * 변경 가능한 약은 저장 중 입력을 잠가 중복 요청 차단
  */
+import { formatTime24 } from '../../utils/dateTime.js'
+
 const labels = { PRESCRIPTION: '처방약', CABINET: '상비약', ROUTINE: '상시약 · 영양제' }
 const statusLabels = { ACTIVE: '복용 중', STORED: '보관 중', UNCONFIRMED: '복용 확인 필요', PAUSED: '복용 안 함', ENDED: '종료', UPCOMING: '시작 전' }
 export default function RegisteredMedications({ items, onStatus, busy }) {
@@ -37,7 +39,7 @@ export default function RegisteredMedications({ items, onStatus, busy }) {
         {item.startDate && item.endDate && <span>처방 기간: {item.startDate} ~ {item.endDate}</span>}
         {item.startDate && !item.endDate && <span>처방 시작: {item.startDate}</span>}
         {item.periodState === 'CURRENT' && item.daysRemaining > 0 && <span>{item.daysRemaining === 1 ? '처방 기간 마지막 날' : `처방 기간 ${item.daysRemaining}일 남음 (오늘 포함)`}</span>}
-        {item.takeTime && <span>복용 시각: {item.takeTime}</span>}
+        {item.takeTime && <span>복용 시각: {formatTime24(item.takeTime)}</span>}
         {item.notes && <span>{item.notes}</span>}
       </div>}
     </li>

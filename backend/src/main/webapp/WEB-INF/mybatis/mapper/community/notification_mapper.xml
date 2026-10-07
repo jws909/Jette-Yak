@@ -2,6 +2,7 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.app.community.NotificationMapper">
   <!-- 저장형 알림은 수신자 user_id를 모든 조회·변경 조건에 포함한다. -->
+  <!-- UTC SYSDATE 저장값을 게시글·댓글과 같은 한국 시각의 24시간제로 반환한다. -->
   <insert id="insert" parameterType="map">
     INSERT INTO user_notifications(notification_id,user_id,actor_id,notification_type,title,content,target_type,target_id,post_id,created_at)
     VALUES(user_notifications_seq.NEXTVAL,#{userId},#{actorId,jdbcType=NUMERIC},#{type},#{title},#{content},#{targetType,jdbcType=VARCHAR},#{targetId,jdbcType=NUMERIC},#{postId,jdbcType=NUMERIC},SYSDATE)
@@ -15,7 +16,7 @@
     SELECT n.notification_id AS "notificationId",n.notification_type AS "type",n.title AS "title",n.content AS "content",
       n.target_type AS "targetType",n.target_id AS "targetId",n.post_id AS "postId",
       CASE WHEN n.read_at IS NULL THEN 0 ELSE 1 END AS "read",
-      TO_CHAR(n.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",a.nickname AS "actorName"
+      TO_CHAR(FROM_TZ(CAST(n.created_at AS TIMESTAMP),'UTC') AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') AS "createdAt",a.nickname AS "actorName"
     FROM user_notifications n LEFT JOIN users a ON a.user_id=n.actor_id
     WHERE n.user_id=#{value} ORDER BY n.created_at DESC,n.notification_id DESC FETCH FIRST 100 ROWS ONLY
   </select>

@@ -4,6 +4,7 @@
  */
 import { useEffect, useId, useRef, useState } from 'react'
 import { communityApi } from './communityApi'
+import { formatDateTime24 } from '../../utils/dateTime.js'
 
 export default function CommunityPostSearch({ value, onChange, onSearch, onSelect, category, sort, medicationId, categories, busy }) {
   const [open, setOpen] = useState(false)
@@ -97,7 +98,7 @@ export default function CommunityPostSearch({ value, onChange, onSearch, onSelec
               <ul>{items.map(post => <li key={post.postId}><button type="button" disabled={busy} onClick={() => { setOpen(false); onSearch(keyword); onSelect(post.postId) }}>
                 <span className="community-post-search-meta">{post.medicationName && <strong>{post.medicationName}</strong>}<span>{categories[post.category] || '약 이야기'}</span></span>
                 <span className="community-post-search-title">{post.title}</span>
-                <span className="community-post-search-byline">{post.authorName}{post.createdAt && <> · {post.createdAt}</>}</span>
+                <span className="community-post-search-byline">{post.authorName}{post.createdAt && <> · {formatDateTime24(post.createdAt)}</>}</span>
               </button></li>)}</ul>
               {result.total > items.length && <button type="button" className="community-post-search-more" onClick={() => { onSearch(keyword); setOpen(false) }}>검색 결과 {result.total}개 전체 보기 →</button>}
             </> : <p className="community-post-search-status">관련 글을 찾지 못했어요. 약 이름을 더 짧게 입력하거나 다른 검색어로 찾아보세요.</p>}

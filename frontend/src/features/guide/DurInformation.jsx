@@ -3,6 +3,7 @@
  * 표시 기준: 조회 기록이 없는 유형은 빈 영역 없이 생략
  */
 import { useReadingProfile } from '../../contexts/ReadingContext'
+import { formatDateTime24 } from '../../utils/dateTime.js'
 
 const categories=[
   {type:1,title:'임신 중 복용 주의'},
@@ -29,7 +30,7 @@ export default function DurInformation({dur}){
         {type===1&&item.grade&&<p className="dur-meta">임신 중 주의 등급: {item.grade}</p>}
         {type===3&&item.ageBase&&<p className="dur-meta">이 나이에 해당하면 확인하세요: {item.ageBase}</p>}
         {item.tabooEffect?.trim()&&<p className="guide-db-text">{item.tabooEffect.trim()}</p>}
-        {item.updatedAt&&<small className="guide-note">자료 수정일 {item.updatedAt}</small>}
+        {item.updatedAt&&<small className="guide-note">자료 수정일 {formatDateTime24(item.updatedAt)}</small>}
       </li>)}</ul></details>
     })}
   </div>

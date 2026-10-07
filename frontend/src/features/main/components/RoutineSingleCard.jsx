@@ -56,7 +56,7 @@ export default function RoutineSingleCard({
         <div className="single-card-info-col">
           <div className="single-card-title-row">
             <span className={`single-card-time-slot ${itemCategory}`}>
-              [{entry.slotLabel || '정시'}{entry.time ? ` ${entry.time}` : ''}]
+              [{entry.slotLabel || '정시'}{entry.time ? ` ${formatTimeOnly(entry.time)}` : ''}]
             </span>
             <strong className="single-card-name" title={entry.name}>
               {entry.name}

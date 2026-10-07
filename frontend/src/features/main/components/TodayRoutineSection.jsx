@@ -5,6 +5,7 @@ import RoutineSingleCard from './RoutineSingleCard';
 import {
   formatDateShort,
   formatDateWithDay,
+  formatTimeOnly,
   getTargetDateDiffText,
   groupRoutineItemsByPouch,
   addMinutes,
@@ -76,7 +77,7 @@ export default function TodayRoutineSection({
       return {
         slot: meta.key,
         label: meta.label,
-        time: firstTime,
+        time: formatTimeOnly(firstTime),
         items,
         units,
       };
