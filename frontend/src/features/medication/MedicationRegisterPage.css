@@ -61,6 +61,72 @@
   border-color: #c9bfb2;
 }
 
+/* Family Target Member Selector */
+.med-target-selector-box {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: #fbf9f5;
+  border: 1px solid #e8e1d5;
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 22px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.med-target-label-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #5a5045;
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.med-target-icon {
+  width: 18px;
+  height: 18px;
+  color: #883030;
+  flex-shrink: 0;
+}
+
+.med-target-label {
+  white-space: nowrap;
+}
+
+.med-target-select {
+  padding: 6px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #2b2520;
+  background: #ffffff;
+  border: 1.5px solid #d9d0c3;
+  border-radius: 8px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.med-target-select:hover,
+.med-target-select:focus {
+  border-color: #883030;
+  box-shadow: 0 0 0 2px rgba(136, 48, 48, 0.1);
+}
+
+.virtual-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #1e5e3a;
+  background: #e8f5ec;
+  border: 1px solid #b7e1c4;
+  padding: 3px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
 /* Tabs */
 .med-register-tabs {
   display: flex;
@@ -128,6 +194,17 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
+  }
+
+  .med-target-selector-box {
+    padding: 8px 12px;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .med-target-select {
+    flex: 1;
+    min-width: 140px;
   }
 
   .med-register-tabs {

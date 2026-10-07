@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './FamilyPage.css';
 
 function getFormattedDate(targetDate) {
@@ -18,6 +19,7 @@ function getSlotFromTime(t) {
 }
 
 export default function FamilyPage(props) {
+  const navigate = useNavigate();
   const user = props.user;
   const currentUserId = user?.userId || null;
   const today = new Date();
@@ -43,13 +45,18 @@ export default function FamilyPage(props) {
     if (!role) return '';
     const r = String(role).trim().toUpperCase();
 
-    // 보호자 / 관리자 (GUAR, PROT 등)
-    if (['GUAR', 'GUARDIAN', 'PROT', 'PROTECTOR', '보호자'].includes(r)) {
+    // 보호자 / 관리자 (GUAR 등)
+    if (['GUAR', 'GUARDIAN', '보호자'].includes(r)) {
       return '(보호자)';
     }
 
+    // 피보호자 (PROT 등)
+    if (['PROT', 'PROTECTED', '피보호자'].includes(r)) {
+      return '(피보호자)';
+    }
+
     // 부모님
-    if (['PARENT', 'FATHER', 'MOTHER', 'PARENTS', '부모님', '부모', '아빠', '엄마'].includes(r)) {
+    if (['PARENT', 'FATHER', 'MOTHER', 'PARENTS', '부모님', '부모', '아빠', '엄마', 'PROT_SENIOR'].includes(r)) {
       return '(부모님)';
     }
 
@@ -274,9 +281,9 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       if (selectedMemberId === 'all') {
         currentTargetName = '가족 전체';
       } else if (targetMemberObj) {
-        // role 매핑 (PROT: 자녀/부모님, GUAR: 배우자 등 프로젝트에 맞춤)
+        // role 매핑 (PROT: 피보호자, GUAR: 보호자)
         const roleLabel = targetMemberObj.relation || targetMemberObj.roleLabel || 
-          (targetMemberObj.role === 'GUAR' ? '배우자' : targetMemberObj.role === 'PROT' ? '자녀' : targetMemberObj.role);
+          (targetMemberObj.role === 'GUAR' ? '보호자' : targetMemberObj.role === 'PROT' ? '피보호자' : targetMemberObj.role);
         currentTargetName = roleLabel ? `${targetMemberObj.name} (${roleLabel})` : targetMemberObj.name;
       } else {
         currentTargetName = user?.name ? `${user.name} (본인)` : '본인';
@@ -948,6 +955,19 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                 </button>
                 <button
                   type="button"
+                  className="family-btn-med"
+                  onClick={() => {
+                    const targetId = selectedMemberId === 'all'
+                      ? (familyMembers[0]?.userId || currentUserId)
+                      : selectedMemberId;
+                    navigate(`/medication/register?userId=${targetId}`);
+                  }}
+                  title="선택된 구성원의 복용 약(처방전, 상비약, 영양제) 등록"
+                >
+                  + 약 등록
+                </button>
+                <button
+                  type="button"
                   className="family-btn-primary"
                   onClick={handleOpenReportModal}
                 >
@@ -1074,7 +1094,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
           {loading ? (
             <div className="chk-empty-message">일정을 불러오는 중입니다...</div>
           ) : filteredSchedules.length === 0 ? (
-            <div className="chk-empty-message">해당 시간대에 등록된 복약 일정이 없습니다.</div>
+            <div className="chk-empty-message">
+              <p style={{ margin: '0 0 8px 0' }}>해당 시간대에 등록된 복약 일정이 없습니다.</p>
+              {selectedMemberId !== 'all' && (
+                <button
+                  type="button"
+                  className="family-chk-add-med-btn"
+                  onClick={() => navigate(`/medication/register?userId=${selectedMemberId}`)}
+                >
+                  + {familyMembers.find((m) => String(m.userId) === String(selectedMemberId))?.name || '구성원'} 복용 약 등록하기
+                </button>
+              )}
+            </div>
           ) : (
             filteredSchedules.map((item) => {
               const isTaken = Boolean(item.takenAt);
@@ -1393,10 +1424,8 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                         value={newMemberRole}
                         onChange={(e) => setNewMemberRole(e.target.value)}
                       >
-                        <option value="PROT">자녀</option>
-                        <option value="PROT_SENIOR">부모님</option>
-                        <option value="GUAR">배우자</option>
-                        <option value="ETC">기타</option>
+                        <option value="PROT">피보호자</option>
+                        <option value="GUAR">보호자</option>
                       </select>
                     </div>
 
