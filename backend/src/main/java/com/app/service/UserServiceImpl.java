@@ -5,6 +5,7 @@ import com.app.dto.SignupRequest;
 import com.app.mapper.UserMapper;
 import com.app.util.PasswordUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
@@ -35,6 +36,7 @@ public class UserServiceImpl implements UserService {
     private EmailVerificationService emailVerificationService;
 
     @Autowired
+    @Qualifier("data_source")
     private DataSource dataSource;
 
     @Override

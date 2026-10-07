@@ -963,9 +963,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 10000 !important;
   padding: 40px 20px; 
   box-sizing: border-box;
+  overflow-y: auto;
 }
 
 /* 1. 모달창 기본 폭 확장 (480px -> 680px) 및 여백 개선 */
@@ -981,7 +982,7 @@
   flex-direction: column;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 .modal-header {
