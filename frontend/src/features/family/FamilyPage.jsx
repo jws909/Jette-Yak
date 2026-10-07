@@ -1384,10 +1384,10 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                         value={newMemberRole}
                         onChange={(e) => setNewMemberRole(e.target.value)}
                       >
-                        <option value="PROT">자녀 (영유아/어린이)</option>
-                        <option value="PROT_SENIOR">부모님 (어르신)</option>
-                        <option value="GUAR">공동 보호자 (배우자)</option>
-                        <option value="ETC">기타 피보호자</option>
+                        <option value="PROT">자녀</option>
+                        <option value="PROT_SENIOR">부모님</option>
+                        <option value="GUAR">배우자</option>
+                        <option value="ETC">기타</option>
                       </select>
                     </div>
 
@@ -1402,7 +1402,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                             checked={newMemberSex === 'M'}
                             onChange={() => setNewMemberSex('M')}
                           />
-                          남아
+                          남성
                         </label>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px', cursor: 'pointer' }}>
                           <input
@@ -1412,7 +1412,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                             checked={newMemberSex === 'F'}
                             onChange={() => setNewMemberSex('F')}
                           />
-                          여아
+                          여성
                         </label>
                       </div>
                     </div>
