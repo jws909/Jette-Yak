@@ -130,6 +130,7 @@ export default function FamilyPage(props) {
   const [newMemberSex, setNewMemberSex] = useState('M');      // 남아 'M', 여아 'F'
   const [newMemberBirth, setNewMemberBirth] = useState('');    // 생년월일
   const [inviteLoginId, setInviteLoginId] = useState('');      // 회원 연동용 ID
+  const [pendingInvitations, setPendingInvitations] = useState([]); // 도착한 초대 목록
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -142,6 +143,23 @@ export default function FamilyPage(props) {
   // 2. 비동기 백엔드 API 통신 로직
   // =========================================================================
 
+  // 나에게 온 초대 목록 조회 (가족이 없을 때 수락할 수 있도록 안내)
+  const fetchPendingInvitations = useCallback(async () => {
+    if (!currentUserId) {
+      setPendingInvitations([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/family/invitations?userId=${currentUserId}`);
+      if (res.ok) {
+        const list = await res.json();
+        setPendingInvitations(Array.isArray(list) ? list : []);
+      }
+    } catch (err) {
+      console.warn('초대 목록 조회 실패:', err);
+    }
+  }, [currentUserId]);
+
   // (1) 가족 구성원 목록 조회
   const fetchFamilyMembers = useCallback(async () => {
     if (!currentUserId) return;
@@ -153,14 +171,16 @@ export default function FamilyPage(props) {
         setFamilyMembers(list);
         if (list.length > 0 && list[0].familyName) {
           setFamilyName(list[0].familyName);
+          setPendingInvitations([]);
         } else {
           setFamilyName('');
+          fetchPendingInvitations();
         }
       }
     } catch (err) {
       console.error('가족 구성원 조회 오류:', err);
     }
-  }, [currentUserId]);
+  }, [currentUserId, fetchPendingInvitations]);
 
   // (2) 월별 요약 조회 (달력 인디케이터용)
   const fetchMonthSummary = useCallback(async () => {
@@ -651,6 +671,120 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     });
   };
 
+  // 도착한 초대 수락/거절 핸들러 (가족이 없을 때 바로 수락 가능)
+  const handleRespondInvitation = async (inviteId, action) => {
+    if (!currentUserId) return;
+    try {
+      const res = await fetch('/api/family/invitations/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          inviteId,
+          userId: currentUserId,
+          action,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (action === 'ACCEPT') {
+          showAlert('가족 연동 초대를 수락했습니다!', '초대 수락');
+          if (props.onUserUpdated) {
+            props.onUserUpdated({ role: 'PROT' });
+          }
+          await fetchFamilyMembers();
+          fetchMonthSummary();
+          fetchDailySchedules(selectedDate);
+        } else {
+          showAlert('가족 초대를 거절했습니다.', '초대 거절');
+          fetchPendingInvitations();
+        }
+      } else {
+        showAlert(data.message || '초대 처리에 실패했습니다.', '오류');
+      }
+    } catch (err) {
+      console.error('초대 응답 오류:', err);
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
+    }
+  };
+
+  // 가족 나가기 / 가족 그룹 해체 핸들러
+  const handleLeaveFamily = () => {
+    if (!currentUserId) {
+      showAlert('로그인이 필요합니다.', '안내');
+      return;
+    }
+
+    const myMemberInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
+    const isUserRoleManager = myMemberInfo?.role === 'GUAR' || myMemberInfo?.role === '보호자' || myMemberInfo?.role === 'USER' || familyMembers.every((m) => m.role !== 'GUAR');
+    const remainingRealMembers = familyMembers.filter((m) => m.isVirtual !== 'Y' && Number(m.userId) !== Number(currentUserId));
+    const isOnlyRealUser = remainingRealMembers.length === 0;
+
+    let confirmTitle = '가족 그룹 해체';
+    let confirmDesc = '가족 그룹을 해체하시겠습니까? 등록된 가상 프로필과 가족 그룹이 삭제되며, 이후 다른 가족의 연동 초대를 받을 수 있게 됩니다.';
+    let btnLabel = '그룹 해체';
+    let forceDissolve = false;
+
+    if (isOnlyRealUser) {
+      confirmTitle = '가족 그룹 해체';
+      confirmDesc = '가족 그룹을 해체하시겠습니까? 등록된 가상 프로필과 가족 그룹이 삭제되며, 이후 다른 가족의 연동 초대를 받을 수 있게 됩니다.';
+      btnLabel = '그룹 해체';
+      forceDissolve = true;
+    } else if (isUserRoleManager) {
+      confirmTitle = '가족 그룹 해체';
+      confirmDesc = '보호자가 나가면 가족 그룹 전체가 해체되며 다른 구성원들의 가족 연동도 함께 해제됩니다. 정말 해체하시겠습니까?';
+      btnLabel = '가족 해체';
+      forceDissolve = true;
+    } else {
+      confirmTitle = '가족 나가기';
+      confirmDesc = '가족 그룹에서 나가시겠습니까? 본인만 가족 목록에서 제외되며, 개인 복약 정보와 계정은 그대로 유지됩니다.';
+      btnLabel = '가족 나가기';
+      forceDissolve = false;
+    }
+
+    showConfirm({
+      title: confirmTitle,
+      description: confirmDesc,
+      confirmLabel: btnLabel,
+      cancelLabel: '취소',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await fetch(`/api/family/leave?userId=${currentUserId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              userId: currentUserId,
+              forceDissolve,
+            }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            showAlert(data.message || '가족 그룹에서 정상적으로 나갔습니다.', '완료');
+            if (props.onUserUpdated) {
+              props.onUserUpdated({
+                familyId: null,
+                role: 'PROT',
+              });
+            }
+            setFamilyName('');
+            setFamilyMembers([]);
+            setSelectedMemberId('all');
+            await fetchFamilyMembers();
+            fetchMonthSummary();
+            fetchDailySchedules(selectedDate);
+          } else {
+            showAlert(data.message || '가족 나가기 처리에 실패했습니다.', '오류');
+          }
+        } catch (err) {
+          console.error('가족 나가기 오류:', err);
+          showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
+        }
+      },
+    });
+  };
+
 
   // 3. 캘린더 그리드 계산
   const firstDayIndex = new Date(year, month, 1).getDay();
@@ -901,6 +1035,21 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     }
   };
 
+  const myInfo = useMemo(() => {
+    return familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
+  }, [familyMembers, currentUserId]);
+
+  const isManager = useMemo(() => {
+    if (!myInfo) return true;
+    return myInfo.role === 'GUAR' || myInfo.role === '보호자' || myInfo.role === 'USER' || familyMembers.every((m) => m.role !== 'GUAR');
+  }, [myInfo, familyMembers]);
+
+  const otherRealMembers = useMemo(() => {
+    return familyMembers.filter((m) => m.isVirtual !== 'Y' && Number(m.userId) !== Number(currentUserId));
+  }, [familyMembers, currentUserId]);
+
+  const isSoleRealMember = otherRealMembers.length === 0;
+
   return (
     <div className="family-page-wrapper">
       {/* 1. 상단 타이틀 & 필터 칩 */}
@@ -954,10 +1103,6 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
               familyMembers.map((member) => {
                 // 현재 로그인한 본인 계정인지 확인
                 const isMe = Number(member.userId) === Number(currentUserId);
-
-                // 현재 로그인한 사용자 본인이 보호자(방장)이거나, 일반 사용자이거나, 가상 구성원인 경우 삭제 권한 부여
-                const myInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
-                const isManager = myInfo?.role === 'GUAR' || myInfo?.role === '보호자' || myInfo?.role === 'USER' || familyMembers.every((m) => m.role !== 'GUAR');
                 const canDelete = !isMe && (isManager || member.isVirtual === 'Y');
 
                 return (
@@ -1057,11 +1202,56 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                 >
                   보고서
                 </button>
+                <button
+                  type="button"
+                  className="family-btn-leave"
+                  onClick={handleLeaveFamily}
+                  title={isSoleRealMember || isManager ? '가족 그룹 해체' : '가족 나가기'}
+                >
+                  {isSoleRealMember ? '가족 그룹 해체' : isManager ? '가족 해체' : '가족 나가기'}
+                </button>
               </>
             )}
           </div>
         </div>
       </div>
+
+      {/* 도착한 가족 연동 초대 배너 (소속된 가족이 없을 때 표시) */}
+      {familyMembers.length === 0 && pendingInvitations.length > 0 && (
+        <div className="family-invite-banner">
+          <div className="family-invite-banner-header">
+            <span className="family-invite-banner-badge">초대 도착</span>
+            <span className="family-invite-banner-title">도착한 가족 연동 초대가 있습니다</span>
+          </div>
+          <div className="family-invite-list">
+            {pendingInvitations.map((inv) => (
+              <div key={inv.inviteId} className="family-invite-item">
+                <div className="family-invite-item-info">
+                  <span className="family-invite-sender"><strong>{inv.senderName}</strong> 님</span>께서{' '}
+                  <span className="family-invite-target"><strong>[{inv.familyName}]</strong></span> 그룹으로 초대했습니다.
+                  {inv.createdAt && <span className="family-invite-date">{inv.createdAt}</span>}
+                </div>
+                <div className="family-invite-item-actions">
+                  <button
+                    type="button"
+                    className="family-invite-btn-accept"
+                    onClick={() => handleRespondInvitation(inv.inviteId, 'ACCEPT')}
+                  >
+                    수락
+                  </button>
+                  <button
+                    type="button"
+                    className="family-invite-btn-reject"
+                    onClick={() => handleRespondInvitation(inv.inviteId, 'REJECT')}
+                  >
+                    거절
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 2. 상단 캘린더 */}
       <div className="family-card">

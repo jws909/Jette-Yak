@@ -184,6 +184,137 @@
   background: #4f1421;
 }
 
+.family-btn-leave {
+  background: #ffffff;
+  color: #c93b3b;
+  border: 1px solid #ecc5c5;
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.family-btn-leave:hover {
+  background: #fff5f5;
+  color: #ad2828;
+  border-color: #c93b3b;
+}
+
+/* 가족 연동 초대 알림 배너 */
+.family-invite-banner {
+  background: #fdfbf7;
+  border: 1px solid #ebd8be;
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.family-invite-banner-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.family-invite-banner-badge {
+  background: #631c2b;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: -0.2px;
+}
+
+.family-invite-banner-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #3b2c22;
+}
+
+.family-invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.family-invite-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #eee2cf;
+  border-radius: 8px;
+  padding: 12px 16px;
+  gap: 12px;
+}
+
+.family-invite-item-info {
+  font-size: 13.5px;
+  color: #4a3e35;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.family-invite-sender strong {
+  color: #631c2b;
+}
+
+.family-invite-target strong {
+  color: #1e293b;
+}
+
+.family-invite-date {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-left: 6px;
+}
+
+.family-invite-item-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.family-invite-btn-accept {
+  background: #631c2b;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.family-invite-btn-accept:hover {
+  background: #4f1421;
+}
+
+.family-invite-btn-reject {
+  background: #ffffff;
+  color: #786b59;
+  border: 1px solid #ded6c9;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.family-invite-btn-reject:hover {
+  background: #f8f4ed;
+  color: #4a413a;
+}
+
 /* 2. 카드 공통 박스 */
 .family-card {
   background: #ffffff;
@@ -1383,8 +1514,10 @@
   }
 
   .family-btn-outline,
-  .family-btn-primary {
-    padding: 7px 14px;
-    font-size: 12.5px;
+  .family-btn-med,
+  .family-btn-primary,
+  .family-btn-leave {
+    padding: 7px 12px;
+    font-size: 12px;
   }
 }

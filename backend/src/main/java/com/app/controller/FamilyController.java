@@ -158,9 +158,247 @@ public class FamilyController {
 			}
 		}
 	}
+
+	/**
+	 * 가족 나가기 / 가족 그룹 해체 API
+	 * POST /api/family/leave
+	 * Body: { "userId": 1, "forceDissolve": false }
+	 */
+	@PostMapping(value = "/leave", produces = MediaType.APPLICATION_JSON_VALUE)
+	public ResponseEntity<Map<String, Object>> leaveFamily(
+			@RequestBody(required = false) Map<String, Object> req,
+			@RequestParam(value = "userId", required = false) Long paramUserId,
+			javax.servlet.http.HttpServletRequest request) {
+
+		Map<String, Object> response = new HashMap<>();
+
+		// 1. 요청자 식별
+		Long currentUserId = paramUserId;
+		if (currentUserId == null && req != null && req.get("userId") != null) {
+			try {
+				currentUserId = Long.valueOf(req.get("userId").toString().trim());
+			} catch (NumberFormatException ignored) {}
+		}
+		if (currentUserId == null && request != null) {
+			var session = request.getSession(false);
+			if (session != null) {
+				Object sessionVal = session.getAttribute("userId");
+				if (sessionVal instanceof Long) {
+					currentUserId = (Long) sessionVal;
+				} else if (sessionVal instanceof Number) {
+					currentUserId = ((Number) sessionVal).longValue();
+				}
+			}
+		}
+
+		if (currentUserId == null) {
+			response.put("success", false);
+			response.put("message", "로그인이 필요합니다.");
+			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+		}
+
+		boolean forceDissolve = false;
+		if (req != null && req.get("forceDissolve") != null) {
+			Object fd = req.get("forceDissolve");
+			if (fd instanceof Boolean) {
+				forceDissolve = (Boolean) fd;
+			} else {
+				forceDissolve = "true".equalsIgnoreCase(String.valueOf(fd).trim());
+			}
+		}
+
+		// 2. 사용자의 가족 소속 및 역할 조회
+		Long familyId = null;
+		String userRole = "PROT";
+
+		try (Connection conn = dataSource.getConnection();
+		     PreparedStatement pstmt = conn.prepareStatement("SELECT FAMILY_ID, NVL(ROLE, 'PROT') AS ROLE FROM USERS WHERE USER_ID = ?")) {
+			pstmt.setLong(1, currentUserId);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					familyId = rs.getLong("FAMILY_ID");
+					if (rs.wasNull()) familyId = null;
+					userRole = rs.getString("ROLE");
+				} else {
+					response.put("success", false);
+					response.put("message", "사용자 정보를 찾을 수 없습니다.");
+					return ResponseEntity.badRequest().body(response);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			response.put("success", false);
+			response.put("message", "사용자 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+			return ResponseEntity.internalServerError().body(response);
+		}
+
+		if (familyId == null || familyId <= 0L) {
+			response.put("success", false);
+			response.put("message", "소속된 가족 그룹이 없습니다.");
+			return ResponseEntity.badRequest().body(response);
+		}
+
+		// 3. 해당 가족 그룹의 구성원 현황 파악
+		List<Long> virtualMemberIds = new ArrayList<>();
+		List<Long> otherRealMemberIds = new ArrayList<>();
+		boolean isGuardian = "GUAR".equalsIgnoreCase(userRole) || "보호자".equals(userRole);
+
+		try (Connection conn = dataSource.getConnection();
+		     PreparedStatement pstmt = conn.prepareStatement("SELECT USER_ID, NVL(IS_VIRTUAL, 'N') AS IS_VIRTUAL FROM USERS WHERE FAMILY_ID = ?")) {
+			pstmt.setLong(1, familyId);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				while (rs.next()) {
+					long mId = rs.getLong("USER_ID");
+					String mVirtual = rs.getString("IS_VIRTUAL");
+					if ("Y".equalsIgnoreCase(mVirtual)) {
+						virtualMemberIds.add(mId);
+					} else if (mId != currentUserId) {
+						otherRealMemberIds.add(mId);
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			response.put("success", false);
+			response.put("message", "가족 구성원 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+			return ResponseEntity.internalServerError().body(response);
+		}
+
+		// 4. 분기 판정
+		// 다른 실제 계정 구성원이 없거나, 보호자가 해체를 강제 승인했거나(forceDissolve), forceDissolve인 경우 -> 전체 해체(Dissolution)
+		boolean shouldDissolve = otherRealMemberIds.isEmpty() || forceDissolve;
+
+		if (!shouldDissolve && isGuardian) {
+			// 보호자인데 다른 실사용자가 남아있고 forceDissolve가 아닐 때: 확인 요구
+			response.put("success", false);
+			response.put("requiresConfirmation", true);
+			response.put("message", "보호자가 나가면 가족 그룹 전체가 해체되며 다른 구성원들의 가족 연동도 해제됩니다. 정말 해체하시겠습니까?");
+			return ResponseEntity.badRequest().body(response);
+		}
+
+		if (shouldDissolve) {
+			// [시나리오 A: 가족 그룹 전체 해체]
+			// (1) 가상 구성원 영구 삭제 (userService.deleteUserAccount)
+			for (Long vId : virtualMemberIds) {
+				try {
+					userService.deleteUserAccount(vId);
+				} catch (Exception e) {
+					System.err.println("가상 계정 삭제 중 경고 (ID: " + vId + "): " + e.getMessage());
+				}
+			}
+
+			// (2) DB 트랜잭션으로 나머지 정리
+			Connection conn = null;
+			try {
+				conn = dataSource.getConnection();
+				conn.setAutoCommit(false);
+
+				// a. 가족 관련 초대장 일괄 삭제
+				try (PreparedStatement psInv = conn.prepareStatement("DELETE FROM FAMILY_INVITATIONS WHERE FAMILY_ID = ?")) {
+					psInv.setLong(1, familyId);
+					psInv.executeUpdate();
+				} catch (Exception ignored) {}
+
+				// b. 소속된 모든 실제 유저의 FAMILY_ID를 NULL, ROLE을 'PROT'로 변경
+				try (PreparedStatement psUser = conn.prepareStatement("UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT', UPDATED_AT = SYSDATE WHERE FAMILY_ID = ?")) {
+					psUser.setLong(1, familyId);
+					psUser.executeUpdate();
+				}
+
+				// c. FAMILY_MEMBERS 매핑 삭제
+				try (PreparedStatement psMem = conn.prepareStatement("DELETE FROM FAMILY_MEMBERS WHERE FAMILY_ID = ?")) {
+					psMem.setLong(1, familyId);
+					psMem.executeUpdate();
+				}
+
+				// d. FAMILY_GROUPS 테이블이 존재할 경우 삭제
+				try (PreparedStatement psGrp = conn.prepareStatement("DELETE FROM FAMILY_GROUPS WHERE FAMILY_ID = ?")) {
+					psGrp.setLong(1, familyId);
+					psGrp.executeUpdate();
+				} catch (Exception ignored) {}
+
+				// e. FAMILIES 삭제
+				try (PreparedStatement psFam = conn.prepareStatement("DELETE FROM FAMILIES WHERE FAMILY_ID = ?")) {
+					psFam.setLong(1, familyId);
+					psFam.executeUpdate();
+				}
+
+				conn.commit();
+
+				response.put("success", true);
+				response.put("dissolved", true);
+				response.put("message", "가족 그룹이 해체되었습니다. 이제 새로운 초대를 받거나 가족을 생성할 수 있습니다.");
+				return ResponseEntity.ok(response);
+
+			} catch (Exception e) {
+				if (conn != null) {
+					try { conn.rollback(); } catch (Exception ignored) {}
+				}
+				e.printStackTrace();
+				response.put("success", false);
+				response.put("message", "가족 그룹 해체 중 오류가 발생했습니다: " + e.getMessage());
+				return ResponseEntity.internalServerError().body(response);
+			} finally {
+				if (conn != null) {
+					try { conn.close(); } catch (Exception ignored) {}
+				}
+			}
+
+		} else {
+			// [시나리오 B: 일반 구성원 1인만 가족 나가기]
+			Connection conn = null;
+			try {
+				conn = dataSource.getConnection();
+				conn.setAutoCommit(false);
+
+				// a. 본인 관련 초대장 삭제
+				try (PreparedStatement psInv = conn.prepareStatement("DELETE FROM FAMILY_INVITATIONS WHERE (RECEIVER_ID = ? OR SENDER_ID = ?) AND FAMILY_ID = ?")) {
+					psInv.setLong(1, currentUserId);
+					psInv.setLong(2, currentUserId);
+					psInv.setLong(3, familyId);
+					psInv.executeUpdate();
+				} catch (Exception ignored) {}
+
+				// b. 본인의 FAMILY_MEMBERS 매핑 삭제
+				try (PreparedStatement psMem = conn.prepareStatement("DELETE FROM FAMILY_MEMBERS WHERE FAMILY_ID = ? AND USER_ID = ?")) {
+					psMem.setLong(1, familyId);
+					psMem.setLong(2, currentUserId);
+					psMem.executeUpdate();
+				}
+
+				// c. 본인의 USERS FAMILY_ID = NULL, ROLE = 'PROT' 복원
+				try (PreparedStatement psUser = conn.prepareStatement("UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT', UPDATED_AT = SYSDATE WHERE USER_ID = ?")) {
+					psUser.setLong(1, currentUserId);
+					psUser.executeUpdate();
+				}
+
+				conn.commit();
+
+				response.put("success", true);
+				response.put("dissolved", false);
+				response.put("message", "가족 그룹에서 탈퇴했습니다.");
+				return ResponseEntity.ok(response);
+
+			} catch (Exception e) {
+				if (conn != null) {
+					try { conn.rollback(); } catch (Exception ignored) {}
+				}
+				e.printStackTrace();
+				response.put("success", false);
+				response.put("message", "가족 나가기 처리 중 오류가 발생했습니다: " + e.getMessage());
+				return ResponseEntity.internalServerError().body(response);
+			} finally {
+				if (conn != null) {
+					try { conn.close(); } catch (Exception ignored) {}
+				}
+			}
+		}
+	}
+
 	/**
 	 * 0. 가족 그룹 생성 API
 	 * POST /api/family/create
+	 * Body: { "userId": 1, "familyName": "우리 가족" }
 	 */
 	@PostMapping(value = "/create", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> createFamily(@RequestBody(required = false) Map<String, Object> req, javax.servlet.http.HttpServletRequest httpRequest) {
