@@ -14,7 +14,7 @@ import "./LoginPage.css";
  * 사용 예시:
  *   <LoginPage onLoginSuccess={(token) => { ... }} />
  */
-export default function LoginPage({ onLoginSuccess, onLoginDemoToggle }) {
+export default function LoginPage({ onLoginSuccess }) {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -293,34 +293,7 @@ export default function LoginPage({ onLoginSuccess, onLoginDemoToggle }) {
             <span aria-hidden="true">→</span>
           </button>
 
-          {onLoginDemoToggle && (
-            <button
-              type="button"
-              className="login-demo-btn"
-              onClick={onLoginDemoToggle}
-              style={{
-                width: '100%',
-                padding: '11px',
-                marginTop: '10px',
-                backgroundColor: '#f5f3f0',
-                border: '1px solid #e2ddd6',
-                borderRadius: '10px',
-                color: '#554d45',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#eae5de';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#f5f3f0';
-              }}
-            >
-              체험 모드로 바로 둘러보기
-            </button>
-          )}
+
 
           <div
             className="login-links"

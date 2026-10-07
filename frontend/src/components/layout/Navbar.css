@@ -525,22 +525,7 @@
   color: #8b3e4b;
 }
 
-.demo-login-btn {
-  background-color: #8b3e4b;
-  color: #ffffff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-  margin-left: 4px;
-  transition: background-color 0.15s ease;
-}
 
-.demo-login-btn:hover {
-  background-color: #732f3c;
-}
 
 /* 반응형 */
 @media (min-width: 768px) {
@@ -626,7 +611,6 @@
     gap: 0;
   }
 
-  .demo-login-btn,
   .guest-actions .nav-divider,
   .nav-link-signup {
     display: none !important;

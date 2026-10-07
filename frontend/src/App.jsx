@@ -379,17 +379,6 @@ function App() {
     });
   }, []);
 
-  const handleLoginDemoToggle = async () => {
-    try {
-      const response = await fetch('/api/auth/demo', { method: 'POST' });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.userId) throw new Error(data.message || '체험 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
-      handleLoginSuccess(data);
-    } catch (error) {
-      setAppFeedback(error.message || '서버에 연결하지 못했습니다. 네트워크 상태를 확인해주세요.');
-    }
-  };
-
   return (
     <ReadingProvider user={user}>
       <Routes>
@@ -398,7 +387,7 @@ function App() {
           path="/login"
           element={
             <PublicOnlyRoute isLoggedIn={isLoggedIn}>
-              <LoginPage onLoginSuccess={handleLoginSuccess} onLoginDemoToggle={handleLoginDemoToggle} />
+              <LoginPage onLoginSuccess={handleLoginSuccess} />
             </PublicOnlyRoute>
           }
         />
@@ -420,7 +409,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <MainPage key={user?.userId || user?.id || user?.username} user={user} />
               </MainLayout>
@@ -436,7 +424,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <CalendarPage user={user} />
               </MainLayout>
@@ -452,7 +439,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <MedicationRegisterPage user={user} />
               </MainLayout>
@@ -468,7 +454,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <GuidePage key={user?.userId || "guest"} />
               </MainLayout>
@@ -484,7 +469,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <MyPage user={user} onUserUpdated={handleUserUpdated} onLogout={handleLogout} />
               </MainLayout>
@@ -500,7 +484,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <FamilyPage user={user} onUserUpdated={handleUserUpdated} />
               </MainLayout>
@@ -516,7 +499,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <MedicationChat key={user?.userId || "guest"} />
               </MainLayout>
@@ -532,7 +514,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <CommunityPage user={user} />
               </MainLayout>
@@ -547,7 +528,6 @@ function App() {
                 isLoggedIn={isLoggedIn}
                 user={user}
                 onLogout={handleLogout}
-                onLoginDemoToggle={handleLoginDemoToggle}
               >
                 <AdminPage />
               </MainLayout>

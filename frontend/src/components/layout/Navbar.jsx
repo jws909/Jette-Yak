@@ -42,8 +42,7 @@ export default function Navbar({
   isSidebarOpen,
   isLoggedIn,
   user,
-  onLogout,
-  onLoginDemoToggle
+  onLogout
 }) {
   const navigate = useNavigate();
   const currentUserId = user?.userId || user?.id;
@@ -573,14 +572,6 @@ export default function Navbar({
               <Link to="/login" className="nav-link-login">로그인</Link>
               <span className="nav-divider">/</span>
               <Link to="/signup" className="nav-link-signup">회원가입</Link>
-              <button
-                type="button"
-                className="demo-login-btn"
-                onClick={onLoginDemoToggle}
-                title="와이어프레임 데모용 빠른 로그인"
-              >
-                체험하기
-              </button>
             </div>
           )}
         </div>

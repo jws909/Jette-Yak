@@ -7,8 +7,7 @@ export default function MainLayout({
   children,
   isLoggedIn,
   user,
-  onLogout,
-  onLoginDemoToggle
+  onLogout
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -29,7 +28,6 @@ export default function MainLayout({
         isLoggedIn={isLoggedIn}
         user={user}
         onLogout={onLogout}
-        onLoginDemoToggle={onLoginDemoToggle}
       />
 
       {/* 글로벌 사이드바 드로어 */}
