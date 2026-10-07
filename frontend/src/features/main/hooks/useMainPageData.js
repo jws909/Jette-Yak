@@ -5,6 +5,7 @@ import {
   DEFAULT_MEAL_TIMES,
   parseDateOnly,
   formatDateToHyphen,
+  formatTimeOnly,
   getPrescriptionStatus,
   mapPrescriptionToState,
   buildRoutineItems,
@@ -431,7 +432,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
           activeRxIdSet.has(String(schedule.prescriptionId));
       })
       .map((schedule, idx) => {
-        const timeStr = schedule.time || schedule.scheduledTime || '09:00';
+        const timeStr = formatTimeOnly(schedule.time || schedule.scheduledTime) || '09:00';
         let slot = schedule.slot;
         if (!slot) {
           const hour = parseInt(timeStr.slice(0, 2), 10);
@@ -444,7 +445,7 @@ export function useMainPageData(user, targetDate, selectedRxId) {
           scheduleId: schedule.scheduleId,
           slot,
           slotLabel,
-          time: timeStr.length >= 5 ? timeStr.slice(0, 5) : timeStr,
+          time: timeStr,
           name: schedule.name || '복용약',
           dotColor: schedule.type === 'supplement' ? '#e09f3e' : '#5c9e76',
           taken: Boolean(schedule.takenAt),

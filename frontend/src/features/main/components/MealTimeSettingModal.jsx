@@ -1,4 +1,6 @@
 import { useState, useRef } from 'react';
+import TimeInput24 from '../../../components/ui/TimeInput24';
+import { formatTime24 } from '../../../utils/dateTime.js';
 
 const FALLBACK_DEFAULT_WEEKDAY = {
   breakfast: '07:30',
@@ -44,8 +46,8 @@ function MealTimeForm({
 }) {
   const wk = mealSchedule?.weekday || mealTimes || defaultMealTimes;
   const we = mealSchedule?.weekend || FALLBACK_DEFAULT_WEEKEND;
-  const initWk = Object.fromEntries(Object.entries(FALLBACK_DEFAULT_WEEKDAY).map(([field, fallback]) => [field, wk[field] || fallback]));
-  const initWe = Object.fromEntries(Object.entries(FALLBACK_DEFAULT_WEEKEND).map(([field, fallback]) => [field, we[field] || fallback]));
+  const initWk = Object.fromEntries(Object.entries(FALLBACK_DEFAULT_WEEKDAY).map(([field, fallback]) => [field, formatTime24(wk[field]) || fallback]));
+  const initWe = Object.fromEntries(Object.entries(FALLBACK_DEFAULT_WEEKEND).map(([field, fallback]) => [field, formatTime24(we[field]) || fallback]));
   const initiallySame = Object.keys(initWk).every(field => initWk[field] === initWe[field]);
   const [activeTab, setActiveTab] = useState('WEEKDAY');
   const [weekdayTimes, setWeekdayTimes] = useState(() => initWk);
@@ -189,10 +191,10 @@ function MealTimeForm({
           <div className="meal-inputs-grid">
             <div className="meal-input-group">
               <label htmlFor="meal-breakfast">아침 식사 시간</label>
-              <input
+              <TimeInput24
                 id="meal-breakfast"
-                type="time"
                 className="styled-time-input"
+                aria-label="아침 식사 시간"
                 value={currentTimes.breakfast}
                 onChange={(e) => handleTimeChange('breakfast', e.target.value)}
                 disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}
@@ -205,10 +207,10 @@ function MealTimeForm({
 
             <div className="meal-input-group">
               <label htmlFor="meal-lunch">점심 식사 시간</label>
-              <input
+              <TimeInput24
                 id="meal-lunch"
-                type="time"
                 className="styled-time-input"
+                aria-label="점심 식사 시간"
                 value={currentTimes.lunch}
                 onChange={(e) => handleTimeChange('lunch', e.target.value)}
                 disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}
@@ -221,10 +223,10 @@ function MealTimeForm({
 
             <div className="meal-input-group">
               <label htmlFor="meal-dinner">저녁 식사 시간</label>
-              <input
+              <TimeInput24
                 id="meal-dinner"
-                type="time"
                 className="styled-time-input"
+                aria-label="저녁 식사 시간"
                 value={currentTimes.dinner}
                 onChange={(e) => handleTimeChange('dinner', e.target.value)}
                 disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}
@@ -237,10 +239,10 @@ function MealTimeForm({
 
             <div className="meal-input-group">
               <label htmlFor="meal-bedtime">취침 시간</label>
-              <input
+              <TimeInput24
                 id="meal-bedtime"
-                type="time"
                 className="styled-time-input"
+                aria-label="취침 시간"
                 value={currentTimes.bedtime}
                 onChange={(e) => handleTimeChange('bedtime', e.target.value)}
                 disabled={isSaving || (activeTab === 'WEEKEND' && sameAsWeekday)}

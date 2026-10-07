@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useDialog } from '../contexts/DialogContext';
 import { createIntakeGate, saveIntakeStatus } from '../utils/intakeApi';
 import { createLatestRequest } from '../utils/latestRequest';
+import { formatTime24 } from '../utils/dateTime';
 import './CalendarPage.css';
 
 function getFormattedDate(targetDate) {
@@ -9,6 +10,22 @@ function getFormattedDate(targetDate) {
   const m = String(targetDate.getMonth() + 1).padStart(2, '0');
   const d = String(targetDate.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+// 입력과 저장 모두 같은 시/분 범위를 사용합니다.
+function normalizeTimePart(value, max, fallback = 0) {
+  const parsed = parseInt(value, 10);
+  return String(Number.isNaN(parsed) ? fallback : Math.min(max, Math.max(0, parsed))).padStart(2, '0');
+}
+
+// 시간을 조절하는 동안 모달이 함께 스크롤되지 않게 합니다.
+function preventPickerScroll(node) {
+  if (!node) return;
+  const preventScroll = (event) => {
+    if (event.deltaY !== 0) event.preventDefault();
+  };
+  node.addEventListener('wheel', preventScroll, { passive: false });
+  return () => node.removeEventListener('wheel', preventScroll);
 }
 
 function getTypeStorageMap() {
@@ -49,7 +66,6 @@ const CalendarContent = (props) => {
   // 알람 설정 모달 (시간 변경 전용)
   const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
-  const [ampm, setAmpm] = useState('오전');
   const [hour, setHour] = useState('08');
   const [minute, setMinute] = useState('00');
 
@@ -59,7 +75,6 @@ const CalendarContent = (props) => {
   const [selectedMed, setSelectedMed] = useState(null);
   const [storedSearchResults, setSearchResults] = useState([]);
   const [newMedType, setNewMedType] = useState('regular'); // 'regular' | 'supplement'
-  const [newAmpm, setNewAmpm] = useState('오전');
   const [newHour, setNewHour] = useState('09');
   const [newMinute, setNewMinute] = useState('00');
   const [addedSuccessMsg, setAddedSuccessMsg] = useState('');
@@ -259,20 +274,12 @@ const CalendarContent = (props) => {
 
     // 권장 복용 시간 자동 세팅
     if (item.takeTime && item.takeTime.includes(':')) {
-      const parts = item.takeTime.split(':');
-      let h = parseInt(parts[0], 10);
-      let m = parseInt(parts[1], 10);
-      if (!isNaN(h) && !isNaN(m)) {
-        let ampmVal = '오전';
-        if (h >= 12) {
-          ampmVal = '오후';
-          if (h > 12) h -= 12;
-        } else if (h === 0) {
-          h = 12;
-        }
-        setNewAmpm(ampmVal);
-        setNewHour(String(h).padStart(2, '0'));
-        setNewMinute(String(m).padStart(2, '0'));
+      const parts = formatTime24(item.takeTime).split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        setNewHour(normalizeTimePart(h, 23));
+        setNewMinute(normalizeTimePart(m, 59));
         setIsAutoTimeApplied(true);
         return;
       }
@@ -498,30 +505,37 @@ const CalendarContent = (props) => {
   };
 
   const stepHour = (current, delta) => {
-    let val = parseInt(current, 10) || 1;
-    val = ((val - 1 + delta) % 12 + 12) % 12 + 1;
+    let val = Number(normalizeTimePart(current, 23));
+    val = ((val + delta) % 24 + 24) % 24;
     return String(val).padStart(2, '0');
   };
 
   const stepMinute = (current, delta) => {
-    let val = parseInt(current, 10) || 0;
+    let val = Number(normalizeTimePart(current, 59));
     val = ((val + delta) % 60 + 60) % 60;
     return String(val).padStart(2, '0');
   };
 
-  const handleWheel = (e, type, isAdd = false) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 1 : -1;
-    if (type === 'ampm') {
-      if (isAdd) setNewAmpm((prev) => (prev === '오전' ? '오후' : '오전'));
-      else setAmpm((prev) => (prev === '오전' ? '오후' : '오전'));
-    } else if (type === 'hour') {
+  const stepPicker = (type, delta, isAdd = false) => {
+    if (isAdd) setIsAutoTimeApplied(false);
+    if (type === 'hour') {
       if (isAdd) setNewHour((prev) => stepHour(prev, delta));
       else setHour((prev) => stepHour(prev, delta));
     } else if (type === 'minute') {
       if (isAdd) setNewMinute((prev) => stepMinute(prev, delta));
       else setMinute((prev) => stepMinute(prev, delta));
     }
+  };
+
+  const handleWheel = (e, type, isAdd = false) => {
+    if (e.deltaY === 0) return;
+    stepPicker(type, e.deltaY < 0 ? 1 : -1, isAdd);
+  };
+
+  const handleTimeKeyDown = (e, type, isAdd = false) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    stepPicker(type, e.key === 'ArrowUp' ? 1 : -1, isAdd);
   };
 
   // 알람 시간 설정 모달 열기
@@ -532,24 +546,16 @@ const CalendarContent = (props) => {
       return;
     }
     setActiveItem(item);
-    const timeParts = (item.time || '08:00').split(':');
-    const h = parseInt(timeParts[0], 10) || 8;
-    const m = parseInt(timeParts[1], 10) || 0;
-    setAmpm(h >= 12 ? '오후' : '오전');
-    const displayH = h % 12 === 0 ? 12 : h % 12;
-    setHour(String(displayH).padStart(2, '0'));
-    setMinute(String(m).padStart(2, '0'));
+    const timeParts = formatTime24(item.time || '08:00').split(':');
+    setHour(normalizeTimePart(timeParts[0], 23, 8));
+    setMinute(normalizeTimePart(timeParts[1], 59));
     setIsAlarmModalOpen(true);
   };
 
   // 알람 시간 저장 (빈 응답 대응: await response.json() 배제)
   const saveAlarmSetting = async () => {
     if (!activeItem) return;
-    let numericHour = parseInt(hour, 10) || 12;
-    if (ampm === '오후' && numericHour < 12) numericHour += 12;
-    if (ampm === '오전' && numericHour === 12) numericHour = 0;
-    const formattedMinute = String(Math.min(59, Math.max(0, parseInt(minute, 10) || 0))).padStart(2, '0');
-    const newTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
+    const newTime = `${normalizeTimePart(hour, 23)}:${normalizeTimePart(minute, 59)}`;
 
     try {
       const response = await fetch(
@@ -601,11 +607,7 @@ const CalendarContent = (props) => {
       }
     }
 
-    let numericHour = parseInt(newHour, 10) || 12;
-    if (newAmpm === '오후' && numericHour < 12) numericHour += 12;
-    if (newAmpm === '오전' && numericHour === 12) numericHour = 0;
-    const formattedMinute = String(Math.min(59, Math.max(0, parseInt(newMinute, 10) || 0))).padStart(2, '0');
-    const formattedTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
+    const formattedTime = `${normalizeTimePart(newHour, 23)}:${normalizeTimePart(newMinute, 59)}`;
 
     const savedMedName = selectedMed ? selectedMed.name : newMedName.trim();
     const chosenType = newMedType;
@@ -1048,7 +1050,7 @@ const CalendarContent = (props) => {
             {schedules.length > 0 && (
               <div className="calendar-slot-tabs" role="tablist">
                 {slotTabs.map((tab) => {
-                  const tooltipText = tab.timeHint ? `${tab.label} (${tab.timeHint})` : tab.label;
+                  const tooltipText = tab.timeHint ? `${tab.label} (${formatTime24(tab.timeHint)})` : tab.label;
                   return (
                     <button
                       key={tab.key}
@@ -1106,7 +1108,7 @@ const CalendarContent = (props) => {
                           <div className="dose-info">
                             <div className="time-row">
                               <span className="type-dot prescription" />
-                              <span className="time">{unit.time}</span>
+                              <span className="time">{formatTime24(unit.time)}</span>
                               <span className="cal-slot-badge">{currentSlotLabel}</span>
                               <span className="cal-pouch-tag">1포 ({unit.items.length}종)</span>
                             </div>
@@ -1233,7 +1235,7 @@ const CalendarContent = (props) => {
                       <div className="dose-info">
                         <div className="time-row">
                           <span className={`type-dot ${unit.type || 'regular'}`} />
-                          <span className="time">{unit.time}</span>
+                          <span className="time">{formatTime24(unit.time)}</span>
                           <span className="cal-slot-badge">{currentSlotLabel}</span>
                         </div>
                         <div className="name-row">
@@ -1321,53 +1323,39 @@ const CalendarContent = (props) => {
               <button className="btn-close" onClick={() => setIsAlarmModalOpen(false)}>✕</button>
             </div>
 
-            <div className="wheel-picker-box">
-              <div className="picker-column" onWheel={(e) => handleWheel(e, 'ampm')}>
-                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▲</button>
-                <div className="picker-value clickable" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>
-                  {ampm}
-                </div>
-                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▼</button>
-              </div>
-
-              <div className="picker-divider" />
-
+            <div className="wheel-picker-box" ref={preventPickerScroll}>
               <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour')}>
-                <button type="button" onClick={() => setHour((prev) => stepHour(prev, 1))}>▲</button>
+                <button type="button" aria-label="시 늘리기" onClick={() => stepPicker('hour', 1)}>▲</button>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  aria-label="시 (00~23)"
                   className="picker-input"
                   maxLength={2}
                   value={hour}
                   onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, ''))}
-                  onBlur={() => {
-                    let n = parseInt(hour, 10);
-                    if (isNaN(n) || n < 1) n = 1;
-                    if (n > 12) n = 12;
-                    setHour(String(n).padStart(2, '0'));
-                  }}
+                  onBlur={() => setHour(normalizeTimePart(hour, 23))}
+                  onKeyDown={(e) => handleTimeKeyDown(e, 'hour')}
                 />
-                <button type="button" onClick={() => setHour((prev) => stepHour(prev, -1))}>▼</button>
+                <button type="button" aria-label="시 줄이기" onClick={() => stepPicker('hour', -1)}>▼</button>
               </div>
 
-              <div className="picker-divider" />
+              <div className="picker-divider" aria-hidden="true" />
 
               <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute')}>
-                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, 1))}>▲</button>
+                <button type="button" aria-label="분 늘리기" onClick={() => stepPicker('minute', 1)}>▲</button>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  aria-label="분 (00~59)"
                   className="picker-input"
                   maxLength={2}
                   value={minute}
                   onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, ''))}
-                  onBlur={() => {
-                    let n = parseInt(minute, 10);
-                    if (isNaN(n) || n < 0) n = 0;
-                    if (n > 59) n = 59;
-                    setMinute(String(n).padStart(2, '0'));
-                  }}
+                  onBlur={() => setMinute(normalizeTimePart(minute, 59))}
+                  onKeyDown={(e) => handleTimeKeyDown(e, 'minute')}
                 />
-                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, -1))}>▼</button>
+                <button type="button" aria-label="분 줄이기" onClick={() => stepPicker('minute', -1)}>▼</button>
               </div>
             </div>
 
@@ -1456,7 +1444,7 @@ const CalendarContent = (props) => {
                             />
                             <span className="chip-text">{med.name}</span>
                             {med.takeTime && (
-                              <span className="chip-time-tag">{med.takeTime}</span>
+                              <span className="chip-time-tag">{formatTime24(med.takeTime)}</span>
                             )}
                             {isSelected && <span className="chip-check-icon">✓</span>}
                           </button>
@@ -1539,22 +1527,14 @@ const CalendarContent = (props) => {
               </div>
 
               <div className="form-group">
-                <label>복용 시간</label>
-                <div className="wheel-picker-box add-picker">
-                  <div className="picker-column" onWheel={(e) => { setIsAutoTimeApplied(false); handleWheel(e, 'ampm', true); }}>
-                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewAmpm(newAmpm === '오전' ? '오후' : '오전'); }}>▲</button>
-                    <div className="picker-value clickable" onClick={() => { setIsAutoTimeApplied(false); setNewAmpm(newAmpm === '오전' ? '오후' : '오전'); }}>
-                      {newAmpm}
-                    </div>
-                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewAmpm(newAmpm === '오전' ? '오후' : '오전'); }}>▼</button>
-                  </div>
-
-                  <div className="picker-divider" />
-
-                  <div className="picker-column" onWheel={(e) => { setIsAutoTimeApplied(false); handleWheel(e, 'hour', true); }}>
-                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewHour((prev) => stepHour(prev, 1)); }}>▲</button>
+                <label>복용 시간 (24시간)</label>
+                <div className="wheel-picker-box add-picker" ref={preventPickerScroll}>
+                  <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour', true)}>
+                    <button type="button" aria-label="시 늘리기" onClick={() => stepPicker('hour', 1, true)}>▲</button>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      aria-label="시 (00~23)"
                       className="picker-input"
                       maxLength={2}
                       value={newHour}
@@ -1562,22 +1542,20 @@ const CalendarContent = (props) => {
                         setIsAutoTimeApplied(false);
                         setNewHour(e.target.value.replace(/[^0-9]/g, ''));
                       }}
-                      onBlur={() => {
-                        let n = parseInt(newHour, 10);
-                        if (isNaN(n) || n < 1) n = 1;
-                        if (n > 12) n = 12;
-                        setNewHour(String(n).padStart(2, '0'));
-                      }}
+                      onBlur={() => setNewHour(normalizeTimePart(newHour, 23))}
+                      onKeyDown={(e) => handleTimeKeyDown(e, 'hour', true)}
                     />
-                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewHour((prev) => stepHour(prev, -1)); }}>▼</button>
+                    <button type="button" aria-label="시 줄이기" onClick={() => stepPicker('hour', -1, true)}>▼</button>
                   </div>
 
-                  <div className="picker-divider" />
+                  <div className="picker-divider" aria-hidden="true" />
 
-                  <div className="picker-column" onWheel={(e) => { setIsAutoTimeApplied(false); handleWheel(e, 'minute', true); }}>
-                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewMinute((prev) => stepMinute(prev, 1)); }}>▲</button>
+                  <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute', true)}>
+                    <button type="button" aria-label="분 늘리기" onClick={() => stepPicker('minute', 1, true)}>▲</button>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      aria-label="분 (00~59)"
                       className="picker-input"
                       maxLength={2}
                       value={newMinute}
@@ -1585,20 +1563,16 @@ const CalendarContent = (props) => {
                         setIsAutoTimeApplied(false);
                         setNewMinute(e.target.value.replace(/[^0-9]/g, ''));
                       }}
-                      onBlur={() => {
-                        let n = parseInt(newMinute, 10);
-                        if (isNaN(n) || n < 0) n = 0;
-                        if (n > 59) n = 59;
-                        setNewMinute(String(n).padStart(2, '0'));
-                      }}
+                      onBlur={() => setNewMinute(normalizeTimePart(newMinute, 59))}
+                      onKeyDown={(e) => handleTimeKeyDown(e, 'minute', true)}
                     />
-                    <button type="button" onClick={() => { setIsAutoTimeApplied(false); setNewMinute((prev) => stepMinute(prev, -1)); }}>▼</button>
+                    <button type="button" aria-label="분 줄이기" onClick={() => stepPicker('minute', -1, true)}>▼</button>
                   </div>
                 </div>
 
                 {isAutoTimeApplied && (
                   <p className="field-hint-time-auto">
-                    보관함 권장 시간({newAmpm} {newHour}:{newMinute})이 자동 설정되었습니다. 필요 시 조정하세요.
+                    보관함 권장 시간({newHour}:{newMinute})이 자동 설정되었습니다. 필요 시 조정하세요.
                   </p>
                 )}
               </div>
@@ -1625,7 +1599,7 @@ const CalendarContent = (props) => {
                 </div>
                 {repeatDays > 1 && (
                   <p className="field-hint-repeat">
-                    <strong>{selectedDate}</strong>부터 <strong>{repeatDays}일간 매일</strong> {newAmpm} {newHour}:{newMinute}에 복약 일정이 자동 등록됩니다.
+                    <strong>{selectedDate}</strong>부터 <strong>{repeatDays}일간 매일</strong> {normalizeTimePart(newHour, 23)}:{normalizeTimePart(newMinute, 59)}에 복약 일정이 자동 등록됩니다.
                   </p>
                 )}
               </div>
@@ -1661,7 +1635,7 @@ const CalendarContent = (props) => {
                 <span className={`target-type-badge ${itemToDelete.type || 'regular'}`}>
                   {itemToDelete.type === 'prescription' ? '처방약' : itemToDelete.type === 'supplement' ? '영양제' : '상비약'}
                 </span>
-                <span className="target-time-badge">{itemToDelete.time || '시간미정'}</span>
+                <span className="target-time-badge">{formatTime24(itemToDelete.time) || '시간미정'}</span>
                 <strong className="target-med-name">{itemToDelete.name}</strong>
               </div>
             )}

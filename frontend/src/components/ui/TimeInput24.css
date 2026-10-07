@@ -1,0 +1,8 @@
+/* 시·분을 한 줄로 유지하고 좁은 화면에서도 선택 영역이 잘리지 않게 구성 */
+.time-input-24{display:inline-flex;align-items:center;justify-content:center;gap:3px;min-width:112px;max-width:100%;box-sizing:border-box;padding:4px 6px;border:1px solid #d9cfc3;border-radius:8px;background:#fff;color:inherit;font:inherit;font-variant-numeric:tabular-nums;white-space:nowrap}
+.time-input-24 select{flex:1 1 0;width:0;min-width:40px;min-height:36px;margin:0;padding:4px 14px 4px 4px;border:0;border-radius:5px;background-color:transparent;color:inherit;font:inherit;text-align:center;cursor:pointer}
+.time-input-24 .time-input-24-separator{flex:0 0 auto}
+.time-input-24:focus-within{outline:2px solid #9a4558;outline-offset:2px}
+.time-input-24 select:focus{outline:none}
+.time-input-24:has(select:disabled){opacity:.6;background:#f3eee8}
+.time-input-24 select:disabled{cursor:not-allowed}

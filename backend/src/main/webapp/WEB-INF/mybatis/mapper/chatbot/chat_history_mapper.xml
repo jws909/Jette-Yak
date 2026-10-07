@@ -4,6 +4,7 @@
   <!--
     역할: 사용자별 상담방과 메시지의 생성·조회·삭제 SQL
     소유권 기준: 대화방 변경과 조회에 conversation_id와 user_id를 함께 사용
+    시각 기준: SYSDATE의 UTC DATE는 조회 시 한국 시각의 24시간제로 변환
   -->
   <select id="nextConversationId" resultType="long">SELECT chat_conversation_seq.NEXTVAL FROM dual</select>
   <select id="nextMessageId" resultType="long">SELECT chat_message_seq.NEXTVAL FROM dual</select>
@@ -25,8 +26,8 @@
   </select>
   <select id="findConversations" parameterType="map" resultType="map" timeout="10">
     SELECT c.conversation_id AS "conversationId",c.title AS "title",c.medication_id AS "medicationId",
-      TO_CHAR(c.created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",
-      TO_CHAR(c.updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt",
+      TO_CHAR(FROM_TZ(CAST(c.created_at AS TIMESTAMP),'UTC') AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') AS "createdAt",
+      TO_CHAR(FROM_TZ(CAST(c.updated_at AS TIMESTAMP),'UTC') AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') AS "updatedAt",
       (SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id=c.conversation_id AND m.role='USER') AS "messageCount"
     FROM chat_conversations c WHERE c.user_id=#{userId}
     ORDER BY c.updated_at DESC,c.conversation_id DESC
@@ -34,7 +35,7 @@
   </select>
   <select id="findConversation" parameterType="map" resultType="map" timeout="10">
     SELECT conversation_id AS "conversationId",title AS "title",medication_id AS "medicationId",
-      TO_CHAR(created_at,'YYYY-MM-DD HH24:MI') AS "createdAt",TO_CHAR(updated_at,'YYYY-MM-DD HH24:MI') AS "updatedAt"
+      TO_CHAR(FROM_TZ(CAST(created_at AS TIMESTAMP),'UTC') AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') AS "createdAt",TO_CHAR(FROM_TZ(CAST(updated_at AS TIMESTAMP),'UTC') AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') AS "updatedAt"
     FROM chat_conversations WHERE conversation_id=#{conversationId} AND user_id=#{userId}
   </select>
   <resultMap id="historyMessage" type="com.app.chatbot.dto.ChatHistoryMessageDto" autoMapping="false">
@@ -45,7 +46,7 @@
     <result column="created_at" property="createdAt"/>
   </resultMap>
   <select id="findMessages" parameterType="map" resultMap="historyMessage" timeout="10">
-    SELECT m.message_id,m.role,m.content,m.payload_json,TO_CHAR(m.created_at,'YYYY-MM-DD HH24:MI:SS') created_at
+    SELECT m.message_id,m.role,m.content,m.payload_json,TO_CHAR(FROM_TZ(CAST(m.created_at AS TIMESTAMP),'UTC') AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI:SS') created_at
     FROM chat_messages m JOIN chat_conversations c ON c.conversation_id=m.conversation_id
     WHERE m.conversation_id=#{conversationId} AND c.user_id=#{userId}
     ORDER BY m.message_id

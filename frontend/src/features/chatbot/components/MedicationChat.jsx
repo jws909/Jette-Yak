@@ -12,6 +12,7 @@ import MedicationSearch from './MedicationSearch'
 import CatalogSearch from './CatalogSearch'
 import CatalogResults, { DurReports } from './CatalogResults'
 import UiDialog from '../../../components/ui/UiDialog'
+import { formatDateTime24 } from '../../../utils/dateTime.js'
 import { useReadingProfile } from '../../../contexts/ReadingContext'
 import './MedicationChat.css'
 
@@ -373,7 +374,7 @@ function MedicationConversation() {
           <div className="chat-history-list">
             {historyItems.map(item => <div className={Number(item.conversationId) === Number(conversationId) ? 'active' : ''} key={item.conversationId}>
               <button type="button" className="chat-history-open" disabled={loading || Boolean(paging)} onClick={() => openConversation(item.conversationId)}>
-                <strong>{item.title}</strong><small>{item.updatedAt} · 질문 {item.messageCount || 0}개</small>
+                <strong>{item.title}</strong><small>{formatDateTime24(item.updatedAt)} · 질문 {item.messageCount || 0}개</small>
               </button>
               <button type="button" className="chat-history-delete" aria-label={`${item.title} 대화 삭제`} onClick={() => setDeleteTarget(item)}>×</button>
             </div>)}
@@ -431,7 +432,7 @@ function MedicationConversation() {
               {message.sources.length > 0 && !message.aiSupplemented && !message.evidenceLimited && <p className="scope-note">공식 등록 자료를 참고한 답변입니다. 개인의 상태에 따른 복용 결정은 의사나 약사에게 확인해주세요.</p>}
               {message.sources.length > 0 && <details className="sources"><summary>참고한 상세 정보 보기 ({message.sources.length})</summary>
                 <div className="details-reveal">{message.sources.map((source, index) => <dl key={String(source.itemSeq) + index}>{fields.filter(([field])=>hasValue(source[field])).map(([field, label]) =>
-                  <div key={field}><dt>{label}</dt><dd>{String(source[field])}</dd></div>)}</dl>)}</div>
+                  <div key={field}><dt>{label}</dt><dd>{field==='updatedAt'?formatDateTime24(source[field]):String(source[field])}</dd></div>)}</dl>)}</div>
               </details>}
             </div>}
             {message.failed && <p className="failed-message">답변을 받지 못했어요. 질문을 다시 보내주세요.</p>}

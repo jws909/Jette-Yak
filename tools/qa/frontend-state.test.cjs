@@ -107,18 +107,22 @@ test('전역 알람: 다른 사용자와 알림 비활성화 상태에서는 이
   assert.equal(display(originalSession, true), pendingGlobalAlertItem);
 });
 
-test('식사 시간 폼: 열릴 때 평일/주말 값과 빈 시간의 기본값을 준비', () => {
+test('식사 시간 폼: 열릴 때 평일/주말 값과 빈 시간의 기본값을 준비', async () => {
+  const { formatTime24 } = await import(pathToFileURL(sourcePath('src/utils/dateTime.js')));
   const text = source('src/features/main/components/MealTimeSettingModal.jsx');
   const prefix = text.slice(text.indexOf('const FALLBACK_DEFAULT_WEEKDAY'), text.indexOf('export default function'));
   const start = text.indexOf('function MealTimeForm(');
   const end = text.indexOf('  const currentTimes = ', start);
   const setup = text.slice(start, end) + '  return { weekdayTimes, weekendTimes, sameAsWeekday, activeTab }; }';
-  const form = vm.runInNewContext(`(() => { ${prefix} ${setup} return MealTimeForm; })()`, { useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}], useRef: initial => ({ current: initial }) });
+  const form = vm.runInNewContext(`(() => { ${prefix} ${setup} return MealTimeForm; })()`, { formatTime24, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}], useRef: initial => ({ current: initial }) });
   const state = form({ mealSchedule: { weekday: { breakfast: '' }, weekend: { breakfast: '10:00' } } });
   assert.equal(state.weekdayTimes.breakfast, '07:30');
   assert.equal(state.weekendTimes.breakfast, '10:00');
   assert.equal(state.sameAsWeekday, false);
   assert.equal(state.activeTab, 'WEEKDAY');
+  const midnight = form({ mealSchedule: { weekday: { breakfast: '00:00:00' }, weekend: { breakfast: '13:05:00' } } });
+  assert.equal(midnight.weekdayTimes.breakfast, '00:00');
+  assert.equal(midnight.weekendTimes.breakfast, '13:05');
 });
 
 test('약품 검색: 검색어를 비운 뒤 늦게 도착한 응답이 결과를 다시 열지 않음', async () => {

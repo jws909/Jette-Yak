@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import UiDialog from './components/ui/UiDialog';
 import { saveIntakeStatus } from './utils/intakeApi';
+import { formatTime24 } from './utils/dateTime.js';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import MainPage from './features/main/MainPage';
@@ -668,7 +669,7 @@ function App() {
               복약할 시간입니다!
             </h4>
             <p style={{ fontSize: '16px', color: '#682335', margin: '10px 0 6px 0', fontWeight: '700' }}>
-              [{globalAlertItem.time}] {globalAlertItem.name}
+              [{formatTime24(globalAlertItem.time)}] {globalAlertItem.name}
             </p>
             <p style={{ fontSize: '13px', color: '#7a7066', margin: '0 0 24px 0', lineHeight: '1.4' }}>
               정해진 시간에 복약하면 효과가 훨씬 좋습니다. 지금 복용하셨나요?

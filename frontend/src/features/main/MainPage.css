@@ -1803,7 +1803,7 @@
   transition: border-color 0.15s ease;
 }
 
-.styled-time-input:focus {
+.styled-time-input:focus-within {
   border-color: #8b3e4b;
 }
 
@@ -2825,10 +2825,22 @@
   box-sizing: border-box;
 }
 
-.styled-time-input:focus {
+.styled-time-input:focus-within {
   outline: none;
   border-color: #8b3e4b;
   box-shadow: 0 0 0 3px rgba(139, 62, 75, 0.12);
+}
+
+/* 24시간 선택기의 시·분 숫자 영역을 확보합니다. */
+.meal-time-modal .time-input-24.styled-time-input {
+  width: 100%;
+  min-width: 128px;
+}
+
+@media (max-width: 540px) {
+  .meal-time-modal .meal-inputs-grid:has(.time-input-24) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .meal-calc-hint {

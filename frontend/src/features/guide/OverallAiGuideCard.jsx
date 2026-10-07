@@ -3,27 +3,11 @@
  * 핵심 규칙: 서버 캐시와 약 목록 버전을 사용하므로 사용자가 요청할 때만 강제 재분석합니다.
  */
 import { useState, useEffect, useCallback } from 'react';
+import { formatDateTime24 } from '../../utils/dateTime.js';
 import './OverallAiGuideCard.css';
 
 function formatAnalysisTime(timeStr) {
-  if (!timeStr) return '';
-  try {
-    const parts = timeStr.trim().split(/[\sT]+/);
-    if (parts.length >= 2) {
-      const datePart = parts[0].replace(/-/g, '.');
-      const timeParts = parts[1].split(':');
-      if (timeParts.length >= 2) {
-        const hour = parseInt(timeParts[0], 10);
-        const minute = timeParts[1];
-        const ampm = hour < 12 ? '오전' : '오후';
-        const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-        return `${datePart} ${ampm} ${displayHour}:${minute}`;
-      }
-    }
-  } catch {
-    // fallback
-  }
-  return timeStr;
+  return formatDateTime24(timeStr, { dateSeparator: '.' });
 }
 
 export default function OverallAiGuideCard({ revision }) {

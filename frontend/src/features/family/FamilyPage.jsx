@@ -6,12 +6,29 @@ import { saveIntakeStatus } from '../../utils/intakeApi';
 import { buildFamilyMedicationReport } from './familyReport';
 import './FamilyPage.css';
 import { createLatestRequest } from '../../utils/latestRequest';
+import { formatTime24 } from '../../utils/dateTime';
 
 function getFormattedDate(targetDate) {
   const y = targetDate.getFullYear();
   const m = String(targetDate.getMonth() + 1).padStart(2, '0');
   const d = String(targetDate.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+// 입력과 저장 모두 같은 시/분 범위를 사용합니다.
+function normalizeTimePart(value, max, fallback = 0) {
+  const parsed = parseInt(value, 10);
+  return String(Number.isNaN(parsed) ? fallback : Math.min(max, Math.max(0, parsed))).padStart(2, '0');
+}
+
+// 시간을 조절하는 동안 모달이 함께 스크롤되지 않게 합니다.
+function preventPickerScroll(node) {
+  if (!node) return;
+  const preventScroll = (event) => {
+    if (event.deltaY !== 0) event.preventDefault();
+  };
+  node.addEventListener('wheel', preventScroll, { passive: false });
+  return () => node.removeEventListener('wheel', preventScroll);
 }
 
 function getSlotFromTime(t) {
@@ -755,40 +772,40 @@ function FamilyContent(props) {
   // 알람 설정 모달 상태 (두 번째 변수 기준)
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
   const [targetScheduleForAlarm, setTargetScheduleForAlarm] = useState(null);
-  const [, setNewAlarmTime] = useState('08:00');
   const [alarmEnabled, setAlarmEnabled] = useState(true);
 
   // 휠 피커 내부 제어 상태
-  const [ampm, setAmpm] = useState('오전');
   const [hour, setHour] = useState('08');
   const [minute, setMinute] = useState('00');
 
- // 시/분 증감 헬퍼
+  // 시/분은 각각 00~23, 00~59 안에서 순환합니다.
   const stepHour = (val, delta) => {
-    let n = (parseInt(val, 10) || 12) + delta;
-    if (n > 12) n = 1;
-    if (n < 1) n = 12;
+    const n = ((Number(normalizeTimePart(val, 23)) + delta) % 24 + 24) % 24;
     return String(n).padStart(2, '0');
   };
 
   const stepMinute = (val, delta) => {
-    let n = (parseInt(val, 10) || 0) + delta;
-    if (n > 59) n = 0;
-    if (n < 0) n = 59;
+    const n = ((Number(normalizeTimePart(val, 59)) + delta) % 60 + 60) % 60;
     return String(n).padStart(2, '0');
   };
 
-  // 마우스 휠 스크롤 제어
-  const handleWheel = (e, type) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 1 : -1;
-    if (type === 'ampm') {
-      setAmpm((prev) => (prev === '오전' ? '오후' : '오전'));
-    } else if (type === 'hour') {
+  const stepPicker = (type, delta) => {
+    if (type === 'hour') {
       setHour((prev) => stepHour(prev, delta));
     } else if (type === 'minute') {
       setMinute((prev) => stepMinute(prev, delta));
     }
+  };
+
+  const handleWheel = (e, type) => {
+    if (e.deltaY === 0) return;
+    stepPicker(type, e.deltaY < 0 ? 1 : -1);
+  };
+
+  const handleTimeKeyDown = (e, type) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    stepPicker(type, e.key === 'ArrowUp' ? 1 : -1);
   };
 
   // 1) 알람 모달 열기
@@ -796,20 +813,11 @@ function FamilyContent(props) {
     if (e) e.stopPropagation();
     setTargetScheduleForAlarm(item);
 
-    // 약품에 설정된 기존 시간 파싱 (HH:mm -> 오전/오후, hour, minute)
-    const timeStr = String(item.time || item.intakeTime || '08:00');
+    // 저장된 24시간 값을 그대로 표시합니다.
+    const timeStr = formatTime24(item.time || item.intakeTime || '08:00');
     const [hStr, mStr] = timeStr.split(':');
-    let h = parseInt(hStr, 10) || 8;
-    const m = parseInt(mStr, 10) || 0;
-
-    const currentAmpm = h >= 12 ? '오후' : '오전';
-    if (h > 12) h -= 12;
-    if (h === 0) h = 12;
-
-    setAmpm(currentAmpm);
-    setHour(String(h).padStart(2, '0'));
-    setMinute(String(m).padStart(2, '0'));
-    setNewAlarmTime(timeStr.substring(0, 5));
+    setHour(normalizeTimePart(hStr, 23, 8));
+    setMinute(normalizeTimePart(mStr, 59));
     setAlarmEnabled(item.alarmEnabled ?? true);
     setAlarmModalOpen(true);
   };
@@ -818,12 +826,7 @@ function FamilyContent(props) {
   const handleSaveAlarm = async () => {
     if (!targetScheduleForAlarm) return;
 
-    // 12시간제 입력을 24시간제(HH:mm) 문자열로 변환
-    let numericHour = parseInt(hour, 10) || 12;
-    if (ampm === '오후' && numericHour < 12) numericHour += 12;
-    if (ampm === '오전' && numericHour === 12) numericHour = 0;
-    const formattedMinute = String(Math.min(59, Math.max(0, parseInt(minute, 10) || 0))).padStart(2, '0');
-    const calculatedTime = `${String(numericHour).padStart(2, '0')}:${formattedMinute}`;
+    const calculatedTime = `${normalizeTimePart(hour, 23)}:${normalizeTimePart(minute, 59)}`;
 
     try {
       const res = await fetch(
@@ -1434,7 +1437,7 @@ function FamilyContent(props) {
                       <div className="chk-meta-line">
                         <span className={`chk-bullet-dot ${catInfo.dotClass}`} />
                         <span className="chk-slot-text">{slotInfo.slotLabel}</span>
-                        <span className="chk-time-text">{String(item.time || '').substring(0, 5)}</span>
+                        <span className="chk-time-text">{formatTime24(item.time)}</span>
                         
                         {/* 전체 탭일 때: 본인만 (본인) 붙이고 가족은 이름만 깔끔하게 표시 */}
                         {selectedMemberId === 'all' && (
@@ -1561,7 +1564,7 @@ function FamilyContent(props) {
                             key={dIdx}
                             className={`report-dose-chip ${d.taken ? 'done' : 'undone'}`}
                           >
-                            {d.slot}({d.time}): {d.taken ? '✓ 복용완료' : '미복용'}
+                            {d.slot}({formatTime24(d.time)}): {d.taken ? '✓ 복용완료' : '미복용'}
                           </span>
                         ))}
                       </div>
@@ -1594,7 +1597,7 @@ function FamilyContent(props) {
                               key={dIdx}
                               className={`report-dose-chip ${d.taken ? 'done' : 'undone'}`}
                             >
-                              {d.slot}({d.time}): {d.taken ? '✓ 복용완료' : '미복용'}
+                              {d.slot}({formatTime24(d.time)}): {d.taken ? '✓ 복용완료' : '미복용'}
                             </span>
                           ))}
                         </div>
@@ -1628,7 +1631,7 @@ function FamilyContent(props) {
                               key={dIdx}
                               className={`report-dose-chip ${d.taken ? 'done' : 'undone'}`}
                             >
-                              {d.slot}({d.time}): {d.taken ? '✓ 복용완료' : '미복용'}
+                              {d.slot}({formatTime24(d.time)}): {d.taken ? '✓ 복용완료' : '미복용'}
                             </span>
                           ))}
                         </div>
@@ -1842,56 +1845,39 @@ function FamilyContent(props) {
               <button type="button" className="btn-close" onClick={() => setAlarmModalOpen(false)}>✕</button>
             </div>
 
-            <div className="wheel-picker-box">
-              {/* 오전 / 오후 (기존 코드 그대로 유지) */}
-              <div className="picker-column" onWheel={(e) => handleWheel(e, 'ampm')}>
-                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▲</button>
-                <div className="picker-value clickable" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>
-                  {ampm}
-                </div>
-                <button type="button" onClick={() => setAmpm(ampm === '오전' ? '오후' : '오전')}>▼</button>
-              </div>
-
-              <div className="picker-divider" />
-
-              {/* 시 (Hour) (기존 코드 그대로 유지) */}
+            <div className="wheel-picker-box" ref={preventPickerScroll}>
               <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour')}>
-                <button type="button" onClick={() => setHour((prev) => stepHour(prev, 1))}>▲</button>
+                <button type="button" aria-label="시 늘리기" onClick={() => stepPicker('hour', 1)}>▲</button>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  aria-label="시 (00~23)"
                   className="picker-input"
                   maxLength={2}
                   value={hour}
                   onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, ''))}
-                  onBlur={() => {
-                    let n = parseInt(hour, 10);
-                    if (isNaN(n) || n < 1) n = 1;
-                    if (n > 12) n = 12;
-                    setHour(String(n).padStart(2, '0'));
-                  }}
+                  onBlur={() => setHour(normalizeTimePart(hour, 23))}
+                  onKeyDown={(e) => handleTimeKeyDown(e, 'hour')}
                 />
-                <button type="button" onClick={() => setHour((prev) => stepHour(prev, -1))}>▼</button>
+                <button type="button" aria-label="시 줄이기" onClick={() => stepPicker('hour', -1)}>▼</button>
               </div>
 
-              <div className="picker-divider" />
+              <div className="picker-divider" aria-hidden="true" />
 
-              {/* 분 (Minute) (기존 코드 그대로 유지) */}
               <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute')}>
-                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, 1))}>▲</button>
+                <button type="button" aria-label="분 늘리기" onClick={() => stepPicker('minute', 1)}>▲</button>
                 <input
                   type="text"
+                  inputMode="numeric"
+                  aria-label="분 (00~59)"
                   className="picker-input"
                   maxLength={2}
                   value={minute}
                   onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, ''))}
-                  onBlur={() => {
-                    let n = parseInt(minute, 10);
-                    if (isNaN(n) || n < 0) n = 0;
-                    if (n > 59) n = 59;
-                    setMinute(String(n).padStart(2, '0'));
-                  }}
+                  onBlur={() => setMinute(normalizeTimePart(minute, 59))}
+                  onKeyDown={(e) => handleTimeKeyDown(e, 'minute')}
                 />
-                <button type="button" onClick={() => setMinute((prev) => stepMinute(prev, -1))}>▼</button>
+                <button type="button" aria-label="분 줄이기" onClick={() => stepPicker('minute', -1)}>▼</button>
               </div>
             </div>
 
@@ -1923,7 +1909,7 @@ function FamilyContent(props) {
                 <span className={`target-type-badge ${itemToDelete.type || 'regular'}`}>
                   {itemToDelete.type === 'prescription' ? '처방약' : itemToDelete.type === 'supplement' ? '영양제' : '상비약'}
                 </span>
-                <span className="target-time-badge">{itemToDelete.time || '시간미정'}</span>
+                <span className="target-time-badge">{formatTime24(itemToDelete.time) || '시간미정'}</span>
                 <strong className="target-med-name">{itemToDelete.name}</strong>
               </div>
             )}

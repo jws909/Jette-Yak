@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
+import { formatDateTime24 } from '../../utils/dateTime.js';
 import './MyPage.css';
 import defaultProfileImg from '../../assets/Default_profile.png';
 
@@ -9,7 +10,7 @@ export default function MyPage(props) {
 }
 
 function MyPageContent({ user, onUserUpdated, onLogout }) {
-  const { showAlert, showConfirm } = useDialog();
+  const { showAlert } = useDialog();
   const profileSaveLock = useRef(false);
   const pushSaveLock = useRef(false);
   const [pushOverride, setPushOverride] = useState(null);
@@ -553,7 +554,7 @@ function MyPageContent({ user, onUserUpdated, onLogout }) {
                   <li key={post.postId}>
                     <Link to={`/community?postId=${post.postId}`}>
                       <span className="my-post-title">{post.title}</span>
-                      <span className="my-post-date">{post.createdAt}</span>
+                      <span className="my-post-date">{formatDateTime24(post.createdAt)}</span>
                     </Link>
                   </li>
                 ))}

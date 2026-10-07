@@ -1,6 +1,7 @@
 /**
  * MainPage 관련 순수 유틸리티 및 헬퍼 함수 모음
  */
+import { formatTime24 } from '../../../utils/dateTime.js';
 
 // 사용자별 식사 및 취침 기준 시간 기본값
 export const DEFAULT_MEAL_TIMES = {
@@ -98,24 +99,9 @@ export function saveRoutineIntakeMap(userId, dateStr, map) {
   }
 }
 
-// 복용 시각 포맷팅 (HH:mm) - KST 로컬 문자열 및 UTC ISO 문자열 모두 완벽 지원
+// 복용 시각은 공통 24시간 형식을 사용합니다.
 export function formatTimeOnly(isoOrDateStr) {
-  if (!isoOrDateStr) return '';
-  // 1) "YYYY-MM-DDTHH:mm:ss" 또는 "YYYY-MM-DD HH:mm:ss" 형태 (Z 없는 KST 기준 문자열)
-  if (typeof isoOrDateStr === 'string' && (isoOrDateStr.includes('T') || isoOrDateStr.includes(' '))) {
-    if (!isoOrDateStr.endsWith('Z')) {
-      const parts = isoOrDateStr.split(/[T\s]/);
-      if (parts.length >= 2 && parts[1].length >= 5) {
-        return parts[1].substring(0, 5);
-      }
-    }
-  }
-  // 2) UTC ISO 문자열(Z 포함) 또는 Date 객체인 경우 로컬 시간대로 변환
-  const d = new Date(isoOrDateStr);
-  if (isNaN(d.getTime())) return '';
-  const h = String(d.getHours()).padStart(2, '0');
-  const m = String(d.getMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
+  return formatTime24(isoOrDateStr);
 }
 
 export function getTargetDateDiffText(targetDate) {
@@ -540,7 +526,7 @@ export function getIntakeSlots(dailyFrequency, usageTiming = '', mealTimes = DEF
   const bTime = addMinutes(mealTimes.breakfast || '07:30', offset);
   const lTime = addMinutes(mealTimes.lunch || '12:00', offset);
   const dTime = addMinutes(mealTimes.dinner || '18:30', offset);
-  const bedTime = mealTimes.bedtime || '22:00';
+  const bedTime = formatTime24(mealTimes.bedtime) || '22:00';
 
   const breakfastSlot = { slot: 'breakfast', slotLabel: '아침', time: bTime };
   const lunchSlot = { slot: 'lunch', slotLabel: '점심', time: lTime };

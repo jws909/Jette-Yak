@@ -823,7 +823,8 @@ public class FamilyController {
 	public ResponseEntity<?> getMyInvitations(@RequestParam(value = "userId", required = false) Long userId, javax.servlet.http.HttpServletRequest request) {
         userId = userAccess.selfUser(request, userId, null);
 		List<Map<String, Object>> list = new ArrayList<>();
-		String sql = "SELECT i.INVITE_ID, i.FAMILY_ID, f.FAMILY_NAME, u.NICKNAME AS SENDER_NAME, TO_CHAR(i.CREATED_AT, 'YYYY-MM-DD HH24:MI') AS CREATED_AT "
+		// 초대 생성의 SYSDATE(UTC DATE)를 응답에서 한국 시각의 24시간제로 변환한다.
+		String sql = "SELECT i.INVITE_ID, i.FAMILY_ID, f.FAMILY_NAME, u.NICKNAME AS SENDER_NAME, TO_CHAR(FROM_TZ(CAST(i.CREATED_AT AS TIMESTAMP),'UTC') AT TIME ZONE 'Asia/Seoul','YYYY-MM-DD HH24:MI') AS CREATED_AT "
 				+ "FROM FAMILY_INVITATIONS i "
 				+ "JOIN FAMILIES f ON i.FAMILY_ID = f.FAMILY_ID "
 				+ "JOIN USERS u ON i.SENDER_ID = u.USER_ID "
