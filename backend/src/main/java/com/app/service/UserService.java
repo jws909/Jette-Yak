@@ -13,4 +13,6 @@ public interface UserService {
     void signup(SignupRequest request);
 
     void withdraw(Long userId);
+
+    void deleteUserAccount(Long userId);
 }

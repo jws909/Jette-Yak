@@ -612,15 +612,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
 
   const handleRemoveMember = (member) => {
     const memberName = member.name || member.nickname || '구성원';
+    const isVirtual = member.isVirtual === 'Y';
     showConfirm({
-      title: '가족 구성원 삭제',
-      description: `'${memberName}' 님을 가족 목록에서 삭제하시겠습니까?`,
+      title: isVirtual ? '가상 구성원 삭제' : '가족 구성원 내보내기',
+      description: isVirtual
+        ? `'${memberName}' 님의 모든 복약 정보 및 가상 계정이 영구 삭제됩니다. 계속하시겠습니까?`
+        : `'${memberName}' 님을 가족 목록에서 내보내시겠습니까? (해당 회원의 개인 계정 및 복약 정보는 유지됩니다.)`,
       confirmLabel: '삭제',
       cancelLabel: '취소',
       tone: 'danger',
       onConfirm: async () => {
         try {
-          const response = await fetch(`/api/family/members/${member.userId}/remove`, {
+          const response = await fetch(`/api/family/members/${member.userId}/remove?userId=${currentUserId || ''}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
@@ -952,9 +955,10 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                 // 현재 로그인한 본인 계정인지 확인
                 const isMe = Number(member.userId) === Number(currentUserId);
 
-                // 현재 로그인한 사용자 본인이 보호자(방장)인지 확인
+                // 현재 로그인한 사용자 본인이 보호자(방장)이거나, 일반 사용자이거나, 가상 구성원인 경우 삭제 권한 부여
                 const myInfo = familyMembers.find((m) => Number(m.userId) === Number(currentUserId));
-                const isManager = myInfo?.role === 'GUAR' || myInfo?.role === '보호자';
+                const isManager = myInfo?.role === 'GUAR' || myInfo?.role === '보호자' || myInfo?.role === 'USER' || familyMembers.every((m) => m.role !== 'GUAR');
+                const canDelete = !isMe && (isManager || member.isVirtual === 'Y');
 
                 return (
                   <div
@@ -975,10 +979,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                       )}
                     </button>
 
-                    {/* 초대한 보호자 본인만, 타인 구성원 옆에 삭제(×) 버튼 노출 */}
-                    {isManager && !isMe && (
+                    {/* 초대한 보호자 또는 가상 계정 등 타인 구성원 옆에 삭제(×) 버튼 노출 */}
+                    {canDelete && (
                       <button
                         type="button"
+                        className="btn-family-member-delete"
                         title="가족 구성원 삭제"
                         onClick={(e) => {
                           e.stopPropagation();

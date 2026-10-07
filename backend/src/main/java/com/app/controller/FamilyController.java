@@ -1,5 +1,6 @@
 package com.app.controller;
 
+import com.app.service.UserService;
 import org.apache.ibatis.session.SqlSession;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,9 @@ public class FamilyController {
 	
 	@Autowired
 	private SqlSessionFactory sqlSessionFactory;
+
+	@Autowired
+	private UserService userService;
 
 	/**
 	 * 가족 구성원 삭제 (내보내기 / 직접 등록 프로필 삭제)
@@ -69,117 +73,89 @@ public class FamilyController {
 			return ResponseEntity.badRequest().body(response);
 		}
 
-		// 외래키(자식 레코드) 삭제 순서: FAMILY_MEMBERS -> 처방약세부 -> 복약일정 -> 처방전 -> 상비약 -> 영양제 -> 복약상태 -> 초대내역 -> USERS
-		String deleteFamilyMemberSql = "DELETE FROM FAMILY_MEMBERS WHERE USER_ID = ?";
+		// (1) 대상 회원의 가상 계정 여부 확인
+		String isVirtual = "N";
 		String checkVirtualSql = "SELECT IS_VIRTUAL FROM USERS WHERE USER_ID = ?";
-		String deletePrescriptionItemsSql = "DELETE FROM PRESCRIPTION_ITEMS WHERE PRESCRIPTION_ID IN (SELECT PRESCRIPTION_ID FROM PRESCRIPTIONS WHERE USER_ID = ?)";
-		String deleteSchedulesSql = "DELETE FROM SCHEDULES WHERE USER_ID = ?";
-		String deletePrescriptionsSql = "DELETE FROM PRESCRIPTIONS WHERE USER_ID = ?";
-		String deleteCabinetSql = "DELETE FROM CABINET_MEDICATIONS WHERE USER_ID = ?";
-		String deleteRoutineSql = "DELETE FROM ROUTINE_MEDICATIONS WHERE USER_ID = ?";
-		String deleteUseStatesSql = "DELETE FROM MEDICATION_USE_STATES WHERE USER_ID = ?";
-		String deleteOverallGuideSql = "DELETE FROM MEDICATION_OVERALL_GUIDE WHERE USER_ID = ?";
-		String deleteUserSql = "DELETE FROM USERS WHERE USER_ID = ?";
-		String unlinkUserSql = "UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT' WHERE USER_ID = ?";
-		String cleanInviteSql = "DELETE FROM FAMILY_INVITATIONS WHERE RECEIVER_ID = ? OR SENDER_ID = ?";
-
-		try (SqlSession sessionSql = sqlSessionFactory.openSession();
-		     Connection conn = sessionSql.getConnection()) {
-			conn.setAutoCommit(false);
-
-			// (1) FAMILY_MEMBERS 테이블의 자식 레코드 먼저 제거 (FK_FM_USER 위배 방지)
-			try (PreparedStatement pstmtFm = conn.prepareStatement(deleteFamilyMemberSql)) {
-				pstmtFm.setLong(1, targetUserId);
-				pstmtFm.executeUpdate();
-			} catch (Exception ex) {
-				System.err.println("FAMILY_MEMBERS 삭제 건너뜀 또는 에러: " + ex.getMessage());
-			}
-
-			// (2) 가상 계정(직접 등록) 여부 확인
-			String isVirtual = "N";
-			try (PreparedStatement pstmt = conn.prepareStatement(checkVirtualSql)) {
-				pstmt.setLong(1, targetUserId);
-				try (ResultSet rs = pstmt.executeQuery()) {
-					if (rs.next()) {
-						isVirtual = rs.getString("IS_VIRTUAL");
-					}
+		try (Connection conn = dataSource.getConnection();
+		     PreparedStatement pstmt = conn.prepareStatement(checkVirtualSql)) {
+			pstmt.setLong(1, targetUserId);
+			try (ResultSet rs = pstmt.executeQuery()) {
+				if (rs.next()) {
+					isVirtual = rs.getString("IS_VIRTUAL");
+				} else {
+					response.put("success", false);
+					response.put("message", "존재하지 않는 회원입니다.");
+					return ResponseEntity.badRequest().body(response);
 				}
 			}
+		} catch (Exception e) {
+			e.printStackTrace();
+			response.put("success", false);
+			response.put("message", "회원 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
+			return ResponseEntity.internalServerError().body(response);
+		}
 
-			// (3) 초대 내역 정리
-			try (PreparedStatement pstmtInvite = conn.prepareStatement(cleanInviteSql)) {
-				pstmtInvite.setLong(1, targetUserId);
-				pstmtInvite.setLong(2, targetUserId);
-				pstmtInvite.executeUpdate();
-			} catch (Exception ex) {
-				// 초대 테이블 삭제 오류 방어
+		// (2) 가상 계정 vs 일반 회원 분기
+		if ("Y".equalsIgnoreCase(isVirtual)) {
+			// 가상 유저: 회원 탈퇴 로직(사용자 및 모든 하위/연관 데이터 영구 삭제)을 그대로 수행
+			try {
+				userService.deleteUserAccount(targetUserId);
+				response.put("success", true);
+				response.put("message", "가상 구성원이 정상적으로 삭제되었습니다.");
+				return ResponseEntity.ok(response);
+			} catch (Exception e) {
+				e.printStackTrace();
+				response.put("success", false);
+				response.put("message", "가상 구성원 삭제 실패: " + e.getMessage());
+				return ResponseEntity.internalServerError().body(response);
 			}
+		} else {
+			// 실제 계정이 있는 일반 회원: 계정 및 개인 데이터는 유지하고 가족 그룹 매핑만 해제
+			Connection conn = null;
+			try {
+				conn = dataSource.getConnection();
+				conn.setAutoCommit(false);
 
-			// (4) 가상 계정 vs 일반 회원 분기
-			if ("Y".equalsIgnoreCase(isVirtual)) {
-				// 처방전 세부 항목 삭제
-				try (PreparedStatement ps = conn.prepareStatement(deletePrescriptionItemsSql)) {
-					ps.setLong(1, targetUserId);
-					ps.executeUpdate();
+				// 초대 내역 정리
+				String cleanInviteSql = "DELETE FROM FAMILY_INVITATIONS WHERE RECEIVER_ID = ? OR SENDER_ID = ?";
+				try (PreparedStatement pstmtInvite = conn.prepareStatement(cleanInviteSql)) {
+					pstmtInvite.setLong(1, targetUserId);
+					pstmtInvite.setLong(2, targetUserId);
+					pstmtInvite.executeUpdate();
 				} catch (Exception ignored) {}
 
-				// 복약 일정 삭제
-				try (PreparedStatement pstmtSched = conn.prepareStatement(deleteSchedulesSql)) {
-					pstmtSched.setLong(1, targetUserId);
-					pstmtSched.executeUpdate();
-				} catch (Exception ignored) {}
-
-				// 처방전 마스터 삭제
-				try (PreparedStatement ps = conn.prepareStatement(deletePrescriptionsSql)) {
-					ps.setLong(1, targetUserId);
-					ps.executeUpdate();
-				} catch (Exception ignored) {}
-
-				// 보관함 상시약 삭제
-				try (PreparedStatement ps = conn.prepareStatement(deleteCabinetSql)) {
-					ps.setLong(1, targetUserId);
-					ps.executeUpdate();
-				} catch (Exception ignored) {}
-
-				// 영양제 루틴 삭제
-				try (PreparedStatement ps = conn.prepareStatement(deleteRoutineSql)) {
-					ps.setLong(1, targetUserId);
-					ps.executeUpdate();
-				} catch (Exception ignored) {}
-
-				// 복약 상태 및 가이드 삭제
-				try (PreparedStatement ps = conn.prepareStatement(deleteUseStatesSql)) {
-					ps.setLong(1, targetUserId);
-					ps.executeUpdate();
-				} catch (Exception ignored) {}
-				try (PreparedStatement ps = conn.prepareStatement(deleteOverallGuideSql)) {
-					ps.setLong(1, targetUserId);
-					ps.executeUpdate();
-				} catch (Exception ignored) {}
-
-				// 유저 계정 삭제
-				try (PreparedStatement pstmtUser = conn.prepareStatement(deleteUserSql)) {
-					pstmtUser.setLong(1, targetUserId);
-					pstmtUser.executeUpdate();
+				// 가족 구성원 매핑 해제
+				String deleteFamilyMemberSql = "DELETE FROM FAMILY_MEMBERS WHERE USER_ID = ?";
+				try (PreparedStatement pstmtFm = conn.prepareStatement(deleteFamilyMemberSql)) {
+					pstmtFm.setLong(1, targetUserId);
+					pstmtFm.executeUpdate();
 				}
-			} else {
-				// 일반 연동 회원: 그룹 해제
+
+				// 가족 그룹 해제 및 일반 역할 복원
+				String unlinkUserSql = "UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT' WHERE USER_ID = ?";
 				try (PreparedStatement pstmtUser = conn.prepareStatement(unlinkUserSql)) {
 					pstmtUser.setLong(1, targetUserId);
 					pstmtUser.executeUpdate();
 				}
+
+				conn.commit();
+				response.put("success", true);
+				response.put("message", "가족 구성원 연동이 해제되었습니다.");
+				return ResponseEntity.ok(response);
+
+			} catch (Exception e) {
+				if (conn != null) {
+					try { conn.rollback(); } catch (Exception ignored) {}
+				}
+				e.printStackTrace();
+				response.put("success", false);
+				response.put("message", "가족 구성원 연동 해제 실패: " + e.getMessage());
+				return ResponseEntity.internalServerError().body(response);
+			} finally {
+				if (conn != null) {
+					try { conn.close(); } catch (Exception ignored) {}
+				}
 			}
-
-			conn.commit();
-			response.put("success", true);
-			response.put("message", "삭제되었습니다.");
-			return ResponseEntity.ok(response);
-
-		} catch (Exception e) {
-			e.printStackTrace();
-			response.put("success", false);
-			response.put("message", e.getMessage());
-			return ResponseEntity.internalServerError().body(response);
 		}
 	}
 	/**
@@ -465,7 +441,7 @@ public class FamilyController {
 					}
 				}
 
-				String updateGuardSql = "UPDATE USERS SET FAMILY_ID = ? WHERE USER_ID = ?";
+				String updateGuardSql = "UPDATE USERS SET FAMILY_ID = ?, ROLE = 'GUAR' WHERE USER_ID = ?";
 				try (PreparedStatement pstmt = conn.prepareStatement(updateGuardSql)) {
 					pstmt.setLong(1, familyId);
 					pstmt.setLong(2, guardianId);

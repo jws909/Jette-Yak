@@ -29,6 +29,7 @@ public class User {
     private String lunchTime;
     private String dinnerTime;
     private String bedtime;
+    private String isVirtual;
 
     public Long getUserId() {
         return userId;
@@ -196,5 +197,13 @@ public class User {
 
     public void setBedtime(String bedtime) {
         this.bedtime = bedtime;
+    }
+
+    public String getIsVirtual() {
+        return isVirtual;
+    }
+
+    public void setIsVirtual(String isVirtual) {
+        this.isVirtual = isVirtual;
     }
 }
