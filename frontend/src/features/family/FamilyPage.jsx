@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
+import DatePicker from '../../components/ui/DatePicker';
 import './FamilyPage.css';
 
 function getFormattedDate(targetDate) {
@@ -1466,11 +1467,12 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
 
                   <div>
                     <label className="family-form-label">생년월일 (선택)</label>
-                    <input
-                      type="date"
-                      className="family-form-input"
+                    <DatePicker
                       value={newMemberBirth}
                       onChange={(e) => setNewMemberBirth(e.target.value)}
+                      placeholder="생년월일 선택"
+                      max={getFormattedDate(today)}
+                      title="생년월일 선택"
                     />
                   </div>
                 </div>
