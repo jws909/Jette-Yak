@@ -1,3 +1,7 @@
 AGENT.md
 
 *.txt
+
+# Web Push 개인 키는 저장소 밖에서 관리
+**/push.properties
+**/push.local.properties

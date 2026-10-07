@@ -18,6 +18,7 @@ import com.app.domain.User;
 import com.app.mapper.UserMapper;
 import com.app.service.EmailVerificationService;
 import com.app.util.PasswordUtil;
+import com.app.push.PushSubscriptionService;
 
 /**
  * DB 계정 확인, 로그인 세션 발급, 이메일 인증과 비밀번호 재설정 담당
@@ -31,6 +32,9 @@ public class AuthController {
 
     @Autowired
     private EmailVerificationService emailVerificationService;
+
+    @Autowired
+    private PushSubscriptionService pushSubscriptionService;
 
     private static final String EMAIL_PATTERN = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
     private static final long PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS = 5 * 60 * 1000L;
@@ -52,7 +56,11 @@ public class AuthController {
 
         if (httpRequest != null) {
             var oldSession = httpRequest.getSession(false);
-            if (oldSession != null) oldSession.invalidate();
+            if (oldSession != null) {
+                // 계정 전환 시 이 기기에 이전 사용자의 복약 알림이 남지 않도록 해제
+                pushSubscriptionService.removeForSession(httpRequest);
+                oldSession.invalidate();
+            }
             javax.servlet.http.HttpSession session = httpRequest.getSession(true);
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getLoginId());
@@ -77,7 +85,11 @@ public class AuthController {
     @PostMapping("/logout")
     public ResponseEntity<?> logout(javax.servlet.http.HttpServletRequest request) {
         var session=request.getSession(false);
-        if(session!=null) session.invalidate();
+        if(session!=null) {
+            // 다른 기기의 구독은 유지하고 현재 로그인 세션에 연결한 기기만 해제
+            pushSubscriptionService.removeForSession(request);
+            session.invalidate();
+        }
         return ResponseEntity.ok().header("Cache-Control","no-store").body(Map.of("message","로그아웃되었습니다."));
     }
 
@@ -96,7 +108,10 @@ public class AuthController {
 
         if (httpRequest != null) {
             var oldSession = httpRequest.getSession(false);
-            if (oldSession != null) oldSession.invalidate();
+            if (oldSession != null) {
+                pushSubscriptionService.removeForSession(httpRequest);
+                oldSession.invalidate();
+            }
             javax.servlet.http.HttpSession session = httpRequest.getSession(true);
             session.setAttribute("userId", user.getUserId());
             session.setAttribute("username", user.getLoginId());

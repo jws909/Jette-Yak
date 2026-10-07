@@ -3,6 +3,7 @@ import UiDialog from './components/ui/UiDialog';
 import { saveIntakeStatus } from './utils/intakeApi';
 import { formatTime24 } from './utils/dateTime.js';
 import { showForegroundNotification } from './features/pwa/foregroundNotifications.js';
+import { useBackgroundPush } from './features/pwa/useBackgroundPush.js';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import MainPage from './features/main/MainPage';
@@ -55,7 +56,8 @@ function PublicOnlyRoute({ isLoggedIn, children }) {
 
 function App() {
   const navigate = useNavigate();
-  const { showAlert } = useDialog();
+  const { showAlert, showLoading, hideLoading } = useDialog();
+  const logoutLock = useRef(false);
 
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(
     localStorage.getItem('user')
@@ -72,6 +74,9 @@ function App() {
   const [pendingGlobalAlertItem, setGlobalAlertItem] = useState(null);
   const medicationAlertsEnabled = user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0';
   const alertUserId = user?.userId || user?.id;
+  const backgroundPush = useBackgroundPush({ userId: isLoggedIn ? alertUserId : null, enabled: medicationAlertsEnabled });
+  const serverPushActiveRef = useRef(false);
+  useEffect(() => { serverPushActiveRef.current = backgroundPush.active; }, [backgroundPush.active]);
   const alertSession = useMemo(() => ({ userId: alertUserId, enabled: medicationAlertsEnabled, isLoggedIn }), [isLoggedIn, medicationAlertsEnabled, alertUserId]);
   // 알림을 끄거나 사용자가 바뀌면 이전 알람을 즉시 숨깁니다.
   const globalAlertItem = isLoggedIn && medicationAlertsEnabled
@@ -85,7 +90,10 @@ function App() {
   const [permissionDismissed, setPermissionDismissed] = useState(() => sessionStorage.getItem('notif_modal_dismissed') === 'true');
   const [notificationPermission, setNotificationPermission] = useState(() => 'Notification' in window ? Notification.permission : 'unsupported');
   const showPermissionModal = isLoggedIn && medicationAlertsEnabled
-    && notificationPermission === 'default' && !permissionDismissed;
+    && !backgroundPush.checking && !permissionDismissed
+    && (notificationPermission === 'default' || (backgroundPush.environment.supported && backgroundPush.config?.enabled
+      && notificationPermission === 'granted' && !backgroundPush.subscribed));
+  const canUseBackgroundPush = backgroundPush.environment.supported && backgroundPush.config?.enabled;
 
   // 세션 userId 자동 복구
   useEffect(() => {
@@ -142,6 +150,20 @@ function App() {
 
   // 사용자가 모달에서 [알림 받기 (예)]를 클릭했을 때 실행되는 핸들러 (User Gesture 만족)
   const handleRequestPermission = async () => {
+    if (canUseBackgroundPush) {
+      try {
+        if (await backgroundPush.enable()) {
+          setPermissionDismissed(true);
+          setNotificationPermission(Notification.permission);
+          setAppFeedback('이 기기의 복약 알림을 켰어요. 앱을 닫아도 복약 시간 30분 전과 정시에 알려드려요. 마이페이지에서 테스트 알림을 보내볼 수 있어요.');
+        }
+      } catch (error) {
+        setPermissionDismissed(true);
+        setNotificationPermission(Notification.permission);
+        await showAlert(error.message, '알림 설정 안내');
+      }
+      return;
+    }
     setPermissionDismissed(true);
     if ('Notification' in window) {
       try {
@@ -239,9 +261,9 @@ function App() {
           if (!alertedTags.has(preTag)) {
             alertedTags.add(preTag);
 
-            if ('Notification' in window && Notification.permission === 'granted') {
-              void showForegroundNotification('⏰ [복약 30분 전 안내]', {
-                body: `30분 뒤(${preTimeStr}) ${combinedNames} 복용 시간입니다. 미리 준비하세요!`,
+            if (!serverPushActiveRef.current && 'Notification' in window && Notification.permission === 'granted') {
+              void showForegroundNotification('제때약 · 복약 30분 전 안내', {
+                body: `30분 뒤(${preTimeStr}) 복약할 시간이 다가와요. 앱에서 오늘 일정을 확인해 주세요.`,
                 tag: preTag,
                 data: { type: 'medication-reminder', url: '/', date: futureDateStr, time: preTimeStr, isPreAlarm: true },
               });
@@ -277,9 +299,9 @@ function App() {
               time: currentTimeStr,
             });
 
-            if ('Notification' in window && Notification.permission === 'granted') {
-              void showForegroundNotification(`[복약 알림] ${combinedNames}`, {
-                body: `현재 복용 시간(${currentTimeStr})입니다. 잊지 말고 복용하세요!`,
+            if (!serverPushActiveRef.current && 'Notification' in window && Notification.permission === 'granted') {
+              void showForegroundNotification('제때약 · 복약 알림', {
+                body: `복약 시간(${currentTimeStr})이에요. 앱에서 오늘 일정을 확인해 주세요.`,
                 tag: mainTag,
                 data: { type: 'medication-reminder', url: '/', date: todayDateStr, time: currentTimeStr, isPreAlarm: false },
               });
@@ -355,12 +377,22 @@ function App() {
   };
 
   const handleLogout = async () => {
+    if (logoutLock.current) return;
+    logoutLock.current = true;
+    showLoading({ title: '로그아웃 중…', description: '이 기기의 알림 연결을 정리하고 있어요.' });
     try {
+      // 로그아웃 전에 현재 기기의 수신 주소 해제. 다른 기기의 구독은 유지
+      await backgroundPush.prepareLogout();
       const response = await fetch('/api/auth/logout', { method: 'POST' });
       if (!response.ok) throw new Error();
     } catch {
-      await showAlert('로그아웃하지 못했습니다. 다시 시도해주세요.', '로그아웃 실패');
+      hideLoading();
+      backgroundPush.refresh();
+      await showAlert('로그아웃하지 못했어요. 다시 시도해 주세요.\n이 기기의 알림이 해제되었다면 마이페이지에서 다시 켤 수 있어요.', '로그아웃 실패');
       return;
+    } finally {
+      hideLoading();
+      logoutLock.current = false;
     }
     setIsLoggedIn(false);
     setUser(null);
@@ -488,7 +520,7 @@ function App() {
                 onLogout={handleLogout}
                 onLoginDemoToggle={handleLoginDemoToggle}
               >
-                <MyPage user={user} onUserUpdated={handleUserUpdated} onLogout={handleLogout} />
+                <MyPage user={user} onUserUpdated={handleUserUpdated} onLogout={handleLogout} backgroundPush={backgroundPush} />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -564,81 +596,19 @@ function App() {
         />
       </Routes>
 
-      {/* ★ 1. 로그인 후 알림 권한 요청 모달 (사용자 명시적 클릭 유도) */}
-      {showPermissionModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.45)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 99998,
-        }}>
-          <div style={{
-            background: '#ffffff',
-            borderRadius: '16px',
-            padding: '28px 24px',
-            textAlign: 'center',
-            maxWidth: '360px',
-            width: '90%',
-            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.2)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px', color: '#682335' }}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="38" height="38">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </div>
-            <h4 style={{ fontSize: '18px', fontWeight: 'bold', color: '#2b2520', margin: '0 0 8px 0' }}>
-              복약 알림을 받아보시겠어요?
-            </h4>
-            <p style={{ fontSize: '13px', color: '#665f57', margin: '0 0 24px 0', lineHeight: '1.5' }}>
-              사이트나 앱이 열려 있고 인터넷에 연결되어 있을 때<br />
-              복약 시간 30분 전과 정시에 확인해 알려드려요.
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                type="button"
-                style={{
-                  flex: 1,
-                  padding: '11px 0',
-                  borderRadius: '8px',
-                  border: '1px solid #d9d2c9',
-                  background: '#f7f6f4',
-                  color: '#5c544d',
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-                onClick={handleDismissPermission}
-              >
-                나중에
-              </button>
-              <button
-                type="button"
-                style={{
-                  flex: 1,
-                  padding: '11px 0',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: '#682335',
-                  color: '#ffffff',
-                  fontSize: '14px',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                }}
-                onClick={handleRequestPermission}
-              >
-                알림 받기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* 권한 요청은 사용자가 버튼을 누른 순간에만 실행 */}
+      <UiDialog
+        open={showPermissionModal}
+        title="복약 알림을 받아보시겠어요?"
+        description={canUseBackgroundPush
+          ? '앱을 닫아도 복약 시간 30분 전과 정시에 알려드려요.\n잠금 화면에는 약 이름을 표시하지 않아요.\n서버가 켜져 있고 인터넷에 연결되어 있어야 해요.'
+          : '사이트나 앱이 열려 있고 인터넷에 연결되어 있을 때 복약 시간을 확인해 알려드려요.\n앱 종료 후 알림은 마이페이지에서 지원 여부를 확인할 수 있어요.'}
+        confirmLabel="알림 받기"
+        cancelLabel="나중에"
+        busy={Boolean(backgroundPush.busy)}
+        onConfirm={handleRequestPermission}
+        onCancel={handleDismissPermission}
+      />
       {/* 정시 복약 전역 모달 */}
       {globalAlertItem && (
         <div style={{

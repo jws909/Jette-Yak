@@ -17,6 +17,74 @@ const CACHE_PREFIX = 'jette-yak-pwa-';
 const CACHE_NAME = CACHE_PREFIX + ${JSON.stringify(version)};
 const OFFLINE_URL = '/offline.html';
 const PRECACHE_URLS = ${JSON.stringify(resourcePaths)};
+const NOTIFICATION_TYPES = ['medication-reminder', 'notification-permission', 'notification-test'];
+const DEFAULT_NOTIFICATION_TITLE = '제때약 복약 알림';
+const DEFAULT_NOTIFICATION_BODY = '확인할 복약 알림이 있어요. 앱에서 오늘의 복약 일정을 확인해주세요.';
+
+// 푸시 본문만 읽고, 이동 주소·아이콘·동작은 앱에서 정한 값만 사용
+function notificationText(value, fallback, limit) {
+  if (typeof value !== 'string') return fallback;
+  const clean = value.replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069]/g, ' ')
+    .replace(/\\s+/g, ' ').trim();
+  return clean ? Array.from(clean).slice(0, limit).join('') : fallback;
+}
+
+function readPushNotification(event) {
+  let payload;
+  try {
+    const raw = event.data && event.data.text();
+    if (typeof raw === 'string' && raw.length <= 8192) payload = JSON.parse(raw);
+  } catch {
+    // 비어 있거나 잘못된 본문도 알림 자체는 일반 안내로 표시
+  }
+  const valid = payload && !Array.isArray(payload) && typeof payload === 'object'
+    && NOTIFICATION_TYPES.includes(payload.type);
+  if (!valid) payload = {};
+
+  const data = {
+    type: valid ? payload.type : 'medication-reminder',
+    url: '/',
+  };
+  if (typeof payload.date === 'string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(payload.date)) {
+    const date = new Date(payload.date + 'T00:00:00Z');
+    if (Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === payload.date) data.date = payload.date;
+  }
+  if (typeof payload.time === 'string' && /^(?:[01]\\d|2[0-3]):[0-5]\\d$/.test(payload.time)) data.time = payload.time;
+  if (typeof payload.isPreAlarm === 'boolean') data.isPreAlarm = payload.isPreAlarm;
+
+  const tag = typeof payload.tag === 'string' && /^[A-Za-z0-9._:-]{1,120}$/.test(payload.tag)
+    ? 'jette-yak-' + payload.tag : 'jette-yak-push';
+  return {
+    title: notificationText(payload.title, DEFAULT_NOTIFICATION_TITLE, 60),
+    options: {
+      body: notificationText(payload.body, DEFAULT_NOTIFICATION_BODY, 240),
+      icon: '/pwa/icon-192.png',
+      badge: '/pwa/icon-192.png',
+      tag,
+      data,
+    },
+  };
+}
+
+// 앱 화면이 닫혀 있어도 서버 푸시를 받으면 운영체제 알림으로 표시
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    const notification = readPushNotification(event);
+    try {
+      await self.registration.showNotification(notification.title, notification.options);
+    } catch {
+      // 기기에서 일부 옵션을 거부하면 최소한의 일반 알림으로 한 번 더 시도
+      try {
+        await self.registration.showNotification(DEFAULT_NOTIFICATION_TITLE, {
+          body: DEFAULT_NOTIFICATION_BODY,
+          data: { type: 'medication-reminder', url: '/' },
+        });
+      } catch {
+        // OS 권한 취소·종료 상태에서 발생한 거부가 작업자 전체 오류로 이어지지 않도록 마무리
+      }
+    }
+  })());
+});
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -50,6 +118,11 @@ self.addEventListener('activate', (event) => {
 
 // 사용자가 업데이트를 확인한 뒤에만 대기 중인 새 버전을 활성화
 self.addEventListener('message', (event) => {
+  // 이전 버전 작업자는 푸시를 표시할 수 없으므로 구독 전 지원 여부를 확인
+  if (event.data && event.data.type === 'GET_PUSH_CAPABILITIES') {
+    event.ports?.[0]?.postMessage({ push: true, version: 1 });
+    return;
+  }
   if (event.data && event.data.type === 'SKIP_WAITING') {
     event.waitUntil(self.skipWaiting());
   }
@@ -58,27 +131,35 @@ self.addEventListener('message', (event) => {
 // 복약 알림을 누르면 같은 사이트의 홈으로만 이동
 self.addEventListener('notificationclick', (event) => {
   const data = event.notification.data;
-  if (!data || !['medication-reminder', 'notification-permission'].includes(data.type)
+  if (!data || !NOTIFICATION_TYPES.includes(data.type)
       || data.url !== '/') return;
 
   event.notification.close();
   event.waitUntil((async () => {
     const target = new URL('/', self.location.origin).href;
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-    const ownWindows = windows.filter((client) => {
-      try {
-        return new URL(client.url).origin === self.location.origin;
-      } catch {
-        return false;
+    try {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const ownWindows = windows.filter((client) => {
+        try {
+          return new URL(client.url).origin === self.location.origin;
+        } catch {
+          return false;
+        }
+      });
+      const client = ownWindows.find((window) => window.url === target) || ownWindows[0];
+      if (client) {
+        await client.focus();
+        if (client.url !== target) await client.navigate(target);
+        return;
       }
-    });
-    const client = ownWindows.find((window) => window.url === target) || ownWindows[0];
-    if (client) {
-      await client.focus();
-      if (client.url !== target) await client.navigate(target);
-      return;
+    } catch {
+      // 이미 닫힌 창은 새 홈 화면으로 다시 열기
     }
-    await self.clients.openWindow(target);
+    try {
+      await self.clients.openWindow(target);
+    } catch {
+      // 운영체제가 창 열기를 거부해도 외부 주소로 우회하지 않음
+    }
   })());
 });
 

@@ -118,7 +118,8 @@ test('브라우저 API 속성 접근 오류도 false로 끝남', async () => {
   }), false);
 });
 
-test('모바일 알림 오류가 나도 실제 복약 검사에서 정시 모달과 두 앱 내부 알림을 유지', async () => {
+for (const serverPushActive of [false, true]) {
+test(`실제 복약 검사에서 정시 모달·앱 내부 알림 유지, 서버 푸시 ${serverPushActive ? '연결 시 OS 알림 중복 방지' : '미연결 시 모바일 오류도 처리'}`, async () => {
   const source = await readFile(new URL('../../App.jsx', import.meta.url), 'utf8');
   const start = source.indexOf('    const triggerCheck = async () => {');
   const end = source.indexOf('\n    triggerCheck();', start);
@@ -126,11 +127,12 @@ test('모바일 알림 오류가 나도 실제 복약 검사에서 정시 모달
   const fixture = browserFixture({ mobile: true });
   const events = [];
   const notifications = [];
+  const osPayloads = [];
   let modal;
   const scope = {
     Date: class extends Date { constructor(...args) { super(...(args.length ? args : ['2026-10-07T08:00:00'])); } },
     getFormattedDate: () => '2026-10-07',
-    currentUserId: 7, isActive: true, alertSession: {}, alertedTags: new Set(),
+    currentUserId: 7, isActive: true, alertSession: {}, alertedTags: new Set(), serverPushActiveRef: { current: serverPushActive },
     fetch: async () => ({ ok: true, json: async () => [
       { scheduleId: 1, name: '정시 약', time: '08:00', takenAt: null, alarmEnabled: true },
       { scheduleId: 2, name: '예비 약', time: '08:30', takenAt: null, alarmEnabled: true },
@@ -140,6 +142,7 @@ test('모바일 알림 오류가 나도 실제 복약 검사에서 정시 모달
     CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
     setGlobalAlertError() {}, setGlobalAlertItem: item => { modal = item; },
     showForegroundNotification: (...args) => {
+      osPayloads.push(args);
       const result = showForegroundNotification(...args, fixture.browser);
       notifications.push(result);
       return result;
@@ -151,5 +154,7 @@ test('모바일 알림 오류가 나도 실제 복약 검사에서 정시 모달
   assert.equal(modal.name, '정시 약');
   assert.equal(modal.date, '2026-10-07');
   assert.deepEqual(events.map(event => event.detail.isPreAlarm), [true, false]);
-  assert.deepEqual(await Promise.all(notifications), [false, false]);
+  assert.deepEqual(await Promise.all(notifications), serverPushActive ? [] : [false, false]);
+  assert.ok(osPayloads.every(([title, options]) => !`${title} ${options.body}`.includes('정시 약') && !`${title} ${options.body}`.includes('예비 약')));
 });
+}

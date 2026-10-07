@@ -44,7 +44,7 @@ async function fixture(t, { appleIcon = false } = {}) {
   }
 }
 
-function workerHarness(source, { network, existingCaches = [], windowUrls = [] } = {}) {
+function workerHarness(source, { network, existingCaches = [], windowUrls = [], showNotification, clientFailure } = {}) {
   const listeners = new Map()
   const stores = new Map(existingCaches.map((name) => [name, new Map()]))
   const fetched = []
@@ -53,9 +53,10 @@ function workerHarness(source, { network, existingCaches = [], windowUrls = [] }
   const navigated = []
   const opened = []
   const clientMatches = []
+  const notifications = []
   const windowClients = windowUrls.map((url) => ({
     url,
-    async focus() { focused.push(this.url); return this },
+    async focus() { if (clientFailure === 'focus') throw new Error('window closed'); focused.push(this.url); return this },
     async navigate(target) { navigated.push({ from: this.url, to: target }); this.url = target; return this },
   }))
   let claimed = 0
@@ -85,17 +86,23 @@ function workerHarness(source, { network, existingCaches = [], windowUrls = [] }
     self: {
       location: { origin: ORIGIN },
       addEventListener(type, listener) { listeners.set(type, listener) },
+      registration: {
+        async showNotification(title, options) {
+          notifications.push({ title, options })
+          if (showNotification) return showNotification(title, options, notifications.length)
+        },
+      },
       clients: {
         async claim() { claimed += 1 },
-        async matchAll(options) { clientMatches.push(options); return windowClients },
-        async openWindow(url) { opened.push(url) },
+        async matchAll(options) { if (clientFailure === 'match') throw new Error('window list unavailable'); clientMatches.push(options); return windowClients },
+        async openWindow(url) { if (clientFailure === 'open') throw new Error('opening rejected'); opened.push(url) },
       },
       async skipWaiting() { skipped += 1 },
     },
   })
 
   return {
-    stores, fetched, deleted, focused, navigated, opened, clientMatches,
+    stores, fetched, deleted, focused, navigated, opened, clientMatches, notifications,
     get claimed() { return claimed },
     get skipped() { return skipped },
     async dispatch(type, attributes = {}) {
@@ -270,9 +277,179 @@ test('only an explicit SKIP_WAITING message activates a waiting update', async (
   assert.equal(worker.skipped, 1)
 })
 
+test('a capability handshake replies only on the supplied message port without activating or fetching', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build())
+  const replies = []
+  const port = { postMessage(message) { replies.push(JSON.parse(JSON.stringify(message))) } }
+  await worker.dispatch('message', { data: { type: 'GET_PUSH_CAPABILITIES' }, ports: [port] })
+  assert.deepEqual(replies, [{ push: true, version: 1 }])
+  await worker.dispatch('message', { data: { type: 'OTHER' }, ports: [port] })
+  await worker.dispatch('message', { data: { type: 'GET_PUSH_CAPABILITIES' } })
+  await worker.dispatch('message', { data: { type: 'GET_PUSH_CAPABILITIES' }, ports: [] })
+  assert.equal(replies.length, 1)
+  assert.equal(worker.skipped, 0)
+  assert.equal(worker.fetched.length, 0)
+  assert.equal(worker.stores.size, 0)
+})
+
+function pushData(payload) {
+  return { text() { return JSON.stringify(payload) } }
+}
+
+test('server pushes display a visible branded notification without a running page or network request', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build())
+  const result = await worker.dispatch('push', {
+    data: pushData({
+      type: 'medication-reminder', title: '제때약 복약 알림',
+      body: '복약 시간이 되었어요. 앱에서 오늘의 일정을 확인해주세요.',
+      tag: 'dose-2026-10-07-13:00', url: '/', date: '2026-10-07', time: '13:00', isPreAlarm: false,
+    }),
+  })
+  assert.equal(result.extended, 1)
+  assert.equal(worker.notifications.length, 1)
+  const { title, options } = worker.notifications[0]
+  assert.equal(title, '제때약 복약 알림')
+  assert.match(options.body, /복약 시간이 되었어요/)
+  assert.equal(options.icon, '/pwa/icon-192.png')
+  assert.equal(options.badge, '/pwa/icon-192.png')
+  assert.equal(options.tag, 'jette-yak-dose-2026-10-07-13:00')
+  assert.deepEqual(JSON.parse(JSON.stringify(options.data)), {
+    type: 'medication-reminder', url: '/', date: '2026-10-07', time: '13:00', isPreAlarm: false,
+  })
+  assert.equal(worker.fetched.length, 0)
+  assert.equal(worker.stores.size, 0)
+  assert.equal(worker.clientMatches.length, 0)
+})
+
+test('all owned notification types support push reception and click handling', async (t) => {
+  const files = await fixture(t)
+  for (const type of ['medication-reminder', 'notification-permission', 'notification-test']) {
+    const worker = workerHarness(await files.build())
+    await worker.dispatch('push', { data: pushData({ type, title: '알림 확인', body: '테스트 알림', url: '/' }) })
+    const notification = worker.notifications[0]
+    assert.equal(notification.options.data.type, type)
+    await worker.dispatch('notificationclick', {
+      notification: { data: notification.options.data, close() {} },
+    })
+    assert.deepEqual(worker.opened, [`${ORIGIN}/`])
+  }
+})
+
+test('empty, malformed, oversized, and unrecognized pushes fall back to a generic visible notice', async (t) => {
+  const files = await fixture(t)
+  for (const data of [
+    null,
+    { text() { return '' } },
+    { text() { return '{broken JSON' } },
+    { text() { throw new Error('read failed') } },
+    { text() { return ' '.repeat(8193) } },
+    { text() { return JSON.stringify({ type: 'medication-reminder', body: 'x'.repeat(8193) }) } },
+    pushData(null), pushData([]), pushData('plain text'), pushData(42),
+    pushData({ type: 'untrusted', title: '사용하면 안 될 제목', body: '사용하면 안 될 본문' }),
+  ]) {
+    const worker = workerHarness(await files.build())
+    await worker.dispatch('push', { data })
+    assert.equal(worker.notifications.length, 1)
+    const notification = worker.notifications[0]
+    assert.equal(notification.title, '제때약 복약 알림')
+    assert.equal(notification.options.body, '확인할 복약 알림이 있어요. 앱에서 오늘의 복약 일정을 확인해주세요.')
+    assert.equal(notification.options.tag, 'jette-yak-push')
+    assert.equal(notification.options.data.url, '/')
+  }
+})
+
+test('push text strips control and directional characters and is bounded without splitting emoji', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build())
+  await worker.dispatch('push', { data: pushData({
+    type: 'medication-reminder', title: '\u202e\n 제목\u0000\t알림 \u2069', body: '💊'.repeat(300),
+  }) })
+  const first = worker.notifications[0]
+  assert.equal(first.title, '제목 알림')
+  assert.equal(Array.from(first.options.body).length, 240)
+  assert.equal(first.options.body, '💊'.repeat(240))
+  await worker.dispatch('push', { data: pushData({ type: 'notification-test', title: '😀'.repeat(80), body: '\n\u0000' }) })
+  assert.equal(worker.notifications[1].title, '😀'.repeat(60))
+  assert.match(worker.notifications[1].options.body, /오늘의 복약 일정/)
+})
+
+test('push input cannot change destination, assets, notification actions, or arbitrary options', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build())
+  await worker.dispatch('push', { data: pushData({
+    type: 'medication-reminder', url: 'https://third-party.test/phishing',
+    icon: 'https://third-party.test/tracker.png', badge: 'https://third-party.test/badge.png',
+    data: { type: 'unknown', url: 'javascript:alert(1)', userId: 123, medication: 'private data' },
+    actions: [{ action: 'external', title: '외부 이동' }], requireInteraction: true, silent: true,
+    vibrate: [100, 100], image: 'https://third-party.test/image.png',
+  }) })
+  const { options } = worker.notifications[0]
+  assert.equal(options.data.url, '/')
+  assert.equal(options.data.userId, undefined)
+  assert.equal(options.data.medication, undefined)
+  assert.equal(options.icon, '/pwa/icon-192.png')
+  assert.equal(options.badge, '/pwa/icon-192.png')
+  for (const key of ['actions', 'requireInteraction', 'silent', 'vibrate', 'image']) assert.equal(options[key], undefined)
+  await worker.dispatch('notificationclick', { notification: { data: options.data, close() {} } })
+  assert.deepEqual(worker.opened, [`${ORIGIN}/`])
+  assert.equal(worker.fetched.length, 0)
+})
+
+test('push metadata accepts only real dates, 24-hour times, and booleans', async (t) => {
+  const files = await fixture(t)
+  for (const metadata of [
+    { date: '2026-99-99', time: '24:00', isPreAlarm: 'true' },
+    { date: '2026-02-29', time: '7:30', isPreAlarm: 1 },
+    { date: ['2026-10-07'], time: '13:99', isPreAlarm: null },
+  ]) {
+    const worker = workerHarness(await files.build())
+    await worker.dispatch('push', { data: pushData({ type: 'medication-reminder', ...metadata }) })
+    assert.deepEqual(JSON.parse(JSON.stringify(worker.notifications[0].options.data)), { type: 'medication-reminder', url: '/' })
+  }
+  const worker = workerHarness(await files.build())
+  await worker.dispatch('push', { data: pushData({ type: 'medication-reminder', date: '2028-02-29', time: '00:00', isPreAlarm: true }) })
+  assert.equal(worker.notifications[0].options.data.date, '2028-02-29')
+  assert.equal(worker.notifications[0].options.data.time, '00:00')
+  assert.equal(worker.notifications[0].options.data.isPreAlarm, true)
+})
+
+test('unsafe or long notification tags fall back to the app tag', async (t) => {
+  const files = await fixture(t)
+  for (const tag of ['https://third-party.test/', '\nunsafe', 'x'.repeat(121), '', 42, { tag: 'x' }]) {
+    const worker = workerHarness(await files.build())
+    await worker.dispatch('push', { data: pushData({ type: 'medication-reminder', tag }) })
+    assert.equal(worker.notifications[0].options.tag, 'jette-yak-push')
+  }
+})
+
+test('a rejected notification retries once using a minimal generic notice', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build(), {
+    showNotification(_title, _options, attempt) { if (attempt === 1) throw new TypeError('option unsupported') },
+  })
+  const result = await worker.dispatch('push', { data: pushData({ type: 'notification-test', title: '테스트', body: '기기 테스트' }) })
+  assert.equal(result.extended, 1)
+  assert.equal(worker.notifications.length, 2)
+  assert.equal(worker.notifications[1].title, '제때약 복약 알림')
+  assert.match(worker.notifications[1].options.body, /오늘의 복약 일정/)
+  assert.deepEqual(Object.keys(worker.notifications[1].options).sort(), ['body', 'data'])
+})
+
+test('revoked OS permissions cannot cause an unhandled rejection or an infinite retry loop', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build(), {
+    showNotification() { throw new Error('notification permission revoked') },
+  })
+  await worker.dispatch('push', { data: pushData({ type: 'medication-reminder' }) })
+  assert.equal(worker.notifications.length, 2)
+  assert.equal(worker.stores.size, 0)
+})
+
 test('owned reminder clicks focus an existing home window without navigating again', async (t) => {
   const files = await fixture(t)
-  for (const type of ['medication-reminder', 'notification-permission']) {
+  for (const type of ['medication-reminder', 'notification-permission', 'notification-test']) {
     const worker = workerHarness(await files.build(), {
       windowUrls: [`${ORIGIN}/medication`, `${ORIGIN}/`],
     })
@@ -342,6 +519,27 @@ test('notification clicks ignore unknown types and every destination other than 
   assert.deepEqual(worker.opened, [])
   assert.deepEqual(worker.focused, [])
   assert.deepEqual(worker.navigated, [])
+})
+
+test('notification clicks recover from an already closed window using only the own home page', async (t) => {
+  const files = await fixture(t)
+  for (const clientFailure of ['focus', 'match']) {
+    const worker = workerHarness(await files.build(), { windowUrls: [`${ORIGIN}/`], clientFailure })
+    await worker.dispatch('notificationclick', {
+      notification: { data: { type: 'medication-reminder', url: '/' }, close() {} },
+    })
+    assert.deepEqual(worker.opened, [`${ORIGIN}/`])
+  }
+})
+
+test('a rejected notification window open ends without external redirects or unhandled rejection', async (t) => {
+  const files = await fixture(t)
+  const worker = workerHarness(await files.build(), { clientFailure: 'open' })
+  await worker.dispatch('notificationclick', {
+    notification: { data: { type: 'medication-reminder', url: '/' }, close() {} },
+  })
+  assert.deepEqual(worker.opened, [])
+  assert.equal(worker.fetched.length, 0)
 })
 
 test('offline retry reloads the current URL without interpreting query input', async () => {

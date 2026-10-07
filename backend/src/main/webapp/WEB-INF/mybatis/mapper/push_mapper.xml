@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 기기별 구독 소유권과 복약 시각별 전송 기록. URL·키를 화면에 반환하는 조회는 제공하지 않음 -->
+<mapper namespace="com.app.push.PushDao">
+  <resultMap id="subscription" type="com.app.push.PushSubscription">
+    <id column="subscription_id" property="subscriptionId"/>
+    <result column="user_id" property="userId"/>
+    <result column="endpoint" property="endpoint"/>
+    <result column="endpoint_hash" property="endpointHash"/>
+    <result column="public_key" property="publicKey"/>
+    <result column="auth_secret" property="authSecret"/>
+  </resultMap>
+  <select id="schemaReady" resultType="int">
+    SELECT COUNT(*) FROM (
+      SELECT subscription_id FROM user_push_subscriptions WHERE 1=0
+      UNION ALL SELECT subscription_id FROM push_deliveries WHERE 1=0
+    )
+  </select>
+  <select id="find" resultMap="subscription">
+    SELECT subscription_id,user_id,endpoint,endpoint_hash,public_key,auth_secret
+    FROM user_push_subscriptions WHERE endpoint_hash=#{value}
+  </select>
+  <insert id="insert" parameterType="com.app.push.PushSubscription">
+    INSERT INTO user_push_subscriptions(subscription_id,user_id,endpoint,endpoint_hash,public_key,auth_secret,created_at,updated_at)
+    VALUES(push_subscription_seq.NEXTVAL,#{userId},#{endpoint},#{endpointHash},#{publicKey},#{authSecret},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+  </insert>
+  <update id="updateOwned">
+    UPDATE user_push_subscriptions SET public_key=#{publicKey},auth_secret=#{authSecret},updated_at=CURRENT_TIMESTAMP
+    WHERE endpoint_hash=#{endpointHash} AND user_id=#{userId}
+  </update>
+  <delete id="removeOwned">
+    DELETE FROM user_push_subscriptions WHERE endpoint_hash=#{endpointHash} AND user_id=#{userId}
+  </delete>
+  <select id="activeSubscriptions" resultMap="subscription">
+    SELECT p.subscription_id,p.user_id,p.endpoint,p.endpoint_hash,p.public_key,p.auth_secret
+    FROM user_push_subscriptions p JOIN users u ON u.user_id=p.user_id
+    WHERE u.push_enabled IS NULL OR UPPER(TRIM(CAST(u.push_enabled AS VARCHAR2(10)))) IN ('1','Y','TRUE')
+    ORDER BY p.subscription_id
+  </select>
+  <select id="userEnabled" resultType="int">
+    SELECT CASE WHEN push_enabled IS NULL OR UPPER(TRIM(CAST(push_enabled AS VARCHAR2(10)))) IN ('1','Y','TRUE') THEN 1 ELSE 0 END
+    FROM users WHERE user_id=#{value}
+  </select>
+  <delete id="removeExpired">DELETE FROM user_push_subscriptions WHERE subscription_id=#{value}</delete>
+  <insert id="ensureDelivery">
+    INSERT INTO push_deliveries(delivery_id,subscription_id,dose_date,dose_time,reminder_kind,status,attempts,next_attempt_at,created_at)
+    VALUES(push_delivery_seq.NEXTVAL,#{subscriptionId},#{doseDate},#{doseTime},#{kind},'PENDING',0,#{now,jdbcType=TIMESTAMP},#{now,jdbcType=TIMESTAMP})
+  </insert>
+  <!-- 같은 시각·종류·기기는 UNIQUE 제약 + 조건부 UPDATE로 한 실행만 전송 권한 확보 -->
+  <update id="claim">
+    UPDATE push_deliveries SET status='SENDING',attempts=attempts+1,claim_token=#{claimToken},lease_until=#{leaseUntil,jdbcType=TIMESTAMP}
+    WHERE subscription_id=#{subscriptionId} AND dose_date=#{doseDate} AND dose_time=#{doseTime} AND reminder_kind=#{kind}
+      AND attempts &lt; 3 AND next_attempt_at &lt;= #{now,jdbcType=TIMESTAMP}
+      AND (status IN ('PENDING','RETRY') OR (status='SENDING' AND lease_until &lt;= #{now,jdbcType=TIMESTAMP}))
+  </update>
+  <update id="finish">
+    UPDATE push_deliveries SET status=#{status},next_attempt_at=#{retryAt,jdbcType=TIMESTAMP},lease_until=NULL,claim_token=NULL,
+      delivered_at=CASE WHEN #{status}='SENT' THEN #{now,jdbcType=TIMESTAMP} ELSE delivered_at END
+    WHERE subscription_id=#{subscriptionId} AND dose_date=#{doseDate} AND dose_time=#{doseTime} AND reminder_kind=#{kind}
+      AND status='SENDING' AND claim_token=#{claimToken}
+  </update>
+  <delete id="cleanup">DELETE FROM push_deliveries WHERE created_at &lt; #{value,jdbcType=TIMESTAMP}</delete>
+</mapper>

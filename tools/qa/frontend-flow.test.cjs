@@ -23,7 +23,7 @@ function fixture(overrides = {}) {
   const alerts = []
   const update = key => value => { state[key] = typeof value === 'function' ? value(state[key]) : value }
   const scope = {
-    currentUserId: 1, alertSession: {}, user: { userId: 1 }, selectedDate: '2026-10-07', targetDate: new Date(2026, 9, 7),
+    currentUserId: 1, alertSession: {}, serverPushActiveRef: { current: false }, user: { userId: 1 }, selectedDate: '2026-10-07', targetDate: new Date(2026, 9, 7),
     routineItems: state.rows, intakeLock: { current: false }, readLock: { current: false }, confirmedRead: { current: new Set() },
     intakeGate: { active: false, acquire() { if (this.active) return false; this.active = true; return true }, release() { this.active = false } },
     notifications: state.notifications, globalAlertItem: state.globalAlertItem,
