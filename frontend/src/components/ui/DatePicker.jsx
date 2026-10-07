@@ -55,11 +55,18 @@ export default function DatePicker({
   showClear = true,
   yearOrder = 'desc', // 생년월일 입력에 직관적인 최신순 기본값
   title = '날짜 선택',
+  customTrigger,
 }) {
   const containerRef = useRef(null);
   const popoverRef = useRef(null);
   const [isOpen, setIsOpen] = useState(false);
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 320, isMobile: false });
+
+  // 연/월 커스텀 드롭다운 메뉴 상태
+  const [isYearMenuOpen, setIsYearMenuOpen] = useState(false);
+  const [isMonthMenuOpen, setIsMonthMenuOpen] = useState(false);
+  const yearMenuRef = useRef(null);
+  const monthMenuRef = useRef(null);
 
   const today = useMemo(() => new Date(), []);
   const todayStr = useMemo(
@@ -184,6 +191,50 @@ export default function DatePicker({
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, updateCoords]);
+
+  // 달력 닫힐 때 연/월 드롭다운 메뉴도 함께 닫기
+  useEffect(() => {
+    if (!isOpen) {
+      setIsYearMenuOpen(false);
+      setIsMonthMenuOpen(false);
+    }
+  }, [isOpen]);
+
+  // 연도/월 드롭다운 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!isYearMenuOpen && !isMonthMenuOpen) return;
+    const handleOutsideMenu = (e) => {
+      if (yearMenuRef.current && !yearMenuRef.current.contains(e.target)) {
+        setIsYearMenuOpen(false);
+      }
+      if (monthMenuRef.current && !monthMenuRef.current.contains(e.target)) {
+        setIsMonthMenuOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideMenu);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideMenu);
+    };
+  }, [isYearMenuOpen, isMonthMenuOpen]);
+
+  // 드롭다운 열릴 때 현재 선택 항목 위치로 자동 스크롤
+  useEffect(() => {
+    if (isYearMenuOpen && yearMenuRef.current) {
+      const selectedItem = yearMenuRef.current.querySelector('.dp-dropdown-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [isYearMenuOpen]);
+
+  useEffect(() => {
+    if (isMonthMenuOpen && monthMenuRef.current) {
+      const selectedItem = monthMenuRef.current.querySelector('.dp-dropdown-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [isMonthMenuOpen]);
 
   // 값 변경 핸들러
   const handleSelectDate = (dateStr) => {
@@ -347,36 +398,119 @@ export default function DatePicker({
           className="datepicker-arrow-btn"
           onClick={handlePrevMonth}
           title="이전 달"
+          aria-label="이전 달"
         >
-          ‹
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
         </button>
 
         <div className="datepicker-select-group">
-          {/* 연도 빠른 선택 드롭다운 */}
-          <select
-            className="datepicker-year-select"
-            value={viewYear}
-            onChange={(e) => setViewYear(Number(e.target.value))}
-          >
-            {yearOptions.map((y) => (
-              <option key={y} value={y}>
-                {y}년
-              </option>
-            ))}
-          </select>
+          {/* 연도 빠른 선택 커스텀 드롭다운 */}
+          <div className="dp-custom-dropdown-wrap" ref={yearMenuRef}>
+            <button
+              type="button"
+              className={`dp-dropdown-btn ${isYearMenuOpen ? 'active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsYearMenuOpen((prev) => !prev);
+                setIsMonthMenuOpen(false);
+              }}
+              title="연도 선택"
+            >
+              <span>{viewYear}년</span>
+              <svg
+                className={`dp-dropdown-arrow ${isYearMenuOpen ? 'open' : ''}`}
+                width="12"
+                height="12"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
 
-          {/* 월 빠른 선택 드롭다운 */}
-          <select
-            className="datepicker-month-select"
-            value={viewMonth}
-            onChange={(e) => setViewMonth(Number(e.target.value))}
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-              <option key={m} value={m}>
-                {m}월
-              </option>
-            ))}
-          </select>
+            {isYearMenuOpen && (
+              <div className="dp-dropdown-menu dp-year-menu" onClick={(e) => e.stopPropagation()}>
+                {yearOptions.map((y) => (
+                  <button
+                    key={y}
+                    type="button"
+                    className={`dp-dropdown-item ${y === viewYear ? 'selected' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewYear(y);
+                      setIsYearMenuOpen(false);
+                    }}
+                  >
+                    <span>{y}년</span>
+                    {y === viewYear && (
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 월 빠른 선택 커스텀 드롭다운 */}
+          <div className="dp-custom-dropdown-wrap" ref={monthMenuRef}>
+            <button
+              type="button"
+              className={`dp-dropdown-btn ${isMonthMenuOpen ? 'active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsMonthMenuOpen((prev) => !prev);
+                setIsYearMenuOpen(false);
+              }}
+              title="월 선택"
+            >
+              <span>{viewMonth}월</span>
+              <svg
+                className={`dp-dropdown-arrow ${isMonthMenuOpen ? 'open' : ''}`}
+                width="12"
+                height="12"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </button>
+
+            {isMonthMenuOpen && (
+              <div className="dp-dropdown-menu dp-month-menu" onClick={(e) => e.stopPropagation()}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`dp-dropdown-item ${m === viewMonth ? 'selected' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewMonth(m);
+                      setIsMonthMenuOpen(false);
+                    }}
+                  >
+                    <span>{m}월</span>
+                    {m === viewMonth && (
+                      <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <button
@@ -384,8 +518,11 @@ export default function DatePicker({
           className="datepicker-arrow-btn"
           onClick={handleNextMonth}
           title="다음 달"
+          aria-label="다음 달"
         >
-          ›
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
         </button>
       </div>
 
@@ -462,44 +599,54 @@ export default function DatePicker({
       className={`custom-datepicker-wrapper ${className}`}
       style={style}
     >
-      <div
-        className={`custom-datepicker-input-box ${disabled ? 'disabled' : ''} ${
-          isOpen ? 'focused' : ''
-        }`}
-        onClick={() => {
-          if (!disabled) setIsOpen((prev) => !prev);
-        }}
-      >
-        <input
-          type="text"
-          id={id}
-          name={name}
-          readOnly
-          disabled={disabled}
-          required={required}
-          value={value}
-          placeholder={placeholder}
-          className="custom-datepicker-input"
-        />
-        {showClear && value && !disabled && (
-          <button
-            type="button"
-            className="datepicker-input-clear-btn"
-            onClick={handleClear}
-            title="날짜 지우기"
-          >
-            ✕
-          </button>
-        )}
-        <span className="datepicker-calendar-svg-icon" aria-hidden="true">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-            <line x1="16" y1="2" x2="16" y2="6" />
-            <line x1="8" y1="2" x2="8" y2="6" />
-            <line x1="3" y1="10" x2="21" y2="10" />
-          </svg>
-        </span>
-      </div>
+      {customTrigger ? (
+        customTrigger({
+          open: () => !disabled && setIsOpen(true),
+          close: () => setIsOpen(false),
+          toggle: () => !disabled && setIsOpen((prev) => !prev),
+          isOpen,
+          value,
+        })
+      ) : (
+        <div
+          className={`custom-datepicker-input-box ${disabled ? 'disabled' : ''} ${
+            isOpen ? 'focused' : ''
+          }`}
+          onClick={() => {
+            if (!disabled) setIsOpen((prev) => !prev);
+          }}
+        >
+          <input
+            type="text"
+            id={id}
+            name={name}
+            readOnly
+            disabled={disabled}
+            required={required}
+            value={value}
+            placeholder={placeholder}
+            className="custom-datepicker-input"
+          />
+          {showClear && value && !disabled && (
+            <button
+              type="button"
+              className="datepicker-input-clear-btn"
+              onClick={handleClear}
+              title="날짜 지우기"
+            >
+              ✕
+            </button>
+          )}
+          <span className="datepicker-calendar-svg-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+          </span>
+        </div>
+      )}
 
       {/* Portal을 통해 모달이나 오버플로우 제한 없이 렌더링 */}
       {isOpen &&

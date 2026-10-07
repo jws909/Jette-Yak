@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { saveCalendarSchedule } from '../medicationApi';
 import { DEFAULT_MEAL_TIMES, addMinutes } from '../../main/utils/mainPageUtils';
+import DatePicker from '../../../components/ui/DatePicker';
 
 // 영양제 타이밍 프리셋 (6종)
 const SUPPLEMENT_PRESETS = [
@@ -162,7 +163,12 @@ export default function ScheduleModal({
   const [weekendSuppTimes, setWeekendSuppTimes] = useState(() => calcSupplementPresetTimes(weekendMeals));
   const [originalWeekendSuppTimes, setOriginalWeekendSuppTimes] = useState(() => calcSupplementPresetTimes(weekendMeals));
 
-  // 공통 복용 기간
+  // 공통 복용 시작일 및 복용 기간
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  }, []);
+  const [startDate, setStartDate] = useState(todayStr);
   const [schedDays, setSchedDays] = useState(isCabinet ? 7 : 30);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -332,7 +338,7 @@ export default function ScheduleModal({
           medicationId: med.medicationId ? String(med.medicationId) : null,
           cabinetId: isCabinet ? rawNumericId : null,
           routineId: !isCabinet ? rawNumericId : null,
-          scheduledDate: todayStr,
+          scheduledDate: startDate || todayStr,
           scheduledTime: t.weekdayTime, // 기본 시간 (하위 호환)
           weekdayTime: t.weekdayTime,   // 평일(월~금) 복용 시간
           weekendTime: t.weekendTime,   // 주말(토~일) 복용 시간
@@ -496,6 +502,17 @@ export default function ScheduleModal({
                 </div>
               </div>
 
+              <div className="sched-start-date-wrap">
+                <label className="picker-title">복용 시작 날짜</label>
+                <DatePicker
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  placeholder="복용 시작일 선택"
+                  title="복용 시작일 선택"
+                  showClear={false}
+                />
+              </div>
+
               <div className="days-picker">
                 <label className="picker-title">복용 예정 기간</label>
                 <div className="days-options">
@@ -635,6 +652,17 @@ export default function ScheduleModal({
                     })}
                   </div>
                 </div>
+              </div>
+
+              <div className="sched-start-date-wrap">
+                <label className="picker-title">섭취 시작 날짜</label>
+                <DatePicker
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  placeholder="섭취 시작일 선택"
+                  title="섭취 시작일 선택"
+                  showClear={false}
+                />
               </div>
 
               <div className="days-picker">

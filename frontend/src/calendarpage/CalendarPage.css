@@ -68,48 +68,366 @@
 }
 
 .month-controls {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  background: #faf8f5;
+  border: 1.5px solid #ebdcd9;
+  border-radius: 28px;
+  padding: 4px 6px;
+  box-shadow: 0 1px 4px rgba(125, 38, 56, 0.05);
 }
 
-.month-controls button {
+/* 둥근 형태의 모던 화살표 버튼 */
+.cal-nav-arrow-btn {
+  background: #ffffff;
+  border: 1px solid #e5dbd4;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6a5a52;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.cal-nav-arrow-btn:hover {
+  background: #7d2638;
+  color: #ffffff;
+  border-color: #7d2638;
+  transform: scale(1.05);
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.2);
+}
+
+.cal-nav-arrow-btn:active {
+  transform: scale(0.95);
+}
+
+/* ==========================================================================
+   Month / Year Picker Popover (Calendar Header)
+   ========================================================================== */
+
+.month-picker-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.month-picker-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  color: #2b2523;
+  user-select: none;
+}
+
+.month-picker-trigger-btn:hover {
+  background: #ffffff;
+  border-color: #ebdcd9;
+  color: #7d2638;
+  box-shadow: 0 1px 4px rgba(125, 38, 56, 0.08);
+}
+
+.month-picker-trigger-btn.active {
+  background: #ffffff;
+  border-color: #7d2638;
+  color: #7d2638;
+  box-shadow: 0 0 0 3px rgba(125, 38, 56, 0.12);
+}
+
+.month-picker-trigger-btn .picker-title-text {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.picker-chevron-svg {
+  color: #7d2638;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.picker-chevron-svg.open {
+  transform: rotate(180deg);
+}
+
+/* 팝오버 컨테이너 */
+.month-picker-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 250px;
   background: #ffffff;
   border: 1px solid #ded6c9;
-  border-radius: 4px;
-  padding: 4px 10px;
-  color: #4a413a;
-  cursor: pointer;
-  transition: all 0.15s ease;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.04);
+  padding: 14px;
+  z-index: 100;
+  box-sizing: border-box;
+  animation: monthPickerPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.month-controls button:hover {
-  background: #f8f4ed;
+@keyframes monthPickerPop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* 팝오버 연도 행 */
+.popover-year-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f2ede4;
+}
+
+.popover-arrow-btn {
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a4f47;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.popover-arrow-btn:hover {
+  background: #7d2638;
+  color: #ffffff;
   border-color: #7d2638;
 }
 
-.month-controls h2 {
-  font-size: 18px;
+/* 커스텀 연도 드롭다운 */
+.custom-year-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.custom-year-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #faf8f5;
+  border: 1px solid #ded6c9;
+  border-radius: 16px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.custom-year-btn:hover {
+  background: #fbf5f4;
+  border-color: #7d2638;
+}
+
+.custom-year-btn.active {
+  background: #ffffff;
+  border-color: #7d2638;
+  box-shadow: 0 0 0 2.5px rgba(125, 38, 56, 0.12);
+}
+
+.year-btn-text {
+  font-size: 15px;
   font-weight: 700;
   color: #2b2523;
-  margin: 0;
+}
+
+.year-chevron-svg {
+  color: #7d2638;
+  transition: transform 0.18s ease;
+}
+
+.year-chevron-svg.open {
+  transform: rotate(180deg);
+}
+
+/* 커스텀 연도 드롭다운 메뉴 */
+.custom-year-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #ebdcd9;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 3px 8px rgba(0, 0, 0, 0.05);
+  padding: 5px;
+  z-index: 200;
+  box-sizing: border-box;
+  animation: yearMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes yearMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* 커스텀 스크롤바 */
+.custom-year-dropdown-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-year-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #ded6c9;
+  border-radius: 10px;
+}
+
+.custom-year-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: #b5a999;
+}
+
+/* 연도 아이템 */
+.custom-year-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.custom-year-item:hover {
+  background: #fbf5f4;
+  color: #7d2638;
+}
+
+.custom-year-item.selected {
+  background: #7d2638;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.custom-year-item.selected svg {
+  color: #ffffff;
+}
+
+/* 12개월 그리드 */
+.popover-months-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.popover-month-btn {
+  background: #faf8f5;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: center;
+  font-family: inherit;
+}
+
+.popover-month-btn:hover {
+  background: #f4ecea;
+  color: #7d2638;
+  border-color: #e5cfcd;
+}
+
+.popover-month-btn.selected {
+  background: #7d2638 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  border-color: #7d2638 !important;
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.25);
+}
+
+.popover-month-btn.is-today:not(.selected) {
+  border: 1.5px solid #7d2638;
+  color: #7d2638;
+  font-weight: 700;
+}
+
+/* 팝오버 푸터 */
+.popover-footer {
+  padding-top: 8px;
+  border-top: 1px solid #f2ede4;
+  text-align: center;
+}
+
+.popover-today-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7d2638;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.popover-today-btn:hover {
+  background: #fbf5f4;
 }
 
 .btn-today {
   background: #ffffff;
-  border: 1px solid #ded6c9;
-  padding: 4px 12px;
-  border-radius: 4px;
+  border: 1.5px solid #ebdcd9;
+  padding: 6px 14px;
+  border-radius: 20px;
   cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: #4a413a;
-  transition: all 0.15s ease;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5c4e46;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .btn-today:hover {
-  background: #f8f4ed;
+  background: #7d2638;
+  color: #ffffff;
   border-color: #7d2638;
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.2);
 }
 
 .cal-week-header {
@@ -1563,7 +1881,8 @@ input:checked + .slider:before { transform: translateX(18px); }
     margin-bottom: 14px;
   }
 
-  .month-controls h2 {
+  .month-controls h2,
+  .month-picker-trigger-btn .picker-title-text {
     font-size: 16px;
   }
 
