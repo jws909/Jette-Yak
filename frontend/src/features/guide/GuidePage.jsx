@@ -207,7 +207,7 @@ export default function GuidePage() {
     </header>
     {registered.data && <>
       {/* 안내는 문장 단위로 나누고, 약의 효능·복용법 원문은 그대로 표시 */}
-      <p className="guide-note">{'새로 등록한 약은 ‘복용 중’으로 보여요.\n먹지 않는 약은 아래 ‘현재 상태’를 바꿔주세요.'}</p>
+      <p className="guide-note">{'상비약은 ‘보관 중’으로 표시돼요.\n처방약과 상시약·영양제는 아래 ‘현재 상태’에서 복용 상태를 바꿀 수 있어요.'}</p>
       <div className="my-med-filters" aria-label="약 상태 선택">{scopes.map(([value, label]) => <button className="my-med-action" aria-pressed={scope === value} key={value} onClick={() => setSearchParams({ scope: value })}>{label} ({rows.filter(row => value === 'CURRENT' ? row.useStatus !== 'ENDED' : row.useStatus === value).length})</button>)}</div>
       {saveMessage && <p className={'guide-feedback ' + saveTone} role={saveTone === 'error' ? 'alert' : 'status'}>{saveMessage}</p>}
       {(comparison.loading || guides.loading) && <div className="guide-loading" role="status"><span aria-hidden="true" />약 정보를 불러오고, 먹기 전에 조심할 점을 확인하고 있어요…</div>}

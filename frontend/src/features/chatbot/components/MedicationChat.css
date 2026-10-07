@@ -168,3 +168,57 @@
   .selected-suggestions button { flex: 1 1 160px; white-space: normal; }
   .question-bubble { max-width: 100%; }
 }
+
+/* 접힌 사이드 카드 전체를 기본 summary 동작으로 열고, 입력 영역은 별도 본문에 배치 */
+.chat-layout .side-tool-disclosure.side-tool-card { padding: 0; }
+.chat-layout .side-tool-disclosure > .side-tool-summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  margin: 0;
+  padding: 13px 36px 13px 13px;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background-color .18s ease;
+}
+.chat-layout .side-tool-disclosure[open] > .side-tool-summary { border-radius: 11px 11px 0 0; }
+.chat-layout .side-tool-disclosure > .side-tool-summary:hover { background: rgba(255, 253, 249, .8); }
+.chat-layout .side-tool-disclosure > .side-tool-summary:focus-visible { outline: 2px solid #8b3e4b; outline-offset: -3px; }
+.chat-layout .side-tool-disclosure > .side-tool-summary::after { right: 13px; }
+.side-tool-summary-copy { display: grid; flex: 1; gap: 3px; }
+.side-tool-summary-copy strong { font-size: 13px; line-height: 1.5; color: #352d28; }
+.side-tool-summary-copy small { font-size: 10px; font-weight: 400; line-height: 1.5; color: #76695f; }
+.side-tool-disclosure > .side-tool-body { padding: 0 13px 13px; }
+.side-tool-body > :first-child { margin-top: 0; }
+.chat-history-panel .side-tool-body > p { color: #6f655c; font-size: 12px; line-height: 1.6; }
+.side-tool-body > .chat-catalog-search-embedded { margin: 0; padding: 0; border: 0; border-radius: 0; }
+.chat-catalog-search-embedded fieldset { padding-top: 0; }
+.chat-catalog-search-embedded .field-help { margin: 0; }
+
+/* 상단 약 정보는 같은 흰 배경에 두고 얇은 구분선으로만 영역 구별. 긴 제품명은 끝까지 줄바꿈 */
+.conversation-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 16px; }
+.conversation-heading:has(.conversation-medication) { grid-template-columns: auto minmax(0, 1fr) auto; }
+.conversation-heading h2 { grid-column: 1; }
+.conversation-heading-actions { grid-column: -2 / -1; justify-self: end; justify-content: flex-end; }
+.conversation-medication { display: flex; grid-column: 2; align-items: center; gap: 10px; padding: 0 0 0 16px; border-left: 1px solid #eee8e0; background: transparent; }
+.conversation-medication-copy { display: grid; flex: 1; gap: 3px; }
+.conversation-medication-copy > span { color: #7d3541; font-size: 11px; line-height: 1.5; }
+.conversation-medication-copy strong { color: #352d28; font-size: 13px; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+.conversation-medication-copy small { color: #76695f; font-size: 11px; line-height: 1.5; }
+.conversation-medication > .clear-selection { flex: 0 0 auto; min-height: 38px; margin: 0; padding: 7px 9px; cursor: pointer; }
+.conversation-medication > .clear-selection:hover { background: #fff; border-color: #8b3e4b; }
+.conversation-medication > .clear-selection:focus-visible { outline: 2px solid #8b3e4b; outline-offset: 2px; }
+@media (max-width: 1100px) {
+  .conversation-heading:has(.conversation-medication) { grid-template-columns: minmax(0, 1fr) auto; }
+  .conversation-heading h2, .conversation-heading-actions { grid-row: 1; }
+  .conversation-medication { grid-column: 1 / -1; grid-row: 2; padding: 10px 0 0; border-left: 0; border-top: 1px solid #eee8e0; }
+}
+@media (max-width: 480px) {
+  .conversation-heading { gap: 10px; }
+  .conversation-medication { flex-wrap: wrap; }
+  .conversation-medication-copy { flex-basis: 180px; }
+  .conversation-medication > .clear-selection { margin-left: auto; }
+}

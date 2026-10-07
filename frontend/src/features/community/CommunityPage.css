@@ -155,3 +155,70 @@
   .community-files>div{align-items:flex-start;flex-wrap:wrap}
   .community-detail-actions button{flex:1 1 120px}
 }
+
+/* 경고 제목을 먼저 읽고, 경험·복용 변경·공식 신고 안내를 문장별로 구분 */
+.community-safety {
+  grid-template-columns: clamp(240px, 24vw, 300px) minmax(0, 1fr) auto;
+  gap: 16px 22px;
+  padding: 20px 22px;
+}
+.community-safety > strong {
+  display: block;
+  min-width: 0;
+  color: #742a38;
+  font-size: clamp(20px, 1.8vw, 24px);
+  font-weight: 800;
+  line-height: 1.5;
+  letter-spacing: -.03em;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.community-safety-copy { display: grid; gap: 6px; min-width: 0; color: #6f655c; }
+.community-safety-copy p { margin: 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; word-break: keep-all; }
+.community-safety > a { display: inline-flex; align-items: center; justify-content: center; justify-self: end; min-height: 44px; max-width: 100%; font-size: 13px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; }
+@media(max-width:980px) {
+  .community-safety { grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: start; }
+  .community-safety > a { justify-self: start; }
+}
+@media(max-width:560px) {
+  .community-safety { padding: 16px 14px; }
+}
+
+/* 입력 기준과 글자 수를 분리해 표시하고, 유효하지 않은 입력은 색과 테두리로 함께 안내 */
+.community-field-meta { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 12px; min-width: 0; color: #857a70; font-size: 12px; font-weight: 400; line-height: 1.5; overflow-wrap: anywhere; word-break: keep-all; }
+.community-field-meta > :last-child { margin-left: auto; font-variant-numeric: tabular-nums; }
+.community-field-meta.is-invalid, .community-field-meta .is-invalid { color: #a02c32; font-weight: 700; }
+.community-compose :is(input, select, textarea).is-invalid,
+.community-compose :is(input, select, textarea)[aria-invalid='true'] { border-color: #b6444f; box-shadow: 0 0 0 1px #b6444f; background: #fffaf9; }
+
+/* 저장·삭제·신고와 약 검색의 진행 상태를 기존 화면 안에서 표시 */
+.community-submit-status, .community-progress { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid #e3cdd2; border-radius: 8px; background: #f8eff1; color: #7d2638; font-size: 13px; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.community-submit-status { margin: 16px 0 10px; }
+.community-progress { margin: 0; }
+.community-medication-search-status { display: flex; align-items: center; gap: 8px; min-width: 0; margin: -5px 0 12px; color: #76695f; font-size: 12px; font-weight: 400; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.community-submit-status p, .community-progress p, .community-medication-search-status p { min-width: 0; margin: 0; }
+.community-spinner { display: inline-block; flex: 0 0 auto; box-sizing: border-box; width: 18px; height: 18px; border: 2px solid #e3cdd2; border-top-color: #7d2638; border-radius: 50%; animation: community-spin .8s linear infinite; }
+@keyframes community-spin { to { transform: rotate(360deg); } }
+@media(prefers-reduced-motion:reduce) { .community-spinner { animation: none; } }
+
+/* 요청 중 중복 실행을 막은 버튼과 비활성 입력을 시각적으로 구분 */
+.community-page button:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+.community-page button[aria-busy='true']:disabled { opacity: .75; cursor: wait; }
+.community-page .community-primary:disabled:hover,
+.community-toolbar form button:disabled:hover { background: #7d2638; }
+.community-compose :is(input, select, textarea):disabled { background: #f4f0eb; color: #8b8076; cursor: not-allowed; }
+
+/* 작성 중에는 폼 전체를 잠그고, 본문 입력과 저장 안내에 충분한 공간 확보 */
+body:has(.community-modal) { overflow: hidden; }
+.community-compose-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.community-compose:focus { outline: 0; }
+.community-compose-fields > label { display: grid; gap: 6px; margin-bottom: 14px; font-size: 13px; font-weight: 700; }
+.community-compose textarea { height: auto; min-height: 180px; padding: 12px 14px; }
+.community-compose-footer { position: sticky; bottom: -28px; z-index: 2; margin-bottom: -28px; padding: 16px 0 20px; border-top: 1px solid #e6ddd2; background: #fffdf9; }
+.community-compose-footer .community-submit-status { margin: 0 0 12px; }
+@media(max-width:560px) {
+  .community-compose-footer { bottom: -18px; margin-bottom: -18px; }
+}
+
+/* 작성창 밖에서 진행하는 작업은 모달 위에 표시하되 조작을 가리지 않는 안내로 제공 */
+.community-progress { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 1500; box-sizing: border-box; width: max-content; max-width: calc(100vw - 32px); box-shadow: 0 8px 28px rgba(49, 26, 27, .18); pointer-events: none; }

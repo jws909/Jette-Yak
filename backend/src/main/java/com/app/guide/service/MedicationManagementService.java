@@ -43,6 +43,9 @@ public class MedicationManagementService {
         // userId를 SQL 조건에 함께 넘겨 다른 사용자의 등록 행이 변경되지 않게 한다.
         if (registrationId==null || !registrationId.matches("[PCR]:[0-9]{1,30}") || status==null
                 || !Set.of("ACTIVE","PAUSED","ENDED","STORED").contains(status)) throw new IllegalArgumentException("복용 상태를 확인해주세요.");
+        // 상비약은 내 약 관리에서 보관 목록으로만 표시하고 상태 저장·가이드 재분석 요청 차단
+        if (registrationId.startsWith("C:"))
+            throw new IllegalArgumentException("상비약은 보관 중으로 표시하며 복용 상태를 바꿀 수 없어요.");
         if (dao.updateStatus(userId,registrationId,status)!=1)
             throw new IllegalArgumentException("변경할 등록 약이 없거나 처방 기간이 종료·시작 전입니다. 목록을 새로고침해주세요.");
         try {
