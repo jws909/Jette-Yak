@@ -236,33 +236,36 @@ export default function MedicationRegisterPage({ user }) {
         <div className="med-register-tabs">
           <button
             type="button"
-            className={`med-tab-btn ${activeTab === 'prescription' ? 'active' : ''}`}
+            className={`med-tab-btn tab-prescription ${activeTab === 'prescription' ? 'active' : ''}`}
             onClick={() => setActiveTab('prescription')}
           >
             <svg className="tab-svg-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
               <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
             </svg>
-            처방전 · 약봉투 (AI 분석)
+            <span className="tab-text-full">처방전 · 약봉투 (AI 분석)</span>
+            <span className="tab-text-short">처방전</span>
           </button>
           <button
             type="button"
-            className={`med-tab-btn ${activeTab === 'cabinet' ? 'active' : ''}`}
+            className={`med-tab-btn tab-cabinet ${activeTab === 'cabinet' ? 'active' : ''}`}
             onClick={() => setActiveTab('cabinet')}
           >
             <svg className="tab-svg-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
               <path fillRule="evenodd" d="M7 2a1 1 0 00-.707.293l-4 4a1 1 0 000 1.414l8 8a1 1 0 001.414 0l4-4a1 1 0 000-1.414l-8-8A1 1 0 007 2zm4.707 9.293L8 7.586 9.414 6.172l3.707 3.707-1.414 1.414z" clipRule="evenodd" />
             </svg>
-            상비약 · 일반의약품 검색
+            <span className="tab-text-full">상비약 · 일반의약품 검색</span>
+            <span className="tab-text-short">상비약</span>
           </button>
           <button
             type="button"
-            className={`med-tab-btn ${activeTab === 'supplement' ? 'active' : ''}`}
+            className={`med-tab-btn tab-supplement ${activeTab === 'supplement' ? 'active' : ''}`}
             onClick={() => setActiveTab('supplement')}
           >
             <svg className="tab-svg-icon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16">
               <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.508.79-.83 1.83-.984 3.033-1.042.06-2.07.41-2.915 1.05C4.945 8.167 4 9.873 4 12c0 2.227 1.082 4.14 2.75 5.226C8.423 18.314 10.667 19 13 19c2.81 0 5.244-.98 6.472-2.58.536-.697.77-1.52.684-2.33-.086-.807-.487-1.554-1.084-2.126-1.196-1.144-2.986-1.804-5.074-1.928.09-.768.272-1.436.544-1.954.276-.525.64-.897 1.077-1.127a1 1 0 00.38-1.4z" clipRule="evenodd" />
             </svg>
-            영양제 · 건강기능식품 등록
+            <span className="tab-text-full">영양제 · 건강기능식품 등록</span>
+            <span className="tab-text-short">영양제</span>
           </button>
         </div>
       </header>

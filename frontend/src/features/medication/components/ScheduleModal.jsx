@@ -369,9 +369,14 @@ export default function ScheduleModal({
 
   return (
     <div className="modal-overlay" onClick={() => !isSaving && onClose()}>
-      <div className="modal-box schedule-modal-box" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal-box schedule-modal-box ${isCabinet ? 'theme-cabinet' : 'theme-supplement'}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>{med.name} 복약 일정 등록</h2>
+          <div className="schedule-modal-title-row">
+            <span className={`type-badge ${isCabinet ? 'cabinet' : 'supplement'}`}>
+              {isCabinet ? '상비약' : '영양제'}
+            </span>
+            <h2>{med.name} 복약 일정 등록</h2>
+          </div>
           <button
             type="button"
             className="close-btn"
@@ -415,7 +420,7 @@ export default function ScheduleModal({
           </div>
 
           {/* 현재 선택 탭 식사 시간 연동 안내 배너 */}
-          <div className="supplement-meal-notice">
+          <div className={`supplement-meal-notice ${isCabinet ? 'cabinet' : 'supplement'}`}>
             <i className="fa-solid fa-circle-info" aria-hidden="true" />
             <span>
               현재 <strong>{dayTypeTab === 'weekday' ? '평일 (월~금)' : '주말 (토~일)'}</strong> 식사 시간(아침 {currentMeals.breakfast || '07:30'}, 점심 {currentMeals.lunch || '12:00'}, 저녁 {currentMeals.dinner || '18:30'}, 취침 {currentMeals.bedtime || '22:00'})을 기준으로 시간이 계산되었습니다.
@@ -426,8 +431,8 @@ export default function ScheduleModal({
           {isCabinet ? (
             /* ================= [상비약 모달 UI] ================= */
             <>
-              <p className="modal-desc">
-                <i className="fa-regular fa-lightbulb" style={{ color: '#b45309', marginRight: '4px' }} aria-hidden="true" />
+              <p className="modal-desc cabinet-modal-desc">
+                <i className="fa-regular fa-lightbulb" aria-hidden="true" />
                 <strong>상비약 복약 일정:</strong> 비염, 알레르기 등 주기적으로 복용하는 상비약은 등록하신 <strong>식사 시간(식후 30분) 기준</strong>으로 평일과 주말 시간이 각각 자동 계산되었습니다.
               </p>
 
@@ -664,7 +669,7 @@ export default function ScheduleModal({
             </button>
             <button
               type="submit"
-              className={`btn-submit ${!isCabinet ? 'supplement' : ''}`}
+              className={`btn-submit ${isCabinet ? 'cabinet' : 'supplement'}`}
               disabled={isSaving}
             >
               {isSaving

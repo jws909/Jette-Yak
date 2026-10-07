@@ -105,7 +105,7 @@ export default function PrescriptionSummaryCard({
           className="summary-guide-btn"
           onClick={() => navigate('/guide')}
         >
-          내 약 관리 등록 →
+          내 복용약 종합정보 보기 →
         </button>
       </div>
     </section>

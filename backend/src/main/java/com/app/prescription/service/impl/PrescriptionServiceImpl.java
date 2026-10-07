@@ -575,18 +575,15 @@ public class PrescriptionServiceImpl implements PrescriptionService {
             for (PrescriptionItemDTO item : prescription.getItems()) {
                 item.setPrescriptionId(prescription.getPrescriptionId());
 
-                if (item.getMedicationId() == null || item.getMedicationId().isBlank()) {
-                    MatchedMedicationDTO matched = findBestMatch(item.getItemName());
-                    if (matched != null) {
-                        item.setMedicationId(matched.getItemSeq());
-                        item.setItemName(matched.getItemName());
-                        item.setEdiCode(matched.getEdiCode());
-                        item.setClassName(matched.getClassName());
-                        item.setIsDiscontinued(matched.getIsDiscontinued());
-                    } else {
-                        // DB에 품목이 없는 경우에도 기본 약품 식별값 부여 (예: 임의 등록)
-                        item.setMedicationId("MANUAL_" + System.currentTimeMillis());
-                    }
+                MatchedMedicationDTO matched = findBestMatch(item.getItemName());
+                if (matched != null) {
+                    item.setMedicationId(matched.getItemSeq());
+                    item.setItemName(matched.getItemName());
+                    item.setEdiCode(matched.getEdiCode());
+                    item.setClassName(matched.getClassName());
+                    item.setIsDiscontinued(matched.getIsDiscontinued());
+                } else if (item.getMedicationId() == null || item.getMedicationId().isBlank() || item.getMedicationId().startsWith("MANUAL_")) {
+                    throw new IllegalArgumentException("'" + item.getItemName() + "'은(는) 식약처 의약품 DB에서 확인할 수 없는 약품입니다. 공식 의약품명을 검색하여 선택해 주세요.");
                 }
 
                 if (Boolean.TRUE.equals(item.getIsDiscontinued())) {
@@ -594,16 +591,18 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 }
 
                 if (item.getDailyDose() == null) item.setDailyDose(1.0);
-                if (item.getDailyFrequency() == null) item.setDailyFrequency(1);
-                String uTiming = item.getUsageTiming();
-                if (uTiming != null) {
-                    if (uTiming.contains("1일 1회") || uTiming.contains("1일1회") || uTiming.contains("하루 1회") || uTiming.contains("하루1회")
-                            || (uTiming.contains("1회") && !uTiming.contains("2회") && !uTiming.contains("3회") && !uTiming.contains("4회"))) {
-                        item.setDailyFrequency(1);
-                    } else if (uTiming.contains("3회") || (uTiming.contains("아침") && uTiming.contains("점심") && uTiming.contains("저녁")) || uTiming.contains("매 식후") || uTiming.contains("매식후")) {
-                        item.setDailyFrequency(3);
-                    } else if (uTiming.contains("2회") || (uTiming.contains("아침") && uTiming.contains("저녁"))) {
-                        item.setDailyFrequency(2);
+                if (item.getDailyFrequency() == null || item.getDailyFrequency() <= 0) {
+                    item.setDailyFrequency(1);
+                    String uTiming = item.getUsageTiming();
+                    if (uTiming != null) {
+                        if (uTiming.contains("1일 1회") || uTiming.contains("1일1회") || uTiming.contains("하루 1회") || uTiming.contains("하루1회")
+                                || (uTiming.contains("1회") && !uTiming.contains("2회") && !uTiming.contains("3회") && !uTiming.contains("4회"))) {
+                            item.setDailyFrequency(1);
+                        } else if (uTiming.contains("3회") || (uTiming.contains("아침") && uTiming.contains("점심") && uTiming.contains("저녁")) || uTiming.contains("매 식후") || uTiming.contains("매식후")) {
+                            item.setDailyFrequency(3);
+                        } else if (uTiming.contains("2회") || (uTiming.contains("아침") && uTiming.contains("저녁"))) {
+                            item.setDailyFrequency(2);
+                        }
                     }
                 }
                 if (item.getTotalDays() == null) item.setTotalDays(prescription.getTotalDays());
