@@ -16,7 +16,7 @@ public class NotificationController {
     private final NotificationService service;
     public NotificationController(NotificationService service){this.service=service;}
     @GetMapping public Map<String,Object> list(HttpServletRequest request){return Map.of("items",service.list(userId(request)));}
-    @PatchMapping("/{id}/read") public Map<String,Object> read(@PathVariable long id,HttpServletRequest request){service.markRead(id,userId(request));return Map.of("success",true);}
+    @PatchMapping("/{id}/read") public Map<String,Object> read(@PathVariable("id") long id,HttpServletRequest request){service.markRead(id,userId(request));return Map.of("success",true);}
     @PatchMapping("/read-all") public Map<String,Object> readAll(HttpServletRequest request){service.markAllRead(userId(request));return Map.of("success",true);}
     @ExceptionHandler(SecurityException.class) public ResponseEntity<?> unauthorized(SecurityException e){return ResponseEntity.status(401).body(Map.of("message",e.getMessage()));}
     @ExceptionHandler(IllegalArgumentException.class) public ResponseEntity<?> bad(IllegalArgumentException e){return ResponseEntity.badRequest().body(Map.of("message",e.getMessage()));}
