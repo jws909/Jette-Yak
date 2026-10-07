@@ -1,11 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
 import './MyPage.css';
 import defaultProfileImg from '../../assets/Default_profile.png';
 
-export default function MyPage({ user, onUserUpdated, onLogout }) {
+export default function MyPage(props) {
+  return <MyPageContent key={props.user?.username || 'guest'} {...props} />;
+}
+
+function MyPageContent({ user, onUserUpdated, onLogout }) {
   const { showAlert, showConfirm } = useDialog();
+  const profileSaveLock = useRef(false);
+  const pushSaveLock = useRef(false);
+  const [pushOverride, setPushOverride] = useState(null);
+  const pushEnabled = pushOverride && pushOverride.source === user?.pushEnabled ? pushOverride.value
+    : ![false, 0, '0'].includes(user?.pushEnabled);
+  const setPushEnabled = value => setPushOverride({ source: user?.pushEnabled, value });
   const [nickname, setNickname] = useState(user?.nickname || user?.name || user?.username || '');
   const [nicknameDraft, setNicknameDraft] = useState('');
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
@@ -18,19 +28,13 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = useState(false);
   const [myPosts, setMyPosts] = useState([]);
-  const [myPostsLoading, setMyPostsLoading] = useState(true);
+  const [myPostsLoading, setMyPostsLoading] = useState(Boolean(user?.username));
   const [myPostsError, setMyPostsError] = useState('');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (!user?.username) {
-      setMyPosts([]);
-      setMyPostsLoading(false);
-      return;
-    }
+    if (!user?.username) return;
     let active = true;
-    setMyPostsLoading(true);
-    setMyPostsError('');
     fetch('/api/community/my-posts')
       .then(async (response) => {
         if (response.ok) return response.json();
@@ -52,36 +56,43 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     return () => { active = false; };
   }, [user?.username]);
 
+  // 조회 시점의 사용자에게만 반영하고 최신 부모 콜백을 사용합니다.
+  const applyLoadedProfile = useEffectEvent((profile) => {
+    setNickname(profile.nickname || user.name);
+    if (profile.email) setEmail(profile.email);
+    setAccountDetails((prev) => ({
+      ...prev,
+      sex: profile.sex || '',
+      isPregnant: profile.isPregnant === 1 || profile.isPregnant === '1',
+    }));
+    setProfileImage(profile.profileImageUrl || '');
+    setImgError(false);
+    const isPush = profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0';
+    setPushEnabled(isPush);
+    onUserUpdated?.({
+      name: profile.nickname || user.name,
+      email: profile.email || user?.email || '',
+      profileImageUrl: profile.profileImageUrl || '',
+      userId: profile.userId || user?.userId,
+      pushEnabled: isPush,
+    });
+  });
+
   useEffect(() => {
     if (!user?.username) return;
+    let active = true;
+    const controller = new AbortController();
     const targetUser = user.username === 'demo' ? 'test12' : user.username;
-    fetch(`/api/users/profile?username=${encodeURIComponent(targetUser)}`)
+    fetch(`/api/users/profile?username=${encodeURIComponent(targetUser)}`, { signal: controller.signal })
       .then((response) => response.ok ? response.json() : null)
       .then((profile) => {
-        if (!profile) return;
-        setNickname(profile.nickname || user.name);
-        if (profile.email) setEmail(profile.email);
-        setAccountDetails((prev) => ({
-          ...prev,
-          sex: profile.sex || '',
-          isPregnant: profile.isPregnant === 1 || profile.isPregnant === '1',
-        }));
-        setProfileImage(profile.profileImageUrl || '');
-        setImgError(false);
-        const isPush = profile.pushEnabled !== false && profile.pushEnabled !== 0 && profile.pushEnabled !== '0';
-        setPushEnabled(isPush);
-        onUserUpdated?.({
-          name: profile.nickname || user.name,
-          email: profile.email || user?.email || '',
-          profileImageUrl: profile.profileImageUrl || '',
-          userId: profile.userId || user?.userId,
-          pushEnabled: isPush,
-        });
-
+        if (!active || !profile) return;
+        applyLoadedProfile(profile);
         if (profile.userId) {
-          fetch(`/api/family/members?userId=${encodeURIComponent(profile.userId)}`)
+          fetch(`/api/family/members?userId=${encodeURIComponent(profile.userId)}`, { signal: controller.signal })
             .then((response) => response.ok ? response.json() : [])
             .then((members) => {
+              if (!active) return;
               const familyName = Array.isArray(members) && members[0]?.familyName ? members[0].familyName : '';
               setAccountDetails((prev) => ({ ...prev, familyName }));
             })
@@ -89,13 +100,8 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
         }
       })
       .catch(() => {});
+    return () => { active = false; controller.abort(); };
   }, [user?.username]);
-
-  useEffect(() => {
-    if (user?.pushEnabled !== undefined) {
-      setPushEnabled(user.pushEnabled !== false && user.pushEnabled !== 0 && user.pushEnabled !== '0');
-    }
-  }, [user?.pushEnabled]);
 
   const updateProfile = async ({ nextNickname, file } = {}) => {
     if (!user?.username || user.username === 'demo') {
@@ -132,11 +138,17 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       setProfileMessage('닉네임을 입력해 주세요.');
       return;
     }
+    if (profileSaveLock.current) return;
+    profileSaveLock.current = true;
     setIsNicknameSaving(true);
-    const saved = await updateProfile({ nextNickname: trimmedNickname });
-    setIsNicknameSaving(false);
-    if (saved) {
-      setIsNicknameModalOpen(false);
+    try {
+      const saved = await updateProfile({ nextNickname: trimmedNickname });
+      if (saved) setIsNicknameModalOpen(false);
+    } catch {
+      setProfileMessage('프로필을 저장하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+    } finally {
+      profileSaveLock.current = false;
+      setIsNicknameSaving(false);
     }
   };
 
@@ -147,8 +159,13 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       setProfileMessage('이미지 파일만 등록할 수 있습니다.');
       return;
     }
-    await updateProfile({ file });
-    e.target.value = '';
+    try {
+      await updateProfile({ file });
+    } catch {
+      setProfileMessage('프로필 사진을 저장하지 못했습니다. 네트워크 상태를 확인한 뒤 다시 시도해주세요.');
+    } finally {
+      e.target.value = '';
+    }
   };
 
   // 비밀번호 변경 폼
@@ -174,7 +191,6 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   };
 
   // 알림 환경 설정
-  const [pushEnabled, setPushEnabled] = useState(user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
   const [browserPerm, setBrowserPerm] = useState(() => {
@@ -251,7 +267,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       } else {
         setPwMessage(data.message || '비밀번호 변경에 실패했습니다.');
       }
-    } catch (err) {
+    } catch {
       setPwMessage('서버 통신 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
       setIsChangingPw(false);
@@ -263,6 +279,8 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     const uid = user?.userId || '';
     if (!uid && !uname) return false;
 
+    if (pushSaveLock.current) return false;
+    pushSaveLock.current = true;
     setIsSavingSettings(true);
     try {
       const response = await fetch('/api/users/push-settings', {
@@ -288,11 +306,13 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       showAlert(error.message || '알림 설정 저장에 실패했습니다.', '오류');
       return false;
     } finally {
+      pushSaveLock.current = false;
       setIsSavingSettings(false);
     }
   };
 
   const handleTogglePush = async (e) => {
+    if (pushSaveLock.current) return;
     const nextVal = e.target.checked;
 
     if (!('Notification' in window)) {
@@ -323,7 +343,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
               body: '정해진 복약 시간 30분 전과 정시에 알림을 보내드립니다.',
               icon: '/favicon.ico',
             });
-          } catch (ignored) {}
+          } catch { /* 부가 기능 오류가 계정 설정을 막지 않도록 유지 */ }
         } catch (err) {
           console.warn('알림 권한 요청 실패:', err);
           showAlert('알림 권한 요청 중 오류가 발생했습니다.', '오류');
@@ -339,36 +359,6 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     }
   };
 
-  const handleSaveSettings = async () => {
-    if (pushEnabled) {
-      if (!('Notification' in window)) {
-        showAlert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.', '안내');
-        return;
-      }
-      if (Notification.permission === 'denied') {
-        showAlert(
-          '브라우저 알림 권한이 차단되어 있어 알림을 켤 수 없습니다.\n\n' +
-          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.',
-          '알림 권한 안내'
-        );
-        return;
-      }
-      if (Notification.permission === 'default') {
-        try {
-          const result = await Notification.requestPermission();
-          setBrowserPerm(result);
-          if (result !== 'granted') {
-            showAlert('브라우저 알림 권한이 허용되지 않아 알림 설정을 저장할 수 없습니다.', '알림 권한 안내');
-            return;
-          }
-        } catch (err) {
-          console.warn('알림 권한 요청 실패:', err);
-          return;
-        }
-      }
-    }
-    await savePushSetting(pushEnabled);
-  };
 
   const handleWithdraw = async () => {
     // 체험용 계정 보호 체크
@@ -397,7 +387,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
           if (onLogout) {
             await onLogout();
           }
-        } catch (ignored) {}
+        } catch { /* 부가 기능 오류가 계정 설정을 막지 않도록 유지 */ }
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         sessionStorage.clear();
@@ -602,6 +592,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
                   type="checkbox"
                   checked={pushEnabled && browserPerm !== 'denied'}
                   onChange={handleTogglePush}
+                  disabled={isSavingSettings}
                 />
                 <span className="toggle-slider" />
               </label>

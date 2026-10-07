@@ -41,8 +41,12 @@ const normalizeUsageTiming = (raw) => {
  * - 임의의 비의약품 텍스트 등록 차단 및 공식 의약품 DB 데이터(medicationId) 엄격 연동
  * - 표준화된 복용 시점/용법 선택으로 비정상 텍스트 입력 방지
  */
-export default function EditPrescriptionModal({
-  isOpen,
+export default function EditPrescriptionModal(props) {
+  if (!props.isOpen || !props.prescription) return null;
+  return <PrescriptionEditForm key={JSON.stringify(props.prescription)} {...props} />;
+}
+
+function PrescriptionEditForm({
   prescription,
   currentUserId,
   onClose,
@@ -51,14 +55,37 @@ export default function EditPrescriptionModal({
   const { showAlert, showLoading, hideLoading } = useDialog();
   const isMobile = useIsMobile(680);
 
-  const [editForm, setEditForm] = useState({
-    prescriptionId: null,
-    nickname: '',
-    hospitalName: '',
-    doctorName: '',
-    dispensedDate: '',
-    totalDays: 3,
-    items: [],
+  const [editForm, setEditForm] = useState(() => {
+    let dateStr = '';
+    if (prescription.dispensedDate) {
+      if (typeof prescription.dispensedDate === 'string') {
+        dateStr = prescription.dispensedDate.slice(0, 10);
+      } else {
+        const d = new Date(prescription.dispensedDate);
+        if (!isNaN(d.getTime())) {
+          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    return {
+      prescriptionId: prescription.prescriptionId,
+      nickname: prescription.nickname || '',
+      hospitalName: prescription.hospitalName || '',
+      doctorName: prescription.doctorName || '',
+      dispensedDate: dateStr,
+      totalDays: prescription.totalDays || 3,
+      items: (prescription.items || []).map((it) => ({
+        itemId: it.itemId,
+        medicationId: it.medicationId ? String(it.medicationId) : null,
+        itemName: it.itemName || '',
+        entpName: it.entpName || it.className || '',
+        dailyDose: it.dailyDose != null ? it.dailyDose : 1,
+        dailyFrequency: it.dailyFrequency || 3,
+        usageTiming: normalizeUsageTiming(it.usageTiming),
+        totalDays: it.totalDays || prescription.totalDays || 3,
+      })),
+    };
   });
   const [isSaving, setIsSaving] = useState(false);
   const [editAlert, setEditAlert] = useState(null);
@@ -86,54 +113,12 @@ export default function EditPrescriptionModal({
   const [isRowDropdownOpen, setIsRowDropdownOpen] = useState(false);
   const rowSearchRef = useRef(null);
 
-  // 대상 처방전이 바뀔 때 초기 폼 데이터 세팅
-  useEffect(() => {
-    if (!prescription) return;
 
-    setEditAlert(null);
-    setChangingIndex(null);
-    clearAddSearch();
-
-    let dateStr = '';
-    if (prescription.dispensedDate) {
-      if (typeof prescription.dispensedDate === 'string') {
-        dateStr = prescription.dispensedDate.slice(0, 10);
-      } else {
-        const d = new Date(prescription.dispensedDate);
-        if (!isNaN(d.getTime())) {
-          dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        }
-      }
-    }
-
-    setEditForm({
-      prescriptionId: prescription.prescriptionId,
-      nickname: prescription.nickname || '',
-      hospitalName: prescription.hospitalName || '',
-      doctorName: prescription.doctorName || '',
-      dispensedDate: dateStr,
-      totalDays: prescription.totalDays || 3,
-      items: (prescription.items || []).map((it) => ({
-        itemId: it.itemId,
-        medicationId: it.medicationId ? String(it.medicationId) : null,
-        itemName: it.itemName || '',
-        entpName: it.entpName || it.className || '',
-        dailyDose: it.dailyDose != null ? it.dailyDose : 1,
-        dailyFrequency: it.dailyFrequency || 3,
-        usageTiming: normalizeUsageTiming(it.usageTiming),
-        totalDays: it.totalDays || prescription.totalDays || 3,
-      })),
-    });
-  }, [prescription, clearAddSearch]);
 
   // 행 약품 변경 디바운스 검색
   useEffect(() => {
     const keyword = rowSearchText.trim();
-    if (!keyword) {
-      setRowSearchResults([]);
-      setIsRowDropdownOpen(false);
-      return;
-    }
+    if (!keyword) return;
 
     const timer = setTimeout(async () => {
       setIsRowSearching(true);
@@ -167,8 +152,6 @@ export default function EditPrescriptionModal({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  if (!isOpen || !prescription) return null;
 
   // 약품 추가 (식약처 DB 검색 결과에서 선택)
   const handleSelectAddMedication = (med) => {
@@ -494,6 +477,7 @@ export default function EditPrescriptionModal({
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     setRowSearchText(val);
+                                    if (!val.trim()) { setRowSearchResults([]); setIsRowDropdownOpen(false); }
                                     if (!val.trim()) {
                                       setRowSearchResults([]);
                                       setIsRowDropdownOpen(false);

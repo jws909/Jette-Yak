@@ -16,7 +16,7 @@ public class QuestionRoutingCheck {
     static String serverContext;
     static final List<String> queries = new ArrayList<>();
     static MedicationChatDto med(String id, String name) {
-        var m = new MedicationChatDto(); m.setItemSeq(id); m.setItemName(name); return m;
+        var m = new MedicationChatDto(); m.setItemSeq(id); m.setItemName(name); m.setUsageDosage("fixture usage"); return m;
     }
     static com.app.guide.dto.RegisteredMedicationDto registration(String id, String useStatus, String periodState) {
         var value = new com.app.guide.dto.RegisteredMedicationDto();
@@ -36,6 +36,12 @@ public class QuestionRoutingCheck {
     };
     static final GeminiService ai = new GeminiService() {
         @Override public String analyzeQuestion(String q, String selected) { return analysis; }
+        @Override public String analyzeQuestion(String q, String selected, List<String> history) { return analysis; }
+        @Override public String ask(String q, String refs, List<ChatTurn> history) { return ask(q, refs); }
+        @Override public ConversationAnswer counselWithGeneralKnowledge(String q, String refs, List<ChatTurn> history, String context) {
+            serverContext=context;
+            return new ConversationAnswer(context + " 복용 전 약사에게 확인하세요.", List.of(), "ROUTINE");
+        }
         @Override public String ask(String q, String refs) { answerCalls++; return "DB 답변"; }
         @Override public ConversationAnswer counsel(String q, String refs, List<ChatTurn> history) {
             return new ConversationAnswer("증상 상담 답변", List.of("언제부터 시작됐나요?"), "ROUTINE");
@@ -45,6 +51,15 @@ public class QuestionRoutingCheck {
             return new ConversationAnswer("대화형 답변", List.of("조금 더 알려주시겠어요?"), "ROUTINE");
         }
     };
+    static {
+        // 모의 구현을 빠뜨린 새 호출 경로가 생겨도 실제 외부 요청은 허용하지 않습니다.
+        try {
+            var field=GeminiService.class.getDeclaredField("restTemplate");field.setAccessible(true);
+            field.set(ai,new org.springframework.web.client.RestTemplate((uri,method)-> {
+                throw new AssertionError("Offline check attempted an external HTTP request");
+            }));
+        } catch(ReflectiveOperationException error) { throw new ExceptionInInitializerError(error); }
+    }
     static String parsed(String intent, List<String> meds, List<String> foods, List<String> topics, boolean selected, boolean clarify) throws Exception {
         return new ObjectMapper().writeValueAsString(Map.of("intent",intent,"medications",meds,"foods",foods,"topics",topics,
             "useSelectedMedication",selected,"needsClarification",clarify));
@@ -69,8 +84,9 @@ public class QuestionRoutingCheck {
     public static void main(String[] args) throws Exception {
         analysis=parsed("FOOD_INTERACTION",List.of("텐텐"),List.of("맥주"),List.of(),false,false);
         var result=chat("텐텐이랑 맥주랑 같이 먹어도 돼?","1",Map.of());
-        check(result.get("answer").toString().contains("맥주") && result.get("answer").toString().contains("판단할 수 없습니다"),"food-specific missing evidence");
-        check(!queries.contains("맥주") && answerCalls==0,"food never queried as drug or answered from general knowledge");
+        check(Boolean.TRUE.equals(result.get("aiSupplemented")) && result.get("evidenceWarning").toString().contains("DB에서 직접 확인되지 않은")
+            && serverContext.contains("맥주") && serverContext.contains("직접 기록이 없음"),"food-specific missing evidence is disclosed separately from AI supplementation");
+        check(!queries.contains("맥주") && answerCalls==0,"food never queried as drug or presented as a DB-supported answer");
         for(String food:List.of("맥주","커피","우유")) {
             analysis=parsed("FOOD_INTERACTION",List.of(),List.of(food),List.of(),true,false);
             result=chat(food+"랑 같이 먹어도 돼?","1",Map.of());

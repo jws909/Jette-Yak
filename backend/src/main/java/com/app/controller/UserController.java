@@ -31,6 +31,9 @@ import javax.sql.DataSource;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+    @Autowired
+    private com.app.util.UserAccess userAccess;
+
 
     @Autowired
     private UserService userService;
@@ -107,29 +110,10 @@ public class UserController {
 
     @GetMapping(value = "/profile", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> getProfile(@RequestParam("username") String username, javax.servlet.http.HttpServletRequest httpRequest) {
-        User user = userMapper.findByLoginId(username);
-        if (user == null) {
-            return ResponseEntity.notFound().build();
-        }
-        boolean authenticatedAsUser = false;
-        if (httpRequest != null) {
-            javax.servlet.http.HttpSession existingSession = httpRequest.getSession(false);
-            Object sessionUserId = existingSession == null ? null : existingSession.getAttribute("userId");
-            boolean authenticated = existingSession != null
-                    && Boolean.TRUE.equals(existingSession.getAttribute("authenticated"));
-            if (authenticated && sessionUserId instanceof Number
-                    && ((Number) sessionUserId).longValue() != user.getUserId().longValue()) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(Map.of("message", "다른 사용자의 프로필을 조회할 수 없습니다."));
-            }
-            authenticatedAsUser = authenticated && sessionUserId instanceof Number
-                    && ((Number) sessionUserId).longValue() == user.getUserId().longValue();
-            javax.servlet.http.HttpSession session = httpRequest.getSession(true);
-            session.setAttribute("userId", user.getUserId());
-            session.setAttribute("username", user.getLoginId());
-            session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
-            session.setAttribute("isAdmin", authenticatedAsUser && Integer.valueOf(1).equals(user.getIsAdmin()));
-        }
+        long currentUserId = userAccess.selfUser(httpRequest, null, username);
+        User user = userMapper.findById(currentUserId);
+        if (user == null) return ResponseEntity.notFound().build();
+        boolean authenticatedAsUser = true;
         Map<String, Object> response = new HashMap<>();
         response.put("userId", user.getUserId());
         response.put("username", user.getLoginId());
@@ -172,7 +156,7 @@ public class UserController {
             } catch (Exception ignored) {}
         }
 
-        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        Long resolvedUserId = resolveSelfUserId(userId, username, httpRequest);
         User user = null;
         if (resolvedUserId != null && resolvedUserId > 0L) {
             user = userMapper.findById(resolvedUserId);
@@ -232,7 +216,7 @@ public class UserController {
             @RequestParam(value = "userId", required = false) Long userId,
             @RequestParam(value = "username", required = false) String username,
             javax.servlet.http.HttpServletRequest httpRequest) {
-        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        Long resolvedUserId = resolveSelfUserId(userId, username, httpRequest);
         User user = null;
         if (resolvedUserId != null && resolvedUserId > 0L) {
             user = userMapper.findById(resolvedUserId);
@@ -267,7 +251,7 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "알림 설정 정보를 확인해 주세요."));
         }
 
-        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        Long resolvedUserId = resolveSelfUserId(userId, username, httpRequest);
         String resolvedLoginId = null;
         if (username != null && !username.isBlank()) {
             resolvedLoginId = "demo".equalsIgnoreCase(username) ? "test12" : username;
@@ -487,7 +471,9 @@ public class UserController {
     public ResponseEntity<?> updateProfile(
             @RequestParam("username") String username,
             @RequestParam(value = "nickname", required = false) String nickname,
-            @RequestParam(value = "file", required = false) MultipartFile file) {
+            @RequestParam(value = "file", required = false) MultipartFile file,
+            javax.servlet.http.HttpServletRequest httpRequest) {
+        userAccess.selfUser(httpRequest, null, username);
         User user = userMapper.findByLoginId(username);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "사용자를 찾을 수 없습니다."));
@@ -599,28 +585,11 @@ public class UserController {
     }
 
     private Long resolveUserId(Long userId, String username, javax.servlet.http.HttpServletRequest httpRequest) {
-        if (userId != null && userId > 0L) {
-            return userId;
-        }
-        if (httpRequest != null) {
-            var session = httpRequest.getSession(false);
-            Object sessionVal = session != null ? session.getAttribute("userId") : null;
-            if (sessionVal instanceof Long) {
-                return (Long) sessionVal;
-            } else if (sessionVal instanceof Number) {
-                return ((Number) sessionVal).longValue();
-            }
-        }
-        if (username != null && !username.isBlank()) {
-            String target = "demo".equalsIgnoreCase(username.trim()) ? "test12" : username.trim();
-            try {
-                User u = userMapper.findByLoginId(target);
-                if (u != null && u.getUserId() != null) {
-                    return u.getUserId();
-                }
-            } catch (Exception ignored) {}
-        }
-        return null;
+        return userAccess.familyUser(httpRequest, userId, username);
+    }
+
+    private Long resolveSelfUserId(Long userId, String username, javax.servlet.http.HttpServletRequest httpRequest) {
+        return userAccess.selfUser(httpRequest, userId, username);
     }
 
     /**
@@ -854,7 +823,7 @@ public class UserController {
         if (userId == null) userId = userIdParam;
         if (username == null) username = usernameParam;
 
-        Long resolvedUserId = resolveUserId(userId, username, httpRequest);
+        Long resolvedUserId = resolveSelfUserId(userId, username, httpRequest);
         if (resolvedUserId == null || resolvedUserId <= 0L) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
         }

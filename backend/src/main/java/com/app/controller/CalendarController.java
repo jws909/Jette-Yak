@@ -32,6 +32,42 @@ import com.app.service.ScheduleService;
 @RestController
 @RequestMapping("/api/calendar")
 public class CalendarController {
+    @Autowired
+    private com.app.util.UserAccess userAccess;
+    @Autowired
+    private com.app.dao.ScheduleDAO scheduleDAO;
+    @Autowired
+    private com.app.prescription.dao.PrescriptionDAO prescriptionDAO;
+
+    private String calendarDate(String date) {
+        if (date == null || date.isBlank() || "undefined".equalsIgnoreCase(date) || "null".equalsIgnoreCase(date))
+            return java.time.LocalDate.now().toString();
+        try { return java.time.LocalDate.parse(date.trim()).toString(); }
+        catch (java.time.format.DateTimeParseException invalid) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST, "날짜를 확인해 주세요.");
+        }
+    }
+
+    private String calendarMonth(String month) {
+        try { return java.time.YearMonth.parse(month == null ? "" : month.trim()).toString(); }
+        catch (java.time.format.DateTimeParseException invalid) {
+            throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST, "조회할 월을 확인해 주세요.");
+        }
+    }
+
+    private Long scheduleOwner(Long scheduleId, javax.servlet.http.HttpServletRequest request) {
+        userAccess.currentUser(request);
+        if (scheduleId == null || scheduleId <= 0) throw new org.springframework.web.server.ResponseStatusException(HttpStatus.BAD_REQUEST);
+        ScheduleDTO schedule = scheduleDAO.selectScheduleById(scheduleId);
+        Long owner = schedule == null ? null : schedule.getUserId();
+        if (owner == null && scheduleId >= 100000L) {
+            var prescription = prescriptionDAO.getPrescriptionById(scheduleId / 100000L);
+            owner = prescription == null ? null : prescription.getUserId();
+        }
+        if (owner == null) throw new org.springframework.web.server.ResponseStatusException(HttpStatus.NOT_FOUND);
+        return userAccess.familyUser(request, owner);
+    }
+
 
 	@Autowired
 	private ScheduleService scheduleService;
@@ -93,18 +129,12 @@ public class CalendarController {
 			date = java.time.LocalDate.now().toString();
 		}
 
-		if (userId == null || userId <= 0L) {
-			var session = request.getSession(false);
-			Object sessionVal = session != null ? session.getAttribute("userId") : null;
-			if (sessionVal instanceof Long) {
-				userId = (Long) sessionVal;
-			} else if (sessionVal instanceof Number) {
-				userId = ((Number) sessionVal).longValue();
-			}
-		}
+		userId = userAccess.familyUser(request, userId);
 		if (userId == null || userId <= 0L) {
 			return ResponseEntity.ok(Collections.emptyList());
 		}
+
+        date = calendarDate(date);
 
 		// 개별 탭 조회
 		if (!isFamily) {
@@ -141,54 +171,61 @@ public class CalendarController {
 
 	@PostMapping("/{scheduleId}/toggle")
 	public ResponseEntity<Void> toggleTaken(@PathVariable("scheduleId") Long scheduleId,
-			@RequestBody Map<String, Object> body) {
+			@RequestBody Map<String, Object> body, javax.servlet.http.HttpServletRequest request) {
+        scheduleOwner(scheduleId, request);
 		Object takenVal = body.get("taken");
 		boolean taken = Boolean.TRUE.equals(takenVal);
 		String date = body.get("date") != null ? String.valueOf(body.get("date")) : null;
+		date = calendarDate(date);
 		boolean success = scheduleService.toggleTaken(scheduleId, taken, date);
 		return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 	}
 
 	@PostMapping("/toggle-batch")
-	public ResponseEntity<Void> toggleTakenBatch(@RequestBody Map<String, Object> body) {
-		Object idsVal = body.get("scheduleIds");
-		Object takenVal = body.get("taken");
-		boolean taken = Boolean.TRUE.equals(takenVal);
-		String date = body.get("date") != null ? String.valueOf(body.get("date")) : null;
-
-		if (idsVal instanceof List<?>) {
-			List<?> list = (List<?>) idsVal;
-			for (Object idObj : list) {
-				try {
-					Long id = Long.valueOf(idObj.toString());
-					scheduleService.toggleTaken(id, taken, date);
-				} catch (Exception ignored) {
-				}
-			}
-			return ResponseEntity.ok().build();
-		}
-		return ResponseEntity.badRequest().build();
-	}
+	public ResponseEntity<Void> toggleTakenBatch(@RequestBody Map<String, Object> body, javax.servlet.http.HttpServletRequest request) {
+        userAccess.currentUser(request);
+        Object idsVal = body.get("scheduleIds");
+        if (!(idsVal instanceof List<?> values) || values.isEmpty() || values.size() > 500)
+            return ResponseEntity.badRequest().build();
+        List<Long> ids = new ArrayList<>();
+        for (Object value : values) {
+            Long id = com.app.util.UserAccess.requestedId(value);
+            scheduleOwner(id, request); // 쓰기 전에 일괄 요청 전체의 소유권 확인
+            ids.add(id);
+        }
+        boolean taken = Boolean.TRUE.equals(body.get("taken"));
+        String date = calendarDate(body.get("date") == null ? null : body.get("date").toString());
+        boolean success = scheduleService.toggleTakenBatch(ids, taken, date);
+        return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+    }
 
 	@PostMapping("/{scheduleId}/alarm")
 	public ResponseEntity<Void> updateAlarm(@PathVariable("scheduleId") Long scheduleId,
 			@RequestParam("newTime") String newTime, @RequestParam("alarmEnabled") boolean alarmEnabled,
-			@RequestParam(value = "date", required = false) String date) {
+			@RequestParam(value = "date", required = false) String date, javax.servlet.http.HttpServletRequest request) {
+        scheduleOwner(scheduleId, request);
+        date = calendarDate(date);
 		boolean success = scheduleService.updateAlarmTime(scheduleId, newTime, alarmEnabled, date);
 		return success ? ResponseEntity.ok().build() : ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
 	}
 
 	@PostMapping
 	public ResponseEntity<?> addSchedule(@RequestBody ScheduleAddDTO dto, javax.servlet.http.HttpServletRequest request) {
-		if (dto.getUserId() == null || dto.getUserId() <= 0L) {
-			var session = request.getSession(false);
-			Object sessionVal = session != null ? session.getAttribute("userId") : null;
-			if (sessionVal instanceof Long) {
-				dto.setUserId((Long) sessionVal);
-			} else if (sessionVal instanceof Number) {
-				dto.setUserId(((Number) sessionVal).longValue());
-			}
-		}
+		dto.setUserId(userAccess.familyUser(request, dto.getUserId()));
+        dto.setScheduledDate(calendarDate(dto.getScheduledDate()));
+        String type = dto.getType();
+        if (!"regular".equalsIgnoreCase(type) && !"supplement".equalsIgnoreCase(type) && !"prescription".equalsIgnoreCase(type))
+            return ResponseEntity.badRequest().body(Map.of("message", "일정 종류를 확인해 주세요."));
+        if ("prescription".equalsIgnoreCase(type)) {
+            if (dto.getPrescriptionId() == null) return ResponseEntity.badRequest().body(Map.of("message", "처방전 정보를 확인해 주세요."));
+            var prescription = prescriptionDAO.getPrescriptionById(dto.getPrescriptionId());
+            if (prescription == null) return ResponseEntity.notFound().build();
+            userAccess.familyUser(request, prescription.getUserId());
+            if (!dto.getUserId().equals(prescription.getUserId()))
+                return ResponseEntity.badRequest().body(Map.of("message", "처방전 소유자와 일정 사용자가 일치하지 않습니다."));
+            dto.setCabinetId(null);
+            dto.setRoutineId(null);
+        }
 		if (dto.getUserId() == null || dto.getUserId() <= 0L) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "로그인이 필요합니다."));
 		}
@@ -212,16 +249,10 @@ public class CalendarController {
 			@RequestParam(value = "date", required = false) String date,
 			javax.servlet.http.HttpServletRequest request) {
 
-		if (userId == null || userId <= 0L) {
-			var session = request.getSession(false);
-			Object sessionVal = session != null ? session.getAttribute("userId") : null;
-			if (sessionVal instanceof Long) {
-				userId = (Long) sessionVal;
-			} else if (sessionVal instanceof Number) {
-				userId = ((Number) sessionVal).longValue();
-			}
-		}
+		userId = userAccess.familyUser(request, userId);
 
+        userId = scheduleOwner(scheduleId, request);
+        date = calendarDate(date);
 		boolean isDeleted = scheduleService.removeSchedule(scheduleId, deleteAll, userId, date);
 		return isDeleted ? ResponseEntity.ok().build() : ResponseEntity.notFound().build();
 	}
@@ -232,19 +263,12 @@ public class CalendarController {
 			@RequestParam("yearMonth") String yearMonth,
 			@RequestParam(value = "isFamily", required = false, defaultValue = "false") boolean isFamily,
 			javax.servlet.http.HttpServletRequest request) {
-		if (userId == null || userId <= 0L) {
-			var session = request.getSession(false);
-			Object sessionVal = session != null ? session.getAttribute("userId") : null;
-			if (sessionVal instanceof Long) {
-				userId = (Long) sessionVal;
-			} else if (sessionVal instanceof Number) {
-				userId = ((Number) sessionVal).longValue();
-			}
-		}
+		userId = userAccess.familyUser(request, userId);
 		if (userId == null || userId <= 0L) {
 			return ResponseEntity.ok(Collections.emptyList());
 		}
 
+		yearMonth = calendarMonth(yearMonth);
 		if (!isFamily) {
 			List<Map<String, Object>> summary = scheduleService.getMonthlySummary(userId, yearMonth);
 			return ResponseEntity.ok(summary != null ? summary : Collections.emptyList());

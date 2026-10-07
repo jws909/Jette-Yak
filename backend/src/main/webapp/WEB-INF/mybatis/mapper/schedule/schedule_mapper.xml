@@ -132,6 +132,7 @@
             FROM schedules s
             WHERE s.user_id = #{userId}
               AND TO_CHAR(s.scheduled_at, 'YYYY-MM') = #{yearMonth}
+              AND NVL(s.alarm_enabled, 1) != -1
             GROUP BY TO_CHAR(s.scheduled_at, 'YYYY-MM-DD')
 
             UNION ALL
@@ -145,6 +146,16 @@
             FROM prescriptions p
             WHERE p.user_id = #{userId}
               AND TO_CHAR(TRUNC(p.dispensed_date) + LEVEL - 1, 'YYYY-MM') = #{yearMonth}
+              AND EXISTS (
+                  SELECT 1 FROM prescription_items i
+                  WHERE i.prescription_id = p.prescription_id
+                    AND NOT EXISTS (
+                        SELECT 1 FROM medication_use_states state
+                        WHERE state.user_id = p.user_id
+                          AND state.registration_id = 'P:' || TO_CHAR(i.item_id)
+                          AND state.use_status != 'ACTIVE'
+                    )
+              )
             <![CDATA[
             CONNECT BY LEVEL <= p.total_days
                    AND PRIOR p.prescription_id = p.prescription_id
@@ -261,6 +272,36 @@
         DELETE FROM schedules
          WHERE prescription_id = #{prescriptionId}
     </delete>
+
+    <!-- 처방전 원본을 보존하면서 전체 일정 삭제 상태를 기존 복용 상태에 기록 -->
+    <update id="pausePrescriptionItems" parameterType="map">
+        MERGE INTO medication_use_states state
+        USING (
+            SELECT p.user_id, 'P:' || TO_CHAR(i.item_id) registration_id
+            FROM prescriptions p
+            JOIN prescription_items i ON i.prescription_id = p.prescription_id
+            WHERE p.user_id = #{userId} AND p.prescription_id = #{prescriptionId}
+        ) owned
+        ON (state.user_id = owned.user_id AND state.registration_id = owned.registration_id)
+        WHEN MATCHED THEN UPDATE SET state.use_status = 'PAUSED', state.updated_at = (SYSDATE + (9/24))
+        WHEN NOT MATCHED THEN INSERT (user_id, registration_id, use_status, updated_at)
+            VALUES (owned.user_id, owned.registration_id, 'PAUSED', (SYSDATE + (9/24)))
+    </update>
+
+    <select id="selectInactivePrescriptionItemIds" parameterType="long" resultType="long">
+        SELECT i.item_id
+        FROM prescriptions p
+        JOIN prescription_items i ON i.prescription_id = p.prescription_id
+        JOIN medication_use_states state ON state.user_id = p.user_id
+            AND state.registration_id = 'P:' || TO_CHAR(i.item_id)
+        WHERE p.user_id = #{userId} AND state.use_status != 'ACTIVE'
+    </select>
+
+    <!-- 실체화된 처방 단건도 취소 행을 남겨 가상 일정으로 다시 나타나지 않게 처리 -->
+    <update id="cancelPrescriptionSchedule" parameterType="long">
+        UPDATE schedules SET alarm_enabled = -1, taken_at = NULL
+        WHERE schedule_id = #{scheduleId} AND prescription_id IS NOT NULL
+    </update>
 
     <!-- 16. 상비약(cabinet_id) 관련 스케줄 전체 삭제 -->
     <delete id="deleteSchedulesByCabinetId" parameterType="map">

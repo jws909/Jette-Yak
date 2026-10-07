@@ -125,6 +125,19 @@ public class ScheduleDAO {
         return sqlSession.delete("schedule.deleteSchedulesByPrescriptionId", prescriptionId);
     }
 
+    public List<Long> selectInactivePrescriptionItemIds(Long userId) {
+        return sqlSession.selectList("schedule.selectInactivePrescriptionItemIds", userId);
+    }
+
+    public int pausePrescriptionItems(Long userId, Long prescriptionId) {
+        return sqlSession.update("schedule.pausePrescriptionItems",
+                Map.of("userId", userId, "prescriptionId", prescriptionId));
+    }
+
+    public int cancelPrescriptionSchedule(Long scheduleId) {
+        return sqlSession.update("schedule.cancelPrescriptionSchedule", scheduleId);
+    }
+
     public int deleteSchedulesByCabinetId(Long userId, Long cabinetId) {
         Map<String, Object> params = new HashMap<>();
         params.put("userId", userId);

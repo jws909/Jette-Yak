@@ -1,4 +1,3 @@
-import React from 'react';
 import { formatTimeOnly, cleanCategoryName } from '../utils/mainPageUtils';
 
 /**

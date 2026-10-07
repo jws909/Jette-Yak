@@ -37,40 +37,42 @@ export function useMedicationSearch({
   // 검색어 디바운스 API 호출
   useEffect(() => {
     const keyword = searchText.trim();
-    if (!keyword) {
-      setSearchResults([]);
-      setIsDropdownOpen(false);
-      return;
-    }
+    if (!keyword) return;
 
+    let active = true;
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setIsSearching(true);
       try {
-        const res = await fetch(`${apiEndpoint}?keyword=${encodeURIComponent(keyword)}`);
+        const res = await fetch(`${apiEndpoint}?keyword=${encodeURIComponent(keyword)}`, { signal: controller.signal });
         if (res.ok) {
           const list = await res.json();
+          if (!active) return;
           setSearchResults(Array.isArray(list) ? list : []);
           setHighlightIndex(0);
           setIsDropdownOpen(true);
-        } else {
+        } else if (active) {
           setSearchResults([]);
           setHighlightIndex(0);
         }
       } catch (err) {
-        console.warn('약품 검색 오류:', err);
-        setSearchResults([]);
+        if (active) {
+          console.warn('약품 검색 오류:', err);
+          setSearchResults([]);
+        }
       } finally {
-        setIsSearching(false);
+        if (active) setIsSearching(false);
       }
     }, debounceMs);
 
-    return () => clearTimeout(timer);
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
   }, [searchText, debounceMs, apiEndpoint]);
 
   // 검색창 입력 변경 핸들러
   const handleInputChange = useCallback((e) => {
     const val = typeof e === 'string' ? e : e?.target?.value || '';
     setSearchText(val);
+    setIsSearching(false);
     if (!val.trim()) {
       setSearchResults([]);
       setIsDropdownOpen(false);
@@ -80,6 +82,7 @@ export function useMedicationSearch({
   // 검색어 초기화
   const clearSearch = useCallback(() => {
     setSearchText('');
+    setIsSearching(false);
     setSearchResults([]);
     setIsDropdownOpen(false);
     setHighlightIndex(0);
@@ -111,7 +114,7 @@ export function useMedicationSearch({
 
   return {
     searchText,
-    setSearchText,
+    setSearchText: handleInputChange,
     handleInputChange,
     searchResults,
     isSearching,

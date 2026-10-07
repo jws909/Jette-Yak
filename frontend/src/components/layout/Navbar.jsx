@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import logoImg from '../../assets/logo.png';
 import UiDialog from '../ui/UiDialog';
 import './Navbar.css';
+import { mergeNotificationItems } from '../../utils/notificationState';
 
 export default function Navbar({
   onToggleSidebar,
@@ -20,6 +21,8 @@ export default function Navbar({
   const [notificationDialog, setNotificationDialog] = useState(null);
 
   const notifBoxRef = useRef(null);
+  const readLock = useRef(false);
+  const confirmedRead = useRef(new Set());
 
   // 1. 가족 초대 수락/거절 핸들러 함수
   const handleRespondInvitation = async (inviteId, action) => {
@@ -62,16 +65,14 @@ export default function Navbar({
     }
 
     const userId = currentUserId;
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${y}-${m}-${d}`;
+    confirmedRead.current = new Set();
 
     let isMounted = true;
 
     const loadNotifications = async () => {
       const items = [];
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
       // ★ 2. 나에게 도착한 가족 연동 초대 내역 조회
       try {
@@ -195,7 +196,7 @@ export default function Navbar({
       }
 
       if (isMounted) {
-        setNotifications(previous => items.map(item => item.saved ? item : ({ ...item, read: Boolean(previous.find(old => old.id === item.id)?.read) })));
+        setNotifications(previous => mergeNotificationItems(previous, items, confirmedRead.current, currentUserId));
       }
     };
 
@@ -208,7 +209,7 @@ export default function Navbar({
       if (!item) return;
 
       const isPre = Boolean(item.isPreAlarm);
-      const newNotifId = `realtime-dose-${isPre ? 'pre' : 'main'}-${item.time}`;
+      const newNotifId = `realtime-dose-${isPre ? 'pre' : 'main'}-${item.date || new Date().toLocaleDateString('en-CA')}-${item.time}`;
 
       setNotifications((prev) => {
         if (prev.some((n) => n.id === newNotifId)) return prev;
@@ -216,6 +217,7 @@ export default function Navbar({
         return [
           {
             id: newNotifId,
+            userId: currentUserId,
             type: 'routine',
             title: isPre ? '복약 30분 전 안내' : '지금 복약할 시간입니다!',
             text: isPre 
@@ -252,13 +254,35 @@ export default function Navbar({
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const markAllAsRead = async () => {
-    try { await fetch('/api/notifications/read-all', { method: 'PATCH' }); } catch (err) { console.warn('알림 전체 읽음 처리 실패:', err); }
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (readLock.current) return;
+    readLock.current = true;
+    const targetIds = notifications.map(item => item.id);
+    try {
+      const response = await fetch('/api/notifications/read-all', { method: 'PATCH' });
+      if (!response.ok) throw new Error('알림을 읽음으로 저장하지 못했습니다. 다시 시도해주세요.');
+      targetIds.forEach(id => confirmedRead.current.add(id));
+      setNotifications(prev => prev.map(item => targetIds.includes(item.id) ? { ...item, read: true } : item));
+    } catch (error) {
+      setNotificationDialog({ title: '알림을 처리하지 못했습니다.', text: error.message });
+    } finally {
+      readLock.current = false;
+    }
   };
 
   const markAsRead = async (item) => {
     if (item.saved && item.notificationId) {
-      try { await fetch(`/api/notifications/${item.notificationId}/read`, { method: 'PATCH' }); } catch (err) { console.warn('알림 읽음 처리 실패:', err); }
+      if (readLock.current) return;
+      readLock.current = true;
+      try {
+        const response = await fetch('/api/notifications/' + encodeURIComponent(item.notificationId) + '/read', { method: 'PATCH' });
+        if (!response.ok) throw new Error('알림을 읽음으로 저장하지 못했습니다. 다시 시도해주세요.');
+        confirmedRead.current.add(item.id);
+      } catch (error) {
+        setNotificationDialog({ title: '알림을 처리하지 못했습니다.', text: error.message });
+        return;
+      } finally {
+        readLock.current = false;
+      }
       setNotificationDialog(item);
       setShowNotification(false);
     }

@@ -1,7 +1,6 @@
 package com.app.controller;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -21,9 +20,7 @@ import com.app.service.EmailVerificationService;
 import com.app.util.PasswordUtil;
 
 /**
- * 로그인 화면 동작 확인용 임시 컨트롤러.
- * DB 연동 전이므로 아이디/비밀번호를 하드코딩된 값과 비교합니다.
- * 실제 사용자 저장소가 준비되면 이 부분을 서비스 계층 + Repository 호출로 교체하면 됩니다.
+ * DB 계정 확인, 로그인 세션 발급, 이메일 인증과 비밀번호 재설정 담당
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -37,7 +34,7 @@ public class AuthController {
 
     private static final String EMAIL_PATTERN = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
     private static final long PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS = 5 * 60 * 1000L;
-    private final Map<String, PasswordResetVerification> verifiedPasswordResetEmails = new ConcurrentHashMap<>();
+    private static final String PASSWORD_RESET_SESSION_KEY = "verifiedPasswordReset";
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
@@ -89,11 +86,12 @@ public class AuthController {
         String targetUsername = "test12";
         User user = userMapper.findByLoginId(targetUsername);
         if (user == null) {
-            user = userMapper.findById(1L);
-        }
-        if (user == null) {
             LoginResponse failResponse = new LoginResponse(null, "체험용 계정을 찾을 수 없습니다.");
             return ResponseEntity.status(404).body(failResponse);
+        }
+
+        if (Integer.valueOf(1).equals(user.getIsAdmin())) {
+            return ResponseEntity.status(403).body(new LoginResponse(null, "체험용 계정을 사용할 수 없습니다."));
         }
 
         if (httpRequest != null) {
@@ -154,7 +152,7 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password/send-code")
-    public ResponseEntity<?> sendPasswordResetCode(@RequestBody PasswordResetRequest request) {
+    public ResponseEntity<?> sendPasswordResetCode(@RequestBody PasswordResetRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
         User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
         if (user == null) {
             return ResponseEntity.status(404).body(java.util.Map.of("message", "아이디와 이메일이 일치하는 계정을 찾을 수 없습니다."));
@@ -162,7 +160,8 @@ public class AuthController {
 
         try {
             String email = request.getEmail().trim();
-            verifiedPasswordResetEmails.remove(user.getLoginId());
+            var existingSession = httpRequest.getSession(false);
+            if (existingSession != null) existingSession.removeAttribute(PASSWORD_RESET_SESSION_KEY);
             emailVerificationService.clearVerification(email);
             emailVerificationService.sendCode(email);
             return ResponseEntity.ok(java.util.Map.of("message", "인증번호를 등록된 이메일로 보냈습니다."));
@@ -172,29 +171,29 @@ public class AuthController {
     }
 
     @PostMapping("/reset-password/verify-code")
-    public ResponseEntity<?> verifyPasswordResetCode(@RequestBody PasswordResetRequest request) {
+    public ResponseEntity<?> verifyPasswordResetCode(@RequestBody PasswordResetRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
         User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
         String email = request.getEmail() == null ? "" : request.getEmail().trim();
         if (user == null || !emailVerificationService.verifyCode(email, request.getCode())) {
             return ResponseEntity.badRequest().body(java.util.Map.of("message", "인증번호가 올바르지 않거나 만료되었습니다."));
         }
-        verifiedPasswordResetEmails.put(
-                user.getLoginId(),
-                new PasswordResetVerification(email, System.currentTimeMillis() + PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS)
-        );
+        // 인증한 브라우저 세션에서만 비밀번호를 바꿀 수 있도록 인증 완료 상태를 보관합니다.
+        httpRequest.getSession(true).setAttribute(PASSWORD_RESET_SESSION_KEY,
+                new PasswordResetVerification(user.getLoginId(), email,
+                        System.currentTimeMillis() + PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS));
         return ResponseEntity.ok(java.util.Map.of("message", "이메일 인증이 완료되었습니다."));
     }
 
     @PostMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestBody PasswordResetRequest request) {
+    public ResponseEntity<?> resetPassword(@RequestBody PasswordResetRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
         User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
         String email = request.getEmail() == null ? "" : request.getEmail().trim();
-        PasswordResetVerification verification = user == null ? null : verifiedPasswordResetEmails.get(user.getLoginId());
-        if (verification == null || System.currentTimeMillis() > verification.expiresAt
-                || !email.equalsIgnoreCase(verification.email)) {
-            if (user != null) {
-                verifiedPasswordResetEmails.remove(user.getLoginId());
-            }
+        var session = httpRequest.getSession(false);
+        Object verified = session == null ? null : session.getAttribute(PASSWORD_RESET_SESSION_KEY);
+        PasswordResetVerification verification = verified instanceof PasswordResetVerification ? (PasswordResetVerification)verified : null;
+        if (user == null || verification == null || System.currentTimeMillis() > verification.expiresAt
+                || !user.getLoginId().equals(verification.loginId) || !email.equalsIgnoreCase(verification.email)) {
+            if (session != null) session.removeAttribute(PASSWORD_RESET_SESSION_KEY);
             return ResponseEntity.status(403).body(java.util.Map.of("message", "이메일 인증 후 비밀번호를 재설정할 수 있습니다."));
         }
         if (request.getNewPassword() == null || request.getNewPassword().length() < 8) {
@@ -202,7 +201,7 @@ public class AuthController {
         }
 
         userMapper.updatePasswordHash(user.getLoginId(), PasswordUtil.sha256(request.getNewPassword()));
-        verifiedPasswordResetEmails.remove(user.getLoginId());
+        session.removeAttribute(PASSWORD_RESET_SESSION_KEY);
         emailVerificationService.clearVerification(email);
         return ResponseEntity.ok(java.util.Map.of("message", "비밀번호가 재설정되었습니다."));
     }
@@ -216,10 +215,12 @@ public class AuthController {
     }
 
     private static class PasswordResetVerification {
+        private final String loginId;
         private final String email;
         private final long expiresAt;
 
-        private PasswordResetVerification(String email, long expiresAt) {
+        private PasswordResetVerification(String loginId, String email, long expiresAt) {
+            this.loginId = loginId;
             this.email = email;
             this.expiresAt = expiresAt;
         }

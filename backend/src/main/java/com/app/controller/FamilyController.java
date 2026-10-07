@@ -19,6 +19,9 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/family")
 public class FamilyController {
+    @Autowired
+    private com.app.util.UserAccess userAccess;
+
 
 	@Autowired
 	@Qualifier("data_source")
@@ -42,24 +45,11 @@ public class FamilyController {
 
 		Map<String, Object> response = new HashMap<>();
 
-		// 1. 요청자 세션 또는 파라미터 검증
-		Long currentUserId = paramUserId;
-		if (currentUserId == null && req != null && req.get("userId") != null) {
-			try {
-				currentUserId = Long.valueOf(req.get("userId").toString().trim());
-			} catch (NumberFormatException ignored) {}
-		}
-		if (currentUserId == null && request != null) {
-			var session = request.getSession(false);
-			if (session != null) {
-				Object sessionVal = session.getAttribute("userId");
-				if (sessionVal instanceof Long) {
-					currentUserId = (Long) sessionVal;
-				} else if (sessionVal instanceof Number) {
-					currentUserId = ((Number) sessionVal).longValue();
-				}
-			}
-		}
+        Long suppliedId = paramUserId != null ? paramUserId
+                : com.app.util.UserAccess.requestedId(req == null ? null : req.get("userId"));
+        Long currentUserId = userAccess.familyManager(request, suppliedId, false);
+        if (targetUserId == null || targetUserId <= 0) return ResponseEntity.badRequest().body(Map.of("success", false));
+        userAccess.familyUser(request, targetUserId);
 
 		if (currentUserId == null || targetUserId == null) {
 			response.put("success", false);
@@ -73,89 +63,72 @@ public class FamilyController {
 			return ResponseEntity.badRequest().body(response);
 		}
 
-		// (1) 대상 회원의 가상 계정 여부 확인
-		String isVirtual = "N";
+		String deleteFamilyMemberSql = "DELETE FROM FAMILY_MEMBERS WHERE USER_ID = ?";
 		String checkVirtualSql = "SELECT IS_VIRTUAL FROM USERS WHERE USER_ID = ?";
-		try (Connection conn = dataSource.getConnection();
-		     PreparedStatement pstmt = conn.prepareStatement(checkVirtualSql)) {
-			pstmt.setLong(1, targetUserId);
-			try (ResultSet rs = pstmt.executeQuery()) {
-				if (rs.next()) {
-					isVirtual = rs.getString("IS_VIRTUAL");
-				} else {
-					response.put("success", false);
-					response.put("message", "존재하지 않는 회원입니다.");
-					return ResponseEntity.badRequest().body(response);
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-			response.put("success", false);
-			response.put("message", "회원 정보 조회 중 오류가 발생했습니다: " + e.getMessage());
-			return ResponseEntity.internalServerError().body(response);
-		}
+		String deleteMealTimesSql = "DELETE FROM USER_MEAL_TIMES WHERE USER_ID = ?";
+		String deletePrescriptionItemsSql = "DELETE FROM PRESCRIPTION_ITEMS WHERE PRESCRIPTION_ID IN (SELECT PRESCRIPTION_ID FROM PRESCRIPTIONS WHERE USER_ID = ?)";
+		String deleteSchedulesSql = "DELETE FROM SCHEDULES WHERE USER_ID = ?";
+		String deletePrescriptionsSql = "DELETE FROM PRESCRIPTIONS WHERE USER_ID = ?";
+		String deleteCabinetSql = "DELETE FROM CABINET_MEDICATIONS WHERE USER_ID = ?";
+		String deleteRoutineSql = "DELETE FROM ROUTINE_MEDICATIONS WHERE USER_ID = ?";
+		String deleteUseStatesSql = "DELETE FROM MEDICATION_USE_STATES WHERE USER_ID = ?";
+		String deleteOverallGuideSql = "DELETE FROM MEDICATION_OVERALL_GUIDE WHERE USER_ID = ?";
+		String deleteUserSql = "DELETE FROM USERS WHERE USER_ID = ?";
+		String unlinkUserSql = "UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT' WHERE USER_ID = ?";
+		String cleanInviteSql = "DELETE FROM FAMILY_INVITATIONS WHERE RECEIVER_ID = ? OR SENDER_ID = ?";
 
-		// (2) 가상 계정 vs 일반 회원 분기
-		if ("Y".equalsIgnoreCase(isVirtual)) {
-			// 가상 유저: 회원 탈퇴 로직(사용자 및 모든 하위/연관 데이터 영구 삭제)을 그대로 수행
+		try (SqlSession sessionSql = sqlSessionFactory.openSession()) {
+			Connection conn = sessionSql.getConnection();
 			try {
-				userService.deleteUserAccount(targetUserId);
-				response.put("success", true);
-				response.put("message", "가상 구성원이 정상적으로 삭제되었습니다.");
-				return ResponseEntity.ok(response);
-			} catch (Exception e) {
-				e.printStackTrace();
-				response.put("success", false);
-				response.put("message", "가상 구성원 삭제 실패: " + e.getMessage());
-				return ResponseEntity.internalServerError().body(response);
-			}
-		} else {
-			// 실제 계정이 있는 일반 회원: 계정 및 개인 데이터는 유지하고 가족 그룹 매핑만 해제
-			Connection conn = null;
-			try {
-				conn = dataSource.getConnection();
 				conn.setAutoCommit(false);
-
-				// 초대 내역 정리
-				String cleanInviteSql = "DELETE FROM FAMILY_INVITATIONS WHERE RECEIVER_ID = ? OR SENDER_ID = ?";
+				// 필수 삭제가 하나라도 실패하면 같은 연결에서 앞선 변경까지 롤백
+				executeFamilyRemoval(conn, deleteFamilyMemberSql, targetUserId);
+				String isVirtual = "N";
+				try (PreparedStatement pstmt = conn.prepareStatement(checkVirtualSql)) {
+					pstmt.setLong(1, targetUserId);
+					try (ResultSet rs = pstmt.executeQuery()) {
+						if (!rs.next()) throw new IllegalStateException("삭제할 가족 구성원을 찾지 못했어요.");
+						isVirtual = rs.getString("IS_VIRTUAL");
+					}
+				}
 				try (PreparedStatement pstmtInvite = conn.prepareStatement(cleanInviteSql)) {
 					pstmtInvite.setLong(1, targetUserId);
 					pstmtInvite.setLong(2, targetUserId);
 					pstmtInvite.executeUpdate();
-				} catch (Exception ignored) {}
-
-				// 가족 구성원 매핑 해제
-				String deleteFamilyMemberSql = "DELETE FROM FAMILY_MEMBERS WHERE USER_ID = ?";
-				try (PreparedStatement pstmtFm = conn.prepareStatement(deleteFamilyMemberSql)) {
-					pstmtFm.setLong(1, targetUserId);
-					pstmtFm.executeUpdate();
 				}
-
-				// 가족 그룹 해제 및 일반 역할 복원
-				String unlinkUserSql = "UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT' WHERE USER_ID = ?";
-				try (PreparedStatement pstmtUser = conn.prepareStatement(unlinkUserSql)) {
-					pstmtUser.setLong(1, targetUserId);
-					pstmtUser.executeUpdate();
+				if ("Y".equalsIgnoreCase(isVirtual)) {
+					for (String sql : List.of(deleteMealTimesSql, deletePrescriptionItemsSql, deleteSchedulesSql,
+							deletePrescriptionsSql, deleteCabinetSql, deleteRoutineSql,
+							deleteUseStatesSql, deleteOverallGuideSql)) {
+						executeFamilyRemoval(conn, sql, targetUserId);
+					}
+					if (executeFamilyRemoval(conn, deleteUserSql, targetUserId) != 1)
+						throw new IllegalStateException("삭제할 가족 구성원을 확인해 주세요.");
+				} else {
+					// 일반 회원의 의료 정보는 보존하고 가족 연결만 해제
+					if (executeFamilyRemoval(conn, unlinkUserSql, targetUserId) != 1)
+						throw new IllegalStateException("삭제할 가족 구성원을 확인해 주세요.");
 				}
-
 				conn.commit();
 				response.put("success", true);
-				response.put("message", "가족 구성원 연동이 해제되었습니다.");
+				response.put("message", "삭제되었습니다.");
 				return ResponseEntity.ok(response);
-
-			} catch (Exception e) {
-				if (conn != null) {
-					try { conn.rollback(); } catch (Exception ignored) {}
-				}
-				e.printStackTrace();
-				response.put("success", false);
-				response.put("message", "가족 구성원 연동 해제 실패: " + e.getMessage());
-				return ResponseEntity.internalServerError().body(response);
-			} finally {
-				if (conn != null) {
-					try { conn.close(); } catch (Exception ignored) {}
-				}
+			} catch (Exception failure) {
+				try { conn.rollback(); } catch (Exception rollbackFailure) { failure.addSuppressed(rollbackFailure); }
+				throw failure;
 			}
+		} catch (Exception e) {
+			org.apache.logging.log4j.LogManager.getLogger(getClass()).error("가족 구성원 삭제 실패", e);
+			response.put("success", false);
+			response.put("message", "가족 구성원을 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.");
+			return ResponseEntity.internalServerError().body(response);
+		}
+	}
+
+	private static int executeFamilyRemoval(Connection conn, String sql, long targetUserId) throws java.sql.SQLException {
+		try (PreparedStatement statement = conn.prepareStatement(sql)) {
+			statement.setLong(1, targetUserId);
+			return statement.executeUpdate();
 		}
 	}
 
@@ -173,24 +146,9 @@ public class FamilyController {
 		Map<String, Object> response = new HashMap<>();
 
 		// 1. 요청자 식별
-		Long currentUserId = paramUserId;
-		if (currentUserId == null && req != null && req.get("userId") != null) {
-			try {
-				currentUserId = Long.valueOf(req.get("userId").toString().trim());
-			} catch (NumberFormatException ignored) {}
-		}
-		if (currentUserId == null && request != null) {
-			var session = request.getSession(false);
-			if (session != null) {
-				Object sessionVal = session.getAttribute("userId");
-				if (sessionVal instanceof Long) {
-					currentUserId = (Long) sessionVal;
-				} else if (sessionVal instanceof Number) {
-					currentUserId = ((Number) sessionVal).longValue();
-				}
-			}
-		}
-
+		Long suppliedId = paramUserId != null ? paramUserId
+				: com.app.util.UserAccess.requestedId(req == null ? null : req.get("userId"));
+		Long currentUserId = userAccess.familyUser(request, suppliedId);
 		if (currentUserId == null) {
 			response.put("success", false);
 			response.put("message", "로그인이 필요합니다.");
@@ -265,11 +223,9 @@ public class FamilyController {
 		}
 
 		// 4. 분기 판정
-		// 다른 실제 계정 구성원이 없거나, 보호자가 해체를 강제 승인했거나(forceDissolve), forceDissolve인 경우 -> 전체 해체(Dissolution)
 		boolean shouldDissolve = otherRealMemberIds.isEmpty() || forceDissolve;
 
 		if (!shouldDissolve && isGuardian) {
-			// 보호자인데 다른 실사용자가 남아있고 forceDissolve가 아닐 때: 확인 요구
 			response.put("success", false);
 			response.put("requiresConfirmation", true);
 			response.put("message", "보호자가 나가면 가족 그룹 전체가 해체되며 다른 구성원들의 가족 연동도 해제됩니다. 정말 해체하시겠습니까?");
@@ -278,7 +234,6 @@ public class FamilyController {
 
 		if (shouldDissolve) {
 			// [시나리오 A: 가족 그룹 전체 해체]
-			// (1) 가상 구성원 영구 삭제 (userService.deleteUserAccount)
 			for (Long vId : virtualMemberIds) {
 				try {
 					userService.deleteUserAccount(vId);
@@ -287,44 +242,37 @@ public class FamilyController {
 				}
 			}
 
-			// (2) DB 트랜잭션으로 나머지 정리
 			Connection conn = null;
 			try {
 				conn = dataSource.getConnection();
 				conn.setAutoCommit(false);
 
-				// a. 가족 관련 초대장 일괄 삭제
 				try (PreparedStatement psInv = conn.prepareStatement("DELETE FROM FAMILY_INVITATIONS WHERE FAMILY_ID = ?")) {
 					psInv.setLong(1, familyId);
 					psInv.executeUpdate();
 				} catch (Exception ignored) {}
 
-				// b. 소속된 모든 실제 유저의 FAMILY_ID를 NULL, ROLE을 'PROT'로 변경
 				try (PreparedStatement psUser = conn.prepareStatement("UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT', UPDATED_AT = SYSDATE WHERE FAMILY_ID = ?")) {
 					psUser.setLong(1, familyId);
 					psUser.executeUpdate();
 				}
 
-				// c. FAMILY_MEMBERS 매핑 삭제
 				try (PreparedStatement psMem = conn.prepareStatement("DELETE FROM FAMILY_MEMBERS WHERE FAMILY_ID = ?")) {
 					psMem.setLong(1, familyId);
 					psMem.executeUpdate();
 				}
 
-				// d. FAMILY_GROUPS 테이블이 존재할 경우 삭제
 				try (PreparedStatement psGrp = conn.prepareStatement("DELETE FROM FAMILY_GROUPS WHERE FAMILY_ID = ?")) {
 					psGrp.setLong(1, familyId);
 					psGrp.executeUpdate();
 				} catch (Exception ignored) {}
 
-				// e. FAMILIES 삭제
 				try (PreparedStatement psFam = conn.prepareStatement("DELETE FROM FAMILIES WHERE FAMILY_ID = ?")) {
 					psFam.setLong(1, familyId);
 					psFam.executeUpdate();
 				}
 
 				conn.commit();
-
 				response.put("success", true);
 				response.put("dissolved", true);
 				response.put("message", "가족 그룹이 해체되었습니다. 이제 새로운 초대를 받거나 가족을 생성할 수 있습니다.");
@@ -351,7 +299,6 @@ public class FamilyController {
 				conn = dataSource.getConnection();
 				conn.setAutoCommit(false);
 
-				// a. 본인 관련 초대장 삭제
 				try (PreparedStatement psInv = conn.prepareStatement("DELETE FROM FAMILY_INVITATIONS WHERE (RECEIVER_ID = ? OR SENDER_ID = ?) AND FAMILY_ID = ?")) {
 					psInv.setLong(1, currentUserId);
 					psInv.setLong(2, currentUserId);
@@ -359,21 +306,18 @@ public class FamilyController {
 					psInv.executeUpdate();
 				} catch (Exception ignored) {}
 
-				// b. 본인의 FAMILY_MEMBERS 매핑 삭제
 				try (PreparedStatement psMem = conn.prepareStatement("DELETE FROM FAMILY_MEMBERS WHERE FAMILY_ID = ? AND USER_ID = ?")) {
 					psMem.setLong(1, familyId);
 					psMem.setLong(2, currentUserId);
 					psMem.executeUpdate();
 				}
 
-				// c. 본인의 USERS FAMILY_ID = NULL, ROLE = 'PROT' 복원
 				try (PreparedStatement psUser = conn.prepareStatement("UPDATE USERS SET FAMILY_ID = NULL, ROLE = 'PROT', UPDATED_AT = SYSDATE WHERE USER_ID = ?")) {
 					psUser.setLong(1, currentUserId);
 					psUser.executeUpdate();
 				}
 
 				conn.commit();
-
 				response.put("success", true);
 				response.put("dissolved", false);
 				response.put("message", "가족 그룹에서 탈퇴했습니다.");
@@ -402,22 +346,8 @@ public class FamilyController {
 	 */
 	@PostMapping(value = "/create", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
 	public ResponseEntity<?> createFamily(@RequestBody(required = false) Map<String, Object> req, javax.servlet.http.HttpServletRequest httpRequest) {
-		Long userId = null;
-		if (req != null && req.get("userId") != null) {
-			try {
-				userId = Long.valueOf(req.get("userId").toString().trim());
-			} catch (NumberFormatException ignored) {}
-		}
-		if (userId == null && httpRequest != null) {
-			var session = httpRequest.getSession(false);
-			if (session != null && session.getAttribute("userId") instanceof Number) {
-				userId = ((Number) session.getAttribute("userId")).longValue();
-			}
-		}
-
-		if (userId == null || userId <= 0L) {
-			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
-		}
+        if (req == null) return ResponseEntity.badRequest().body(Map.of("success", false, "message", "요청 데이터가 없습니다."));
+        Long userId = userAccess.familyManager(httpRequest, com.app.util.UserAccess.requestedId(req.get("userId")), true);
 
 		String familyName = req.get("familyName") != null ? req.get("familyName").toString().trim() : "";
 
@@ -550,7 +480,8 @@ public class FamilyController {
 	 * GET /api/family/members?userId=1
 	 */
 	@GetMapping("/members")
-	public ResponseEntity<?> getFamilyMembers(@RequestParam("userId") Long userId) {
+	public ResponseEntity<?> getFamilyMembers(@RequestParam(value = "userId", required = false) Long userId, javax.servlet.http.HttpServletRequest request) {
+        userId = userAccess.familyUser(request, userId);
 		List<Map<String, Object>> members = new ArrayList<>();
 
 		String selectFamilySql = "SELECT u.FAMILY_ID, f.FAMILY_NAME FROM USERS u LEFT JOIN FAMILIES f ON u.FAMILY_ID = f.FAMILY_ID WHERE u.USER_ID = ?";
@@ -605,11 +536,11 @@ public class FamilyController {
 	 * POST /api/family/rename
 	 */
 	@PostMapping(value = "/rename", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> renameFamily(@RequestBody(required = false) Map<String, Object> req) {
+	public ResponseEntity<?> renameFamily(@RequestBody(required = false) Map<String, Object> req, javax.servlet.http.HttpServletRequest request) {
 		if (req == null) {
 			return ResponseEntity.badRequest().body(Map.of("success", false, "message", "요청 데이터가 없습니다."));
 		}
-		Long userId = req.get("userId") != null ? Long.valueOf(req.get("userId").toString().trim()) : null;
+		Long userId = userAccess.familyManager(request, com.app.util.UserAccess.requestedId(req.get("userId")), false);
 		String familyName = req.get("familyName") != null ? req.get("familyName").toString().trim() : "";
 		if (userId == null || familyName.isEmpty()) {
 			return ResponseEntity.badRequest().body(Map.of("success", false, "message", "가족 이름을 입력해주세요."));
@@ -636,13 +567,13 @@ public class FamilyController {
 	 * POST /api/family/members
 	 */
 	@PostMapping(value = "/members", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> addFamilyMember(@RequestBody Map<String, Object> req) {
+	public ResponseEntity<?> addFamilyMember(@RequestBody Map<String, Object> req, javax.servlet.http.HttpServletRequest request) {
+        Long guardianId = userAccess.familyManager(request, com.app.util.UserAccess.requestedId(req.get("guardianId")), true);
 		Connection conn = null;
 		try {
 			conn = dataSource.getConnection();
 			conn.setAutoCommit(false); // 트랜잭션 시작
 
-			Long guardianId = Long.valueOf(req.get("guardianId").toString());
 			String name = (String) req.get("name");
 			String role = req.get("role") != null ? req.get("role").toString() : "PROT";
 			String safeRole = ("GUAR".equalsIgnoreCase(role) || "보호자".equals(role)) ? "GUAR" : "PROT";
@@ -767,13 +698,13 @@ public class FamilyController {
 	 * Body: { "senderId": 1, "targetLoginId": "user123" }
 	 */
 	@PostMapping(value = "/invite", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> sendInvitation(@RequestBody Map<String, Object> req) {
+	public ResponseEntity<?> sendInvitation(@RequestBody Map<String, Object> req, javax.servlet.http.HttpServletRequest request) {
+        Long senderId = userAccess.familyManager(request, com.app.util.UserAccess.requestedId(req.get("senderId")), true);
 		Connection conn = null;
 		try {
 			conn = dataSource.getConnection();
 			conn.setAutoCommit(false);
 
-			Long senderId = Long.valueOf(req.get("senderId").toString());
 			String targetLoginId = (String) req.get("targetLoginId");
 			String role = req.get("role") != null ? (String) req.get("role") : "BABY";
 
@@ -889,7 +820,8 @@ public class FamilyController {
 	 * GET /api/family/invitations?userId=2
 	 */
 	@GetMapping("/invitations")
-	public ResponseEntity<?> getMyInvitations(@RequestParam("userId") Long userId) {
+	public ResponseEntity<?> getMyInvitations(@RequestParam(value = "userId", required = false) Long userId, javax.servlet.http.HttpServletRequest request) {
+        userId = userAccess.selfUser(request, userId, null);
 		List<Map<String, Object>> list = new ArrayList<>();
 		String sql = "SELECT i.INVITE_ID, i.FAMILY_ID, f.FAMILY_NAME, u.NICKNAME AS SENDER_NAME, TO_CHAR(i.CREATED_AT, 'YYYY-MM-DD HH24:MI') AS CREATED_AT "
 				+ "FROM FAMILY_INVITATIONS i "
@@ -925,10 +857,13 @@ public class FamilyController {
 	 * Body: { "inviteId": 1, "userId": 2, "action": "ACCEPT" 또는 "REJECT" }
 	 */
 	@PostMapping(value = "/invitations/respond", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-	public ResponseEntity<?> respondInvitation(@RequestBody Map<String, Object> req) {
-		Long inviteId = Long.valueOf(req.get("inviteId").toString());
-		Long userId = Long.valueOf(req.get("userId").toString());
-		String action = (String) req.get("action"); // "ACCEPT" 또는 "REJECT"
+	public ResponseEntity<?> respondInvitation(@RequestBody Map<String, Object> req, javax.servlet.http.HttpServletRequest request) {
+		Long userId = userAccess.selfUser(request, com.app.util.UserAccess.requestedId(req.get("userId")), null);
+        Long inviteId = com.app.util.UserAccess.requestedId(req.get("inviteId"));
+        if (inviteId == null || inviteId <= 0) return ResponseEntity.badRequest().body(Map.of("success", false));
+		String action = (String) req.get("action");
+        if (!"ACCEPT".equals(action) && !"REJECT".equals(action))
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "초대 응답을 확인해 주세요."));
 
 		Connection conn = null;
 		try {

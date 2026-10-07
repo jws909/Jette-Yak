@@ -32,7 +32,11 @@ function getMemberRoleName(role) {
  * - 가족 구성원(영유아, 노인 등 가상 프로필 포함) 선택 및 대리 등록 완벽 지원
  * - 세부 폼 상태 및 입력은 각 탭과 모달 내부에서 자율 관리
  */
-export default function MedicationRegisterPage({ user }) {
+export default function MedicationRegisterPage(props) {
+  return <MedicationRegisterContent key={props.user?.userId || props.user?.id || props.user?.username || 'guest'} {...props} />;
+}
+
+function MedicationRegisterContent({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const loggedInUserId = user?.userId || user?.id;
@@ -41,15 +45,12 @@ export default function MedicationRegisterPage({ user }) {
 
   // 1. 탭 네비게이션 상태 (prescription | cabinet | supplement)
   const queryTab = new URLSearchParams(location.search).get('tab');
-  const [activeTab, setActiveTab] = useState(
-    ['prescription', 'cabinet', 'supplement'].includes(queryTab) ? queryTab : 'prescription'
-  );
-
-  useEffect(() => {
-    if (queryTab && ['prescription', 'cabinet', 'supplement'].includes(queryTab)) {
-      setActiveTab(queryTab);
-    }
-  }, [queryTab]);
+  const activeTab = ['prescription', 'cabinet', 'supplement'].includes(queryTab) ? queryTab : 'prescription';
+  const setActiveTab = (tab) => {
+    const params = new URLSearchParams(location.search);
+    params.set('tab', tab);
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+  };
 
   // 2. 가족 구성원 및 복용 대상자 관리
   const [familyMembers, setFamilyMembers] = useState([]);
@@ -99,7 +100,7 @@ export default function MedicationRegisterPage({ user }) {
     try {
       const cachedSched = localStorage.getItem(`jette_meal_schedule_${effectiveUserId}`);
       if (cachedSched) return JSON.parse(cachedSched);
-    } catch {}
+    } catch { /* 로컬 캐시 오류는 기본 설정으로 대체 */ }
     return defaultSched;
   });
 
@@ -108,7 +109,7 @@ export default function MedicationRegisterPage({ user }) {
     try {
       const cached = localStorage.getItem(`jette_meal_times_${effectiveUserId}`);
       if (cached) return JSON.parse(cached);
-    } catch {}
+    } catch { /* 로컬 캐시 오류는 기본 설정으로 대체 */ }
     return DEFAULT_MEAL_TIMES;
   });
 
@@ -146,7 +147,7 @@ export default function MedicationRegisterPage({ user }) {
           try {
             localStorage.setItem(`jette_meal_schedule_${effectiveUserId}`, JSON.stringify(sched));
             localStorage.setItem(`jette_meal_times_${effectiveUserId}`, JSON.stringify(data.isWeekend ? loadedWeekend : loadedWeekday));
-          } catch {}
+          } catch { /* 로컬 캐시 오류는 기본 설정으로 대체 */ }
         }
       })
       .catch((err) => console.warn('식사 시간 로드 대기:', err));
@@ -154,44 +155,50 @@ export default function MedicationRegisterPage({ user }) {
 
   // 4. 메인 데이터 상태 (서버 데이터)
   const [userPrescriptions, setUserPrescriptions] = useState([]);
-  const [isLoadingRxList, setIsLoadingRxList] = useState(false);
+  const [isLoadingRxList, setIsLoadingRxList] = useState(Boolean(effectiveUserId));
   const [everydayMeds, setEverydayMeds] = useState([]);
-  const [isLoadingEverydayMeds, setIsLoadingEverydayMeds] = useState(false);
 
   // 모달 제어 상태 (선택된 객체가 있으면 모달 표시)
   const [editingPrescription, setEditingPrescription] = useState(null);
   const [scheduleModalMed, setScheduleModalMed] = useState(null);
 
   // 처방전 목록 불러오기
-  const fetchPrescriptionList = useCallback(async () => {
+  const fetchPrescriptionList = useCallback(() => {
     if (!effectiveUserId) {
       setUserPrescriptions([]);
-      return;
+      return Promise.resolve([]);
     }
     setIsLoadingRxList(true);
-    try {
-      const list = await fetchPrescriptions(effectiveUserId);
-      setUserPrescriptions(list);
-    } catch (err) {
-      console.warn('처방전 목록 조회 실패:', err);
-      setUserPrescriptions([]);
-    } finally {
-      setIsLoadingRxList(false);
-    }
+    return fetchPrescriptions(effectiveUserId)
+      .then((list) => {
+        const result = Array.isArray(list) ? list : [];
+        setUserPrescriptions(result);
+        return result;
+      })
+      .catch((err) => {
+        console.warn('처방전 목록 조회 실패:', err);
+        setUserPrescriptions([]);
+        return [];
+      })
+      .finally(() => setIsLoadingRxList(false));
   }, [effectiveUserId]);
 
   // 상비약 & 영양제 목록 불러오기
-  const fetchEverydayMedsList = useCallback(async () => {
-    if (!effectiveUserId) return;
-    setIsLoadingEverydayMeds(true);
-    try {
-      const list = await fetchEverydayMeds(effectiveUserId);
-      setEverydayMeds(list);
-    } catch (err) {
-      console.warn('평소 복용 약 목록 조회 실패:', err);
-    } finally {
-      setIsLoadingEverydayMeds(false);
+  const fetchEverydayMedsList = useCallback(() => {
+    if (!effectiveUserId) {
+      setEverydayMeds([]);
+      return Promise.resolve([]);
     }
+    return fetchEverydayMeds(effectiveUserId)
+      .then((list) => {
+        const result = Array.isArray(list) ? list : [];
+        setEverydayMeds(result);
+        return result;
+      })
+      .catch((err) => {
+        console.warn('평소 복용 약 목록 조회 실패:', err);
+        return [];
+      });
   }, [effectiveUserId]);
 
   useEffect(() => {

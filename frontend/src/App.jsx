@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import UiDialog from './components/ui/UiDialog';
+import { saveIntakeStatus } from './utils/intakeApi';
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import MainPage from './features/main/MainPage';
@@ -65,10 +67,23 @@ function App() {
   });
 
   // 정시 복약 알람 모달 상태
-  const [globalAlertItem, setGlobalAlertItem] = useState(null);
+  const [pendingGlobalAlertItem, setGlobalAlertItem] = useState(null);
+  const medicationAlertsEnabled = user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0';
+  const alertUserId = user?.userId || user?.id;
+  const alertSession = useMemo(() => ({ userId: alertUserId, enabled: medicationAlertsEnabled, isLoggedIn }), [isLoggedIn, medicationAlertsEnabled, alertUserId]);
+  // 알림을 끄거나 사용자가 바뀌면 이전 알람을 즉시 숨깁니다.
+  const globalAlertItem = isLoggedIn && medicationAlertsEnabled
+    && pendingGlobalAlertItem?.session === alertSession ? pendingGlobalAlertItem : null;
+  const [globalAlertSaving, setGlobalAlertSaving] = useState(false);
+  const [globalAlertError, setGlobalAlertError] = useState('');
+  const [appFeedback, setAppFeedback] = useState('');
+  const intakeLock = useRef(false);
 
   // ★ 1. 로그인 후 알림 권한 유도 모달 상태 (사용자 클릭 유도)
-  const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [permissionDismissed, setPermissionDismissed] = useState(() => sessionStorage.getItem('notif_modal_dismissed') === 'true');
+  const [notificationPermission, setNotificationPermission] = useState(() => 'Notification' in window ? Notification.permission : 'unsupported');
+  const showPermissionModal = isLoggedIn && medicationAlertsEnabled
+    && notificationPermission === 'default' && !permissionDismissed;
 
   // 세션 userId 자동 복구
   useEffect(() => {
@@ -105,6 +120,7 @@ function App() {
     const handleSessionExpired = () => {
       setIsLoggedIn(false);
       setUser(null);
+      setGlobalAlertItem(null);
       localStorage.removeItem('user');
       navigate('/login?expired=1', { replace: true });
     };
@@ -115,24 +131,20 @@ function App() {
     };
   }, [navigate]);
 
-  // ★ 2. 로그인 시 브라우저 권한 상태를 확인하고, 미결정('default')이면 안내 모달 띄우기
+  // 브라우저 설정 변경은 실제 창 포커스 이벤트에서 다시 확인합니다.
   useEffect(() => {
-    const pushEnabled = user?.pushEnabled !== false && user?.pushEnabled !== 0 && user?.pushEnabled !== '0';
-    if (!pushEnabled) setShowPermissionModal(false);
-    if (isLoggedIn && pushEnabled && 'Notification' in window) {
-      const isAlreadyDismissed = sessionStorage.getItem('notif_modal_dismissed') === 'true';
-      if (Notification.permission === 'default' && !isAlreadyDismissed) {
-        setShowPermissionModal(true);
-      }
-    }
-  }, [isLoggedIn, user?.pushEnabled]);
+    const syncPermission = () => setNotificationPermission('Notification' in window ? Notification.permission : 'unsupported');
+    window.addEventListener('focus', syncPermission);
+    return () => window.removeEventListener('focus', syncPermission);
+  }, []);
 
   // 사용자가 모달에서 [알림 받기 (예)]를 클릭했을 때 실행되는 핸들러 (User Gesture 만족)
   const handleRequestPermission = async () => {
-    setShowPermissionModal(false);
+    setPermissionDismissed(true);
     if ('Notification' in window) {
       try {
         const result = await Notification.requestPermission();
+        setNotificationPermission(result);
         if (result === 'granted') {
           new Notification('제때약 복약 알림이 활성화되었습니다', {
             body: '정해진 복약 시간 30분 전과 정시에 알림을 보내드립니다.',
@@ -147,19 +159,13 @@ function App() {
 
   // 사용자가 모달에서 [나중에 하기 (아니오)]를 클릭했을 때
   const handleDismissPermission = () => {
-    setShowPermissionModal(false);
+    setPermissionDismissed(true);
     sessionStorage.setItem('notif_modal_dismissed', 'true');
   };
 
   // 3. 전역 00초 칼동기화 타이머: [30분 전 예비 알림] + [정시 본 알람]
   useEffect(() => {
-    const medicationAlertsEnabled = user?.pushEnabled !== false
-      && user?.pushEnabled !== 0
-      && user?.pushEnabled !== '0';
-    if (!medicationAlertsEnabled) {
-      setGlobalAlertItem(null);
-      return;
-    }
+    if (!isLoggedIn || !medicationAlertsEnabled) return;
 
     let resolvedUserId = user?.userId || user?.id;
     if (!resolvedUserId) {
@@ -186,6 +192,7 @@ function App() {
       const todayDateStr = getFormattedDate(now);
 
       const futureDate = new Date(now.getTime() + 30 * 60 * 1000);
+      const futureDateStr = getFormattedDate(futureDate);
       const preH = String(futureDate.getHours()).padStart(2, '0');
       const preM = String(futureDate.getMinutes()).padStart(2, '0');
       const preTimeStr = `${preH}:${preM}`;
@@ -209,11 +216,22 @@ function App() {
           }
         });
 
+        // 자정을 넘는 30분 전 알림은 다음 날 일정을 확인.
+        let preItems = timeGroups[preTimeStr] || [];
+        if (futureDateStr !== todayDateStr) {
+          const nextResponse = await fetch(`/api/calendar?userId=${currentUserId}&date=${futureDateStr}`);
+          const nextItems = nextResponse.ok ? await nextResponse.json() : [];
+          if (!isActive) return;
+          preItems = Array.isArray(nextItems) ? nextItems.filter(item =>
+            String(item.time || '').substring(0, 5) === preTimeStr && !item.takenAt
+            && ![false, 0, '0'].includes(item.alarmEnabled)) : [];
+        }
+
         // 30분 전 예비 알림
-        if (timeGroups[preTimeStr]) {
-          const items = timeGroups[preTimeStr];
+        if (preItems.length) {
+          const items = preItems;
           const combinedNames = items.map(i => i.name).join(', ');
-          const preTag = `pre-dose-group-${preTimeStr}-${currentTimeStr}`;
+          const preTag = `pre-dose-group-${futureDateStr}-${preTimeStr}-${currentTimeStr}`;
 
           if (!alertedTags.has(preTag)) {
             alertedTags.add(preTag);
@@ -230,6 +248,7 @@ function App() {
               detail: {
                 name: combinedNames,
                 time: preTimeStr,
+                date: futureDateStr,
                 isPreAlarm: true,
               }
             }));
@@ -240,12 +259,16 @@ function App() {
         if (timeGroups[currentTimeStr]) {
           const items = timeGroups[currentTimeStr];
           const combinedNames = items.map(i => i.name).join(', ');
-          const mainTag = `main-dose-group-${currentTimeStr}`;
+          const mainTag = `main-dose-group-${todayDateStr}-${currentTimeStr}`;
 
           if (!alertedTags.has(mainTag)) {
             alertedTags.add(mainTag);
 
+            setGlobalAlertError('');
             setGlobalAlertItem({
+              userId: currentUserId,
+              session: alertSession,
+              date: todayDateStr,
               scheduleIds: items.map(i => i.scheduleId),
               name: combinedNames,
               time: currentTimeStr,
@@ -263,6 +286,7 @@ function App() {
               detail: {
                 name: combinedNames,
                 time: currentTimeStr,
+                date: todayDateStr,
                 isPreAlarm: false,
               }
             }));
@@ -288,26 +312,24 @@ function App() {
       clearTimeout(timeoutId);
       clearInterval(intervalId);
     };
-  }, [user?.userId, user?.pushEnabled]);
+  }, [isLoggedIn, medicationAlertsEnabled, user?.userId, user?.id, alertSession]);
 
   // 전역 모달 복약 완료 처리
   const handleConfirmTakeFromGlobalAlert = async () => {
-    if (!globalAlertItem) return;
+    if (!globalAlertItem || intakeLock.current) return;
+    intakeLock.current = true;
+    setGlobalAlertSaving(true);
+    setGlobalAlertError('');
+    const date = globalAlertItem.date || getFormattedDate(new Date());
     try {
-      const ids = globalAlertItem.scheduleIds || [globalAlertItem.scheduleId];
-      await Promise.all(
-        ids.map(id =>
-          fetch(`/api/calendar/${id}/toggle`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ taken: true }),
-          })
-        )
-      );
-    } catch (err) {
-      console.error("복약 완료 처리 통신 실패:", err);
-    } finally {
+      await saveIntakeStatus({ scheduleIds: globalAlertItem.scheduleIds || [globalAlertItem.scheduleId], taken: true, date });
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { userId: user?.userId || user?.id, date, origin: 'global' } }));
       setGlobalAlertItem(null);
+    } catch (error) {
+      setGlobalAlertError(error.message || '복약 체크를 저장하지 못했습니다. 다시 시도해주세요.');
+    } finally {
+      intakeLock.current = false;
+      setGlobalAlertSaving(false);
     }
   };
 
@@ -342,69 +364,29 @@ function App() {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     sessionStorage.removeItem('notif_modal_dismissed');
+    setPermissionDismissed(false);
+    setGlobalAlertItem(null);
     navigate('/');
   };
 
-  const handleUserUpdated = (changes) => {
+  const handleUserUpdated = useCallback((changes) => {
+    if ([false, 0, '0'].includes(changes.pushEnabled)) setGlobalAlertItem(null);
     setUser((currentUser) => {
       const updatedUser = { ...currentUser, ...changes };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       return updatedUser;
     });
-  };
+  }, []);
 
   const handleLoginDemoToggle = async () => {
     try {
-      const res = await fetch('/api/auth/demo', { method: 'POST' });
-      if (res.ok) {
-        const data = await res.json();
-        handleLoginSuccess(data);
-        return;
-      }
-    } catch (e) {
-      console.warn('데모 로그인 API 연동 실패, 폴백 진행:', e);
+      const response = await fetch('/api/auth/demo', { method: 'POST' });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.userId) throw new Error(data.message || '체험 로그인에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      handleLoginSuccess(data);
+    } catch (error) {
+      setAppFeedback(error.message || '서버에 연결하지 못했습니다. 네트워크 상태를 확인해주세요.');
     }
-
-    let targetUsername = 'test12';
-    try {
-      const mealRes = await fetch('/api/users/meal-times?userId=1');
-      if (mealRes.ok) {
-        const mealData = await mealRes.json();
-        if (mealData?.username) targetUsername = mealData.username;
-      }
-    } catch {
-      // fallback to test12
-    }
-
-    let profileData = null;
-    try {
-      const profileRes = await fetch(`/api/users/profile?username=${encodeURIComponent(targetUsername)}`);
-      if (profileRes.ok) {
-        profileData = await profileRes.json();
-      }
-    } catch {
-      // fallback
-    }
-
-    const demoUser = {
-      userId: profileData?.userId || 1,
-      username: profileData?.username || targetUsername,
-      name: profileData?.nickname || '체험 사용자',
-      nickname: profileData?.nickname || '체험 사용자',
-      email: profileData?.email || '',
-      role: profileData?.role || 'USER',
-      isAdmin: profileData?.isAdmin === true || Number(profileData?.isAdmin) === 1,
-      profileImageUrl: profileData?.profileImageUrl || '',
-      birthdate: profileData?.birthdate || null,
-      isDemo: true,
-    };
-
-    setIsLoggedIn(true);
-    setUser(demoUser);
-    localStorage.setItem('user', JSON.stringify(demoUser));
-    const next = new URLSearchParams(window.location.search).get('next');
-    const targetUrl = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
-    navigate(targetUrl, { replace: true });
   };
 
   return (
@@ -439,7 +421,7 @@ function App() {
                 onLogout={handleLogout}
                 onLoginDemoToggle={handleLoginDemoToggle}
               >
-                <MainPage user={user} />
+                <MainPage key={user?.userId || user?.id || user?.username} user={user} />
               </MainLayout>
             </ProtectedRoute>
           }
@@ -691,6 +673,7 @@ function App() {
             <p style={{ fontSize: '13px', color: '#7a7066', margin: '0 0 24px 0', lineHeight: '1.4' }}>
               정해진 시간에 복약하면 효과가 훨씬 좋습니다. 지금 복용하셨나요?
             </p>
+            {globalAlertError && <p role="alert" style={{ color: '#a02c32', lineHeight: 1.6 }}>{globalAlertError}</p>}
             <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
               <button 
                 type="button" 
@@ -705,6 +688,7 @@ function App() {
                   fontWeight: '600',
                   cursor: 'pointer',
                 }}
+                disabled={globalAlertSaving}
                 onClick={() => setGlobalAlertItem(null)}
               >
                 닫기
@@ -722,14 +706,17 @@ function App() {
                   fontWeight: '700',
                   cursor: 'pointer',
                 }}
+                disabled={globalAlertSaving}
                 onClick={handleConfirmTakeFromGlobalAlert}
               >
-                지금 복약 완료
+                {globalAlertSaving ? '저장 중…' : '지금 복약 완료'}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <UiDialog open={Boolean(appFeedback)} title="연결 상태를 확인해주세요" description={appFeedback} confirmLabel="확인" cancelLabel="" onConfirm={() => setAppFeedback('')} onCancel={() => setAppFeedback('')}/>
     </ReadingProvider>
   );
 }

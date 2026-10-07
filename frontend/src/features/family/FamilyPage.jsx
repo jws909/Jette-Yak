@@ -2,7 +2,10 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
 import DatePicker from '../../components/ui/DatePicker';
+import { saveIntakeStatus } from '../../utils/intakeApi';
+import { buildFamilyMedicationReport } from './familyReport';
 import './FamilyPage.css';
+import { createLatestRequest } from '../../utils/latestRequest';
 
 function getFormattedDate(targetDate) {
   const y = targetDate.getFullYear();
@@ -21,9 +24,14 @@ function getSlotFromTime(t) {
 }
 
 export default function FamilyPage(props) {
+  return <FamilyContent key={props.user?.userId || props.user?.id || props.user?.username || 'guest'} {...props} />;
+}
+
+function FamilyContent(props) {
   const navigate = useNavigate();
   const { showAlert, showConfirm } = useDialog();
   const user = props.user;
+  const intakeLock = useRef(false);
   const currentUserId = user?.userId || null;
   const today = new Date();
 
@@ -57,7 +65,10 @@ export default function FamilyPage(props) {
 
   const [monthSummary, setMonthSummary] = useState({});
   const [schedules, setSchedules] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [dailyRequests] = useState(createLatestRequest);
+  const [dailyLoadedKey, setDailyLoadedKey] = useState(null);
+  const dailyQueryKey = `${currentUserId}|${selectedMemberId}|${selectedDate}`;
+  const loading = Boolean(currentUserId) && dailyLoadedKey !== dailyQueryKey;
 
   const [inviteRole, setInviteRole] = useState('BABY'); // 기본값: 자녀
 
@@ -108,6 +119,7 @@ export default function FamilyPage(props) {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
+  const [reportError, setReportError] = useState('');
 
   // 가족 등록 모달 상태
   const [isAddFamilyModalOpen, setIsAddFamilyModalOpen] = useState(false);
@@ -161,88 +173,81 @@ export default function FamilyPage(props) {
   }, [currentUserId]);
 
   // (1) 가족 구성원 목록 조회
-  const fetchFamilyMembers = useCallback(async () => {
+  const fetchFamilyMembers = useCallback(() => {
     if (!currentUserId) return;
-    try {
-      const res = await fetch(`/api/family/members?userId=${currentUserId}`);
-      if (res.ok) {
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : [];
-        setFamilyMembers(list);
-        if (list.length > 0 && list[0].familyName) {
-          setFamilyName(list[0].familyName);
-          setPendingInvitations([]);
-        } else {
-          setFamilyName('');
-          fetchPendingInvitations();
+    return fetch(`/api/family/members?userId=${currentUserId}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : [];
+          setFamilyMembers(list);
+          if (list.length > 0 && list[0].familyName) {
+            setFamilyName(list[0].familyName);
+            setPendingInvitations([]);
+          } else {
+            setFamilyName('');
+            fetchPendingInvitations();
+          }
         }
-      }
-    } catch (err) {
-      console.error('가족 구성원 조회 오류:', err);
-    }
+      })
+      .catch((err) => {
+        console.error('가족 구성원 조회 오류:', err);
+      });
   }, [currentUserId, fetchPendingInvitations]);
 
   // (2) 월별 요약 조회 (달력 인디케이터용)
-  const fetchMonthSummary = useCallback(async () => {
-    if (!currentUserId) {
-      setMonthSummary({});
-      return;
-    }
-    try {
-      const queryUser = selectedMemberId === 'all' ? currentUserId : selectedMemberId;
-      const isFamilyParam = selectedMemberId === 'all' ? '&isFamily=true' : '';
-      const res = await fetch(`/api/calendar/summary?userId=${queryUser}&yearMonth=${currentYearMonth}${isFamilyParam}`);
-      if (res.ok) {
-        const list = await res.json();
-        const map = {};
-        if (Array.isArray(list)) {
-          list.forEach((item) => {
-            map[item.scheduleDate] = {
-              hasPrescription: Number(item.hasPrescription) === 1,
-              hasRegular: Number(item.hasRegular) === 1,
-              hasSupplement: Number(item.hasSupplement) === 1,
-            };
-          });
+  const fetchMonthSummary = useCallback(() => {
+    if (!currentUserId) return;
+    const queryUser = selectedMemberId === 'all' ? currentUserId : selectedMemberId;
+    const isFamilyParam = selectedMemberId === 'all' ? '&isFamily=true' : '';
+    return fetch(`/api/calendar/summary?userId=${queryUser}&yearMonth=${currentYearMonth}${isFamilyParam}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const list = await res.json();
+          const map = {};
+          if (Array.isArray(list)) {
+            list.forEach((item) => {
+              map[item.scheduleDate] = {
+                hasPrescription: Number(item.hasPrescription) === 1,
+                hasRegular: Number(item.hasRegular) === 1,
+                hasSupplement: Number(item.hasSupplement) === 1,
+              };
+            });
+          }
+          setMonthSummary(map);
         }
-        setMonthSummary(map);
-      }
-    } catch (err) {
-      console.error('월별 요약 조회 실패:', err);
-    }
+      })
+      .catch((err) => {
+        console.error('월별 요약 조회 실패:', err);
+      });
   }, [currentYearMonth, currentUserId, selectedMemberId]);
 
   // (3) 선택 일자 복약 스케줄 조회
-const fetchDailySchedules = useCallback(async (targetDateStr) => {
-  if (!currentUserId) {
-    setSchedules([]);
-    return;
-  }
-  setLoading(true);
-  try {
-    // targetDateStr이 없거나 문자열 'undefined'면 현재 선택된 날짜나 오늘 날짜로 대체
-    const dateParam = (targetDateStr && targetDateStr !== 'undefined') 
-      ? targetDateStr 
-      : (selectedDate || new Date().toISOString().slice(0, 10));
-
+  const fetchDailySchedules = useCallback((targetDateStr) => {
+    if (!currentUserId) return;
+    const isLatest = dailyRequests.begin();
+    const dateParam = targetDateStr && targetDateStr !== 'undefined'
+      ? targetDateStr : (selectedDate || getFormattedDate(new Date()));
+    const queryKey = `${currentUserId}|${selectedMemberId}|${dateParam}`;
     const queryUser = selectedMemberId === 'all' ? currentUserId : selectedMemberId;
     const isFamilyParam = selectedMemberId === 'all' ? '&isFamily=true' : '';
-    
-    // date=${targetDateStr} -> date=${dateParam} 으로 수정
-    const res = await fetch(`/api/calendar?userId=${queryUser}&date=${dateParam}${isFamilyParam}`);
-    
-    if (res.ok) {
-      const data = await res.json();
-      setSchedules(Array.isArray(data) ? data : []);
-    } else {
-      setSchedules([]);
-    }
-  } catch (err) {
-    console.error('스케줄 조회 실패:', err);
-    setSchedules([]);
-  } finally {
-    setLoading(false);
-  }
-}, [currentUserId, selectedMemberId, selectedDate]);
+    return fetch(`/api/calendar?userId=${queryUser}&date=${dateParam}${isFamilyParam}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          if (isLatest()) setSchedules(Array.isArray(data) ? data : []);
+        } else if (isLatest()) {
+          setSchedules([]);
+        }
+      })
+      .catch((err) => {
+        console.error('스케줄 조회 실패:', err);
+        if (isLatest()) setSchedules([]);
+      })
+      .finally(() => {
+        if (isLatest()) setDailyLoadedKey(queryKey);
+      });
+  }, [currentUserId, selectedMemberId, selectedDate, dailyRequests]);
 
   useEffect(() => {
     fetchFamilyMembers();
@@ -254,7 +259,8 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
 
   useEffect(() => {
     fetchDailySchedules(selectedDate);
-  }, [selectedDate, fetchDailySchedules]);
+    return () => dailyRequests.cancel();
+  }, [selectedDate, fetchDailySchedules, dailyRequests]);
 
   // 외부 복약 상태 동기화 수신
   useEffect(() => {
@@ -279,21 +285,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`
       : null;
 
-    setSchedules((prev) =>
-      prev.map((s) => (s.scheduleId === item.scheduleId ? { ...s, takenAt: nowIso } : s))
-    );
-
+    if (intakeLock.current) return;
+    intakeLock.current = true;
     try {
-      await fetch(`/api/calendar/${item.scheduleId}/toggle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taken: isTaken, date: selectedDate }),
-      });
+      await saveIntakeStatus({ scheduleIds: [item.scheduleId], taken: isTaken, date: selectedDate });
+      setSchedules(prev => prev.map(s => s.scheduleId === item.scheduleId ? { ...s, takenAt: nowIso } : s));
       fetchDailySchedules(selectedDate);
       fetchMonthSummary();
       window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { date: selectedDate } }));
-    } catch (err) {
-      console.error('복약 체크 토글 실패:', err);
+    } catch (error) {
+      showAlert(error.message || '복약 체크를 저장하지 못했습니다.', '복약 체크 실패');
+    } finally {
+      intakeLock.current = false;
     }
   };
 
@@ -302,167 +305,35 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const handleOpenReportModal = async () => {
     setIsReportOpen(true);
     setIsReportLoading(true);
-
+    setReportData(null);
+    setReportError('');
     try {
-      const targetId = selectedMemberId === 'all'
-        ? (familyMembers[0]?.userId || currentUserId)
-        : selectedMemberId;
-
-      // 처방전 목록 조회
-      let presList = [];
-      try {
-        const presRes = await fetch(`/api/prescriptions?userId=${targetId}`);
-        if (presRes.ok) {
-          const list = await presRes.json();
-          presList = Array.isArray(list) ? list : [];
-        }
-      } catch (err) {}
-
-      // 대상자명
-      const targetMemberObj = familyMembers.find((m) => String(m.userId) === String(selectedMemberId));
-      let currentTargetName = '';
-
-      if (selectedMemberId === 'all') {
-        currentTargetName = '가족 전체';
-      } else if (targetMemberObj) {
-        // role 매핑 (PROT: 피보호자, GUAR: 보호자)
-        const roleLabel = targetMemberObj.relation || targetMemberObj.roleLabel || 
-          (targetMemberObj.role === 'GUAR' ? '보호자' : targetMemberObj.role === 'PROT' ? '피보호자' : targetMemberObj.role);
-        currentTargetName = roleLabel ? `${targetMemberObj.name} (${roleLabel})` : targetMemberObj.name;
-      } else {
-        currentTargetName = user?.name ? `${user.name} (본인)` : '본인';
+      const allMembers = selectedMemberId === 'all';
+      const targetIds = [...new Set((allMembers
+        ? [currentUserId, ...familyMembers.map(member => member.userId), ...schedules.map(item => item.userId)]
+        : [selectedMemberId]).filter(Boolean).map(String))];
+      const loaded = await Promise.allSettled(targetIds.map(async userId => {
+        const response = await fetch('/api/prescriptions/list?userId=' + encodeURIComponent(userId));
+        if (!response.ok) throw new Error('처방전 정보를 불러오지 못했습니다.');
+        const data = await response.json();
+        if (data.success === false) throw new Error(data.message || '처방전 정보를 불러오지 못했습니다.');
+        const list = Array.isArray(data) ? data : Array.isArray(data.prescriptions) ? data.prescriptions : [];
+        return list.map(item => ({ ...item, userId: item.userId ?? userId }));
+      }));
+      const prescriptions = loaded.filter(item => item.status === 'fulfilled').flatMap(item => item.value);
+      if (loaded.some(item => item.status === 'rejected')) {
+        setReportError('일부 처방전 정보를 불러오지 못했습니다. 확인되지 않은 의료기관과 복용 기간은 정보 없음으로 표시합니다.');
       }
-
-      const curDateObj = new Date(selectedDate);
-
-      // ==========================================
-      // [1] 처방약(Prescription) 취합
-      // ==========================================
-      const prescriptionItems = schedules.filter((s) => s.type === 'prescription');
-      const uniquePrescriptions = [];
-      const seenPresNames = new Set();
-
-      for (const item of prescriptionItems) {
-        if (!seenPresNames.has(item.name)) {
-          seenPresNames.add(item.name);
-
-          const pId = item.prescriptionId || item.prescription_id;
-          let pData = presList.find(p => 
-            (pId && (p.prescriptionId === pId || p.prescription_id === pId)) ||
-            (p.medications && p.medications.some(m => m.name === item.name || m.itemName === item.name)) ||
-            (p.medicationNames && p.medicationNames.includes(item.name))
-          );
-
-          if (!pData && presList.length > 0) pData = presList[0];
-
-          const hospitalName = pData?.hospitalName || pData?.hospital_name || '한내과의원';
-          const doctorName = pData?.doctorName || pData?.doctor_name || '유현영';
-          const startRaw = pData?.startDate || pData?.start_date || pData?.prescribedDate || '2026-09-23';
-          const totalDays = Number(pData?.totalDays || pData?.total_days || 180);
-
-          let purposeText = '간 기능 개선 및 이상지질혈증(고지혈증) 조절을 통한 심혈관 질환 예방';
-          const rawAiJson = pData?.aiSummaryJson || pData?.ai_summary_json;
-          if (rawAiJson) {
-            try {
-              const parsed = typeof rawAiJson === 'string' ? JSON.parse(rawAiJson) : rawAiJson;
-              if (parsed.purpose || parsed.prescriptionPurpose) purposeText = parsed.purpose || parsed.prescriptionPurpose;
-            } catch (e) {}
-          } else if (pData?.purpose || pData?.prescriptionPurpose) {
-            purposeText = pData.purpose || pData.prescriptionPurpose;
-          }
-
-          const startObj = new Date(startRaw);
-          const endObj = new Date(startObj);
-          endObj.setDate(startObj.getDate() + (totalDays - 1));
-
-          const diffDays = Math.floor((curDateObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-          const elapsedDays = Math.max(1, diffDays);
-
-          const formatDate = (d) =>
-            `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-
-          const relatedDoses = schedules
-            .filter((s) => s.name === item.name)
-            .map((d) => ({
-              time: String(d.time || '').substring(0, 5),
-              slot: d.slotLabel || getSlotFromTime(d.time).slotLabel,
-              taken: Boolean(d.takenAt),
-            }));
-
-          uniquePrescriptions.push({
-            name: item.name,
-            hospital: `${hospitalName} · ${doctorName}`,
-            startDate: formatDate(startObj),
-            endDate: formatDate(endObj),
-            totalDays: totalDays,
-            elapsedDays: elapsedDays,
-            todayDoses: relatedDoses,
-          });
-        }
-      }
-
-      // ==========================================
-      // [2] 상시약(Regular) 독립 취합
-      // ==========================================
-      const regularItems = schedules.filter((s) => s.type === 'regular');
-      const uniqueRegulars = [];
-      const seenRegNames = new Set();
-
-      for (const item of regularItems) {
-        if (!seenRegNames.has(item.name)) {
-          seenRegNames.add(item.name);
-          const relatedDoses = schedules
-            .filter((s) => s.name === item.name)
-            .map((d) => ({
-              time: String(d.time || '').substring(0, 5),
-              slot: d.slotLabel || getSlotFromTime(d.time).slotLabel,
-              taken: Boolean(d.takenAt),
-            }));
-
-          uniqueRegulars.push({
-            name: item.name,
-            memo: item.memo || '정기 상시 복용',
-            todayDoses: relatedDoses,
-          });
-        }
-      }
-
-      // ==========================================
-      // [3] 영양제(Supplement) 독립 취합
-      // ==========================================
-      const supplementItems = schedules.filter((s) => s.type === 'supplement');
-      const uniqueSupplements = [];
-      const seenSupNames = new Set();
-
-      for (const item of supplementItems) {
-        if (!seenSupNames.has(item.name)) {
-          seenSupNames.add(item.name);
-          const relatedDoses = schedules
-            .filter((s) => s.name === item.name)
-            .map((d) => ({
-              time: String(d.time || '').substring(0, 5),
-              slot: d.slotLabel || getSlotFromTime(d.time).slotLabel,
-              taken: Boolean(d.takenAt),
-            }));
-
-          uniqueSupplements.push({
-            name: item.name,
-            memo: item.memo || '건강기능식품 보충',
-            todayDoses: relatedDoses,
-          });
-        }
-      }
-
+      const member = familyMembers.find(item => String(item.userId) === String(selectedMemberId));
+      const targetName = allMembers ? '가족 전체' : member
+        ? member.name + ' ' + getRoleLabel(member.relation || member.roleLabel || member.role)
+        : (user?.name || '본인');
       setReportData({
-        targetName: currentTargetName,
-        targetDate: selectedDate,
-        prescriptions: uniquePrescriptions,
-        regulars: uniqueRegulars,
-        supplements: uniqueSupplements,
+        targetName, targetDate: selectedDate,
+        ...buildFamilyMedicationReport({ schedules, prescriptions, targetDate: selectedDate, familyMembers, includeOwner: allMembers, slotFromTime: getSlotFromTime }),
       });
-
-    } catch (err) {
-      console.error('보고서 데이터 준비 오류:', err);
+    } catch {
+      setReportError('복약 브리핑을 준비하지 못했습니다. 창을 닫은 뒤 다시 시도해주세요.');
     } finally {
       setIsReportLoading(false);
     }
@@ -490,7 +361,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       try {
         data = await res.json();
       } catch (parseErr) {
-        throw new Error('서버 응답 오류가 발생했습니다. (HTTP ' + res.status + ')');
+        throw new Error('서버 응답 오류가 발생했습니다. (HTTP ' + res.status + ')', { cause: parseErr });
       }
       if (res.ok && data.success) {
         showAlert(data.message || '가족 그룹이 성공적으로 생성되었습니다.', '가족 그룹 생성');
@@ -884,7 +755,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   // 알람 설정 모달 상태 (두 번째 변수 기준)
   const [alarmModalOpen, setAlarmModalOpen] = useState(false);
   const [targetScheduleForAlarm, setTargetScheduleForAlarm] = useState(null);
-  const [newAlarmTime, setNewAlarmTime] = useState('08:00');
+  const [, setNewAlarmTime] = useState('08:00');
   const [alarmEnabled, setAlarmEnabled] = useState(true);
 
   // 휠 피커 내부 제어 상태
@@ -1644,6 +1515,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
               </div>
             ) : (
               <div className="report-scroll-body">
+                {reportError && <p className="report-empty-text" role="alert">{reportError}</p>}
                 <div className="report-header-info">
                   <div className="report-patient-name">
                     {reportData?.targetName || '본인'}
@@ -1673,13 +1545,13 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
                           </span>
                         </div>
                         <span className="report-day-badge">
-                          {p.elapsedDays}일차 <span className="report-total-days">/ 총 {p.totalDays}일분</span>
+                          {p.elapsedDays == null ? '시작일 정보 없음' : p.elapsedDays + '일차'} <span className="report-total-days">/ {p.totalDays == null ? '투약일수 정보 없음' : '총 ' + p.totalDays + '일분'}</span>
                         </span>
                       </div>
 
                       <div className="report-period-box">
                         <span style={{ fontSize: '12px', color: '#4a413a' }}>
-                          <strong>조제/복용 기간:</strong> {p.startDate} ~ {p.endDate}
+                          <strong>조제/복용 기간:</strong> {p.startDate || '정보 없음'} ~ {p.endDate || '정보 없음'}
                         </span>
                       </div>
 
