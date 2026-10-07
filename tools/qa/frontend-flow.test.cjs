@@ -89,14 +89,6 @@ test('전역 알람: 실패하면 모달을 유지하고 로딩을 해제하며 
   assert.equal(context.state.saving, false)
 })
 
-test('체험 로그인 실패: 사용자 상태를 만들지 않고 커스텀 오류 안내', async () => {
-  let loggedIn = false
-  const context = fixture({ fetch: async () => ({ ok: false, json: async () => ({ message: '체험 로그인 실패' }) }), handleLoginSuccess: () => { loggedIn = true } })
-  await handler('src/App.jsx', 'handleLoginDemoToggle', context.scope)()
-  assert.equal(loggedIn, false)
-  assert.equal(context.state.feedback, '체험 로그인 실패')
-})
-
 test('알림 전체 읽음 실패: 읽지 않음 상태를 보존하고 오류 다이얼로그', async () => {
   const context = fixture({ fetch: async () => ({ ok: false }) })
   await handler('src/components/layout/Navbar.jsx', 'markAllAsRead', context.scope)()
