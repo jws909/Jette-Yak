@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useDialog } from '../contexts/DialogContext';
 import './CalendarPage.css';
 
 function getFormattedDate(targetDate) {
@@ -27,6 +28,7 @@ function saveTypeOverride(key, type) {
 }
 
 const CalendarPage = (props) => {
+  const { showAlert, showConfirm } = useDialog();
   const user = props.user;
   const today = new Date();
   const currentUserId = user?.userId || user?.id || null;
@@ -319,7 +321,7 @@ const CalendarPage = (props) => {
   // 복용 체크박스 토글
   const toggleTaken = async (item) => {
     if (!currentUserId) {
-      alert('로그인 후 복약 체크 기능을 이용할 수 있습니다.');
+      showAlert('로그인 후 복약 체크 기능을 이용할 수 있습니다.', '안내');
       return;
     }
     const isTaken = !item.takenAt;
@@ -371,7 +373,7 @@ const CalendarPage = (props) => {
   const togglePouchTaken = async (pouch, e) => {
     if (e) e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 복약 체크 기능을 이용할 수 있습니다.');
+      showAlert('로그인 후 복약 체크 기능을 이용할 수 있습니다.', '안내');
       return;
     }
     const allTaken = pouch.items.every((i) => Boolean(i.takenAt));
@@ -426,7 +428,7 @@ const CalendarPage = (props) => {
   const openDeleteModal = (item, e) => {
     e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 일정을 삭제할 수 있습니다.');
+      showAlert('로그인 후 일정을 삭제할 수 있습니다.', '안내');
       return;
     }
     setItemToDelete(item);
@@ -466,11 +468,11 @@ const CalendarPage = (props) => {
           detail: { userId: currentUserId, date: selectedDate }
         }));
       } else {
-        alert("삭제에 실패했습니다.");
+        showAlert('삭제에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error("삭제 통신 실패:", err);
-      alert("삭제 통신 중 오류가 발생했습니다.");
+      showAlert('삭제 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsDeleteModalOpen(false);
       setItemToDelete(null);
@@ -508,7 +510,7 @@ const CalendarPage = (props) => {
   const openAlarmModal = (item, e) => {
     if (e) e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 알람 시간을 수정할 수 있습니다.');
+      showAlert('로그인 후 알람 시간을 수정할 수 있습니다.', '안내');
       return;
     }
     setActiveItem(item);
@@ -548,11 +550,11 @@ const CalendarPage = (props) => {
           )
         );
       } else {
-        alert('알람 시간을 저장하지 못했습니다.');
+        showAlert('알람 시간을 저장하지 못했습니다.', '오류');
       }
     } catch (err) {
       console.error("알람 시간 수정 실패:", err);
-      alert('서버 통신 중 오류가 발생했습니다.');
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsAlarmModalOpen(false);
     }
@@ -562,21 +564,21 @@ const CalendarPage = (props) => {
   const handleAddMedication = async (e) => {
     e.preventDefault();
     if (!currentUserId) {
-      alert('로그인 후 복약 일정을 등록할 수 있습니다.');
+      showAlert('로그인 후 복약 일정을 등록할 수 있습니다.', '안내');
       return;
     }
 
     if (newMedType === 'regular') {
       // 상시약: medications에 존재하는 약을 검색하여 선택 필수!
       if (!selectedMed || !selectedMed.id) {
-        alert('상시약은 의약품 검색 목록에서 약을 선택해야 등록할 수 있습니다.\n목록에 없는 약품은 상시약으로 등록할 수 없습니다.');
+        showAlert('상시약은 의약품 검색 목록에서 약을 선택해야 등록할 수 있습니다.\n목록에 없는 약품은 상시약으로 등록할 수 없습니다.', '입력 안내');
         return;
       }
     } else if (newMedType === 'supplement') {
       // 영양제: 검색 선택 또는 직접 입력
       const supName = selectedMed ? selectedMed.name : newMedName.trim();
       if (!supName) {
-        alert('영양제 이름을 입력하거나 검색하여 선택해 주세요.');
+        showAlert('영양제 이름을 입력하거나 검색하여 선택해 주세요.', '입력 안내');
         return;
       }
     }
@@ -632,11 +634,11 @@ const CalendarPage = (props) => {
         fetchEverydayMeds();
       } else {
         const errorText = await response.text().catch(() => '');
-        alert('일정 등록에 실패했습니다.' + (errorText ? ` (${errorText})` : ''));
+        showAlert('일정 등록에 실패했습니다.' + (errorText ? ` (${errorText})` : ''), '오류');
       }
     } catch (err) {
       console.error("일정 등록 실패:", err);
-      alert("서버 통신 중 오류가 발생했습니다.");
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     }
   };
 
@@ -1124,7 +1126,7 @@ const CalendarPage = (props) => {
             className="btn-add-dose"
             onClick={() => {
               if (!currentUserId) {
-                alert('로그인 후 복약 일정을 추가할 수 있습니다.');
+                showAlert('로그인 후 복약 일정을 추가할 수 있습니다.', '안내');
                 return;
               }
               setIsAddModalOpen(true);

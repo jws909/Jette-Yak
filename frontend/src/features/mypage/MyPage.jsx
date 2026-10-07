@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useDialog } from '../../contexts/DialogContext';
 import './MyPage.css';
 import defaultProfileImg from '../../assets/Default_profile.png';
 
 export default function MyPage({ user, onUserUpdated, onLogout }) {
+  const { showAlert, showConfirm } = useDialog();
   const [nickname, setNickname] = useState(user?.nickname || user?.name || user?.username || '');
   const [nicknameDraft, setNicknameDraft] = useState('');
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
@@ -283,7 +285,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       setTimeout(() => setSaveToast(false), 3000);
       return true;
     } catch (error) {
-      alert(error.message || '알림 설정 저장에 실패했습니다.');
+      showAlert(error.message || '알림 설정 저장에 실패했습니다.', '오류');
       return false;
     } finally {
       setIsSavingSettings(false);
@@ -294,15 +296,16 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
     const nextVal = e.target.checked;
 
     if (!('Notification' in window)) {
-      alert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.');
+      showAlert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.', '안내');
       return;
     }
 
     if (nextVal) {
       if (Notification.permission === 'denied') {
-        alert(
+        showAlert(
           '브라우저 알림 권한이 차단되어 있어 알림을 켤 수 없습니다.\n\n' +
-          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.'
+          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.',
+          '알림 권한 안내'
         );
         return;
       }
@@ -312,7 +315,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
           const result = await Notification.requestPermission();
           setBrowserPerm(result);
           if (result !== 'granted') {
-            alert('브라우저 알림 권한이 허용되지 않아 알림이 활성화되지 않았습니다.');
+            showAlert('브라우저 알림 권한이 허용되지 않아 알림이 활성화되지 않았습니다.', '알림 권한 안내');
             return;
           }
           try {
@@ -323,7 +326,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
           } catch (ignored) {}
         } catch (err) {
           console.warn('알림 권한 요청 실패:', err);
-          alert('알림 권한 요청 중 오류가 발생했습니다.');
+          showAlert('알림 권한 요청 중 오류가 발생했습니다.', '오류');
           return;
         }
       }
@@ -339,13 +342,14 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const handleSaveSettings = async () => {
     if (pushEnabled) {
       if (!('Notification' in window)) {
-        alert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.');
+        showAlert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.', '안내');
         return;
       }
       if (Notification.permission === 'denied') {
-        alert(
+        showAlert(
           '브라우저 알림 권한이 차단되어 있어 알림을 켤 수 없습니다.\n\n' +
-          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.'
+          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.',
+          '알림 권한 안내'
         );
         return;
       }
@@ -354,7 +358,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
           const result = await Notification.requestPermission();
           setBrowserPerm(result);
           if (result !== 'granted') {
-            alert('브라우저 알림 권한이 허용되지 않아 알림 설정을 저장할 수 없습니다.');
+            showAlert('브라우저 알림 권한이 허용되지 않아 알림 설정을 저장할 수 없습니다.', '알림 권한 안내');
             return;
           }
         } catch (err) {
@@ -369,7 +373,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
   const handleWithdraw = async () => {
     // 체험용 계정 보호 체크
     if (!user || user.isDemo || user.username === 'demo' || user.username === 'test12' || user.userId === 1) {
-      alert('체험용 계정은 탈퇴할 수 없습니다.');
+      showAlert('체험용 계정은 탈퇴할 수 없습니다.', '안내');
       return;
     }
 
@@ -388,7 +392,7 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok && data.success) {
-        alert('회원 탈퇴가 정상적으로 완료되었습니다. 그동안 제때약을 이용해 주셔서 감사합니다.');
+        await showAlert('회원 탈퇴가 정상적으로 완료되었습니다. 그동안 제때약을 이용해 주셔서 감사합니다.', '탈퇴 완료');
         try {
           if (onLogout) {
             await onLogout();
@@ -399,11 +403,11 @@ export default function MyPage({ user, onUserUpdated, onLogout }) {
         sessionStorage.clear();
         window.location.replace('/');
       } else {
-        alert(data.message || '회원 탈퇴 처리에 실패했습니다.');
+        showAlert(data.message || '회원 탈퇴 처리에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('회원 탈퇴 오류:', err);
-      alert('서버와 통신 중 오류가 발생했습니다.');
+      showAlert('서버와 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsWithdrawing(false);
     }

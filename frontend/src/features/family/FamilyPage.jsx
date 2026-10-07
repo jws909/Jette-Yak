@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDialog } from '../../contexts/DialogContext';
 import './FamilyPage.css';
 
 function getFormattedDate(targetDate) {
@@ -20,6 +21,7 @@ function getSlotFromTime(t) {
 
 export default function FamilyPage(props) {
   const navigate = useNavigate();
+  const { showAlert, showConfirm } = useDialog();
   const user = props.user;
   const currentUserId = user?.userId || null;
   const today = new Date();
@@ -225,7 +227,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   // (4) 복약 체크박스 토글
   const toggleTaken = async (item) => {
     if (!currentUserId) {
-      alert('로그인 후 이용할 수 있습니다.');
+      showAlert('로그인 후 이용할 수 있습니다.', '안내');
       return;
     }
     const isTaken = !item.takenAt;
@@ -428,7 +430,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const handleCreateFamily = async (e) => {
     if (e) e.preventDefault();
     if (!currentUserId) {
-      alert('로그인이 필요한 서비스입니다.');
+      showAlert('로그인이 필요한 서비스입니다.', '로그인 필요');
       return;
     }
     setIsCreatingFamily(true);
@@ -449,7 +451,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         throw new Error('서버 응답 오류가 발생했습니다. (HTTP ' + res.status + ')');
       }
       if (res.ok && data.success) {
-        alert(data.message || '가족 그룹이 성공적으로 생성되었습니다.');
+        showAlert(data.message || '가족 그룹이 성공적으로 생성되었습니다.', '가족 그룹 생성');
         setIsCreateFamilyModalOpen(false);
         setNewFamilyName('');
         if (data.familyName) {
@@ -465,11 +467,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         fetchDailySchedules(selectedDate);
         fetchMonthSummary();
       } else {
-        alert(data.message || '가족 생성에 실패했습니다.');
+        showAlert(data.message || '가족 생성에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('가족 생성 통신 오류:', err);
-      alert(err.message || '서버 통신 중 오류가 발생했습니다.');
+      showAlert(err.message || '서버 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsCreatingFamily(false);
     }
@@ -479,7 +481,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const handleRenameFamily = async (e) => {
     if (e) e.preventDefault();
     if (!editFamilyName.trim()) {
-      alert('가족 이름을 입력해주세요.');
+      showAlert('가족 이름을 입력해주세요.', '입력 안내');
       return;
     }
     setIsRenaming(true);
@@ -498,11 +500,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         setIsRenameModalOpen(false);
         fetchFamilyMembers();
       } else {
-        alert(data.message || '가족 이름 변경에 실패했습니다.');
+        showAlert(data.message || '가족 이름 변경에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('가족 이름 변경 오류:', err);
-      alert('서버 통신 중 오류가 발생했습니다.');
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsRenaming(false);
     }
@@ -512,7 +514,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const handleAddFamilyMember = async (e) => {
     e.preventDefault();
     if (!newMemberName.trim()) {
-      alert('가족 구성원의 이름을 입력해주세요.');
+      showAlert('가족 구성원의 이름을 입력해주세요.', '입력 안내');
       return;
     }
     try {
@@ -528,17 +530,18 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         }),
       });
       if (res.ok) {
-        alert('가족이 성공적으로 등록되었습니다.');
+        showAlert('가족이 성공적으로 등록되었습니다.', '등록 완료');
         setNewMemberName('');
         setNewMemberSex('M');
         setNewMemberBirth('');
         setIsAddFamilyModalOpen(false);
         fetchFamilyMembers();
       } else {
-        alert('가족 등록에 실패했습니다.');
+        showAlert('가족 등록에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('가족 등록 통신 오류:', err);
+      showAlert('가족 등록 통신 중 오류가 발생했습니다.', '오류');
     }
   };
 
@@ -547,12 +550,12 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
     if (e) e.preventDefault();
 
     if (!currentUserId) {
-      alert("로그인이 필요한 서비스입니다.");
+      showAlert('로그인이 필요한 서비스입니다.', '로그인 필요');
       return;
     }
 
     if (!inviteLoginId.trim()) {
-      alert("초대할 가족의 아이디를 입력해주세요.");
+      showAlert('초대할 가족의 아이디를 입력해주세요.', '입력 안내');
       return;
     }
 
@@ -569,53 +572,58 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
         }),
       });
 
-    const data = await response.json();
-
-    if (response.ok) {
-      alert("가족 연동 초대를 보냈습니다!");
-      setInviteLoginId("");
-      setIsAddFamilyModalOpen(false);
-    } else {
-      // 400, 404 등 백엔드에서 던진 구체적인 에러 메시지 출력
-      alert(data.message || "연동 요청에 실패했습니다.");
-    }
-  } catch (error) {
-    console.error("초대 요청 에러:", error);
-    alert("서버 통신 중 오류가 발생했습니다.");
-  }
-};
-
-  const handleRemoveMember = async (member) => {
-    const memberName = member.name || member.nickname || '구성원';
-    if (!window.confirm(`'${memberName}' 님을 가족 목록에서 삭제하시겠습니까?`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/family/members/${member.userId}/remove`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ userId: currentUserId }),
-      });
-
       const data = await response.json();
 
-      if (response.ok && data.success) {
-        alert(`${memberName} 님이 삭제되었습니다.`);
-        if (String(selectedMemberId) === String(member.userId)) {
-          setSelectedMemberId('all');
-        }
-        await fetchFamilyMembers();
-        fetchMonthSummary();
-        fetchDailySchedules(selectedDate);
+      if (response.ok) {
+        showAlert('가족 연동 초대를 보냈습니다!', '초대 완료');
+        setInviteLoginId('');
+        setIsAddFamilyModalOpen(false);
       } else {
-        alert(data.message || '가족 삭제 처리에 실패했습니다.');
+        // 400, 404 등 백엔드에서 던진 구체적인 에러 메시지 출력
+        showAlert(data.message || '연동 요청에 실패했습니다.', '초대 실패');
       }
-    } catch (err) {
-      console.error('가족 삭제 실패:', err);
-      alert('삭제 처리 중 오류가 발생했습니다.');
+    } catch (error) {
+      console.error('초대 요청 에러:', error);
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
     }
+  };
+
+  const handleRemoveMember = (member) => {
+    const memberName = member.name || member.nickname || '구성원';
+    showConfirm({
+      title: '가족 구성원 삭제',
+      description: `'${memberName}' 님을 가족 목록에서 삭제하시겠습니까?`,
+      confirmLabel: '삭제',
+      cancelLabel: '취소',
+      tone: 'danger',
+      onConfirm: async () => {
+        try {
+          const response = await fetch(`/api/family/members/${member.userId}/remove`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ userId: currentUserId }),
+          });
+
+          const data = await response.json();
+
+          if (response.ok && data.success) {
+            showAlert(`${memberName} 님이 삭제되었습니다.`, '삭제 완료');
+            if (String(selectedMemberId) === String(member.userId)) {
+              setSelectedMemberId('all');
+            }
+            await fetchFamilyMembers();
+            fetchMonthSummary();
+            fetchDailySchedules(selectedDate);
+          } else {
+            showAlert(data.message || '가족 삭제 처리에 실패했습니다.', '오류');
+          }
+        } catch (err) {
+          console.error('가족 삭제 실패:', err);
+          showAlert('삭제 처리 중 오류가 발생했습니다.', '오류');
+        }
+      },
+    });
   };
 
 
@@ -745,7 +753,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       );
 
       if (res.ok) {
-        alert('알람 설정이 변경되었습니다.');
+        showAlert('알람 설정이 변경되었습니다.', '알람 설정');
         setAlarmModalOpen(false);
         setTargetScheduleForAlarm(null);
 
@@ -756,11 +764,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
       } else {
         const errText = await res.text();
         console.error('알람 설정 실패:', res.status, errText);
-        alert('알람 설정 변경에 실패했습니다.');
+        showAlert('알람 설정 변경에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error('알람 변경 오류:', err);
-      alert('알람 변경 중 오류가 발생했습니다.');
+      showAlert('알람 변경 중 오류가 발생했습니다.', '오류');
     }
   };
 
@@ -768,7 +776,7 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
   const openDeleteModal = (item, e) => {
     e.stopPropagation();
     if (!currentUserId) {
-      alert('로그인 후 일정을 삭제할 수 있습니다.');
+      showAlert('로그인 후 일정을 삭제할 수 있습니다.', '안내');
       return;
     }
     setItemToDelete(item);
@@ -808,11 +816,11 @@ const fetchDailySchedules = useCallback(async (targetDateStr) => {
           detail: { userId: currentUserId, date: selectedDate }
         }));
       } else {
-        alert("삭제에 실패했습니다.");
+        showAlert('삭제에 실패했습니다.', '오류');
       }
     } catch (err) {
       console.error("삭제 통신 실패:", err);
-      alert("삭제 통신 중 오류가 발생했습니다.");
+      showAlert('삭제 통신 중 오류가 발생했습니다.', '오류');
     } finally {
       setIsDeleteModalOpen(false);
       setItemToDelete(null);
