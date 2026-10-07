@@ -10,48 +10,37 @@ function getTodayDateStr() {
   return `${y}-${m}-${d}`;
 }
 
-export default function Sidebar({
+export default function Sidebar(props) {
+  return <SidebarContent key={props.isLoggedIn ? (props.user?.userId || props.user?.id || props.user?.username) : 'guest'} {...props} />;
+}
+
+function SidebarContent({
   isOpen,
   onClose,
   isLoggedIn,
-  onLogout,
   user
 }) {
   const currentUserId = user?.userId || user?.id;
   const [progress, setProgress] = useState({ total: 0, taken: 0, percent: 0 });
 
-  const fetchTodayProgress = useCallback(async () => {
-    if (!isLoggedIn || !currentUserId) {
-      setProgress({ total: 0, taken: 0, percent: 0 });
-      return;
-    }
-
-    const todayStr = getTodayDateStr();
-
-    try {
-      const res = await fetch(`/api/calendar?userId=${currentUserId}&date=${todayStr}`);
-      if (res.ok) {
-        const list = await res.json();
-        if (Array.isArray(list)) {
-          const total = list.length;
-          const taken = list.filter((item) => Boolean(item.takenAt)).length;
-          const percent = total > 0 ? Math.round((taken / total) * 100) : 0;
-          setProgress({ total, taken, percent });
-          return;
-        }
-      }
-    } catch (err) {
-      console.warn('사이드바 복용 진척도 조회 실패:', err);
-    }
-
-    setProgress({ total: 0, taken: 0, percent: 0 });
+  const fetchTodayProgress = useCallback(() => {
+    if (!isLoggedIn || !currentUserId) return;
+    return fetch(`/api/calendar?userId=${currentUserId}&date=${getTodayDateStr()}`)
+      .then(async (res) => {
+        const list = res.ok ? await res.json() : [];
+        const items = Array.isArray(list) ? list : [];
+        const total = items.length;
+        const taken = items.filter(item => Boolean(item.takenAt)).length;
+        setProgress({ total, taken, percent: total ? Math.round(taken / total * 100) : 0 });
+      })
+      .catch((err) => {
+        console.warn('사이드바 복용 진척도 조회 실패:', err);
+        setProgress({ total: 0, taken: 0, percent: 0 });
+      });
   }, [isLoggedIn, currentUserId]);
 
   useEffect(() => {
-    if (!isLoggedIn || !currentUserId) {
-      setProgress({ total: 0, taken: 0, percent: 0 });
-      return;
-    }
+    if (!isLoggedIn || !currentUserId) return;
 
     fetchTodayProgress();
 

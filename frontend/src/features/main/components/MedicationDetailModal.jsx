@@ -3,8 +3,13 @@ import { useState, useEffect } from 'react';
 /**
  * 약품 상세 정보 모달 (AI 핵심 복약 요약, 효능, 용법, 주의사항)
  */
-export default function MedicationDetailModal({
-  isOpen,
+export default function MedicationDetailModal(props) {
+  if (!props.isOpen || !props.medDetail) return null;
+  // 다른 약을 열 때 이전 약의 추가 설명이 잠깐 노출되지 않도록 분리합니다.
+  return <MedicationDetail key={props.medDetail.medicationId || props.medDetail.name} {...props} />;
+}
+
+function MedicationDetail({
   medDetail,
   onClose,
   onNavigateGuide,
@@ -13,10 +18,7 @@ export default function MedicationDetailModal({
 
   // 모달이 열릴 때 AI 요약 및 최신 정보 On-Demand 패치
   useEffect(() => {
-    if (!isOpen || !medDetail?.medicationId) {
-      setMedDetailExtra(null);
-      return;
-    }
+    if (!medDetail?.medicationId) return;
 
     let isCancelled = false;
     fetch(`/api/guides/medications/${encodeURIComponent(medDetail.medicationId)}`)
@@ -31,9 +33,7 @@ export default function MedicationDetailModal({
     return () => {
       isCancelled = true;
     };
-  }, [isOpen, medDetail?.medicationId]);
-
-  if (!isOpen || !medDetail) return null;
+  }, [medDetail?.medicationId]);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

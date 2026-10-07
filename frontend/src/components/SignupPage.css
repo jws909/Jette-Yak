@@ -105,6 +105,8 @@
 
 .signup-field {
   flex: 1;
+  /* 인증 버튼 옆 입력란도 작은 화면 폭 안에서 줄어들도록 허용 */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -114,6 +116,7 @@
 }
 
 .signup-field input {
+  min-width: 0;
   font-size: 14px;
   font-weight: 400;
   color: var(--ink);

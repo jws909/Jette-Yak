@@ -74,7 +74,8 @@
     WHERE post_id=#{postId} AND status&lt;&gt;'DELETED'
       AND (user_id=#{userId} OR EXISTS(
         SELECT 1 FROM users acting_user
-        WHERE acting_user.user_id=#{userId} AND acting_user.is_admin=1
+        WHERE acting_user.user_id=#{userId}
+          AND UPPER(TRIM(acting_user.is_admin)) IN ('Y','YES','TRUE','1','ADMIN')
       ))
   </update>
   <select id="comments" parameterType="map" resultType="map">

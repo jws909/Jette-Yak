@@ -30,6 +30,8 @@ public class PrescriptionController {
     private static final Logger log = LogManager.getLogger(PrescriptionController.class);
 
     private final PrescriptionService prescriptionService;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.app.util.UserAccess userAccess;
 
     public PrescriptionController(PrescriptionService prescriptionService) {
         this.prescriptionService = prescriptionService;
@@ -45,15 +47,7 @@ public class PrescriptionController {
             @RequestParam(value = "userId", required = false) Long userId,
             javax.servlet.http.HttpServletRequest request) {
 
-        if (userId == null || userId <= 0L) {
-            var session = request.getSession(false);
-            Object sessionVal = session != null ? session.getAttribute("userId") : null;
-            if (sessionVal instanceof Long) {
-                userId = (Long) sessionVal;
-            } else if (sessionVal instanceof Number) {
-                userId = ((Number) sessionVal).longValue();
-            }
-        }
+        userId = userAccess.familyUser(request, userId);
 
         if (userId == null || userId <= 0L) {
             Map<String, Object> errorResponse = new HashMap<>();
@@ -99,15 +93,7 @@ public class PrescriptionController {
             @RequestParam(value = "userId", required = false) Long userId,
             javax.servlet.http.HttpServletRequest request) {
 
-        if (userId == null || userId <= 0L) {
-            var session = request.getSession(false);
-            Object sessionVal = session != null ? session.getAttribute("userId") : null;
-            if (sessionVal instanceof Long) {
-                userId = (Long) sessionVal;
-            } else if (sessionVal instanceof Number) {
-                userId = ((Number) sessionVal).longValue();
-            }
-        }
+        userId = userAccess.familyUser(request, userId);
 
         if (userId == null || userId <= 0L) {
             Map<String, Object> response = new HashMap<>();
@@ -148,15 +134,7 @@ public class PrescriptionController {
             @RequestParam(value = "userId", required = false) Long userId,
             javax.servlet.http.HttpServletRequest request) {
 
-        if (userId == null || userId <= 0L) {
-            var session = request.getSession(false);
-            Object sessionVal = session != null ? session.getAttribute("userId") : null;
-            if (sessionVal instanceof Long) {
-                userId = (Long) sessionVal;
-            } else if (sessionVal instanceof Number) {
-                userId = ((Number) sessionVal).longValue();
-            }
-        }
+        userId = userAccess.familyUser(request, userId);
 
         if (userId == null || userId <= 0L) {
             Map<String, Object> response = new HashMap<>();
@@ -187,9 +165,13 @@ public class PrescriptionController {
      * GET /api/prescriptions/{prescriptionId}
      */
     @GetMapping(value = "/{prescriptionId}", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<?> getPrescriptionDetail(@PathVariable("prescriptionId") Long prescriptionId) {
+    public ResponseEntity<?> getPrescriptionDetail(@PathVariable("prescriptionId") Long prescriptionId,
+            javax.servlet.http.HttpServletRequest request) {
+        userAccess.currentUser(request);
+        PrescriptionDTO existing = prescriptionService.getPrescriptionDetail(prescriptionId);
+        if (existing != null) userAccess.familyUser(request, existing.getUserId());
         try {
-            PrescriptionDTO result = prescriptionService.getPrescriptionDetail(prescriptionId);
+            PrescriptionDTO result = existing;
             if (result == null) {
                 Map<String, Object> errorResponse = new HashMap<>();
                 errorResponse.put("success", false);
@@ -216,7 +198,12 @@ public class PrescriptionController {
     @PutMapping(value = "/{prescriptionId}", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> updatePrescription(
             @PathVariable("prescriptionId") Long prescriptionId,
-            @RequestBody PrescriptionDTO dto) {
+            @RequestBody PrescriptionDTO dto, javax.servlet.http.HttpServletRequest request) {
+        userAccess.currentUser(request);
+        PrescriptionDTO existing = prescriptionService.getPrescriptionDetail(prescriptionId);
+        if (existing == null) return ResponseEntity.notFound().build();
+        userAccess.familyUser(request, existing.getUserId());
+        dto.setUserId(existing.getUserId());
         try {
             dto.setPrescriptionId(prescriptionId);
             PrescriptionDTO updated = prescriptionService.updatePrescription(dto);
@@ -249,15 +236,7 @@ public class PrescriptionController {
             @RequestParam(value = "userId", required = false) Long userId,
             javax.servlet.http.HttpServletRequest request) {
 
-        if (userId == null || userId <= 0L) {
-            var session = request.getSession(false);
-            Object sessionVal = session != null ? session.getAttribute("userId") : null;
-            if (sessionVal instanceof Long) {
-                userId = (Long) sessionVal;
-            } else if (sessionVal instanceof Number) {
-                userId = ((Number) sessionVal).longValue();
-            }
-        }
+        userId = userAccess.familyUser(request, userId);
 
         if (userId == null || userId <= 0L) {
             Map<String, Object> response = new HashMap<>();

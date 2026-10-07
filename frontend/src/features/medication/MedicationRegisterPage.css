@@ -6,6 +6,9 @@
   padding: 32px 20px 80px;
   color: #2b2520;
   font-family: inherit;
+  /* 한글 안내는 단어 단위로 읽고, 긴 약 이름만 화면 너비에 맞춰 줄바꿈 */
+  word-break: keep-all;
+  overflow-wrap: anywhere;
 }
 
 /* 1. Header */
@@ -238,19 +241,22 @@
    ========================================================= */
 .rx-upload-layout {
   display: grid;
-  grid-template-columns: 1fr 1.15fr;
+  /* 긴 약 이름이 카드의 최소 너비를 늘리지 않도록 각 열의 축소 허용 */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
   gap: 24px;
   align-items: stretch;
 }
 
 @media (max-width: 900px) {
   .rx-upload-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 /* 좌측 업로드 카드 */
 .rx-upload-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
   background: #ffffff;
   border: 1px solid #e8e2d8;
   border-radius: 16px;
@@ -303,6 +309,7 @@
 }
 
 .rx-guide-item {
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -491,6 +498,8 @@
    우측 처방전 등록 내역 목록 (캡슐 디자인 배제, 깔끔한 레코드형)
    ========================================================= */
 .rx-history-card {
+  min-width: 0;
+  overflow-wrap: anywhere;
   background: #ffffff;
   border: 1px solid #e8e2d8;
   border-radius: 16px;
@@ -1509,6 +1518,8 @@
 .cabinet-search-input:focus,
 .cabinet-search-input:focus-visible {
   flex: 1;
+  /* 작은 화면에서도 입력창이 줄어들어 등록 버튼을 화면 안에 유지 */
+  min-width: 0;
   border: none !important;
   outline: none !important;
   box-shadow: none !important;

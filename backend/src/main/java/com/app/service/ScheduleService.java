@@ -9,6 +9,7 @@ public interface ScheduleService {
     List<ScheduleDTO> getDailySchedules(Long userId, String date);
     boolean toggleTaken(Long scheduleId, boolean isTaken);
     boolean toggleTaken(Long scheduleId, boolean isTaken, String date);
+    boolean toggleTakenBatch(List<Long> scheduleIds, boolean isTaken, String date);
     boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled);
     boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled, String date);
     boolean addSchedule(ScheduleAddDTO dto);

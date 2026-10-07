@@ -607,8 +607,13 @@
    -------------------------------------------------------------------------- */
 .main-two-column-grid {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
+  /* 긴 약 이름이 열의 최소 너비를 늘리지 않도록 카드 축소 허용 */
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
   gap: 20px;
+}
+
+.main-two-column-grid > * {
+  min-width: 0;
 }
 
 /* 좌측: 처방 약품 카드 */
@@ -2647,7 +2652,7 @@
    -------------------------------------------------------------------------- */
 @media (max-width: 900px) {
   .main-two-column-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .prescription-summary-card {
     flex-direction: column;
@@ -2669,6 +2674,29 @@
 }
 
 @media (max-width: 600px) {
+  /* 좁은 화면에서는 설명과 조작 버튼을 다음 행으로 배치해 화면 밖 잘림 방지 */
+  .prescribed-meds-card {
+    padding: 18px 14px;
+    overflow-wrap: anywhere;
+  }
+  .card-top-row,
+  .med-item-row,
+  .prescribed-group-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .routine-item-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .routine-item-left {
+    min-width: 0;
+    flex: 1 1 160px;
+    overflow-wrap: anywhere;
+  }
+  .routine-item-right {
+    margin-left: auto;
+  }
   .prescription-summary-card {
     padding: 16px 14px;
     gap: 14px;

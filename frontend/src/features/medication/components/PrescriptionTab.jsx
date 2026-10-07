@@ -260,7 +260,7 @@ export default function PrescriptionTab({
                   try {
                     const parsed = JSON.parse(rx.aiSummaryJson);
                     if (parsed.aiGuide?.purpose) purpose = parsed.aiGuide.purpose;
-                  } catch {}
+                  } catch { /* 저장 실패가 있어도 입력값을 유지 */ }
                 }
 
                 return (
