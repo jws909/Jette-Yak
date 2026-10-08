@@ -1,0 +1,119 @@
+/* =========================================================
+   공통 전체 화면 로딩 오버레이 (LoadingOverlay.css)
+   ========================================================= */
+.rx-loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000000 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(35, 26, 24, 0.65);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+  animation: rxLoadingFadeIn 0.2s ease-out;
+}
+
+.rx-loading-modal {
+  width: min(440px, 100%);
+  background: #ffffff;
+  border: 1px solid #e9ded4;
+  border-radius: 20px;
+  padding: 32px 28px 26px;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(45, 20, 25, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  animation: rxLoadingPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rx-loading-spinner-wrap {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rx-loading-spinner {
+  position: absolute;
+  inset: 0;
+  border: 4px solid #f2e6e3;
+  border-top-color: #873448;
+  border-right-color: #b34a62;
+  border-radius: 50%;
+  animation: rxSpin 1s cubic-bezier(0.55, 0.15, 0.45, 0.85) infinite;
+}
+
+.rx-loading-pill-icon {
+  font-size: 26px;
+  animation: rxPulse 1.4s ease-in-out infinite;
+  display: inline-block;
+}
+
+.rx-loading-title {
+  margin: 0 0 8px 0;
+  font-size: 19px;
+  font-weight: 700;
+  color: #27211e;
+  letter-spacing: -0.3px;
+  line-height: 1.35;
+}
+
+.rx-loading-desc {
+  margin: 0 0 22px 0;
+  font-size: 13.5px;
+  color: #6b5f58;
+  line-height: 1.6;
+  word-break: keep-all;
+}
+
+.rx-loading-progress-bar {
+  width: 100%;
+  height: 5px;
+  background: #f1e9e3;
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.rx-loading-progress-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, #873448, #c45b73);
+  border-radius: 999px;
+  animation: rxIndeterminate 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes rxSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes rxPulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.18); opacity: 1; }
+}
+
+@keyframes rxLoadingFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes rxLoadingPop {
+  from { opacity: 0; transform: scale(0.92) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes rxIndeterminate {
+  0% { left: -40%; width: 30%; }
+  50% { left: 30%; width: 55%; }
+  100% { left: 100%; width: 30%; }
+}

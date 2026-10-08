@@ -1,0 +1,588 @@
+/*
+ * 역할: 내 약 관리 상태 필터, 제품 탭, 전체 목록, 상세 정보 카드 스타일
+ * 확인 지점: 제품 수와 설명 길이가 달라도 열 너비와 가로 탭 스크롤 유지
+ */
+/* ==========================================================================
+   GuidePage Styles (Faithful reproduction of wireframe 4.png)
+   ========================================================================== */
+
+.guide-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.guide-page-header > *, .my-med-row > *, .guide-detail-card > * { min-width: 0; }
+
+.guide-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.guide-search-input {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #ded5c8;
+  border-radius: 4px;
+  padding: 0 14px;
+  height: 42px;
+  width: 240px;
+}
+
+.guide-search-icon {
+  width: 16px;
+  height: 16px;
+  color: #948b81;
+  margin-right: 8px;
+}
+
+.guide-search-input input {
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: #2b2523;
+  outline: none;
+  width: 100%;
+}
+
+/* 탭 목록 */
+.med-pills-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.med-pill-tab {
+  background: #ffffff;
+  border: 1px solid #ded6ca;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+
+.med-pill-tab:hover {
+  background: #f6f1ea;
+  border-color: #7d2638;
+  color: #7d2638;
+}
+
+.med-pill-tab.active {
+  background: #7d2638;
+  border-color: #7d2638;
+  color: #ffffff;
+}
+
+.med-pill-tab.active:hover {
+  background: #6a1f2e;
+  border-color: #6a1f2e;
+  color: #ffffff;
+}
+
+.pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.pill-dot.rx {
+  background-color: #d9534f;
+}
+
+.pill-dot.supp {
+  background-color: #f0ad4e;
+}
+
+.pill-dot.reg {
+  background-color: #5cb85c;
+}
+
+.med-pill-tab.active .pill-dot {
+  background-color: #ffffff;
+}
+
+/* 메인 가이드 카드 */
+.guide-detail-card {
+  background: #ffffff;
+  border: 1px solid #e2dbd0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  display: grid;
+  grid-template-columns: minmax(230px,260px) repeat(var(--detail-columns,3),minmax(0,1fr));
+  min-height: 380px;
+}
+
+.guide-med-intro {
+  background: #ede6dc;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #ded6c9;
+}
+
+.intro-med-name {
+  margin: 8px 0 16px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #241d1b;
+  line-height: 1.3;
+}
+
+.intro-tag {
+  align-self: flex-start;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.intro-tag.rx {
+  background-color: #ebd3d7;
+  color: #7d2638;
+}
+
+.intro-tag.supp {
+  background-color: #faebcf;
+  color: #996010;
+}
+
+.intro-tag.reg {
+  background-color: #dcedde;
+  color: #2e6940;
+}
+
+.guide-col {
+  padding: 32px 24px;
+  border-right: 1px solid #eee7dc;
+  display: flex;
+  flex-direction: column;
+}
+
+.guide-col:last-child {
+  border-right: none;
+}
+
+.col-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8c8278;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.col-title {
+  margin: 0 0 20px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+/* 01: 일상 제약 */
+.restrictions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.restriction-item {
+  border-bottom: 1px solid #f2ede5;
+  padding-bottom: 12px;
+}
+
+.restriction-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.restriction-label {
+  display: block;
+  font-size: 13.5px;
+  color: #2b2523;
+  margin-bottom: 4px;
+}
+
+.restriction-text {
+  margin: 0;
+  font-size: 12.5px;
+  color: #736b63;
+  line-height: 1.5;
+}
+
+/* 02: 부작용 */
+.side-effect-text {
+  margin: 0 0 20px;
+  font-size: 13.5px;
+  color: #2b2523;
+  line-height: 1.6;
+}
+
+.side-effect-alert-box {
+  background: #fbf5ee;
+  border-left: 3px solid #7d2638;
+  padding: 14px;
+  font-size: 12.5px;
+  color: #635b54;
+  line-height: 1.5;
+}
+
+.guide-feedback{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:14px 0;padding:13px 15px;border:1px solid #d9e4d8;border-radius:9px;background:#f1f7f0;color:#416044;font-size:13px;line-height:1.6}.guide-feedback.error{border-color:#ead1cf;background:#fff4f2;color:#963737}.guide-feedback .my-med-action{flex:0 0 auto;background:#fff}@media(max-width:560px){.guide-feedback{align-items:flex-start;flex-direction:column}}
+
+/* 03: 음식 궁합 */
+.food-match-boxes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.food-box {
+  padding: 14px 10px;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.food-box.good {
+  background: #eef5f0;
+}
+
+.food-box.caution {
+  background: #faebeb;
+}
+
+.food-status {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.food-box.good .food-status {
+  color: #2e7344;
+}
+
+.food-box.caution .food-status {
+  color: #b53838;
+}
+
+.food-box strong {
+  font-size: 13.5px;
+  color: #2b2523;
+}
+
+.food-advice-text {
+  margin: 0;
+  font-size: 13px;
+  color: #6e655c;
+  line-height: 1.6;
+}
+
+@media (max-width: 1024px) {
+  .guide-detail-card {
+    grid-template-columns: 1fr !important;
+  }
+  .guide-med-intro,
+  .guide-col {
+    border-right: none;
+    border-bottom: 1px solid #eee7dc;
+  }
+}
+
+/* Live medication data */
+.guide-search-form { display: grid; gap: 6px; font-size: 13px; }
+.guide-search-form .guide-search-input { width: min(360px, 100%); }
+.guide-search-form button,
+.guide-pagination button,
+.guide-registered-header button {
+  border: 1px solid #ded5c8;
+  border-radius: 4px;
+  background: #fff;
+  color: #7d2638;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.guide-search-form button:hover:not(:disabled),
+.guide-pagination button:hover:not(:disabled),
+.guide-registered-header button:hover:not(:disabled) {
+  background: #f6f1ea;
+  border-color: #7d2638;
+}
+.guide-registered-header button:disabled { cursor: default; }
+.guide-maker { display: block; margin-top: 4px; font-weight: 400; font-size: 11px; }
+.guide-pagination { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+.guide-note { font-size: 13px; color: #736b63; line-height: 1.7; white-space: pre-line; overflow-wrap: anywhere; word-break: keep-all; }
+.guide-db-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; line-height: 1.8; margin: 8px 0 20px; }
+.guide-empty { padding: 48px 24px; background: #fff; border: 1px solid #e2dbd0; text-align: center; }
+.guide-page-wrapper button:focus-visible, .guide-page-wrapper input:focus-visible { outline: 2px solid #7d2638; outline-offset: 3px; }
+.guide-page-wrapper button:disabled { opacity: .5; cursor: default; }
+
+.dur-information { min-width: 0; overflow-wrap: anywhere; }
+.dur-category { border-top: 1px solid #e2dbd0; padding: 12px 0; }
+.dur-category summary, .dur-unmatched summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.dur-category summary span { color: #7d2638; margin-left: 6px; }
+.dur-records { list-style: none; padding: 0; margin: 12px 0 0; max-height: 420px; overflow-y: auto; }
+.dur-records li { padding: 12px 0; border-bottom: 1px solid #eee7dc; }
+.dur-ingredient { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.dur-meta, .dur-count { font-size: 12px; color: #7d2638; }
+.dur-records .guide-db-text { margin-bottom: 6px; }
+.dur-footnote, .dur-unmatched { font-size: 12px; line-height: 1.7; color: #736b63; margin-top: 16px; }
+.dur-unmatched ul { padding-left: 16px; }
+
+.guide-registered { border: 1px solid #e2dbd0; padding: 24px; background: #fffdf9; }
+.guide-registered-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.guide-registered h2 { font-size: 20px; margin: 0; }
+.guide-registered h3 { font-size: 15px; margin: 20px 0 12px; }
+.guide-registered h3 small { color: #7d2638; }
+.guide-registered-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+.guide-registered-item { border: 1px solid #e2dbd0; padding: 16px; border-radius: 8px; overflow-wrap: anywhere; }
+.guide-registered-item .guide-note { margin-bottom: 0; }
+.guide-registered button { cursor: pointer; }
+
+/* 내 약 관리: 전체 목록과 개별 약 탭 */
+.my-med-header-actions { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; }
+.my-med-header-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 9px 16px;
+  border: 1px solid #e4cdd2;
+  border-radius: 8px;
+  background: #f3e8eb;
+  color: #7d2638;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-decoration: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.my-med-header-actions a:hover {
+  background: #ead9de;
+  border-color: #b77b89;
+}
+.my-med-header-actions a.my-med-register-action {
+  border-color: #7d2638;
+  background: #7d2638;
+  color: #ffffff;
+}
+.my-med-header-actions a.my-med-register-action:hover {
+  border-color: #6a1f2e;
+  background: #6a1f2e;
+}
+.my-med-header-actions a:focus-visible {
+  outline: 2px solid #7d2638;
+  outline-offset: 3px;
+}
+.my-med-action {
+  border: 1px solid #ded5c8;
+  border-radius: 4px;
+  background: #fff;
+  color: #7d2638;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  max-width: 100%;
+  white-space: normal;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.my-med-action:hover:not(:disabled) {
+  background: #f6f1ea;
+  border-color: #7d2638;
+  color: #7d2638;
+}
+.my-med-tabs { display: flex; gap: 10px; flex-wrap: nowrap; overflow-x:auto;scrollbar-width:thin;border-bottom: 1px solid #ded5c8; padding:0 0 16px;scroll-snap-type:x proximity }
+.my-med-tabs .med-pill-tab { flex:0 0 auto;max-width:100%;text-align:left;white-space:normal;overflow-wrap:anywhere;scroll-snap-align:start }
+.my-med-tabs .med-pill-tab:hover { background: #f6f1ea; border-color: #7d2638; color: #7d2638; }
+.my-med-tabs .med-pill-tab.active { background: #7d2638; border-color: #7d2638; color: #ffffff; }
+.my-med-tabs .med-pill-tab.active:hover { background: #6a1f2e; border-color: #6a1f2e; color: #ffffff; }
+.my-med-overview-heading h2 { font-size: 20px; margin: 0; }
+.my-med-overview-heading h2 span { color: #7d2638; font-size: 15px; }
+.my-med-overview { display: flex; flex-direction: column; gap: 16px; }
+.my-med-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(0, 2.5fr) auto; gap: 24px; padding: 24px; border: 1px solid #e2dbd0; background: #fff; align-items: start; }
+.my-med-row-name { overflow-wrap: anywhere; }
+.my-med-name { border: 0; padding: 0; background: none; color: #7d2638; font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; text-align: left; max-width: 100%; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.my-med-row-description h3 { margin: 0; font-size: 14px; }
+.my-med-row-description .guide-db-text { margin: 6px 0 16px; }
+.my-med-registrations { list-style: none; padding: 0; margin: 12px 0; }
+/* 상태 행은 같은 중심선에, 기간·메모는 아래에 배치해 긴 안내와 입력창 분리 */
+.my-med-registration-item { display: grid; gap: 10px; min-width: 0; margin: 12px 0; color: #736b63; font-size: 14px; line-height: 1.7; }
+.my-med-registration-header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; min-width: 0; }
+.my-med-registration-identity { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.my-med-source, .my-med-status { display: inline-flex; align-items: center; min-height: 32px; font-size: inherit; line-height: 1.7; }
+.my-med-source { background: #ede6dc; color: #7d2638; border-radius: 6px; padding: 4px 10px; }
+.my-med-status-control { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; font-size: inherit; }
+.my-med-status-control > span { flex: 0 0 auto; }
+.my-med-status-control select { min-width: 0; min-height: 44px; width: 210px; max-width: 100%; border: 1px solid #ded5c8; border-radius: 8px; padding: 8px 12px; background: white; color: #443b36; font: inherit; line-height: 1.5; cursor: pointer; }
+.my-med-status-control select:focus-visible { outline: 2px solid #7d2638; outline-offset: 3px; }
+.my-med-status-control select:disabled { opacity: .6; cursor: wait; }
+.my-med-registration-details { display: grid; gap: 4px; min-width: 0; font-size: inherit; white-space: pre-wrap; overflow-wrap: anywhere; word-break: keep-all; }
+.my-med-registration { padding: 20px 24px; background: #fffdf9; border: 1px solid #e2dbd0; margin-bottom: 20px; }
+.my-med-registration h2 { font-size: 20px; margin: 0; }
+@media (max-width: 760px) { .my-med-row { grid-template-columns: 1fr; gap: 16px; } .my-med-row > .my-med-action { justify-self: start; } }
+
+.my-med-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x:auto;
+  gap: 8px;
+  margin: 16px 0;
+}
+.my-med-filters button{flex:0 0 auto;white-space:nowrap}
+.my-med-filters button[aria-pressed="true"] {
+  background: #7d2638;
+  border-color: #7d2638;
+  color: #ffffff;
+}
+.my-med-filters button[aria-pressed="true"]:hover:not(:disabled),
+.my-med-filters button[aria-pressed="true"]:hover {
+  background: #6a1f2e;
+  border-color: #6a1f2e;
+  color: #ffffff;
+}
+.my-med-filters button:not([aria-pressed="true"]):hover:not(:disabled) {
+  background: #f6f1ea;
+  border-color: #7d2638;
+  color: #7d2638;
+}
+.medication-thumbnail{display:block;width:120px;height:85px;object-fit:contain;margin:12px 0;border-radius:8px;background:#faf8f4}
+.medication-image-empty{display:block;color:#82766b;font-size:12px;margin:10px 0}
+.interaction-summary{background:#fff9f5;border:1px solid #e2c7c2;border-left:5px solid #9e3538;border-radius:12px;padding:20px;margin:20px 0;overflow-wrap:anywhere;animation:guide-rise .32s ease-out}
+.interaction-heading{display:flex;align-items:center;gap:12px}.interaction-heading>span{display:grid;place-items:center;flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#9e3538;color:#fff;font-weight:800}.interaction-heading h3,.interaction-heading p{margin:0}.interaction-heading p{margin-top:4px;color:#786760;font-size:13px}.interaction-summary details{margin:12px 0;padding:12px;border:1px solid #e6d4cf;border-radius:8px;background:#fff}
+.interaction-summary summary{display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none}.interaction-summary summary::-webkit-details-marker{display:none}.interaction-summary summary em{margin-left:auto;padding:3px 7px;border-radius:10px;background:#f4e4e2;color:#8d3033;font-size:11px;font-style:normal}.interaction-detail{padding-top:12px;animation:guide-reveal .25s ease-out}.interaction-detail p{display:grid;gap:4px}.interaction-detail p span{color:#746861;font-size:12px}
+.interaction-summary p{line-height:1.7}
+.interaction-summary .my-med-action{display:inline-block;text-decoration:none}
+.guide-warning-col{background:#fffaf7}.my-med-warning-link{display:inline-flex;margin:5px 0 0;padding:7px 10px;border-radius:6px;background:#f7e8e6;color:#913438;font-size:12px;font-weight:700}.guide-warning-preview{display:grid;gap:7px;margin-top:16px}.guide-warning-preview p{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;align-items:center;gap:7px;margin:0;padding:10px;border-radius:7px;background:#fff6f3;font-size:12px}.guide-warning-preview strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.guide-warning-preview em{color:#96373a;font-style:normal}.guide-loading{display:flex;align-items:center;gap:10px;padding:14px 16px;border-radius:9px;background:#f6f1ea;color:#665b53;font-size:13px}.guide-loading>span{width:18px;height:18px;border:2px solid #ddcec2;border-top-color:#7d2638;border-radius:50%;animation:guide-spin .75s linear infinite}@keyframes guide-spin{to{transform:rotate(360deg)}}@keyframes guide-rise{from{opacity:0;transform:translateY(8px)}}@keyframes guide-reveal{from{opacity:0;transform:translateY(-4px)}}
+@media(max-width:760px){.guide-page-wrapper{gap:18px}.guide-page-header{align-items:flex-start}.my-med-header-actions{width:100%;flex-wrap:nowrap;overflow-x:auto}.my-med-header-actions>*{flex:0 0 auto;white-space:nowrap}.my-med-tabs,.my-med-filters{margin-left:-4px;margin-right:-4px;padding-left:4px;padding-right:4px}.my-med-row{padding:18px;border-radius:10px}.guide-warning-preview p{grid-template-columns:minmax(0,1fr) auto minmax(0,1fr)}.guide-warning-preview em{grid-column:1/-1}.interaction-summary{padding:16px}.interaction-summary summary strong{max-width:36%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+@media(prefers-reduced-motion:reduce){.interaction-summary,.interaction-detail,.guide-loading>span{animation:none}}
+.my-med-panel{animation:guide-rise .24s ease-out}@media(prefers-reduced-motion:reduce){.my-med-panel{animation:none}}
+.my-med-row-description>.my-med-action{display:inline-block;margin-bottom:14px;text-decoration:none}
+.guide-med-intro>.my-med-action{display:block;margin:12px 0;text-decoration:none}
+
+/* AI 요약 카드 스타일 */
+.guide-ai-card {
+  background: #fdfaf6;
+  border: 1px solid #eadfc9;
+  border-left: 4px solid #d48b38;
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.guide-ai-card .ai-tag {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #b36314;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+.guide-ai-card .ai-summary-text {
+  font-size: 13.5px;
+  color: #2b2523;
+  line-height: 1.55;
+  margin: 0;
+  word-break: keep-all;
+}
+.guide-ai-summary-compact {
+  background: #fff8f0;
+  border: 1px solid #f2dec5;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 6px 0 14px 0;
+  font-size: 13px;
+  color: #4a3828;
+  line-height: 1.5;
+}
+.guide-ai-precautions strong {
+  display: block;
+  font-size: 13px;
+  color: #5c4e42;
+  margin: 10px 0 4px 0;
+}
+.guide-ai-precautions strong:first-child {
+  margin-top: 0;
+}
+
+/* 공통 경고 모달 안의 긴 제품명도 생략하지 않고 전체를 보여준다. */
+.ui-dialog .guide-warning-preview strong {
+  min-width: 0;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.ui-dialog .guide-warning-preview p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+
+/* 약 이름과 주의 문구가 길어도 관리 카드와 경고 영역을 밀어내지 않도록 처리 */
+.guide-page-wrapper,.my-med-row,.interaction-summary{min-width:0}
+.guide-page-wrapper p,.my-med-row p,.interaction-summary p{overflow-wrap:anywhere;word-break:keep-all}
+
+/* 경고와 약 정보로 가는 버튼은 본문과 구분하고 긴 이름은 끝까지 표시 */
+.my-med-caution-summary { padding: 22px; border: 1px solid #e3c3be; border-left: 5px solid #97393e; border-radius: 12px; background: #fff8f5; }
+.my-med-caution-summary h2 { margin: 0; font-size: 20px; line-height: 1.5; }
+.my-med-caution-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.my-med-caution-list button { display: grid; gap: 8px; min-width: 0; padding: 16px; border: 1px solid #e6cbc5; border-radius: 9px; background: #fff; color: #392e29; font: inherit; text-align: left; line-height: 1.7; }
+.my-med-caution-list strong { font-size: 17px; overflow-wrap: anywhere; word-break: keep-all; }
+.my-med-caution-list span { font-size: 14px; }
+.my-med-caution-action { color: #8b2e38; }
+.my-med-warning-link { display: block; max-width: 100%; margin: 0 0 16px; border: 1px solid #dfb7b4; cursor: pointer; text-align: left; line-height: 1.7; overflow-wrap: anywhere; white-space: normal; }
+.my-med-row-actions { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.my-med-row-actions a { text-decoration: none; }
+.my-med-back { margin-bottom: 16px; }
+.guide-product-warning-preview { display: grid; gap: 14px; margin-top: 18px; }
+.guide-product-warning-preview article { min-width: 0; padding: 14px; border: 1px solid #e5c9c4; border-radius: 10px; background: #fffaf7; }
+.guide-product-warning-preview h3 { margin: 0 0 8px; font-size: 18px; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.guide-product-warning-preview p { margin: 8px 0; line-height: 1.8; }
+.guide-product-warning-preview .dur-records { max-height: none; overflow: visible; }
+.guide-warning-col:focus { outline: 2px solid #8b3e4b; outline-offset: 3px; }
+.guide-db-text, .ai-summary-text, .guide-ai-summary-compact p { font-size: 15px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; word-break: keep-all; }
+.interaction-summary summary { flex-wrap: wrap; line-height: 1.7; }
+.interaction-summary summary strong { min-width: 0; max-width: 100%; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; }
+.guide-page-wrapper .my-med-action, .guide-page-wrapper .med-pill-tab { min-height: 44px; line-height: 1.6; }
+.guide-page-wrapper a.my-med-action { display: inline-flex; align-items: center; justify-content: center; }
+.guide-ai-summary-compact p { margin: 6px 0 0; }
+@media (max-width: 1280px) { .guide-detail-card { grid-template-columns: minmax(0, 1fr); } .guide-med-intro, .guide-col { border-right: 0; border-bottom: 1px solid #eee7dc; } }
+/* 사이드바를 제외한 공간이 좁아질 때 본문과 긴 제품명에 읽을 폭을 확보한다. */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .my-med-row { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .my-med-row-actions { flex-direction: row; flex-wrap: wrap; }
+  .my-med-row-actions .my-med-action { flex: 1 1 180px; }
+}
+@media (max-width: 760px) {
+  .my-med-header-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; gap: 10px; }
+  .my-med-header-actions > * { min-width: 0; white-space: normal; text-align: center; }
+  .my-med-header-actions .my-med-register-action { grid-column: 1 / -1; }
+  .my-med-caution-summary { padding: 16px; }
+  .my-med-row-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .my-med-row-actions .my-med-action { padding: 10px; white-space: normal; text-align: center; }
+  .guide-col, .guide-med-intro { min-width: 0; padding: 22px 18px; }
+  .my-med-registration-header { display: grid; gap: 12px; }
+  .my-med-status-control { display: grid; grid-template-columns: max-content minmax(0, 1fr); width: 100%; }
+  .my-med-status-control select { width: 100%; }
+  .my-med-registration { padding: 18px; }
+  .guide-product-warning-preview article { padding: 12px; }
+}

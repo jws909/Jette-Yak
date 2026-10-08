@@ -1,0 +1,15 @@
+.device-push-settings { margin-top: 24px; padding: 20px; border: 1px solid #e7ddd1; border-radius: 12px; background: #faf8f4; min-width: 0; }
+.device-push-heading { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.device-push-heading h3 { min-width: 0; margin: 0; color: #382e29; font-size: 16px; line-height: 1.5; }
+.device-push-settings p { margin: 12px 0 0; color: #70665e; line-height: 1.7; font-size: 13px; overflow-wrap: anywhere; word-break: keep-all; }
+.device-push-status { max-width: 100%; padding: 5px 9px; background: #eee9e2; border-radius: 30px; font-size: 12px; line-height: 1.5; color: #675d54; overflow-wrap: anywhere; word-break: keep-all; }
+.device-push-status.is-active { background: #f0dfe3; color: #79303e; }
+.device-push-settings .device-push-help { padding: 12px; border-radius: 8px; background: #f1e8dd; color: #66503c; }
+.device-push-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.device-push-actions button { min-width: 0; max-width: 100%; min-height: 44px; padding: 10px 14px; border: 1px solid #d9cfc3; border-radius: 8px; background: white; color: #665246; cursor: pointer; font: inherit; font-size: 13px; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; }
+.device-push-actions .device-push-primary { background: #8b3e4b; border-color: #8b3e4b; color: white; }
+.device-push-actions button:disabled { opacity: .5; cursor: default; }
+.device-push-actions button:focus-visible { outline: 2px solid #8b3e4b; outline-offset: 3px; }
+.device-push-settings .device-push-feedback { color: #6e3140; }
+.device-push-settings .device-push-note { font-size: 12px; }
+@media (max-width: 480px) { .device-push-settings { padding: 16px; } .device-push-actions button { flex: 1 1 140px; } }

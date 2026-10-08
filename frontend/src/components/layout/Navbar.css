@@ -1,0 +1,773 @@
+/* ==========================================================================
+   Jette-Yak Global Navigation Bar Styles
+   ========================================================================== */
+
+/* 친근하고 부드러운 헬스케어 브랜드 웹폰트 (엄마까투리 & 나눔스퀘어라운드) */
+@font-face {
+  font-family: 'Eommakkaturi';
+  src: url('https://gcore.jsdelivr.net/gh/projectnoonnu/noonfonts_13@1.0/Katuri.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'NanumSquareRound';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/NanumSquareRound.woff') format('woff');
+  font-weight: 700 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+.site-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background-color: #faf7f2;
+  border-bottom: 1px solid #e7e1d7;
+  height: 64px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02);
+  transition: background-color 0.2s ease;
+}
+
+.navbar-container {
+  width: 100%;
+  height: 100%;
+  padding: 0 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------------------------
+   Navbar Left: 모바일 메뉴 토글 & 2번 로고 심볼
+   -------------------------------------------------------------------------- */
+.navbar-left {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+}
+
+/* 와이어프레임 메뉴 아이콘 (3개의 점과 선 구조) */
+.menu-toggle-btn {
+  background: transparent;
+  border: 1px solid #dfd8cb;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #5c1825;
+}
+
+.menu-toggle-btn:hover {
+  background-color: #efe9df;
+  border-color: #c9bfb0;
+  transform: translateY(-1px);
+}
+
+.menu-icon-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 18px;
+}
+
+.menu-icon-bars .bar-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.menu-icon-bars .dot {
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background-color: #8b3e4b;
+  display: inline-block;
+}
+
+.menu-icon-bars .line {
+  height: 2px;
+  background-color: #8b3e4b;
+  border-radius: 2px;
+  flex: 1;
+}
+
+/* 좌측 로고 심볼: logo.png (2번 시안) */
+.navbar-logo-symbol {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.navbar-logo-symbol:hover {
+  opacity: 0.9;
+  transform: scale(1.05);
+}
+
+.logo-symbol-img {
+  height: 36px;
+  width: auto;
+  max-width: 44px;
+  object-fit: contain;
+  display: block;
+}
+
+/* --------------------------------------------------------------------------
+   Navbar Center: 브랜드 글씨 (아까대로 한가운데 배치)
+   -------------------------------------------------------------------------- */
+.navbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.navbar-brand-text {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.navbar-brand-text:hover {
+  opacity: 0.92;
+}
+
+.logo-text {
+  font-family: 'Eommakkaturi', 'NanumSquareRound', sans-serif;
+  font-size: 26px;
+  font-weight: normal;
+  letter-spacing: -0.5px;
+  color: #8b3e4b;
+  transition: color 0.2s ease, transform 0.2s ease;
+  user-select: none;
+}
+
+.navbar-brand-text:hover .logo-text {
+  color: #6e2c38;
+}
+
+/* --------------------------------------------------------------------------
+   Navbar Right: 로그인 전 / 후 상태
+   -------------------------------------------------------------------------- */
+.navbar-right {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.logged-in-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-divider {
+  color: #ded6c9;
+  font-size: 13px;
+  user-select: none;
+}
+
+/* 알림 버튼 & 팝오버 */
+.notif-wrapper {
+  position: relative;
+}
+
+.notif-btn {
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #4a423d;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  position: relative;
+  transition: background-color 0.15s ease;
+}
+
+.notif-btn:hover {
+  background-color: #eee7dc;
+  color: #8b3e4b;
+}
+
+.bell-icon {
+  font-size: 16px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notif-badge {
+  position: absolute;
+  top: 3px;
+  left: 17px;
+  background-color: #c04040;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #faf7f2;
+}
+
+.notif-label {
+  font-size: 13px;
+}
+
+.notif-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: -20px;
+  width: 320px;
+  background: #ffffff;
+  border: 1px solid #dfd7cc;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(45, 30, 25, 0.12);
+  z-index: 1050;
+  overflow: hidden;
+}
+
+.notif-popover-header {
+  padding: 12px 16px 0;
+  border-bottom: 1px solid #ede7dc;
+  background: #faf7f2;
+}
+
+.notif-header-title-row {
+  flex-wrap: wrap;
+  gap: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.notif-tabs {
+  flex-wrap: wrap;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.notif-tab {
+  background: none;
+  border: none;
+  padding: 4px 2px 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #7d7268;
+  cursor: pointer;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease;
+}
+
+.notif-tab:hover {
+  color: #4a423d;
+}
+
+.notif-tab.active {
+  color: #8b3e4b;
+  font-weight: 700;
+}
+
+.notif-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: #8b3e4b;
+  border-radius: 2px 2px 0 0;
+}
+
+.notif-tab-badge {
+  background-color: #c04040;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+  line-height: 1.2;
+}
+
+.mark-read-btn {
+  background: none;
+  border: none;
+  color: #8b3e4b;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.notif-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.notif-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f4efe8;
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.notif-item:hover {
+  background-color: #f7f2ea;
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item.unread {
+  background-color: #fffbf6;
+}
+
+.notif-item.unread .notif-item-title {
+  color: #1e1917;
+  font-weight: 700;
+}
+
+.notif-item.unread .notif-item-text {
+  color: #554d46;
+}
+
+.notif-item.read {
+  background-color: #ffffff;
+}
+
+.notif-item.read:hover {
+  background-color: #f9f6f1;
+}
+
+.notif-item.read .notif-item-title {
+  color: #5a524b;
+  font-weight: 500;
+}
+
+.notif-item.read .notif-item-text {
+  color: #8c8278;
+}
+
+.notif-item.read .notif-indicator {
+  opacity: 0.45;
+}
+
+.notif-item.is-invitation {
+  background-color: #fff9f3;
+  border-left: 3px solid #b45309;
+}
+
+.notif-item-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.notif-unread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #c04040;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.notif-pin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background-color: #fef3c7;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid #fcd34d;
+  flex-shrink: 0;
+}
+
+.notif-empty {
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.notif-empty-icon {
+  font-size: 26px;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+.notif-empty-text {
+  margin: 0;
+  font-size: 13px;
+  color: #8c8278;
+  font-weight: 500;
+}
+
+.notif-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+
+.notif-indicator.warning {
+  background-color: #d9534f;
+}
+
+.notif-indicator.routine {
+  background-color: #3b82f6;
+}
+
+.notif-item-body {
+  flex: 1;
+}
+
+.notif-item-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #2b2522;
+}
+
+.notif-item-text {
+  margin: 3px 0 0;
+  font-size: 11.5px;
+  color: #696159;
+  line-height: 1.4;
+}
+
+.notif-item-time {
+  display: block;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: #a49b90;
+}
+
+
+
+/* 로그아웃 버튼 */
+.logout-btn {
+  background: transparent;
+  border: 1px solid #ded6c9;
+  color: #6e645c;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logout-btn:hover {
+  background: #ede6dc;
+  border-color: #c9c0b1;
+  color: #38302b;
+}
+
+.logout-text {
+  display: inline;
+}
+
+.logout-icon {
+  display: none;
+}
+
+/* 게스트 액션 (로그인 전) */
+.guest-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-link-login,
+.nav-link-signup {
+  text-decoration: none;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #574e47;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease;
+}
+
+.nav-link-login:hover,
+.nav-link-signup:hover {
+  color: #8b3e4b;
+}
+
+
+
+/* 반응형 */
+@media (min-width: 768px) {
+  /* 태블릿 및 PC: 사이드바가 항상 열려있으므로 상단 메뉴 토글 버튼 숨김 & 좌측 로고 심볼 표시 */
+  .menu-toggle-btn {
+    display: none !important;
+  }
+
+  .navbar-logo-symbol {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 767.98px) {
+  /* 모바일: 햄버거 메뉴를 가리지 않도록 좌측 로고 심볼 숨김 & 햄버거 토글 버튼 노출 */
+  .navbar-logo-symbol {
+    display: none !important;
+  }
+
+  .menu-toggle-btn {
+    display: flex !important;
+  }
+
+  .navbar-container {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .logo-text {
+    font-size: 21px;
+  }
+
+  /* 모바일 로그인 액션: 아이콘 위주로 깔끔하게 배치 */
+  .logged-in-actions {
+    gap: 8px;
+  }
+
+  /* 모바일 알림 버튼: "알림" 텍스트 숨기고 종모양 아이콘만 정중앙 표시 */
+  .notif-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 8px;
+  }
+
+  .notif-label {
+    display: none;
+  }
+
+  .notif-badge {
+    top: 4px;
+    right: 4px;
+    left: auto;
+  }
+
+  /* 모바일 로그아웃 버튼: "로그아웃" 글씨 숨기고 Font-Awesome 아이콘만 표시 */
+  .logout-btn {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 8px;
+  }
+
+  .logout-text {
+    display: none;
+  }
+
+  .logout-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    color: #6e645c;
+  }
+
+  .logout-btn:hover .logout-icon {
+    color: #38302b;
+  }
+
+  /* 모바일 게스트 액션 (방안 1: 모바일에서는 [로그인] 단독 미니 캡슐 버튼으로 심플하게 전환) */
+  .guest-actions {
+    gap: 0;
+  }
+
+  .guest-actions .nav-divider,
+  .nav-link-signup {
+    display: none !important;
+  }
+
+  .nav-link-login {
+    background-color: #8b3e4b;
+    color: #ffffff !important;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+    border-radius: 20px;
+    box-shadow: 0 2px 6px rgba(139, 62, 75, 0.2);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+  }
+
+  .nav-link-login:hover {
+    background-color: #732f3c;
+    color: #ffffff !important;
+  }
+
+  .nav-link-login:active {
+    transform: scale(0.96);
+  }
+
+  /* 모바일 알림 팝오버: 화면 밖으로 넘치지 않도록 너비 및 위치 최적화 */
+  .notif-popover {
+    right: -10px;
+    width: min(320px, calc(100vw - 32px));
+  }
+}
+
+
+/* 가족 초대 알림 액션 버튼 영역 */
+.notif-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* 수락 버튼 */
+.notif-btn-accept {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  background-color: #5a2232; /* 프로젝트 테마 버건디 색상 (또는 기본 테마색) */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.notif-btn-accept:hover {
+  opacity: 0.9;
+}
+
+/* 거절 버튼 */
+.notif-btn-reject {
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #666666;
+  background-color: #f1f3f5;
+  border: 1px solid #dcdcdc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.notif-btn-reject:hover {
+  background-color: #e9ecef;
+}
+/* 저장형 알림과 긴 사용자 입력이 팝오버 폭을 넘어가지 않도록 줄바꿈 허용 */
+.notif-item-body{min-width:0}
+.notif-item-title,.notif-item-text{white-space:pre-wrap;overflow-wrap:anywhere;word-break:keep-all}
+
+/* 관리자 메뉴도 알림과 같은 아이콘·글자 구성. 구분선으로 메뉴 사이를 나누기 */
+.navbar-admin-link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #7d3541;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color .15s ease, color .15s ease;
+}
+.navbar-admin-link :is(i, svg) { flex: 0 0 auto; width: 18px; height: 18px; font-size: 16px; }
+.navbar-admin-link:hover { background: #eee7dc; color: #68202f; }
+.navbar-admin-link:is(.active, [aria-current='page']) { color: #68202f; }
+.navbar-admin-link:focus-visible { outline: 2px solid #8b3e4b; outline-offset: 2px; }
+
+@media(max-width:767.98px) {
+  /* 관리자 메뉴가 있으면 브랜드·알림·로그아웃 폭을 먼저 확보해 한 줄에 배치 */
+  .navbar-container:has(.navbar-admin-link) { grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; padding: 0 12px; }
+  .navbar-container:has(.navbar-admin-link) :is(.navbar-left, .navbar-center, .navbar-right) { min-width: 0; }
+  .navbar-container:has(.navbar-admin-link) .navbar-center { justify-content: flex-start; }
+  .navbar-container:has(.navbar-admin-link) .navbar-brand-text { white-space: nowrap; }
+  /* 좁은 화면에서도 관리자 아이콘·이름·구분선은 유지하고 항목 사이 간격만 축소 */
+  .logged-in-actions:has(.navbar-admin-link) { gap: 2px; }
+  .logged-in-actions:has(.navbar-admin-link) > .nav-divider { flex: 0 0 auto; }
+  .navbar-admin-link { padding: 6px 4px; }
+  .navbar-container:has(.navbar-admin-link) :is(.menu-toggle-btn, .notif-btn, .logout-btn) { flex: 0 0 44px; box-sizing: border-box; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; }
+  .navbar-container:has(.navbar-admin-link) .notif-popover { right: -48px; width: min(320px, calc(100vw - 24px)); }
+}
+@media(max-width:380px) {
+  .navbar-container:has(.navbar-admin-link) { gap: 4px; padding: 0 8px; }
+  .navbar-container:has(.navbar-admin-link) .logo-text { font-size: 18px; letter-spacing: -.7px; }
+  .navbar-admin-link { gap: 4px; padding-inline: 2px; font-size: 12px; }
+  .navbar-admin-link :is(i, svg) { width: 16px; height: 16px; font-size: 14px; }
+}
+
+/* 알림 내용은 원문을 모두 읽도록 높이를 늘리고, 동작 버튼은 별도 줄 허용 */
+.notif-item-body { flex: 1; }
+.notif-item-title { min-width: 0; line-height: 1.6; }
+.notif-item-text { line-height: 1.7; }
+.notif-actions button,
+.mark-read-btn,
+.notif-tab {
+  min-height: 44px;
+  max-width: 100%;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.notif-popover { max-height: calc(100dvh - 88px - env(safe-area-inset-top, 0px)); overflow-y: auto; }
+
+@media (max-width: 767.98px) {
+  /* 종 아이콘 위치와 무관하게 팝오버를 화면 안쪽에 고정 */
+  .notif-popover,
+  .navbar-container:has(.navbar-admin-link) .notif-popover {
+    position: fixed;
+    top: calc(72px + env(safe-area-inset-top, 0px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    width: min(360px, calc(100% - 24px));
+  }
+}

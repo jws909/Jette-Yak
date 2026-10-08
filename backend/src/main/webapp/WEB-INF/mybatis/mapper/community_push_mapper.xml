@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.push.CommunityPushDao">
+  <resultMap id="delivery" type="com.app.push.CommunityPushDelivery">
+    <id column="notification_id" property="notificationId"/>
+    <id column="subscription_id" property="subscriptionId"/>
+    <result column="user_id" property="userId"/>
+    <result column="post_id" property="postId"/>
+    <result column="notification_type" property="notificationType"/>
+    <result column="endpoint" property="endpoint"/>
+    <result column="endpoint_hash" property="endpointHash"/>
+    <result column="public_key" property="publicKey"/>
+    <result column="auth_secret" property="authSecret"/>
+  </resultMap>
+  <select id="schemaReady" resultType="int">
+    SELECT COUNT(*) FROM (
+      SELECT notification_id FROM community_push_deliveries WHERE 1=0
+      UNION ALL SELECT notification_id FROM user_notifications WHERE 1=0
+      UNION ALL SELECT subscription_id FROM user_push_subscriptions WHERE community_started_at IS NOT NULL AND 1=0
+    )
+  </select>
+  <!-- 기기 연결 후 생성된 읽지 않은 알림만 전송. 가족 초대는 별도 저장소이므로 여기에서 혼용하지 않음 -->
+  <sql id="eligibleNotification">
+    n.user_id=p.user_id AND n.read_at IS NULL
+    AND (n.actor_id IS NULL OR n.actor_id&lt;&gt;n.user_id)
+    AND n.notification_type IN ('POST_COMMENT','COMMENT_REPLY','POST_HELPFUL','COMMENT_HELPFUL','ADMIN_REPORT','INFO_REVIEW','REPORT_RESULT')
+    AND (n.notification_type&lt;&gt;'ADMIN_REPORT' OR UPPER(TRIM(CAST(u.is_admin AS VARCHAR2(10)))) IN ('1','Y','YES','TRUE','ADMIN'))
+    AND n.created_at &gt;= CAST(#{cutoff,jdbcType=TIMESTAMP} AS DATE)
+    AND n.created_at &lt;= CAST(#{now,jdbcType=TIMESTAMP} AS DATE)
+    AND n.created_at &gt;= CAST(p.community_started_at AS DATE)
+    AND (u.push_enabled IS NULL OR UPPER(TRIM(CAST(u.push_enabled AS VARCHAR2(10)))) IN ('1','Y','TRUE'))
+  </sql>
+  <insert id="enqueue">
+    INSERT INTO community_push_deliveries(notification_id,subscription_id,status,attempts,next_attempt_at,created_at)
+    SELECT notification_id,subscription_id,'PENDING',0,#{now,jdbcType=TIMESTAMP},#{now,jdbcType=TIMESTAMP}
+    FROM (
+      SELECT n.notification_id,p.subscription_id
+      FROM user_notifications n JOIN user_push_subscriptions p ON p.user_id=n.user_id JOIN users u ON u.user_id=n.user_id
+      WHERE <include refid="eligibleNotification"/>
+        AND NOT EXISTS (SELECT 1 FROM community_push_deliveries d WHERE d.notification_id=n.notification_id AND d.subscription_id=p.subscription_id)
+      ORDER BY n.notification_id,p.subscription_id FETCH FIRST 200 ROWS ONLY
+    )
+  </insert>
+  <select id="pending" resultMap="delivery">
+    SELECT d.notification_id,p.subscription_id,p.user_id,n.post_id,n.notification_type,
+      p.endpoint,p.endpoint_hash,p.public_key,p.auth_secret
+    FROM community_push_deliveries d JOIN user_notifications n ON n.notification_id=d.notification_id
+      JOIN user_push_subscriptions p ON p.subscription_id=d.subscription_id JOIN users u ON u.user_id=p.user_id
+    WHERE <include refid="eligibleNotification"/>
+      AND d.attempts &lt; 3 AND d.next_attempt_at &lt;= #{now,jdbcType=TIMESTAMP}
+      AND (d.status IN ('PENDING','RETRY') OR (d.status='SENDING' AND d.lease_until &lt;= #{now,jdbcType=TIMESTAMP}))
+    ORDER BY d.next_attempt_at,d.notification_id,p.subscription_id FETCH FIRST 100 ROWS ONLY
+  </select>
+  <!-- 같은 트랜잭션 안에서 다른 DAO가 설정을 바꾼 경우에도 이전 소유권·권한 결과를 재사용하지 않음 -->
+  <select id="eligible" resultType="int" useCache="false" flushCache="true">
+    SELECT COUNT(*) FROM user_notifications n JOIN user_push_subscriptions p ON p.user_id=n.user_id JOIN users u ON u.user_id=p.user_id
+    WHERE n.notification_id=#{notificationId} AND p.subscription_id=#{subscriptionId} AND p.user_id=#{userId}
+      AND <include refid="eligibleNotification"/>
+  </select>
+  <update id="claim">
+    UPDATE community_push_deliveries d SET status='SENDING',attempts=attempts+1,claim_token=#{claimToken},lease_until=#{leaseUntil,jdbcType=TIMESTAMP}
+    WHERE d.notification_id=#{notificationId} AND d.subscription_id=#{subscriptionId}
+      AND d.attempts &lt; 3 AND d.next_attempt_at &lt;= #{now,jdbcType=TIMESTAMP}
+      AND (d.status IN ('PENDING','RETRY') OR (d.status='SENDING' AND d.lease_until &lt;= #{now,jdbcType=TIMESTAMP}))
+      AND EXISTS (
+        SELECT 1 FROM user_notifications n JOIN user_push_subscriptions p ON p.user_id=n.user_id JOIN users u ON u.user_id=p.user_id
+        WHERE n.notification_id=d.notification_id AND p.subscription_id=d.subscription_id AND p.user_id=#{userId}
+          AND <include refid="eligibleNotification"/>
+      )
+  </update>
+  <update id="finish">
+    UPDATE community_push_deliveries SET status=CASE WHEN #{status}='RETRY' AND attempts&gt;=3 THEN 'FAILED' ELSE #{status} END,
+      next_attempt_at=#{retryAt,jdbcType=TIMESTAMP},lease_until=NULL,claim_token=NULL,
+      delivered_at=CASE WHEN #{status}='SENT' THEN #{now,jdbcType=TIMESTAMP} ELSE delivered_at END
+    WHERE notification_id=#{notificationId} AND subscription_id=#{subscriptionId} AND status='SENDING' AND claim_token=#{claimToken}
+  </update>
+  <delete id="cleanup">DELETE FROM community_push_deliveries WHERE created_at &lt; #{value,jdbcType=TIMESTAMP}</delete>
+</mapper>

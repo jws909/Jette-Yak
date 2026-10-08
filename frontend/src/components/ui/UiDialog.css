@@ -1,0 +1,31 @@
+/* 역할: 공용 모달의 배경 클릭 차단, 긴 내용 스크롤, 모바일 하단 배치 관리 */
+.ui-dialog-backdrop{position:fixed;inset:0;z-index:1000000 !important;display:grid;place-items:center;padding:20px;background:rgba(39,31,28,.48);backdrop-filter:blur(3px)}
+.ui-dialog{width:min(460px,100%);max-height:calc(100dvh - 40px);min-width:0;box-sizing:border-box;display:flex;flex-direction:column;padding:26px;border:1px solid #dfd3c7;border-radius:16px;background:#fffdfa;box-shadow:0 24px 70px rgba(42,30,28,.24);outline:0;overflow:hidden;animation:ui-dialog-in .18s ease-out}
+.ui-dialog-mark{display:grid;place-items:center;width:38px;height:38px;margin-bottom:16px;border-radius:50%;background:#f2e4e7;color:#873448;font-size:18px;font-weight:800}
+.ui-dialog-danger .ui-dialog-mark{background:#fde8e6;color:#a23636}.ui-dialog-copy{min-width:0;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;overflow-wrap:anywhere;word-break:keep-all}.ui-dialog-copy h2{margin:0;color:#302c29;font-size:21px;line-height:1.45;overflow-wrap:anywhere}.ui-dialog-description{display:grid;gap:8px;margin-top:12px}.ui-dialog-description p{margin:0;color:#71665d;font-size:14px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}.ui-dialog-copy>*{max-width:100%;box-sizing:border-box}.ui-dialog-copy textarea{width:100%;min-height:120px;margin-top:18px;padding:13px;border:1px solid #d8cdc2;border-radius:9px;background:#fff;font:inherit;line-height:1.6;resize:vertical}.ui-dialog-copy textarea:focus{outline:2px solid rgba(135,52,72,.16);border-color:#873448}.ui-dialog-actions{display:flex;flex:0 0 auto;justify-content:flex-end;flex-wrap:wrap;gap:9px;margin-top:20px}.ui-dialog-actions button{min-width:92px;max-width:100%;min-height:42px;padding:11px 16px;border-radius:8px;font:inherit;font-size:13px;line-height:1.45;white-space:normal;overflow-wrap:anywhere;cursor:pointer}.ui-dialog-cancel{border:1px solid #d9cec4;background:#fff;color:#5f554e}.ui-dialog-confirm{border:1px solid #873448;background:#873448;color:#fff}.ui-dialog-danger .ui-dialog-confirm{border-color:#a23636;background:#a23636}.ui-dialog-actions button:disabled{opacity:.55;cursor:wait}@keyframes ui-dialog-in{from{opacity:0;transform:translateY(8px) scale(.98)}}@media(max-width:520px){.ui-dialog-backdrop{align-items:end;padding:12px}.ui-dialog{max-height:calc(100dvh - 24px);padding:20px;border-radius:16px}.ui-dialog-mark{margin-bottom:12px}.ui-dialog-copy h2{font-size:19px}.ui-dialog-description p{font-size:13px}.ui-dialog-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));width:100%;margin-top:16px}.ui-dialog-actions button{width:100%;min-width:0}}@media(prefers-reduced-motion:reduce){.ui-dialog{animation:none}}
+.ui-dialog-field-meta{display:flex;justify-content:space-between;gap:12px;margin-top:6px;color:#8d8178;font-size:11px}.ui-dialog-field-error{color:#a23636}
+
+/* 긴 경고의 본문만 스크롤하고, 확인·닫기 버튼은 항상 모달 안에 유지 */
+.ui-dialog-backdrop { overflow-y: auto; overscroll-behavior: contain; }
+.ui-dialog { max-width: 100%; }
+.ui-dialog-mark { flex: 0 0 auto; }
+.ui-dialog-copy { flex: 1 1 auto; min-height: 0; scrollbar-gutter: stable; padding-bottom: 2px; }
+.ui-dialog-copy :is(p, li, small, label, strong, em, h3, h4, dd, dt) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  white-space: pre-wrap;
+}
+.ui-dialog-description { gap: 12px; }
+.ui-dialog-description p { color: #5c5149; font-size: 15px; }
+.ui-dialog-copy :is(input, textarea, select) { min-width: 0; max-width: 100%; font-size: 16px; }
+.ui-dialog-actions button { min-height: 44px; font-size: 14px; }
+.ui-dialog-field-meta { flex-wrap: wrap; line-height: 1.6; }
+
+@media (max-width: 520px) {
+  /* 휴대폰 하단 홈 버튼과 겹치지 않게 안전 영역만큼 여백 확보 */
+  .ui-dialog-backdrop { padding: 12px 12px max(12px, env(safe-area-inset-bottom)); }
+  .ui-dialog { max-height: calc(100dvh - env(safe-area-inset-bottom) - 24px); }
+  .ui-dialog-description p { font-size: 15px; }
+}
+

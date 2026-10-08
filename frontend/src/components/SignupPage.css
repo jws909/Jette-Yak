@@ -1,0 +1,358 @@
+.signup-screen {
+  --cream: #f7f2ea;
+  --ink: #2a2320;
+  --ink-soft: #948a7e;
+  --wine: #8c3a4c;
+  --wine-deep: #6e2c3b;
+  --wine-soft-bg: #fbeef1;
+  --line: #e6dfd3;
+  --error: #b5533c;
+
+  min-height: 100vh;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", "Pretendard", "Noto Sans KR", sans-serif;
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px 60px;
+}
+
+.signup-panel {
+  min-width: 0;
+  width: 100%;
+  max-width: 460px;
+}
+
+/* 상단: 뒤로가기 / 브레드크럼 / 타이틀 / 단계 표시줄 */
+.signup-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  color: var(--ink-soft);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+}
+
+.signup-back:hover {
+  color: var(--ink);
+}
+
+.signup-breadcrumb {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.signup-title {
+  margin: 0 0 18px;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.signup-title__num {
+  color: var(--wine);
+}
+
+.signup-steps {
+  display: flex;
+  flex-wrap: wrap;
+  line-height: 1.6;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.signup-steps__item.is-active {
+  color: var(--wine);
+  font-weight: 700;
+}
+
+.signup-steps__line {
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* 폼 공통 */
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.signup-form__question {
+  margin: 0 0 -6px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.signup-form__subtitle {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.signup-field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.signup-field {
+  flex: 1;
+  /* 인증 버튼 옆 입력란도 작은 화면 폭 안에서 줄어들도록 허용 */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.signup-field input {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink);
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.signup-field input::placeholder {
+  color: #bdb4a7;
+}
+
+.signup-field input:focus-visible {
+  border-color: var(--wine);
+  box-shadow: 0 0 0 3px var(--wine-soft-bg);
+}
+
+.signup-check-btn {
+  flex: 0 0 auto;
+  min-height: 44px;
+  white-space: nowrap;
+  padding: 13px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wine-deep);
+  background: #fff;
+  border: 1px solid var(--wine);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.signup-check-btn:hover:not(:disabled) {
+  background: var(--wine-soft-bg);
+}
+
+.signup-check-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.signup-hint {
+  line-height: 1.7;
+  margin: -8px 0 0;
+  font-size: 12px;
+}
+
+.signup-hint--ok {
+  color: #3c7a5e;
+}
+
+.signup-hint--error {
+  color: var(--error);
+}
+
+.signup-hint--pending {
+  color: var(--ink-soft);
+}
+
+.signup-policy-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.signup-policy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.signup-policy input[type="checkbox"] {
+  flex: 0 0 16px;
+  accent-color: var(--wine);
+  width: 16px;
+  height: 16px;
+}
+
+.signup-policy-link {
+  padding: 0;
+  border: none;
+  background: none;
+  font-weight: 700;
+  color: var(--wine);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.signup-policy-link:hover {
+  color: var(--wine-deep);
+}
+
+.signup-policy-text {
+  font-size: 12px;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.signup-policy-text p {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.signup-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--error);
+}
+
+.signup-submit {
+  margin-top: 8px;
+  padding: 15px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--wine);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.signup-submit:hover:not(:disabled) {
+  background: var(--wine-deep);
+}
+
+/* 2단계: 영양제 선택 chip */
+.supplement-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.supplement-chip {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.supplement-chip.is-selected {
+  border-color: var(--wine);
+  background: var(--wine-soft-bg);
+  color: var(--wine-deep);
+}
+
+.supplement-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.supplement-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: var(--line);
+  border-radius: 999px;
+}
+
+.supplement-tag button {
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+
+.supplement-tag button:hover {
+  color: var(--error);
+}
+
+.signup-step2-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.signup-skip {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.signup-skip:hover {
+  color: var(--ink);
+}
+
+.signup-step2-actions .signup-submit {
+  margin-top: 0;
+}
+
+/* 3단계: 완료 화면 */
+.signup-complete {
+  text-align: center;
+  align-items: center;
+  padding-top: 60px;
+}
+
+@media (max-width: 480px) {
+  .signup-step2-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+}

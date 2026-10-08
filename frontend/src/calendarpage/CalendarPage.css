@@ -1,0 +1,2393 @@
+/* ==========================================================================
+   CalendarPage Styles (SurveyPage / GuidePage 공통 규격 1:1 일치)
+   ========================================================================== */
+
+/* 1. 최상단 래퍼: 외부 여백 없이 gap: 20px 부여 */
+.calendar-page-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 2. 상단 헤더 */
+.page-header {
+  margin: 0;
+  text-align: left;
+}
+
+.page-header .sub-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #8c8278;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #4a151e;
+}
+
+/* 3. 메인 캘린더 카드: survey-card 규격(border-radius: 8px) 일치 */
+.calendar-main-card {
+  display: flex;
+  background: #ffffff;
+  border: 1px solid #e5dfd4;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  width: 100%;
+  min-height: 620px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* 좌측 달력 영역 (목록 길이에 영향받지 않고 완벽 고정) */
+.calendar-left {
+  flex: 1.45;
+  padding: 32px;
+  border-right: 1px solid #f0e9df;
+  display: flex;
+  flex-direction: column;
+  align-self: flex-start; /* 우측 목록이 길어져도 달력 높이 늘어남 방지 */
+  position: sticky;       /* 스크롤 시 화면 상단 고정 */
+  top: 0;
+  box-sizing: border-box;
+}
+
+.cal-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.month-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #faf8f5;
+  border: 1.5px solid #ebdcd9;
+  border-radius: 28px;
+  padding: 4px 6px;
+  box-shadow: 0 1px 4px rgba(125, 38, 56, 0.05);
+}
+
+/* 둥근 형태의 모던 화살표 버튼 */
+.cal-nav-arrow-btn {
+  background: #ffffff;
+  border: 1px solid #e5dbd4;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6a5a52;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.cal-nav-arrow-btn:hover {
+  background: #7d2638;
+  color: #ffffff;
+  border-color: #7d2638;
+  transform: scale(1.05);
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.2);
+}
+
+.cal-nav-arrow-btn:active {
+  transform: scale(0.95);
+}
+
+/* ==========================================================================
+   Month / Year Picker Popover (Calendar Header)
+   ========================================================================== */
+
+.month-picker-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.month-picker-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 20px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  color: #2b2523;
+  user-select: none;
+}
+
+.month-picker-trigger-btn:hover {
+  background: #ffffff;
+  border-color: #ebdcd9;
+  color: #7d2638;
+  box-shadow: 0 1px 4px rgba(125, 38, 56, 0.08);
+}
+
+.month-picker-trigger-btn.active {
+  background: #ffffff;
+  border-color: #7d2638;
+  color: #7d2638;
+  box-shadow: 0 0 0 3px rgba(125, 38, 56, 0.12);
+}
+
+.month-picker-trigger-btn .picker-title-text {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+
+.picker-chevron-svg {
+  color: #7d2638;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.picker-chevron-svg.open {
+  transform: rotate(180deg);
+}
+
+/* 팝오버 컨테이너 */
+.month-picker-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 250px;
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 4px 8px rgba(0, 0, 0, 0.04);
+  padding: 14px;
+  z-index: 100;
+  box-sizing: border-box;
+  animation: monthPickerPop 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes monthPickerPop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+/* 팝오버 연도 행 */
+.popover-year-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f2ede4;
+}
+
+.popover-arrow-btn {
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5a4f47;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  padding: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.popover-arrow-btn:hover {
+  background: #7d2638;
+  color: #ffffff;
+  border-color: #7d2638;
+}
+
+/* 커스텀 연도 드롭다운 */
+.custom-year-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.custom-year-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #faf8f5;
+  border: 1px solid #ded6c9;
+  border-radius: 16px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.custom-year-btn:hover {
+  background: #fbf5f4;
+  border-color: #7d2638;
+}
+
+.custom-year-btn.active {
+  background: #ffffff;
+  border-color: #7d2638;
+  box-shadow: 0 0 0 2.5px rgba(125, 38, 56, 0.12);
+}
+
+.year-btn-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.year-chevron-svg {
+  color: #7d2638;
+  transition: transform 0.18s ease;
+}
+
+.year-chevron-svg.open {
+  transform: rotate(180deg);
+}
+
+/* 커스텀 연도 드롭다운 메뉴 */
+.custom-year-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  max-height: 180px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #ebdcd9;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 3px 8px rgba(0, 0, 0, 0.05);
+  padding: 5px;
+  z-index: 200;
+  box-sizing: border-box;
+  animation: yearMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes yearMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* 커스텀 스크롤바 */
+.custom-year-dropdown-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.custom-year-dropdown-menu::-webkit-scrollbar-thumb {
+  background: #ded6c9;
+  border-radius: 10px;
+}
+
+.custom-year-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: #b5a999;
+}
+
+/* 연도 아이템 */
+.custom-year-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.custom-year-item:hover {
+  background: #fbf5f4;
+  color: #7d2638;
+}
+
+.custom-year-item.selected {
+  background: #7d2638;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.custom-year-item.selected svg {
+  color: #ffffff;
+}
+
+/* 12개월 그리드 */
+.popover-months-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.popover-month-btn {
+  background: #faf8f5;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: center;
+  font-family: inherit;
+}
+
+.popover-month-btn:hover {
+  background: #f4ecea;
+  color: #7d2638;
+  border-color: #e5cfcd;
+}
+
+.popover-month-btn.selected {
+  background: #7d2638 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  border-color: #7d2638 !important;
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.25);
+}
+
+.popover-month-btn.is-today:not(.selected) {
+  border: 1.5px solid #7d2638;
+  color: #7d2638;
+  font-weight: 700;
+}
+
+/* 팝오버 푸터 */
+.popover-footer {
+  padding-top: 8px;
+  border-top: 1px solid #f2ede4;
+  text-align: center;
+}
+
+.popover-today-btn {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7d2638;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.popover-today-btn:hover {
+  background: #fbf5f4;
+}
+
+.btn-today {
+  background: #ffffff;
+  border: 1.5px solid #ebdcd9;
+  padding: 6px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5c4e46;
+  transition: all 0.18s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.btn-today:hover {
+  background: #7d2638;
+  color: #ffffff;
+  border-color: #7d2638;
+  box-shadow: 0 2px 6px rgba(125, 38, 56, 0.2);
+}
+
+.cal-week-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #7a7066;
+  border-top: 1.5px solid #7d2638;
+  border-bottom: 1px solid #f0e9df;
+  padding: 10px 0;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.cal-cell {
+  min-height: 76px;
+  height: 76px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f4f0ea;
+  cursor: pointer;
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.cal-cell.empty {
+  cursor: default;
+  background-color: transparent;
+}
+
+.cal-cell.selected {
+  background-color: #fbf0f2;
+}
+
+.day-number {
+  font-size: 13px;
+  font-weight: 500;
+  color: #2b2523;
+  text-align: left;
+}
+
+/* 달력 셀 내부 일정 인디케이터 */
+.cell-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: auto;
+}
+
+.indicator-bar.prescription {
+  width: 100%;
+  height: 3px;
+  background-color: #7d2638;
+  border-radius: 2px;
+}
+
+.indicator-dots {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-start;
+}
+
+.indicator-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.indicator-dot.regular { background-color: #2b7044; }
+.indicator-dot.supplement { background-color: #b87b2b; }
+
+.cal-legend {
+  display: flex;
+  gap: 18px;
+  margin-top: 20px;
+  font-size: 12px;
+  color: #7a7066;
+}
+
+.cal-legend span { display: flex; align-items: center; gap: 6px; }
+.legend-bar.prescription { width: 12px; height: 3px; background: #7d2638; }
+.legend-dot.regular { width: 6px; height: 6px; border-radius: 50%; background: #2b7044; }
+.legend-dot.supplement { width: 6px; height: 6px; border-radius: 50%; background: #b87b2b; }
+
+/* 4. 우측 상세 패널 */
+.calendar-right {
+  flex: 1.05;
+  padding: 32px;
+  background: #fdfbf8;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.panel-header {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.panel-header-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.panel-sub {
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+  color: #8b3e4b;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.panel-today-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  background: #8b3e4b;
+  color: #ffffff;
+  padding: 1px 6px;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+
+.panel-header-bottom {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #2b2523;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.panel-day-of-week {
+  font-size: 14px;
+  font-weight: 600;
+  color: #7d6b67;
+}
+
+.panel-completion-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  padding: 2.5px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.panel-completion-badge.all-done {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+/* --------------------------------------------------------------------------
+   시간대별 세그먼트 컨트롤 탭 (1줄 균등 분할, 스크롤 없는 모던 세그먼트 UI)
+   -------------------------------------------------------------------------- */
+.calendar-slot-tabs {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  margin: 10px 0 16px;
+  padding: 4px;
+  background: #f4ecea;
+  border-radius: 9px;
+  border: 1px solid #ebd9d7;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.calendar-slot-tab {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #6b5552;
+  padding: 6px 2px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.calendar-slot-tab:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.65);
+  color: #8b3e4b;
+}
+
+.calendar-slot-tab.active {
+  background: #8b3e4b;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.2);
+}
+
+.cal-tab-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cal-tab-time {
+  display: none;
+}
+
+.cal-tab-badge {
+  font-size: 9.5px;
+  background: rgba(107, 85, 82, 0.1);
+  color: #6b5552;
+  padding: 1.5px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.calendar-slot-tab.active .cal-tab-badge {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.calendar-slot-tab.is-all-done .cal-tab-badge {
+  background: #7d2638;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.calendar-slot-tab.is-all-done:not(.active) {
+  color: #7d2638;
+}
+
+.calendar-slot-tab.active.is-all-done .cal-tab-badge {
+  background: #ffffff;
+  color: #8b3e4b;
+  font-weight: 800;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.cal-slot-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #7d2638;
+  background: #f7ebe9;
+  padding: 1px 6px;
+  border-radius: 4px;
+  letter-spacing: -0.2px;
+}
+
+.dose-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 480px;  /* 일정 목록이 길어질 때 최대 높이 제한 */
+  overflow-y: auto;   /* 넘치면 오른쪽 목록만 스크롤 */
+  padding-right: 6px;
+}
+
+.dose-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dose-list::-webkit-scrollbar-thumb {
+  background-color: #ded6c9;
+  border-radius: 4px;
+}
+
+/* 복약 항목 카드 공통 (상비약, 영양제, 개별 처방약) */
+.dose-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: 1px solid #ded6c9;
+  border-left: 3.5px solid #8c8278 !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.dose-item:hover {
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* 상시약 / 상비약 테두리 및 카드 스타일 */
+.dose-item.regular {
+  border: 1px solid #cce5d4;
+  border-left: 3.5px solid #2b7044 !important;
+  box-shadow: 0 1px 4px rgba(43, 112, 68, 0.04);
+}
+
+.dose-item.regular:hover {
+  box-shadow: 0 3px 8px rgba(43, 112, 68, 0.08);
+  border-color: #a7d4b4;
+}
+
+.dose-item.regular.done {
+  border-left-color: #2b7044 !important;
+  background: #fbfdfb;
+  border-color: #dcebe0;
+  opacity: 0.88;
+}
+
+/* 영양제 테두리 및 카드 스타일 */
+.dose-item.supplement {
+  border: 1px solid #fae6cb;
+  border-left: 3.5px solid #b87b2b !important;
+  box-shadow: 0 1px 4px rgba(184, 123, 43, 0.04);
+}
+
+.dose-item.supplement:hover {
+  box-shadow: 0 3px 8px rgba(184, 123, 43, 0.08);
+  border-color: #eccda5;
+}
+
+.dose-item.supplement.done {
+  border-left-color: #b87b2b !important;
+  background: #fdfbf8;
+  border-color: #f2e4d2;
+  opacity: 0.88;
+}
+
+/* 처방약 단건 테두리 및 카드 스타일 */
+.dose-item.prescription {
+  border: 1px solid #ebd0d5;
+  border-left: 3.5px solid #8b3e4b !important;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.04);
+}
+
+.dose-item.prescription:hover {
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.08);
+  border-color: #d6abb4;
+}
+
+.dose-item.prescription.done {
+  border-left-color: #8b3e4b !important;
+  background: #fcf9f8;
+  border-color: #e5d7d5;
+  opacity: 0.88;
+}
+
+.check-box {
+  width: 17px;
+  height: 17px;
+  accent-color: #8b3e4b;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+/* 상시약 / 상비약 체크박스 (메인 페이지 에메랄드 그린과 일치) */
+.dose-item.regular .check-box,
+.dose-item.regular .check-box:checked,
+.check-box.regular,
+.check-box.regular:checked {
+  accent-color: #2b7044 !important;
+}
+
+/* 영양제 체크박스 (메인 페이지 앰버 골드와 일치) */
+.dose-item.supplement .check-box,
+.dose-item.supplement .check-box:checked,
+.check-box.supplement,
+.check-box.supplement:checked {
+  accent-color: #b87b2b !important;
+}
+
+/* 처방약 체크박스 (메인 페이지 와인 레드와 일치) */
+.dose-item.prescription .check-box,
+.dose-item.prescription .check-box:checked,
+.cal-pouch-card .check-box,
+.cal-pouch-card .check-box:checked,
+.cal-pouch-sub-item .check-box,
+.cal-pouch-sub-item .check-box:checked,
+.check-box.prescription,
+.check-box.prescription:checked {
+  accent-color: #8b3e4b !important;
+}
+
+.dose-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #7a7066;
+}
+
+.type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.type-dot.prescription { background: #7d2638; }
+.type-dot.regular { background: #2b7044; }
+.type-dot.supplement { background: #b87b2b; }
+
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.dose-info strong.name {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #2b2523;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+  display: block;
+}
+
+.category-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.category-tag.cat-prescription {
+  color: #8b3e4b;
+  background: #faeff0 !important;
+  border: 1px solid #ebd0d5 !important;
+}
+
+.category-tag.cat-regular {
+  color: #2b7044;
+  background: #edf7f0 !important;
+  border: 1px solid #c8e6c9 !important;
+}
+
+.category-tag.cat-supplement {
+  color: #b87b2b;
+  background: #fdf5e8 !important;
+  border: 1px solid #fae1c3 !important;
+}
+
+.dose-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-alarm {
+  background: transparent;
+  border: none;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #b5aaa0;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.btn-alarm:hover {
+  background-color: #f4eee6;
+  color: #7d2638;
+}
+
+.btn-alarm.active {
+  background-color: transparent;
+  color: #7d2638;
+}
+
+.bell-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.btn-delete-schedule {
+  background: transparent;
+  border: none;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #b5aaa0;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.btn-delete-schedule svg {
+  width: 15px;
+  height: 15px;
+}
+
+.btn-delete-schedule:hover {
+  background-color: #fbf0f2;
+  color: #7d2638;
+}
+
+.btn-add-dose {
+  margin-top: 24px;
+  border: 1px dashed #ded6c9;
+  background: #ffffff;
+  padding: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a413a;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-add-dose:hover {
+  background-color: #f8f4ed;
+  border-color: #7d2638;
+  color: #7d2638;
+}
+
+/* 5. 모달 공통 레이아웃 */
+/* 작은 화면과 터치 기기에서 알림·삭제 아이콘의 누를 수 있는 영역 확보 */
+@media (max-width: 900px), (pointer: coarse) {
+  .calendar-page-wrap .btn-alarm,
+  .calendar-page-wrap .btn-delete-schedule {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    touch-action: manipulation;
+  }
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000 !important;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.modal-header h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: #7a7066;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* 알람 모달 */
+.alarm-modal {
+  background: #2a2c2c;
+  color: #e3e3e3;
+  width: 320px;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.alarm-modal .modal-header h4 { color: #ffffff; }
+
+.wheel-picker-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  border: 1px solid #4a4d4d;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 20px;
+  background: #202222;
+  user-select: none;
+}
+
+.picker-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: ns-resize;
+}
+
+.picker-column button {
+  background: none;
+  border: none;
+  color: #777;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+
+.picker-column button:hover { color: #fff; }
+
+.picker-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #fff;
+  height: 28px;
+  line-height: 28px;
+}
+
+.picker-value.clickable { cursor: pointer; }
+
+.picker-input {
+  width: 44px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  border-radius: 4px;
+  outline: none;
+}
+
+.picker-input:focus {
+  border-color: #7d2638;
+  background: #2c2f2f;
+}
+
+.picker-divider {
+  width: 1px;
+  height: 44px;
+  background-color: #4a4d4d;
+}
+
+.alarm-toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.switch {
+  position: relative;
+  width: 36px;
+  height: 18px;
+}
+
+.switch input { display: none; }
+
+.slider {
+  position: absolute;
+  inset: 0;
+  background-color: #4f5353;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+
+input:checked + .slider { background-color: #7d2638; }
+input:checked + .slider:before { transform: translateX(18px); }
+
+.modal-actions {
+  display: flex;
+  justify-content: center;
+}
+.modal-actions .btn-confirm {
+  background: none;
+  border: 1px solid #777;
+  color: #fff;
+  padding: 6px 28px;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.modal-actions .btn-confirm:hover {
+  background: #3a3d3d;
+}
+
+/* 복약 추가 모달 */
+.add-med-modal {
+  background: #ffffff;
+  color: #2b2523;
+  width: 440px;
+  max-width: 94vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px 26px;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e5dfd4;
+}
+
+/* 내 보관함 약품 빠른 선택 섹션 */
+.shelf-select-section {
+  margin-bottom: 14px;
+}
+
+.shelf-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.shelf-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5a5149;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.shelf-count {
+  font-size: 11px;
+  color: #8c827a;
+  font-weight: 600;
+}
+
+.shelf-manage-link {
+  font-size: 11px;
+  color: #7d2638;
+  text-decoration: none;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.shelf-manage-link:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.shelf-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 130px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.shelf-med-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fbf9f5;
+  border: 1px solid #ded6c9;
+  border-radius: 18px;
+  font-size: 12.5px;
+  color: #3b332e;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.shelf-med-chip:hover {
+  background: #f4eee4;
+  border-color: #c7bdad;
+}
+
+.shelf-med-chip.chip-reg.active {
+  background: #eef7f1;
+  border-color: #2b7044;
+  color: #1e5533;
+  font-weight: 600;
+}
+
+.shelf-med-chip.chip-sup.active {
+  background: #fdf5ea;
+  border-color: #b87b2b;
+  color: #8f5c1a;
+  font-weight: 600;
+}
+
+.shelf-med-chip .chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.shelf-med-chip .chip-text {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shelf-med-chip .chip-time-tag {
+  font-size: 10.5px;
+  color: #7a7066;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 5px;
+  border-radius: 10px;
+}
+
+.shelf-med-chip.active .chip-time-tag {
+  background: rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+}
+
+.shelf-med-chip .chip-check-icon {
+  font-size: 11px;
+  margin-left: 2px;
+}
+
+.shelf-empty-hint {
+  font-size: 12px;
+  color: #8c827a;
+  background: #fcfbf9;
+  border: 1px dashed #ded6c9;
+  border-radius: 6px;
+  padding: 10px 12px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* 구분선 */
+.form-group-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 14px 0 12px;
+}
+
+.form-group-divider::before,
+.form-group-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e8e2d8;
+}
+
+.form-group-divider span {
+  padding: 0 10px;
+  font-size: 11px;
+  color: #9c9288;
+  font-weight: 600;
+}
+
+/* 시간 자동 설정 안내 */
+.field-hint-time-auto {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: #2b7044;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 복용 반복 일수 선택 */
+.repeat-days-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.repeat-btn {
+  flex: 1;
+  min-width: 65px;
+  padding: 8px 4px;
+  background: #fbf9f5;
+  border: 1px solid #ded6c9;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #5a5149;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+
+.repeat-btn:hover {
+  background: #f4eee4;
+  border-color: #c7bdad;
+}
+
+.repeat-btn.active {
+  background: #7d2638;
+  border-color: #7d2638;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.field-hint-repeat {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #7d2638;
+  background: #fbf0f2;
+  border: 1px solid #f3d6da;
+  border-radius: 6px;
+  padding: 8px 12px;
+  line-height: 1.45;
+}
+
+.form-group {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a7066;
+  margin-bottom: 6px;
+}
+
+.form-group input[type="text"] {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd5c8;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: #2b2523;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.form-group input[type="text"]:focus {
+  border-color: #7d2638;
+}
+
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.search-results-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  z-index: 1050;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.search-result-item {
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #2b2523;
+  cursor: pointer;
+  border-bottom: 1px solid #f0e9df;
+  text-align: left;
+}
+
+.search-result-item:last-child { border-bottom: none; }
+.search-result-item:hover {
+  background-color: #fbf0f2;
+  color: #7d2638;
+}
+
+.selected-med-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 14px;
+  background-color: #fbf0f2;
+  border: 1px solid #e8c5ca;
+  border-radius: 20px;
+  color: #7d2638;
+  font-size: 13px;
+  font-weight: 600;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.selected-med-chip .chip-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.btn-remove-chip {
+  background: none;
+  border: none;
+  color: #7d2638;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+
+.btn-remove-chip:hover {
+  background-color: rgba(125, 38, 56, 0.15);
+}
+
+.selected-med-chip.shelf-source {
+  background-color: #f0f7f2;
+  border-color: #badfc7;
+  color: #1e5533;
+}
+
+.selected-med-chip.shelf-source .btn-remove-chip {
+  color: #1e5533;
+}
+
+.selected-med-chip.shelf-source .btn-remove-chip:hover {
+  background-color: rgba(30, 85, 51, 0.15);
+}
+
+.shelf-badge-tag {
+  background: #2b7044;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  letter-spacing: -0.2px;
+}
+
+.category-select-group {
+  display: flex;
+  gap: 8px;
+}
+
+.cat-btn {
+  flex: 1;
+  padding: 9px 0;
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-radius: 20px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cat-btn.active.reg {
+  background: #2b7044;
+  border-color: #2b7044;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.cat-btn.active.sup {
+  background: #b87b2b;
+  border-color: #b87b2b;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.wheel-picker-box.add-picker {
+  background: #fdfbf8;
+  border: 1px solid #ddd5c8;
+  padding: 10px;
+  margin-bottom: 0;
+}
+
+.wheel-picker-box.add-picker .picker-value { color: #2b2523; }
+.wheel-picker-box.add-picker .picker-input { color: #2b2523; }
+.wheel-picker-box.add-picker .picker-input:focus {
+  background: #f4eee6;
+  border-color: #7d2638;
+}
+.wheel-picker-box.add-picker .picker-divider { background-color: #e5dfd4; }
+.wheel-picker-box.add-picker .picker-column button { color: #7a7066; }
+
+.toast-success-banner {
+  background: #edf5ef;
+  color: #2b7044;
+  border: 1px solid #c7e3cf;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 6px;
+  text-align: center;
+  margin-top: 14px;
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.modal-actions-dual {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.btn-cancel {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  color: #4a413a;
+  padding: 11px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-cancel:hover {
+  background: #f8f4ed;
+  border-color: #7d2638;
+}
+
+.btn-save-med {
+  flex: 1.5;
+  background: #7d2638;
+  color: #ffffff;
+  border: none;
+  padding: 11px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-save-med:hover {
+  background: #631c2b;
+}
+
+/* ==========================================================================
+   6. 화면 정중앙 커스텀 삭제 모달 (컨셉 일치)
+   ========================================================================== */
+.custom-delete-modal {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 28px 24px;
+  width: 380px;
+  max-width: 92vw;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+  border: 1px solid #e5dfd4;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: modalPop 0.2s ease-out;
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.delete-modal-icon {
+  width: 48px;
+  height: 48px;
+  background-color: #fbf0f2;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.delete-modal-title {
+  margin: 0 0 10px 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.delete-modal-target-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0 0 10px 0;
+  background: #fdfbf8;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #f0e9df;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.delete-modal-target-box .target-type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.delete-modal-target-box .target-type-badge.prescription {
+  background-color: #f7e6e9;
+  color: #7d2638;
+}
+
+.delete-modal-target-box .target-type-badge.supplement {
+  background-color: #fef3e2;
+  color: #b26a00;
+}
+
+.delete-modal-target-box .target-type-badge.regular {
+  background-color: #e8f3fc;
+  color: #1a69a4;
+}
+
+.delete-modal-target-box .target-time-badge {
+  font-size: 12px;
+  color: #8c827a;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.delete-modal-target-box .target-med-name {
+  font-size: 14px;
+  color: #2b2523;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delete-modal-target {
+  margin: 0 0 6px 0;
+  font-size: 14px;
+  color: #7d2638;
+  background: #fdfbf8;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #f0e9df;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-hint-warning {
+  margin: 6px 0 0 0;
+  font-size: 11.5px;
+  color: #c0392b;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.field-hint-info {
+  margin: 6px 0 0 0;
+  font-size: 11.5px;
+  color: #7a7066;
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.delete-modal-desc {
+  margin: 0 0 18px 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #8c827a;
+  word-break: keep-all;
+}
+
+.delete-modal-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.btn-delete-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 11px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-delete-choice .choice-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.btn-delete-choice .choice-desc {
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1.3;
+}
+
+.btn-choice-single {
+  background: #fdfbf8;
+  border: 1px solid #ded6c9;
+  color: #3d352e;
+}
+
+.btn-choice-single:hover {
+  background: #f5eedf;
+  border-color: #b8aba0;
+}
+
+.btn-choice-all {
+  background: #7d2638;
+  border: 1px solid #7d2638;
+  color: #ffffff;
+}
+
+.btn-choice-all:hover {
+  background: #631c2b;
+  border-color: #631c2b;
+  box-shadow: 0 4px 12px rgba(125, 38, 56, 0.25);
+}
+
+.delete-modal-footer {
+  width: 100%;
+}
+
+.delete-modal-footer .btn-modal-cancel {
+  width: 100%;
+  padding: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  color: #665c54;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.delete-modal-footer .btn-modal-cancel:hover {
+  background: #f8f4ed;
+  border-color: #8c827a;
+}
+
+/* ==========================================================================
+   7. 반응형 모바일 레이아웃: SELECTED DATE 패널을 하단으로 배치
+   ========================================================================== */
+@media (max-width: 900px) {
+  .calendar-main-card {
+    flex-direction: column;
+    min-height: auto;
+  }
+
+  .calendar-left {
+    flex: none;
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #f0e9df;
+    position: static;
+    top: auto;
+    align-self: stretch;
+    padding: 24px 20px 20px;
+  }
+
+  .calendar-right {
+    flex: none;
+    width: 100%;
+    padding: 24px 20px 32px;
+  }
+
+  .dose-info strong.name {
+    max-width: none;
+  }
+
+  .dose-list {
+    max-height: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .calendar-page-wrap {
+    gap: 14px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+
+  .calendar-left {
+    padding: 16px 12px 14px;
+  }
+
+  .cal-nav {
+    margin-bottom: 14px;
+  }
+
+  .month-controls h2,
+  .month-picker-trigger-btn .picker-title-text {
+    font-size: 16px;
+  }
+
+  .month-controls button {
+    padding: 3px 8px;
+    font-size: 13px;
+  }
+
+  .btn-today {
+    padding: 3px 10px;
+    font-size: 11px;
+  }
+
+  .cal-week-header {
+    font-size: 10px;
+    padding: 8px 0;
+  }
+
+  .cal-cell {
+    min-height: 52px;
+    height: 52px;
+    padding: 4px 4px 5px;
+  }
+
+  .day-number {
+    font-size: 12px;
+  }
+
+  .cal-legend {
+    gap: 12px;
+    font-size: 11px;
+    padding-top: 10px;
+  }
+
+  .calendar-right {
+    padding: 20px 12px 28px;
+  }
+
+  .panel-header {
+    margin-bottom: 14px;
+  }
+
+  .panel-header h3 {
+    font-size: 18px;
+  }
+
+  .calendar-slot-tabs {
+    margin: 8px 0 14px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .calendar-slot-tab {
+    padding: 6px 2px;
+  }
+
+  .cal-tab-label {
+    font-size: 11px;
+  }
+
+  .cal-tab-badge {
+    font-size: 9.5px;
+  }
+
+  .btn-add-dose {
+    margin-top: 18px;
+    padding: 10px;
+  }
+}
+
+/* ==========================================================================
+   캘린더 처방약 봉지(Pouch) 카드 & 상세 스타일
+   ========================================================================== */
+.cal-pouch-card {
+  border-left: 3.5px solid #8b3e4b !important;
+  background: #ffffff;
+  border: 1px solid #ebd0d5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.04);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.cal-pouch-card:hover {
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.08);
+  border-color: #d6abb4;
+}
+
+.cal-pouch-card.done,
+.cal-pouch-card.is-completed {
+  border-left-color: #8b3e4b !important;
+  background: #fcf9f8;
+  border-color: #e5d7d5;
+  opacity: 0.88;
+}
+
+.cal-pouch-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.cal-pouch-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.cal-pouch-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cal-pouch-tag {
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  color: #8b3e4b;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+
+.cal-pouch-card.done .cal-pouch-tag,
+.cal-pouch-card.is-completed .cal-pouch-tag {
+  background: #faeff0;
+  color: #8b3e4b;
+  border-color: #ebd0d5;
+}
+
+.cal-pouch-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #2b2523;
+  letter-spacing: -0.2px;
+}
+
+.cal-pouch-purpose-chip {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.cal-pouch-count {
+  font-size: 11px;
+  color: #8c8278;
+  font-weight: 600;
+}
+
+.cal-pouch-meta-sub {
+  font-size: 11px;
+  color: #7d6b67;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
+}
+
+.cal-pouch-hospital {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7d6b67;
+}
+
+.cal-pouch-pills {
+  font-size: 11px;
+  color: #9c9289;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-pouch-right {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.btn-cal-pouch-batch {
+  background: #8b3e4b;
+  color: #ffffff;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-cal-pouch-batch:hover {
+  background: #732f3c;
+  transform: translateY(-1px);
+}
+
+.btn-cal-pouch-batch.completed {
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+}
+
+.btn-cal-pouch-batch.completed:hover {
+  background: #f5dde0;
+  transform: none;
+}
+
+.btn-pouch-expand-cal {
+  background: #fbf9f5;
+  border: 1px solid #ded6c9;
+  color: #6b6059;
+  height: 26px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 700;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-pouch-expand-cal:hover {
+  background: #f4eee4;
+  border-color: #baa996;
+  color: #2b2523;
+}
+
+.btn-pouch-expand-cal:hover {
+  background: #f4eee4;
+  border-color: #baa996;
+  color: #2b2523;
+}
+
+/* 캘린더 아코디언 펼침 목록 */
+.cal-pouch-expanded-list {
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #fbf9f6;
+  border-radius: 6px;
+  border: 1px dashed #ded6c9;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: calPouchFadeIn 0.2s ease-out;
+}
+
+@keyframes calPouchFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cal-pouch-sub-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 8px;
+  background: #ffffff;
+  border: 1px solid #eee8df;
+  border-radius: 4px;
+}
+
+.cal-pouch-sub-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cal-pouch-sub-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #8b3e4b;
+  flex-shrink: 0;
+}
+
+.cal-pouch-card.is-completed .cal-pouch-sub-dot {
+  background: #2e7d32;
+}
+
+.cal-pouch-sub-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b332e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-pouch-sub-dosage {
+  font-size: 10.5px;
+  color: #8c8278;
+}
+
+.btn-cal-sub-check {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  border: 1px solid #d4c6b5;
+  background: #ffffff;
+  color: #6b6059;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-cal-sub-check:hover {
+  background: #f4eee4;
+}
+
+/* 달력·일정·모달 안의 긴 약명을 실제 카드 폭에 맞춰 줄바꿈; 다른 페이지의 공통 클래스와 분리 */
+.calendar-page-wrap,
+.calendar-page-wrap :is(.calendar-main-card, .calendar-left, .calendar-right,
+  .panel-header, .dose-list, .dose-info, .cal-pouch-card, .cal-pouch-sub-item,
+  .shelf-med-chip, .selected-med-chip) {
+  min-width: 0;
+}
+
+.calendar-page-wrap :is(.time-row, .name-row, .cal-legend, .panel-header-bottom,
+  .shelf-section-header, .delete-modal-target-box) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendar-page-wrap .dose-info {
+  overflow: visible;
+}
+
+.calendar-page-wrap :is(.dose-info strong.name, .cal-pouch-meta-sub,
+  .cal-pouch-pills, .cal-pouch-sub-name, .cal-pouch-purpose-chip,
+  .shelf-med-chip .chip-text, .selected-med-chip .chip-name,
+  .delete-modal-target, .delete-modal-target-box .target-med-name) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.calendar-page-wrap .name-row strong.name {
+  flex: 1 1 140px;
+}
+
+.calendar-page-wrap .cal-pouch-sub-name {
+  flex: 1;
+}
+
+.calendar-page-wrap :is(.cal-pouch-sub-item, .shelf-med-chip, .selected-med-chip) {
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.calendar-page-wrap :is(.cal-pouch-purpose-chip, .shelf-med-chip) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.calendar-page-wrap :is(.modal-overlay, .alarm-modal, .add-med-modal,
+  .custom-delete-modal) {
+  box-sizing: border-box;
+}
+
+.calendar-page-wrap :is(.alarm-modal, .add-med-modal, .custom-delete-modal) {
+  min-width: 0;
+  max-width: 100%;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.calendar-page-wrap .modal-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.calendar-page-wrap .modal-header > :is(h2, h3, h4) {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.calendar-page-wrap :is(.btn-close, .btn-remove-chip) {
+  flex-shrink: 0;
+}
+
+.calendar-page-wrap :is(.modal-actions-dual, .category-select-group) {
+  flex-wrap: wrap;
+}
+
+.calendar-page-wrap :is(.field-hint-info, .field-hint-warning, .field-hint-time-auto,
+  .delete-modal-desc, .choice-desc, .search-result-item) {
+  min-width: 0;
+  line-height: 1.65;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.calendar-page-wrap .delete-modal-target-box .target-med-name {
+  flex-basis: 100%;
+}
+
+@media (max-width: 560px) {
+  .calendar-page-wrap .cal-nav {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .calendar-page-wrap .month-controls {
+    gap: 2px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 체크박스·약명은 첫 줄, 세부 보기·알림·삭제는 두 번째 줄에 배치 */
+  .calendar-page-wrap :is(.dose-item, .cal-pouch-main-row) {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+  }
+
+  .calendar-page-wrap :is(.dose-item, .cal-pouch-main-row) > .check-box {
+    margin-top: 3px;
+  }
+
+  .calendar-page-wrap .dose-item-actions {
+    grid-column: 2;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .calendar-page-wrap .btn-pouch-expand-cal {
+    min-height: 44px;
+    height: auto;
+    padding: 8px 10px;
+  }
+
+  .calendar-page-wrap .cal-pouch-sub-item {
+    align-items: flex-start;
+  }
+
+  .calendar-page-wrap .modal-overlay {
+    padding: 12px;
+  }
+
+  .calendar-page-wrap :is(.alarm-modal, .add-med-modal, .custom-delete-modal) {
+    padding: 20px 16px;
+    max-height: calc(100dvh - 24px);
+  }
+
+  .calendar-page-wrap .shelf-med-chip .chip-text {
+    flex: 1;
+  }
+
+  .calendar-page-wrap .shelf-med-chip {
+    width: 100%;
+  }
+}
+
+.btn-cal-sub-check.checked {
+  background: #2e7d32;
+  color: #ffffff;
+  border-color: #2e7d32;
+}

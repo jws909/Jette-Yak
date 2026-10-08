@@ -1,0 +1,766 @@
+package com.app.service;
+
+import java.time.LocalDate;
+import java.time.DayOfWeek;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.app.dao.ScheduleDAO;
+import com.app.domain.User;
+import com.app.domain.UserMealTime;
+import com.app.dto.ScheduleAddDTO;
+import com.app.dto.ScheduleDTO;
+import com.app.mapper.UserMapper;
+import com.app.prescription.dao.PrescriptionDAO;
+import com.app.prescription.dto.PrescriptionDTO;
+import com.app.prescription.dto.PrescriptionItemDTO;
+
+import java.text.SimpleDateFormat;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+@Service
+public class ScheduleServiceImpl implements ScheduleService {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private void parsePrescriptionMeta(PrescriptionDTO p) {
+        if (p == null) return;
+        if (p.getAiSummaryJson() != null && !p.getAiSummaryJson().isBlank()) {
+            try {
+                JsonNode parsedNode = objectMapper.readTree(p.getAiSummaryJson());
+                if ((p.getHospitalName() == null || p.getHospitalName().isBlank()) && parsedNode.has("hospitalName") && !parsedNode.get("hospitalName").isNull()) {
+                    p.setHospitalName(parsedNode.get("hospitalName").asText());
+                }
+                if ((p.getNickname() == null || p.getNickname().isBlank()) && parsedNode.has("nickname") && !parsedNode.get("nickname").isNull()) {
+                    p.setNickname(parsedNode.get("nickname").asText());
+                }
+                if (parsedNode.has("aiGuide") && !parsedNode.get("aiGuide").isNull()) {
+                    p.setAiGuide(parsedNode.get("aiGuide"));
+                }
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    @Autowired
+    private ScheduleDAO scheduleDAO;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private PrescriptionDAO prescriptionDAO;
+
+    @Autowired(required = false)
+    private com.app.guide.dao.MedicationGuideDao medicationGuideDao;
+
+    private static class SlotInfo {
+        String slot;
+        String slotLabel;
+        String time;
+
+        SlotInfo(String slot, String slotLabel, String time) {
+            this.slot = slot;
+            this.slotLabel = slotLabel;
+            this.time = time;
+        }
+    }
+
+    private String addMinutes(String timeStr, int minutesToAdd) {
+        if (timeStr == null || !timeStr.contains(":")) {
+            timeStr = "08:00";
+        }
+        try {
+            String[] parts = timeStr.trim().split(":");
+            int h = Integer.parseInt(parts[0]);
+            int m = Integer.parseInt(parts[1]);
+            int totalM = h * 60 + m + minutesToAdd;
+            totalM = ((totalM % 1440) + 1440) % 1440;
+            int newH = totalM / 60;
+            int newM = totalM % 60;
+            return String.format("%02d:%02d", newH, newM);
+        } catch (Exception e) {
+            return timeStr;
+        }
+    }
+
+    private int parseTimingOffset(String usageTiming) {
+        if (usageTiming == null) return 30;
+        String t = usageTiming.toLowerCase();
+        if (t.contains("식전 30분") || t.contains("식전30분")) return -30;
+        if (t.contains("식전 1시간") || t.contains("식전1시간")) return -60;
+        if (t.contains("식전")) return -30;
+        if (t.contains("직후") || t.contains("식사직후")) return 0;
+        if (t.contains("취침") || t.contains("자기전")) return 0;
+        return 30; // 기본 식후 30분
+    }
+
+    private List<SlotInfo> getIntakeSlots(Integer dailyFrequency, String usageTiming, 
+                                          String bTime, String lTime, String dTime, String bedTime) {
+        int freq = dailyFrequency != null ? dailyFrequency : 0;
+        String timing = usageTiming != null ? usageTiming.toLowerCase() : "";
+        int offset = parseTimingOffset(usageTiming);
+
+        // 용법(timing) 문구에 명시된 1회/2회/3회 복용 정보가 있다면 DB 수치보다 최우선 적용 (DB 이상값 방어)
+        if (timing.contains("1일 1회") || timing.contains("1일1회") || timing.contains("하루 1회") || timing.contains("하루1회") 
+                || (timing.contains("1회") && !timing.contains("2회") && !timing.contains("3회") && !timing.contains("4회"))) {
+            freq = 1;
+        } else if (timing.contains("2회") && !timing.contains("3회")) {
+            freq = 2;
+        } else if (timing.contains("3회") || (timing.contains("아침") && timing.contains("점심") && timing.contains("저녁")) || timing.contains("매 식후") || timing.contains("매식후")) {
+            freq = 3;
+        }
+
+        SlotInfo bSlot = new SlotInfo("breakfast", "아침", addMinutes(bTime, offset));
+        SlotInfo lSlot = new SlotInfo("lunch", "점심", addMinutes(lTime, offset));
+        SlotInfo dSlot = new SlotInfo("dinner", "저녁", addMinutes(dTime, offset));
+        SlotInfo bedSlot = new SlotInfo("bedtime", "취침전", bedTime != null ? bedTime : "22:00");
+
+        List<SlotInfo> slots = new ArrayList<>();
+
+        if (freq == 1) {
+            if (timing.contains("취침") || timing.contains("자기전") || timing.contains("취침전")) {
+                slots.add(bedSlot);
+            } else if (timing.contains("저녁")) {
+                slots.add(dSlot);
+            } else if (timing.contains("점심")) {
+                slots.add(lSlot);
+            } else {
+                slots.add(bSlot);
+            }
+            return slots;
+        }
+
+        if (freq == 2) {
+            if (timing.contains("점심") && timing.contains("저녁")) {
+                slots.add(lSlot);
+                slots.add(dSlot);
+            } else if (timing.contains("아침") && timing.contains("점심")) {
+                slots.add(bSlot);
+                slots.add(lSlot);
+            } else if (timing.contains("취침") || timing.contains("자기전")) {
+                slots.add(bSlot);
+                slots.add(bedSlot);
+            } else {
+                slots.add(bSlot);
+                slots.add(dSlot);
+            }
+            return slots;
+        }
+
+        if (freq == 3) {
+            slots.add(bSlot);
+            slots.add(lSlot);
+            slots.add(dSlot);
+            return slots;
+        }
+
+        if (freq >= 4) {
+            slots.add(bSlot);
+            slots.add(lSlot);
+            slots.add(dSlot);
+            slots.add(bedSlot);
+            return slots;
+        }
+
+        // freq가 명시되지 않은 경우 텍스트 유추
+        if (timing.contains("3회") || (timing.contains("아침") && timing.contains("점심") && timing.contains("저녁")) || timing.contains("매 식후") || timing.contains("매식후")) {
+            slots.add(bSlot);
+            slots.add(lSlot);
+            slots.add(dSlot);
+            return slots;
+        }
+        if (timing.contains("2회") || (timing.contains("아침") && timing.contains("저녁"))) {
+            slots.add(bSlot);
+            slots.add(dSlot);
+            return slots;
+        }
+        if (timing.contains("취침") || timing.contains("자기전")) {
+            slots.add(bedSlot);
+            return slots;
+        }
+
+        // 기본값: 3회 복용 (아침, 점심, 저녁)
+        slots.add(bSlot);
+        slots.add(lSlot);
+        slots.add(dSlot);
+        return slots;
+    }
+
+    private void assignSlotByTime(ScheduleDTO item) {
+        if (item.getSlot() != null && !item.getSlot().isEmpty()) return;
+        String t = item.getTime();
+        if (t == null || !t.contains(":")) {
+            item.setSlot("breakfast");
+            item.setSlotLabel("아침");
+            return;
+        }
+        try {
+            int h = Integer.parseInt(t.split(":")[0]);
+            if (h < 11) {
+                item.setSlot("breakfast");
+                item.setSlotLabel("아침");
+            } else if (h < 16) {
+                item.setSlot("lunch");
+                item.setSlotLabel("점심");
+            } else if (h < 21) {
+                item.setSlot("dinner");
+                item.setSlotLabel("저녁");
+            } else {
+                item.setSlot("bedtime");
+                item.setSlotLabel("취침전");
+            }
+        } catch (Exception e) {
+            item.setSlot("breakfast");
+            item.setSlotLabel("아침");
+        }
+    }
+
+    private UserMealTime resolveMealTime(Long userId, String dateStr) {
+        if (userId == null) return null;
+        LocalDate targetLocalDate;
+        try {
+            targetLocalDate = (dateStr != null && !dateStr.trim().isEmpty()) ? LocalDate.parse(dateStr.trim()) : LocalDate.now();
+        } catch (Exception e) {
+            targetLocalDate = LocalDate.now();
+        }
+        boolean isWeekend = (targetLocalDate.getDayOfWeek() == DayOfWeek.SATURDAY || targetLocalDate.getDayOfWeek() == DayOfWeek.SUNDAY);
+        UserMealTime mealTime = userMapper.findMealTimeByUserIdAndDayType(userId, isWeekend ? "WEEKEND" : "WEEKDAY");
+        if (mealTime == null) {
+            mealTime = userMapper.findMealTimeByUserIdAndDayType(userId, "WEEKDAY");
+        }
+        return mealTime;
+    }
+
+    @Override
+    public List<ScheduleDTO> getDailySchedules(Long userId, String date) {
+        if (userId == null || userId <= 0L || date == null || date.isBlank()) {
+            return Collections.emptyList();
+        }
+
+        // 1. DB에 실체화된 스케줄 조회 (상시약, 영양제, 실체화된 처방약)
+        List<ScheduleDTO> physicalList = scheduleDAO.selectDailySchedules(userId, date);
+        if (physicalList == null) physicalList = new ArrayList<>();
+        Set<Long> inactiveItems = new HashSet<>(scheduleDAO.selectInactivePrescriptionItemIds(userId));
+
+        // 2. 사용자별 기준 식사 시간 조회 (평일/주말 구분)
+        UserMealTime mealTime = resolveMealTime(userId, date);
+        User user = (mealTime == null) ? userMapper.findById(userId) : null;
+        String bTime = mealTime != null ? mealTime.getBreakfastTime() : (user != null && user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+        String lTime = mealTime != null ? mealTime.getLunchTime() : (user != null && user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+        String dTime = mealTime != null ? mealTime.getDinnerTime() : (user != null && user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+        String bedTime = mealTime != null ? mealTime.getBedtime() : (user != null && user.getBedtime() != null ? user.getBedtime() : "22:00");
+
+        // 3. 해당 날짜에 유효한 사용자의 처방전 목록 조회
+        LocalDate targetLocalDate;
+        try {
+            targetLocalDate = LocalDate.parse(date.trim());
+        } catch (Exception e) {
+            targetLocalDate = LocalDate.now();
+        }
+
+        List<PrescriptionDTO> rxList = prescriptionDAO.getPrescriptionListByUserId(userId);
+        if (rxList != null) {
+            for (PrescriptionDTO p : rxList) {
+                parsePrescriptionMeta(p);
+            }
+        }
+
+        List<ScheduleDTO> combinedList = new ArrayList<>();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        for (ScheduleDTO ps : physicalList) {
+            assignSlotByTime(ps);
+            if (Boolean.TRUE.equals(ps.getIsCancelled())) {
+                continue;
+            }
+            if (ps.getPrescriptionId() != null && rxList != null) {
+                for (PrescriptionDTO p : rxList) {
+                    if (p.getPrescriptionId() != null && p.getPrescriptionId().equals(ps.getPrescriptionId())) {
+                        ps.setHospitalName(p.getHospitalName());
+                        if (p.getDispensedDate() != null) {
+                            ps.setDispensedDate(sdf.format(p.getDispensedDate()));
+                        }
+                        ps.setPrescriptionNickname(p.getNickname());
+                        if (p.getAiGuide() != null && p.getAiGuide().has("purpose") && !p.getAiGuide().get("purpose").isNull()) {
+                            ps.setPrescriptionPurpose(p.getAiGuide().get("purpose").asText());
+                        }
+                        break;
+                    }
+                }
+            }
+            combinedList.add(ps);
+        }
+
+        if (rxList != null) {
+            for (PrescriptionDTO p : rxList) {
+                if (p.getDispensedDate() == null) continue;
+                int totalDays = p.getTotalDays() != null && p.getTotalDays() > 0 ? p.getTotalDays() : 1;
+                LocalDate startDate = p.getDispensedDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+                LocalDate endDate = startDate.plusDays(totalDays);
+
+                if (!targetLocalDate.isBefore(startDate) && targetLocalDate.isBefore(endDate)) {
+                    List<PrescriptionItemDTO> items = p.getItems();
+                    if (items == null || items.isEmpty()) {
+                        items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(p.getPrescriptionId());
+                    }
+                    if (items == null) continue;
+
+                    for (PrescriptionItemDTO pi : items) {
+                        // 전체 일정 삭제로 중지한 처방약은 가상 일정도 다시 만들지 않음
+                        if (inactiveItems.contains(pi.getItemId())) continue;
+                        List<SlotInfo> slots = getIntakeSlots(pi.getDailyFrequency(), pi.getUsageTiming(), bTime, lTime, dTime, bedTime);
+                        for (int slotIdx = 0; slotIdx < slots.size(); slotIdx++) {
+                            SlotInfo s = slots.get(slotIdx);
+
+                            // 이미 실체화된 스케줄에 동일 처방전 + 약품 + 시간대(또는 슬롯)가 있는지 확인
+                            boolean alreadyExists = physicalList.stream().anyMatch(ps -> 
+                                ps.getPrescriptionId() != null 
+                                && ps.getPrescriptionId().equals(p.getPrescriptionId())
+                                && ps.getMedicationId() != null 
+                                && ps.getMedicationId().equals(pi.getMedicationId())
+                                && (s.time.equals(ps.getTime()) || (ps.getSlot() != null && ps.getSlot().equals(s.slot)))
+                            );
+
+                            if (!alreadyExists) {
+                                ScheduleDTO dto = new ScheduleDTO();
+                                long virtualId = (p.getPrescriptionId() != null ? p.getPrescriptionId() : 1L) * 100000L
+                                        + (pi.getItemId() != null ? pi.getItemId() : 1L) * 10L
+                                        + slotIdx;
+                                dto.setScheduleId(virtualId);
+                                dto.setMedicationId(pi.getMedicationId());
+                                dto.setPrescriptionId(p.getPrescriptionId());
+                                dto.setName(pi.getItemName() != null ? pi.getItemName() : "처방 의약품");
+                                dto.setType("prescription");
+                                dto.setTime(s.time);
+                                dto.setTakenAt(null);
+                                dto.setAlarmEnabled(true);
+                                dto.setSlot(s.slot);
+                                dto.setSlotLabel(s.slotLabel);
+                                dto.setHospitalName(p.getHospitalName());
+                                if (p.getDispensedDate() != null) {
+                                    dto.setDispensedDate(sdf.format(p.getDispensedDate()));
+                                }
+                                dto.setPrescriptionNickname(p.getNickname());
+                                if (p.getAiGuide() != null && p.getAiGuide().has("purpose") && !p.getAiGuide().get("purpose").isNull()) {
+                                    dto.setPrescriptionPurpose(p.getAiGuide().get("purpose").asText());
+                                }
+                                combinedList.add(dto);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 4. 슬롯 및 시간 순 정렬
+        Map<String, Integer> slotOrder = Map.of(
+            "breakfast", 1,
+            "lunch", 2,
+            "dinner", 3,
+            "bedtime", 4
+        );
+        combinedList.sort((a, b) -> {
+            int sa = slotOrder.getOrDefault(a.getSlot(), 99);
+            int sb = slotOrder.getOrDefault(b.getSlot(), 99);
+            if (sa != sb) return Integer.compare(sa, sb);
+            String ta = a.getTime() != null ? a.getTime() : "";
+            String tb = b.getTime() != null ? b.getTime() : "";
+            int timeCmp = ta.compareTo(tb);
+            if (timeCmp != 0) return timeCmp;
+            return Long.compare(a.getScheduleId() != null ? a.getScheduleId() : 0L, b.getScheduleId() != null ? b.getScheduleId() : 0L);
+        });
+
+        return combinedList;
+    }
+
+    @Override
+    public List<Map<String, Object>> getMonthlySummary(Long userId, String yearMonth) {
+        return scheduleDAO.selectMonthlyScheduleSummary(userId, yearMonth);
+    }
+
+    @Override
+    public List<Map<String, Object>> searchMedications(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return scheduleDAO.searchMedications(keyword.trim());
+    }
+
+    @Override
+    @Transactional
+    public boolean toggleTaken(Long scheduleId, boolean isTaken) {
+        return toggleTaken(scheduleId, isTaken, null);
+    }
+
+    @Override
+    @Transactional
+    public boolean toggleTaken(Long scheduleId, boolean isTaken, String date) {
+        if (scheduleId == null) return false;
+
+        // 숫자가 가상 ID 범위여도 실제 일정이 있으면 해당 행을 우선 처리
+        ScheduleDTO physical = scheduleDAO.selectScheduleById(scheduleId);
+        if (physical == null && scheduleId >= 100000L) {
+            long pId = scheduleId / 100000L;
+            long rem = scheduleId % 100000L;
+            long itemId = rem / 10L;
+            long slotIdx = rem % 10L;
+
+            PrescriptionDTO p = prescriptionDAO.getPrescriptionById(pId);
+            if (p != null) {
+                List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(pId);
+                PrescriptionItemDTO matched = items != null ? items.stream()
+                        .filter(it -> it.getItemId() != null && it.getItemId().equals(itemId))
+                        .findFirst().orElse(null) : null;
+                if (matched != null) {
+                    UserMealTime mealTime = resolveMealTime(p.getUserId(), date);
+                    User user = (mealTime == null) ? userMapper.findById(p.getUserId()) : null;
+                    String bTime = mealTime != null ? mealTime.getBreakfastTime() : (user != null && user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+                    String lTime = mealTime != null ? mealTime.getLunchTime() : (user != null && user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+                    String dTime = mealTime != null ? mealTime.getDinnerTime() : (user != null && user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+                    String bedTime = mealTime != null ? mealTime.getBedtime() : (user != null && user.getBedtime() != null ? user.getBedtime() : "22:00");
+
+                    List<SlotInfo> slots = getIntakeSlots(matched.getDailyFrequency(), matched.getUsageTiming(), bTime, lTime, dTime, bedTime);
+                    String time = (slotIdx >= 0 && slotIdx < slots.size()) ? slots.get((int) slotIdx).time : "08:30";
+                    String schedDate = (date != null && !date.trim().isEmpty()) ? date.trim() : LocalDate.now().toString();
+
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("userId", p.getUserId());
+                    params.put("prescriptionId", pId);
+                    params.put("medicationId", matched.getMedicationId());
+                    params.put("scheduledDate", schedDate);
+                    params.put("newTime", time);
+                    params.put("alarmEnabled", 1);
+                    params.put("isTaken", isTaken ? 1 : 0);
+                    return scheduleDAO.insertPrescriptionSchedule(params) > 0;
+                }
+            }
+        }
+
+        return scheduleDAO.updateTakenStatus(scheduleId, isTaken) > 0;
+    }
+
+    @Override
+    @Transactional
+    public boolean toggleTakenBatch(List<Long> scheduleIds, boolean isTaken, String date) {
+        if (scheduleIds == null || scheduleIds.isEmpty()
+                || scheduleIds.stream().anyMatch(id -> id == null || id <= 0L)) {
+            throw new IllegalArgumentException("복용 체크할 일정을 확인해 주세요.");
+        }
+        // 한 건이라도 실패하면 같은 트랜잭션의 앞선 변경도 취소
+        for (Long scheduleId : new LinkedHashSet<>(scheduleIds)) {
+            if (!toggleTaken(scheduleId, isTaken, date)) {
+                throw new IllegalStateException("일괄 복용 체크를 완료하지 못했어요.");
+            }
+        }
+        return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled) {
+        return updateAlarmTime(scheduleId, newTime, alarmEnabled, null);
+    }
+
+    @Override
+    @Transactional
+    public boolean updateAlarmTime(Long scheduleId, String newTime, boolean alarmEnabled, String date) {
+        if (scheduleId == null) return false;
+
+        ScheduleDTO physical = scheduleDAO.selectScheduleById(scheduleId);
+        if (physical == null && scheduleId >= 100000L) {
+            long pId = scheduleId / 100000L;
+            long rem = scheduleId % 100000L;
+            long itemId = rem / 10L;
+
+            PrescriptionDTO p = prescriptionDAO.getPrescriptionById(pId);
+            if (p != null) {
+                List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(pId);
+                PrescriptionItemDTO matched = items != null ? items.stream()
+                        .filter(it -> it.getItemId() != null && it.getItemId().equals(itemId))
+                        .findFirst().orElse(null) : null;
+                if (matched != null) {
+                    String schedDate = (date != null && !date.trim().isEmpty()) ? date.trim() : LocalDate.now().toString();
+                    Map<String, Object> params = new HashMap<>();
+                    params.put("userId", p.getUserId());
+                    params.put("prescriptionId", pId);
+                    params.put("medicationId", matched.getMedicationId());
+                    params.put("scheduledDate", schedDate);
+                    params.put("newTime", newTime != null ? newTime : "08:30");
+                    params.put("alarmEnabled", alarmEnabled ? 1 : 0);
+                    params.put("isTaken", 0);
+                    return scheduleDAO.insertPrescriptionSchedule(params) > 0;
+                }
+            }
+        }
+
+        return scheduleDAO.updateAlarmTime(scheduleId, newTime, alarmEnabled) > 0;
+    }
+
+    @Override
+    @Transactional
+    public boolean addSchedule(ScheduleAddDTO dto) {
+        if ("regular".equalsIgnoreCase(dto.getType())) {
+            if (dto.getCabinetId() != null && dto.getCabinetId() > 0L) {
+                String foundMedId = scheduleDAO.findMedicationIdByCabinetId(dto.getUserId(), dto.getCabinetId());
+                if (foundMedId == null || foundMedId.isBlank()
+                        || (dto.getMedicationId() != null && !dto.getMedicationId().isBlank()
+                            && !foundMedId.equals(dto.getMedicationId().trim()))) {
+                    throw new IllegalArgumentException("선택한 보관 약 정보를 확인해 주세요.");
+                }
+                dto.setMedicationId(foundMedId);
+            }
+            if (dto.getMedicationId() == null || dto.getMedicationId().trim().isEmpty()) {
+                throw new IllegalArgumentException("상시약은 의약품 목록에서 약을 선택해야 등록할 수 있습니다.");
+            }
+            if (!scheduleDAO.checkMedicationExists(dto.getMedicationId())) {
+                throw new IllegalArgumentException("선택하신 약품이 의약품 목록에 존재하지 않아 상시약으로 등록할 수 없습니다.");
+            }
+
+            Long cabinetId = (dto.getCabinetId() != null && dto.getCabinetId() > 0L)
+                    ? dto.getCabinetId()
+                    : scheduleDAO.findOrCreateCabinetId(dto.getUserId(), dto.getMedicationId());
+            dto.setCabinetId(cabinetId);
+            dto.setRoutineId(null);
+            dto.setPrescriptionId(null);
+
+        } else if ("supplement".equalsIgnoreCase(dto.getType())) {
+            String supName = dto.getName();
+            if (supName == null || supName.trim().isEmpty()) {
+                throw new IllegalArgumentException("영양제 이름을 입력해 주세요.");
+            }
+
+            String linkedMedicationId=dto.getMedicationId();
+            if(linkedMedicationId!=null&&!linkedMedicationId.isBlank()
+                    && !scheduleDAO.checkMedicationExists(linkedMedicationId))
+                throw new IllegalArgumentException("선택한 제품 정보를 찾을 수 없습니다.");
+            String defaultTakeTime = (dto.getWeekdayTime() != null && !dto.getWeekdayTime().isBlank())
+                    ? dto.getWeekdayTime().trim()
+                    : dto.getScheduledTime();
+            Long routineId = scheduleDAO.findOrCreateRoutineId(dto.getUserId(), supName.trim(),
+                    defaultTakeTime, "일정에서 등록", linkedMedicationId);
+            dto.setRoutineId(routineId);
+            dto.setCabinetId(null);
+            dto.setPrescriptionId(null);
+            dto.setMedicationId(linkedMedicationId);
+        }
+
+        LocalDate startDate;
+        try {
+            startDate = LocalDate.parse(dto.getScheduledDate().trim());
+        } catch (Exception e) {
+            startDate = LocalDate.now();
+        }
+
+        int repeatDays = (dto.getRepeatDays() != null && dto.getRepeatDays() > 0) ? dto.getRepeatDays() : 1;
+        int insertedCount = 0;
+
+        for (int i = 0; i < repeatDays; i++) {
+            LocalDate targetDate = startDate.plusDays(i);
+            String dateStr = targetDate.toString();
+            boolean isWeekend = (targetDate.getDayOfWeek() == java.time.DayOfWeek.SATURDAY || targetDate.getDayOfWeek() == java.time.DayOfWeek.SUNDAY);
+
+            // 주중(평일)과 주말 식사 기준 시간에 따른 실제 적용 시간 결정
+            String finalScheduledTime;
+            if (isWeekend && dto.getWeekendTime() != null && !dto.getWeekendTime().isBlank()) {
+                finalScheduledTime = dto.getWeekendTime().trim();
+            } else if (!isWeekend && dto.getWeekdayTime() != null && !dto.getWeekdayTime().isBlank()) {
+                finalScheduledTime = dto.getWeekdayTime().trim();
+            } else {
+                finalScheduledTime = dto.getScheduledTime();
+            }
+
+            if (!scheduleDAO.checkScheduleExists(dto.getUserId(), dateStr, finalScheduledTime, dto.getRoutineId(), dto.getCabinetId(), dto.getMedicationId())) {
+                ScheduleAddDTO dayDto = new ScheduleAddDTO();
+                dayDto.setUserId(dto.getUserId());
+                dayDto.setName(dto.getName());
+                dayDto.setType(dto.getType());
+                dayDto.setMedicationId(dto.getMedicationId());
+                dayDto.setRoutineId(dto.getRoutineId());
+                dayDto.setCabinetId(dto.getCabinetId());
+                dayDto.setPrescriptionId(dto.getPrescriptionId());
+                dayDto.setAlarmEnabled(dto.getAlarmEnabled() != null ? dto.getAlarmEnabled() : 1);
+                dayDto.setScheduledDate(dateStr);
+                dayDto.setScheduledTime(finalScheduledTime);
+
+                if (scheduleDAO.insertSchedule(dayDto) > 0) {
+                    insertedCount++;
+                }
+            } else {
+                // 이미 동일 일자에 스케줄이 존재하면 중복 생성 방지
+                insertedCount++;
+            }
+        }
+
+        if (insertedCount > 0) {
+            try {
+                if (dto.getCabinetId() != null) {
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(dto.getUserId(), "C:" + dto.getCabinetId(), "ACTIVE");
+                    }
+                } else if (dto.getRoutineId() != null) {
+                    scheduleDAO.updateRoutineStatus(dto.getRoutineId(), "ACTIVE");
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(dto.getUserId(), "R:" + dto.getRoutineId(), "ACTIVE");
+                    }
+                }
+                if (medicationGuideDao != null) {
+                    medicationGuideDao.saveOverallGuide(dto.getUserId(), null);
+                }
+            } catch (Exception ex) {
+                org.apache.logging.log4j.LogManager.getLogger(getClass()).warn("복약 가이드 상태 연동 오류: {}", ex.getMessage());
+            }
+        }
+        return insertedCount > 0;
+    }
+
+    @Override
+    @Transactional
+    public boolean removeSchedule(Long scheduleId) {
+        return removeSchedule(scheduleId, false, null, null);
+    }
+
+    @Override
+    @Transactional
+    public boolean removeSchedule(Long scheduleId, boolean deleteAll, Long userId, String date) {
+        if (scheduleId == null) return false;
+
+        ScheduleDTO target = scheduleDAO.selectScheduleById(scheduleId);
+        // 1. 같은 번호의 실제 일정이 없는 가상 처방전 스케줄 처리
+        if (target == null && scheduleId >= 100000L) {
+            long pId = scheduleId / 100000L;
+            long rem = scheduleId % 100000L;
+            long itemId = rem / 10L;
+            long slotIdx = rem % 10L;
+
+            if (deleteAll) {
+                return removePrescriptionSchedules(pId, userId);
+            } else {
+                // 해당 일자의 단건 일정만 삭제: placeholder (alarm_enabled = -1) 실체화
+                PrescriptionDTO p = prescriptionDAO.getPrescriptionById(pId);
+                if (p != null) {
+                    List<PrescriptionItemDTO> items = prescriptionDAO.getPrescriptionItemsByPrescriptionId(pId);
+                    PrescriptionItemDTO matched = (items != null) ? items.stream()
+                            .filter(it -> it.getItemId() != null && it.getItemId().equals(itemId))
+                            .findFirst().orElse(null) : null;
+                    if (matched != null) {
+                        UserMealTime mealTime = resolveMealTime(p.getUserId(), date);
+                        User user = (mealTime == null) ? userMapper.findById(p.getUserId()) : null;
+                        String bTime = mealTime != null ? mealTime.getBreakfastTime() : (user != null && user.getBreakfastTime() != null ? user.getBreakfastTime() : "07:30");
+                        String lTime = mealTime != null ? mealTime.getLunchTime() : (user != null && user.getLunchTime() != null ? user.getLunchTime() : "12:00");
+                        String dTime = mealTime != null ? mealTime.getDinnerTime() : (user != null && user.getDinnerTime() != null ? user.getDinnerTime() : "18:30");
+                        String bedTime = mealTime != null ? mealTime.getBedtime() : (user != null && user.getBedtime() != null ? user.getBedtime() : "22:00");
+
+                        List<SlotInfo> slots = getIntakeSlots(matched.getDailyFrequency(), matched.getUsageTiming(), bTime, lTime, dTime, bedTime);
+                        String time = (slotIdx >= 0 && slotIdx < slots.size()) ? slots.get((int) slotIdx).time : "08:30";
+                        String schedDate = (date != null && !date.trim().isEmpty()) ? date.trim() : LocalDate.now().toString();
+
+                        Map<String, Object> params = new HashMap<>();
+                        params.put("userId", p.getUserId());
+                        params.put("prescriptionId", pId);
+                        params.put("medicationId", matched.getMedicationId());
+                        params.put("scheduledDate", schedDate);
+                        params.put("scheduledTime", time);
+                        return scheduleDAO.insertCancelledPrescriptionSchedule(params) > 0;
+                    }
+                }
+                return false;
+            }
+        }
+
+        // 2. 실체화된 스케줄 단건 정보 조회
+        if (target == null) {
+            return scheduleDAO.deleteSchedule(scheduleId) > 0;
+        }
+
+        Long actualUserId = (userId != null && userId > 0L) ? userId : target.getUserId();
+
+        if (deleteAll) {
+            // [전체 스케줄 삭제] 원천 데이터(약품/보관함/처방전) 삭제 DAO는 싹 제거하고 스케줄 테이블 레코드만 삭제
+            boolean res = false;
+            if (target.getPrescriptionId() != null) {
+                return removePrescriptionSchedules(target.getPrescriptionId(), actualUserId);
+            } else if (target.getCabinetId() != null) {
+                Long cId = target.getCabinetId();
+                scheduleDAO.deleteSchedulesByCabinetId(actualUserId, cId);
+                // 보관함 상태를 '보관 중(STORED)'으로 전환하여 스케줄만 내림
+                try {
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(actualUserId, "C:" + cId, "STORED");
+                    }
+                } catch (Exception ignored) {}
+                res = true;
+            } else if (target.getRoutineId() != null) {
+                Long rId = target.getRoutineId();
+                scheduleDAO.deleteSchedulesByRoutineId(actualUserId, rId);
+                // 영양제/상시약 루틴 상태를 PAUSED(일시중지)로 변경하여 약 정보는 유지
+                try {
+                    scheduleDAO.updateRoutineStatus(rId, "PAUSED");
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.updateStatus(actualUserId, "R:" + rId, "PAUSED");
+                    }
+                } catch (Exception ignored) {}
+                res = true;
+            } else {
+                res = scheduleDAO.deleteSchedule(scheduleId) > 0;
+            }
+
+            if (res && medicationGuideDao != null) {
+                try { medicationGuideDao.saveOverallGuide(actualUserId, null); } catch (Exception ignored) {}
+            }
+            return res;
+        } else {
+            // 처방 일정은 취소 표식을 남겨 같은 슬롯의 가상 일정 재생성을 차단
+            boolean res = target.getPrescriptionId() != null
+                    ? scheduleDAO.cancelPrescriptionSchedule(scheduleId) > 0
+                    : scheduleDAO.deleteSchedule(scheduleId) > 0;
+            if (res) {
+                try {
+                    if (target.getCabinetId() != null) {
+                        int rem = scheduleDAO.countSchedulesByCabinetId(actualUserId, target.getCabinetId());
+                        if (rem == 0 && medicationGuideDao != null) {
+                            medicationGuideDao.updateStatus(actualUserId, "C:" + target.getCabinetId(), "STORED");
+                        }
+                    } else if (target.getRoutineId() != null) {
+                        int rem = scheduleDAO.countSchedulesByRoutineId(actualUserId, target.getRoutineId());
+                        if (rem == 0) {
+                            scheduleDAO.updateRoutineStatus(target.getRoutineId(), "PAUSED");
+                            if (medicationGuideDao != null) {
+                                medicationGuideDao.updateStatus(actualUserId, "R:" + target.getRoutineId(), "PAUSED");
+                            }
+                        }
+                    }
+                    if (medicationGuideDao != null) {
+                        medicationGuideDao.saveOverallGuide(actualUserId, null);
+                    }
+                } catch (Exception ignored) {}
+            }
+            return res;
+        }
+    }
+
+    private boolean removePrescriptionSchedules(Long prescriptionId, Long userId) {
+        PrescriptionDTO prescription = prescriptionDAO.getPrescriptionById(prescriptionId);
+        if (prescription == null || prescription.getUserId() == null
+                || (userId != null && !userId.equals(prescription.getUserId()))) return false;
+        Long ownerId = prescription.getUserId();
+        // 원본 처방전·약은 보존하고 기존 P:항목 상태로 가상 일정 재생성을 차단
+        scheduleDAO.pausePrescriptionItems(ownerId, prescriptionId);
+        scheduleDAO.deleteSchedulesByPrescriptionId(prescriptionId);
+        if (medicationGuideDao != null) {
+            try { medicationGuideDao.saveOverallGuide(ownerId, null); } catch (Exception ignored) {}
+        }
+        return true;
+    }
+}

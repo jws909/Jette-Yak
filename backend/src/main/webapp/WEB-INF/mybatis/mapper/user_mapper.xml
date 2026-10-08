@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.app.mapper.UserMapper">
+
+    <select id="countByLoginId" resultType="int">
+        SELECT COUNT(*) FROM users WHERE login_id = #{loginId}
+    </select>
+
+    <select id="countByEmail" resultType="int">
+        SELECT COUNT(*) FROM users WHERE email = #{email}
+    </select>
+
+    <select id="countByNickname" resultType="int">
+        SELECT COUNT(*) FROM users WHERE nickname = #{nickname}
+    </select>
+
+    <select id="countByNicknameExceptLoginId" resultType="int">
+        SELECT COUNT(*) FROM users
+        WHERE nickname = #{nickname} AND login_id != #{loginId}
+    </select>
+
+    <select id="findByLoginId" resultType="com.app.domain.User">
+        SELECT u.user_id AS userId, u.login_id AS loginId, u.password_hash AS passwordHash,
+               u.email, u.nickname, u.profile_image_url AS profileImageUrl, NVL(u.push_enabled, 1) AS pushEnabled, NVL(u.role,'USER') AS role,
+               u.family_id AS familyId, u.birthdate, u.sex, NVL(u.is_pregnant, 0) AS isPregnant, NVL(u.is_virtual, 'N') AS isVirtual,
+               CASE
+                   WHEN UPPER(TRIM(u.is_admin)) IN ('Y', 'YES', 'TRUE', '1', 'ADMIN') THEN 1
+                   ELSE 0
+               END AS isAdmin,
+               NVL(m.breakfast_time, '07:30') AS breakfastTime,
+               NVL(m.lunch_time, '12:00') AS lunchTime,
+               NVL(m.dinner_time, '18:30') AS dinnerTime,
+               NVL(m.bedtime, '22:00') AS bedtime
+        FROM users u
+        LEFT JOIN user_meal_times m ON u.user_id = m.user_id AND m.day_type = 'WEEKDAY'
+        WHERE u.login_id = #{loginId}
+    </select>
+
+    <select id="findById" resultType="com.app.domain.User">
+        SELECT u.user_id AS userId, u.login_id AS loginId, u.password_hash AS passwordHash,
+               u.email, u.nickname, u.profile_image_url AS profileImageUrl, NVL(u.push_enabled, 1) AS pushEnabled, NVL(u.role,'USER') AS role,
+               u.family_id AS familyId, u.birthdate, u.sex, NVL(u.is_pregnant, 0) AS isPregnant, NVL(u.is_virtual, 'N') AS isVirtual,
+               CASE
+                   WHEN UPPER(TRIM(u.is_admin)) IN ('Y', 'YES', 'TRUE', '1', 'ADMIN') THEN 1
+                   ELSE 0
+               END AS isAdmin,
+               NVL(m.breakfast_time, '07:30') AS breakfastTime,
+               NVL(m.lunch_time, '12:00') AS lunchTime,
+               NVL(m.dinner_time, '18:30') AS dinnerTime,
+               NVL(m.bedtime, '22:00') AS bedtime
+        FROM users u
+        LEFT JOIN user_meal_times m ON u.user_id = m.user_id AND m.day_type = 'WEEKDAY'
+        WHERE u.user_id = #{userId}
+    </select>
+
+    <select id="findByEmail" resultType="com.app.domain.User">
+        SELECT user_id AS userId, login_id AS loginId, email, nickname, NVL(role,'USER') AS role,
+               CASE
+                   WHEN UPPER(TRIM(is_admin)) IN ('Y', 'YES', 'TRUE', '1', 'ADMIN') THEN 1
+                   ELSE 0
+               END AS isAdmin
+        FROM users
+        WHERE LOWER(email) = LOWER(#{email})
+    </select>
+
+    <update id="updatePasswordHash">
+        UPDATE users
+        SET password_hash = #{passwordHash}, updated_at = CURRENT_TIMESTAMP
+        WHERE login_id = #{loginId}
+    </update>
+
+    <update id="updateNickname">
+        UPDATE users SET nickname = #{nickname}, updated_at = CURRENT_TIMESTAMP
+        WHERE login_id = #{loginId}
+    </update>
+
+    <update id="updateProfileImageUrl">
+        UPDATE users SET profile_image_url = #{profileImageUrl}, updated_at = CURRENT_TIMESTAMP
+        WHERE login_id = #{loginId}
+    </update>
+
+    <update id="updatePushEnabled">
+        UPDATE users
+        SET push_enabled = #{pushEnabled}, updated_at = CURRENT_TIMESTAMP
+        WHERE <choose>
+                <when test="userId != null">user_id = #{userId}</when>
+                <otherwise>login_id = #{loginId}</otherwise>
+              </choose>
+    </update>
+
+    <update id="updateMealTimes">
+        MERGE INTO user_meal_times target
+        USING (
+            SELECT 
+                <choose>
+                    <when test="userId != null">#{userId}</when>
+                    <otherwise>(SELECT user_id FROM users WHERE login_id = #{loginId})</otherwise>
+                </choose> AS user_id, 
+                'WEEKDAY' AS day_type 
+            FROM dual
+        ) src
+        ON (target.user_id = src.user_id AND target.day_type = src.day_type)
+        WHEN MATCHED THEN
+            UPDATE SET breakfast_time = #{breakfastTime},
+                       lunch_time = #{lunchTime},
+                       dinner_time = #{dinnerTime},
+                       bedtime = #{bedtime},
+                       updated_at = CURRENT_TIMESTAMP
+        WHEN NOT MATCHED THEN
+            INSERT (user_id, day_type, breakfast_time, lunch_time, dinner_time, bedtime, created_at, updated_at)
+            VALUES (src.user_id, 'WEEKDAY', #{breakfastTime}, #{lunchTime}, #{dinnerTime}, #{bedtime}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </update>
+
+    <select id="findMealTimesByUserId" resultType="com.app.domain.UserMealTime">
+        SELECT id, user_id AS userId, day_type AS dayType,
+               breakfast_time AS breakfastTime, lunch_time AS lunchTime,
+               dinner_time AS dinnerTime, bedtime,
+               created_at AS createdAt, updated_at AS updatedAt
+        FROM user_meal_times
+        WHERE user_id = #{userId}
+        ORDER BY CASE WHEN day_type = 'WEEKDAY' THEN 1 ELSE 2 END
+    </select>
+
+    <select id="findMealTimeByUserIdAndDayType" resultType="com.app.domain.UserMealTime">
+        SELECT id, user_id AS userId, day_type AS dayType,
+               breakfast_time AS breakfastTime, lunch_time AS lunchTime,
+               dinner_time AS dinnerTime, bedtime,
+               created_at AS createdAt, updated_at AS updatedAt
+        FROM user_meal_times
+        WHERE user_id = #{userId} AND day_type = #{dayType}
+    </select>
+
+    <insert id="upsertMealTime">
+        MERGE INTO user_meal_times target
+        USING (SELECT #{userId} AS user_id, #{dayType} AS day_type FROM dual) src
+        ON (target.user_id = src.user_id AND target.day_type = src.day_type)
+        WHEN MATCHED THEN
+            UPDATE SET breakfast_time = #{breakfastTime},
+                       lunch_time = #{lunchTime},
+                       dinner_time = #{dinnerTime},
+                       bedtime = #{bedtime},
+                       updated_at = CURRENT_TIMESTAMP
+        WHEN NOT MATCHED THEN
+            INSERT (user_id, day_type, breakfast_time, lunch_time, dinner_time, bedtime, created_at, updated_at)
+            VALUES (#{userId}, #{dayType}, #{breakfastTime}, #{lunchTime}, #{dinnerTime}, #{bedtime}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </insert>
+
+    <!--
+      user_id: IDENTITY 컬럼이라 생략(자동 채번)
+      created_at / updated_at / push_enabled / role: DB 기본값 사용을 위해 생략
+      family_id / profile_image_url / med_updated_at: 회원가입 단계에서는 값 없음 (nullable)
+      is_pregnant: 기본값이 없는 컬럼이라 항상 값 전달 필요
+    -->
+    <insert id="insertUser" parameterType="com.app.domain.User">
+        INSERT INTO users (
+            login_id, password_hash, email, nickname, sex, birthdate, is_pregnant
+            <if test="tel != null">, tel</if>
+        ) VALUES (
+            #{loginId}, #{passwordHash}, #{email}, #{nickname}, #{sex}, #{birthdate}, #{isPregnant}
+            <if test="tel != null">, #{tel}</if>
+        )
+    </insert>
+
+</mapper>

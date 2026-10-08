@@ -1,0 +1,1682 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useDialog } from '../contexts/DialogContext';
+import { createIntakeGate, saveIntakeStatus } from '../utils/intakeApi';
+import { createLatestRequest } from '../utils/latestRequest';
+import { formatTime24 } from '../utils/dateTime';
+import './CalendarPage.css';
+
+function getFormattedDate(targetDate) {
+  const y = targetDate.getFullYear();
+  const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const d = String(targetDate.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+// 입력과 저장 모두 같은 시/분 범위를 사용합니다.
+function normalizeTimePart(value, max, fallback = 0) {
+  const parsed = parseInt(value, 10);
+  return String(Number.isNaN(parsed) ? fallback : Math.min(max, Math.max(0, parsed))).padStart(2, '0');
+}
+
+// 시간을 조절하는 동안 모달이 함께 스크롤되지 않게 합니다.
+function preventPickerScroll(node) {
+  if (!node) return;
+  const preventScroll = (event) => {
+    if (event.deltaY !== 0) event.preventDefault();
+  };
+  node.addEventListener('wheel', preventScroll, { passive: false });
+  return () => node.removeEventListener('wheel', preventScroll);
+}
+
+function getTypeStorageMap() {
+  try {
+    return JSON.parse(localStorage.getItem('cal_type_overrides') || '{}');
+  } catch {
+    return {};
+  }
+}
+
+const CalendarPage = (props) => (
+  <CalendarContent key={props.user?.userId || props.user?.id || props.user?.username || 'guest'} {...props} />
+);
+
+const CalendarContent = (props) => {
+  const user = props.user;
+  const { showAlert } = useDialog();
+  const [intakeGate] = useState(createIntakeGate);
+  const today = new Date();
+  const currentUserId = user?.userId || user?.id || null;
+  
+  const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState(getFormattedDate(today));
+  const [schedules, setSchedules] = useState([]);
+  const [monthSummary, setMonthSummary] = useState({});
+  const [dailyRequests] = useState(createLatestRequest);
+  const [dailyLoadedKey, setDailyLoadedKey] = useState(null);
+  const dailyQueryKey = `${currentUserId}|${selectedDate}`;
+  const loading = Boolean(currentUserId) && dailyLoadedKey !== dailyQueryKey;
+  const [selectedSlotTab, setSelectedSlotTab] = useState('all'); // 'all' | 'breakfast' | 'lunch' | 'dinner' | 'bedtime'
+
+  // 헤더 연/월 빠른 점프 팝오버 상태
+  const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+  const monthPickerRef = useRef(null);
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
+  const yearDropdownRef = useRef(null);
+  // 부모 팝오버를 닫는 이벤트에서 하위 연도 메뉴도 함께 정리
+  const closeMonthPicker = useCallback(() => {
+    setIsMonthPickerOpen(false);
+    setIsYearDropdownOpen(false);
+  }, []);
+
+  // 알람 설정 모달 (시간 변경 전용)
+  const [isAlarmModalOpen, setIsAlarmModalOpen] = useState(false);
+  const [activeItem, setActiveItem] = useState(null);
+  const [hour, setHour] = useState('08');
+  const [minute, setMinute] = useState('00');
+
+  // 일정 추가 모달
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newMedName, setNewMedName] = useState('');
+  const [selectedMed, setSelectedMed] = useState(null);
+  const [storedSearchResults, setSearchResults] = useState([]);
+  const [newMedType, setNewMedType] = useState('regular'); // 'regular' | 'supplement'
+  const [newHour, setNewHour] = useState('09');
+  const [newMinute, setNewMinute] = useState('00');
+  const [addedSuccessMsg, setAddedSuccessMsg] = useState('');
+
+  // 평소 복용 관리 (마이페이지 상비약/영양제 보관함 연동)
+  const [everydayMeds, setEverydayMeds] = useState([]);
+  const [selectedShelfMedId, setSelectedShelfMedId] = useState(null);
+  const searchResults = newMedName.trim() && !selectedShelfMedId ? storedSearchResults : [];
+  const [isAutoTimeApplied, setIsAutoTimeApplied] = useState(false);
+  const [repeatDays, setRepeatDays] = useState(1); // 1, 7, 14, 30, 90일 복용 반복 설정
+
+  // 삭제 확인 모달
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState(null);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const currentYearMonth = `${year}-${String(month + 1).padStart(2, '0')}`;
+  const todayYear = today.getFullYear();
+
+  // 작은 연도 목록은 현재 날짜와 선택 연도에서 바로 계산해 날짜 객체 의존성 제거
+  const calYearOptions = [];
+  for (let optionYear = Math.min(2020, year - 3); optionYear <= Math.max(todayYear + 5, year + 3); optionYear++) {
+    calYearOptions.push(optionYear);
+  }
+
+  // 1. 월별 요약 조회 (비로그인 시 빈 객체 처리)
+  const fetchMonthSummary = useCallback(() => {
+    if (!currentUserId) return;
+    return fetch(`/api/calendar/summary?userId=${currentUserId}&yearMonth=${currentYearMonth}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const list = await res.json();
+          const map = {};
+          const overrides = getTypeStorageMap();
+
+          list.forEach((item) => {
+            map[item.scheduleDate] = {
+              hasPrescription: Number(item.hasPrescription) === 1,
+              hasRegular: Number(item.hasRegular) === 1,
+              hasSupplement: Number(item.hasSupplement) === 1,
+            };
+          });
+
+          Object.keys(overrides).forEach((key) => {
+            const parts = key.split('_');
+            const d = parts[0];
+            const t = parts[3];
+            if (t === 'supplement' && d.startsWith(currentYearMonth)) {
+              if (!map[d]) {
+                map[d] = { hasPrescription: false, hasRegular: false, hasSupplement: true };
+              } else {
+                map[d].hasSupplement = true;
+              }
+            }
+          });
+
+          setMonthSummary(map);
+        }
+      })
+      .catch((err) => {
+        console.error("월별 요약 조회 실패:", err);
+      });
+  }, [currentYearMonth, currentUserId]);
+
+  // 2. 일별 일정 목록 조회 (비로그인 시 빈 배열 처리)
+  // 날짜가 바뀌면 응답 완료 키로 로딩을 표시하고, 같은 날짜의 갱신은 목록을 유지합니다.
+  const fetchDailySchedules = useCallback((targetDateStr, isSilent = false) => {
+    if (!currentUserId) return;
+    const isLatest = dailyRequests.begin();
+    const queryKey = `${currentUserId}|${targetDateStr}`;
+    return fetch(`/api/calendar?userId=${currentUserId}&date=${targetDateStr}`)
+      .then(async (response) => {
+        if (response.ok) {
+          const data = await response.json();
+          if (!isLatest()) return;
+          const overrides = getTypeStorageMap();
+
+          const normalized = data.map((item) => {
+            const formattedT = String(item.time || '').substring(0, 5);
+            const overrideKey = `${targetDateStr}_${item.name}_${formattedT}_supplement`;
+            const idKey = `id_${item.scheduleId}`;
+
+            const isSup = overrides[overrideKey] === 'supplement' || overrides[idKey] === 'supplement' || item.type === 'supplement';
+
+            return {
+              ...item,
+              time: formattedT,
+              type: isSup ? 'supplement' : (item.type || 'regular'),
+              takenAt: item.takenAt || null, // 100% DB 단일 진실 공급원 기준
+            };
+          });
+
+          // 불필요한 전체 리렌더링 및 깜빡임 방지: 내용이 실질적으로 변경되었을 때만 새 배열 반영
+          setSchedules((prev) => {
+            if (!prev || prev.length !== normalized.length) return normalized;
+            const isIdentical = prev.every((p, idx) => {
+              const n = normalized[idx];
+              return (
+                p.scheduleId === n.scheduleId &&
+                p.takenAt === n.takenAt &&
+                p.time === n.time &&
+                p.name === n.name
+              );
+            });
+            return isIdentical ? prev : normalized;
+          });
+        } else {
+          if (isLatest() && !isSilent) setSchedules([]);
+        }
+      })
+      .catch((err) => {
+        console.error("데이터 조회 실패:", err);
+        if (isLatest() && !isSilent) setSchedules([]);
+      })
+      .finally(() => {
+        if (isLatest()) setDailyLoadedKey(queryKey);
+      });
+  }, [currentUserId, dailyRequests]);
+
+  useEffect(() => {
+    fetchMonthSummary();
+  }, [fetchMonthSummary]);
+
+  useEffect(() => {
+    fetchDailySchedules(selectedDate);
+    return () => dailyRequests.cancel();
+  }, [selectedDate, fetchDailySchedules, dailyRequests]);
+
+  // 메인 홈 등 외부에서 복약 체크 상태 변경 시 캘린더 실시간 동기화
+  useEffect(() => {
+    const handleIntakeSync = (e) => {
+      if (e?.detail?.origin === 'calendar') return;
+      const eventUserId = e?.detail?.userId;
+      const eventDate = e?.detail?.date;
+      if (!eventUserId || String(eventUserId) === String(currentUserId)) {
+        if (!eventDate || eventDate === selectedDate) {
+          fetchDailySchedules(selectedDate, true);
+        }
+        fetchMonthSummary();
+      }
+    };
+    window.addEventListener('jette-intake-updated', handleIntakeSync);
+    return () => {
+      window.removeEventListener('jette-intake-updated', handleIntakeSync);
+    };
+  }, [currentUserId, selectedDate, fetchDailySchedules, fetchMonthSummary]);
+
+  // 평소 복용 관리 (마이페이지 상비약/영양제) 목록 조회
+  const fetchEverydayMeds = useCallback(() => {
+    if (!currentUserId) return;
+    return fetch(`/api/users/everyday-meds?userId=${currentUserId}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const list = await res.json();
+          setEverydayMeds(Array.isArray(list) ? list : []);
+        }
+      })
+      .catch((err) => {
+        console.error("보관함 약품 조회 실패:", err);
+      });
+  }, [currentUserId]);
+
+  useEffect(() => {
+    fetchEverydayMeds();
+  }, [fetchEverydayMeds]);
+
+  useEffect(() => {
+    if (isAddModalOpen) {
+      fetchEverydayMeds();
+    }
+  }, [isAddModalOpen, fetchEverydayMeds]);
+
+  // 보관함 약품 선택/해제 핸들러
+  const handleSelectShelfMed = (item) => {
+    if (selectedShelfMedId === item.id) {
+      // 이미 선택된 상태에서 다시 클릭 시 해제
+      setSelectedShelfMedId(null);
+      setSelectedMed(null);
+      setNewMedName('');
+      setIsAutoTimeApplied(false);
+      return;
+    }
+
+    setSelectedShelfMedId(item.id);
+    if (item.source === 'CABINET') {
+      setSelectedMed({ id: item.medicationId, name: item.name });
+      setNewMedName('');
+    } else {
+      setSelectedMed({ id: null, name: item.name });
+      setNewMedName(item.name);
+    }
+    setSearchResults([]);
+
+    // 권장 복용 시간 자동 세팅
+    if (item.takeTime && item.takeTime.includes(':')) {
+      const parts = formatTime24(item.takeTime).split(':');
+      const h = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+        setNewHour(normalizeTimePart(h, 23));
+        setNewMinute(normalizeTimePart(m, 59));
+        setIsAutoTimeApplied(true);
+        return;
+      }
+    }
+    setIsAutoTimeApplied(false);
+  };
+
+  // 약품 자동완성 검색
+  useEffect(() => {
+    if (!newMedName.trim() || selectedShelfMedId) return;
+
+    let active = true;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/calendar/search-medications?keyword=${encodeURIComponent(newMedName)}`, { signal: controller.signal });
+        if (res.ok) {
+          const list = await res.json();
+          if (active) setSearchResults(Array.isArray(list) ? list : []);
+        }
+      } catch (err) {
+        if (active) console.error("약품 검색 실패:", err);
+      }
+    }, 250);
+
+    return () => { active = false; clearTimeout(timer); controller.abort(); };
+  }, [newMedName, selectedShelfMedId]);
+
+  const handleSelectMed = (med) => {
+    setSelectedShelfMedId(null);
+    setIsAutoTimeApplied(false);
+    setSelectedMed({ id: med.medicationId, name: med.itemName });
+    setNewMedName('');
+    setSearchResults([]);
+  };
+
+  const handleRemoveSelectedMed = () => {
+    setSelectedShelfMedId(null);
+    setIsAutoTimeApplied(false);
+    setSelectedMed(null);
+    setNewMedName('');
+  };
+
+  const changeMonth = (offset) => {
+    setCurrentDate(new Date(year, month + offset, 1));
+  };
+
+  const handleGoToday = () => {
+    const now = new Date();
+    setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelectedDate(getFormattedDate(now));
+  };
+
+  const handleJumpYear = (delta) => {
+    setCurrentDate(new Date(year + delta, month, 1));
+  };
+
+  useEffect(() => {
+    if (!isMonthPickerOpen) return;
+    const handleOutside = (e) => {
+      if (monthPickerRef.current && !monthPickerRef.current.contains(e.target)) {
+        closeMonthPicker();
+      }
+    };
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') closeMonthPicker();
+    };
+    document.addEventListener('pointerdown', handleOutside);
+    window.addEventListener('keydown', handleEsc);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [isMonthPickerOpen, closeMonthPicker]);
+
+  useEffect(() => {
+    if (!isYearDropdownOpen) return;
+    const handleOutsideYear = (e) => {
+      if (yearDropdownRef.current && !yearDropdownRef.current.contains(e.target)) {
+        setIsYearDropdownOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideYear);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsideYear);
+    };
+  }, [isYearDropdownOpen]);
+
+  // 연도 드롭다운 열릴 때 현재 연도로 자동 스크롤
+  useEffect(() => {
+    if (isYearDropdownOpen && yearDropdownRef.current) {
+      const selectedItem = yearDropdownRef.current.querySelector('.custom-year-item.selected');
+      if (selectedItem) {
+        selectedItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [isYearDropdownOpen]);
+
+  // 복용 체크박스 토글
+  const toggleTaken = async (item) => {
+    if (!currentUserId) {
+      showAlert('로그인 후 복약 체크 기능을 이용할 수 있습니다.', '안내');
+      return;
+    }
+    const isTaken = !item.takenAt;
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const nowIso = isTaken ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : null;
+
+    if (!intakeGate.acquire()) return;
+    try {
+      await saveIntakeStatus({ scheduleIds: [item.scheduleId], taken: isTaken, date: selectedDate });
+      setSchedules(prev => prev.map(s => s.scheduleId === item.scheduleId ? { ...s, takenAt: nowIso } : s));
+      fetchDailySchedules(selectedDate, true);
+      fetchMonthSummary();
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' } }));
+    } catch (error) {
+      showAlert(error.message || '복약 체크를 저장하지 못했습니다.', '복약 체크 실패');
+    } finally {
+      intakeGate.release();
+    }
+  };
+
+  // 처방약 봉지 펼침/접힘 상태
+  const [expandedPouches, setExpandedPouches] = useState({});
+
+  const togglePouchExpand = (pouchKey, e) => {
+    if (e) e.stopPropagation();
+    setExpandedPouches((prev) => ({
+      ...prev,
+      [pouchKey]: !prev[pouchKey],
+    }));
+  };
+
+  // 처방약 봉지 전체 일괄 복용 체크/해제
+  const togglePouchTaken = async (pouch, e) => {
+    if (e) e.stopPropagation();
+    if (!currentUserId) {
+      showAlert('로그인 후 복약 체크 기능을 이용할 수 있습니다.', '안내');
+      return;
+    }
+    const allTaken = pouch.items.every((i) => Boolean(i.takenAt));
+    const nextTaken = !allTaken;
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const nowIso = nextTaken ? `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}` : null;
+    const scheduleIds = pouch.items.map((i) => i.scheduleId).filter(Boolean);
+    const itemIds = new Set(pouch.items.map((i) => i.scheduleId));
+
+    if (!intakeGate.acquire()) return;
+    try {
+      await saveIntakeStatus({ scheduleIds, taken: nextTaken, date: selectedDate });
+      setSchedules(prev => prev.map(s => itemIds.has(s.scheduleId) ? { ...s, takenAt: nowIso } : s));
+      fetchDailySchedules(selectedDate, true);
+      fetchMonthSummary();
+      window.dispatchEvent(new CustomEvent('jette-intake-updated', { detail: { userId: currentUserId, date: selectedDate, origin: 'calendar' } }));
+    } catch (error) {
+      showAlert(error.message || '봉지 복약 체크를 저장하지 못했습니다.', '복약 체크 실패');
+    } finally {
+      intakeGate.release();
+    }
+  };
+
+  // 삭제 모달 열기
+  const openDeleteModal = (item, e) => {
+    e.stopPropagation();
+    if (!currentUserId) {
+      showAlert('로그인 후 일정을 삭제할 수 있습니다.', '안내');
+      return;
+    }
+    setItemToDelete(item);
+    setIsDeleteModalOpen(true);
+  };
+
+  // 삭제 확정 (deleteAll: true면 이 약의 전체 스케줄 및 원천 데이터 삭제, false면 당일 일정만 삭제)
+  const confirmDeleteSchedule = async (deleteAll = false) => {
+    if (!itemToDelete) return;
+    try {
+      const response = await fetch(
+        `/api/calendar/${itemToDelete.scheduleId}/delete?deleteAll=${deleteAll}&userId=${currentUserId}&date=${encodeURIComponent(selectedDate)}`,
+        {
+          method: 'POST',
+        }
+      );
+      if (response.ok) {
+        if (deleteAll) {
+          setSchedules((prev) =>
+            prev.filter((s) => {
+              if (itemToDelete.prescriptionId && s.prescriptionId === itemToDelete.prescriptionId) return false;
+              if (itemToDelete.cabinetId && s.cabinetId === itemToDelete.cabinetId) return false;
+              if (itemToDelete.routineId && s.routineId === itemToDelete.routineId) return false;
+              if (s.name === itemToDelete.name) return false;
+              return s.scheduleId !== itemToDelete.scheduleId;
+            })
+          );
+        } else {
+          setSchedules((prev) => prev.filter((s) => s.scheduleId !== itemToDelete.scheduleId));
+        }
+
+        await fetchDailySchedules(selectedDate, true);
+        await fetchMonthSummary();
+
+        // 사이드바 및 메인 홈 등 전역 UI에 복약 진척도 즉시 갱신 알림
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId, date: selectedDate }
+        }));
+      } else {
+        showAlert('삭제에 실패했습니다.', '오류');
+      }
+    } catch (err) {
+      console.error("삭제 통신 실패:", err);
+      showAlert('삭제 통신 중 오류가 발생했습니다.', '오류');
+    } finally {
+      setIsDeleteModalOpen(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const stepHour = (current, delta) => {
+    let val = Number(normalizeTimePart(current, 23));
+    val = ((val + delta) % 24 + 24) % 24;
+    return String(val).padStart(2, '0');
+  };
+
+  const stepMinute = (current, delta) => {
+    let val = Number(normalizeTimePart(current, 59));
+    val = ((val + delta) % 60 + 60) % 60;
+    return String(val).padStart(2, '0');
+  };
+
+  const stepPicker = (type, delta, isAdd = false) => {
+    if (isAdd) setIsAutoTimeApplied(false);
+    if (type === 'hour') {
+      if (isAdd) setNewHour((prev) => stepHour(prev, delta));
+      else setHour((prev) => stepHour(prev, delta));
+    } else if (type === 'minute') {
+      if (isAdd) setNewMinute((prev) => stepMinute(prev, delta));
+      else setMinute((prev) => stepMinute(prev, delta));
+    }
+  };
+
+  const handleWheel = (e, type, isAdd = false) => {
+    if (e.deltaY === 0) return;
+    stepPicker(type, e.deltaY < 0 ? 1 : -1, isAdd);
+  };
+
+  const handleTimeKeyDown = (e, type, isAdd = false) => {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+    e.preventDefault();
+    stepPicker(type, e.key === 'ArrowUp' ? 1 : -1, isAdd);
+  };
+
+  // 알람 시간 설정 모달 열기
+  const openAlarmModal = (item, e) => {
+    if (e) e.stopPropagation();
+    if (!currentUserId) {
+      showAlert('로그인 후 알람 시간을 수정할 수 있습니다.', '안내');
+      return;
+    }
+    setActiveItem(item);
+    const timeParts = formatTime24(item.time || '08:00').split(':');
+    setHour(normalizeTimePart(timeParts[0], 23, 8));
+    setMinute(normalizeTimePart(timeParts[1], 59));
+    setIsAlarmModalOpen(true);
+  };
+
+  // 알람 시간 저장 (빈 응답 대응: await response.json() 배제)
+  const saveAlarmSetting = async () => {
+    if (!activeItem) return;
+    const newTime = `${normalizeTimePart(hour, 23)}:${normalizeTimePart(minute, 59)}`;
+
+    try {
+      const response = await fetch(
+        `/api/calendar/${activeItem.scheduleId}/alarm?newTime=${encodeURIComponent(newTime)}&alarmEnabled=true&date=${encodeURIComponent(selectedDate)}`,
+        {
+          method: 'POST',
+        }
+      );
+
+      if (response.ok) {
+        setSchedules((prev) =>
+          prev.map((s) =>
+            s.scheduleId === activeItem.scheduleId
+              ? { ...s, time: newTime }
+              : s
+          )
+        );
+      } else {
+        showAlert('알람 시간을 저장하지 못했습니다.', '오류');
+      }
+    } catch (err) {
+      console.error("알람 시간 수정 실패:", err);
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
+    } finally {
+      setIsAlarmModalOpen(false);
+    }
+  };
+
+  // 신규 등록 제출
+  const handleAddMedication = async (e) => {
+    e.preventDefault();
+    if (!currentUserId) {
+      showAlert('로그인 후 복약 일정을 등록할 수 있습니다.', '안내');
+      return;
+    }
+
+    if (newMedType === 'regular') {
+      // 상시약: medications에 존재하는 약을 검색하여 선택 필수!
+      if (!selectedMed || !selectedMed.id) {
+        showAlert('상시약은 의약품 검색 목록에서 약을 선택해야 등록할 수 있습니다.\n목록에 없는 약품은 상시약으로 등록할 수 없습니다.', '입력 안내');
+        return;
+      }
+    } else if (newMedType === 'supplement') {
+      // 영양제: 검색 선택 또는 직접 입력
+      const supName = selectedMed ? selectedMed.name : newMedName.trim();
+      if (!supName) {
+        showAlert('영양제 이름을 입력하거나 검색하여 선택해 주세요.', '입력 안내');
+        return;
+      }
+    }
+
+    const formattedTime = `${normalizeTimePart(newHour, 23)}:${normalizeTimePart(newMinute, 59)}`;
+
+    const savedMedName = selectedMed ? selectedMed.name : newMedName.trim();
+    const chosenType = newMedType;
+
+    try {
+      const response = await fetch(`/api/calendar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          name: savedMedName,
+          medicationId: selectedMed ? selectedMed.id : null,
+          type: chosenType,
+          scheduledDate: selectedDate,
+          scheduledTime: formattedTime,
+          alarmEnabled: 1,
+          repeatDays: repeatDays,
+        }),
+      });
+
+      if (response.ok) {
+        await fetchDailySchedules(selectedDate, true);
+        await fetchMonthSummary();
+
+        // 사이드바 등 전역 UI에 복약 진척도 즉시 갱신 알림
+        window.dispatchEvent(new CustomEvent('jette-intake-updated', {
+          detail: { userId: currentUserId, date: selectedDate }
+        }));
+
+        setAddedSuccessMsg(
+          repeatDays > 1
+            ? `'${savedMedName}' ${repeatDays}일간 매일 일정 등록 완료!`
+            : `'${savedMedName}' 등록 완료!`
+        );
+        setTimeout(() => setAddedSuccessMsg(''), 2500);
+
+        setSelectedMed(null);
+        setSelectedShelfMedId(null);
+        setIsAutoTimeApplied(false);
+        setRepeatDays(1);
+        setNewMedName('');
+        setSearchResults([]);
+        setIsAddModalOpen(false);
+        fetchEverydayMeds();
+      } else {
+        const errorText = await response.text().catch(() => '');
+        showAlert('일정 등록에 실패했습니다.' + (errorText ? ` (${errorText})` : ''), '오류');
+      }
+    } catch (err) {
+      console.error("일정 등록 실패:", err);
+      showAlert('서버 통신 중 오류가 발생했습니다.', '오류');
+    }
+  };
+
+  const handleCloseAddModal = () => {
+    setSelectedMed(null);
+    setSelectedShelfMedId(null);
+    setIsAutoTimeApplied(false);
+    setRepeatDays(1);
+    setNewMedName('');
+    setSearchResults([]);
+    setAddedSuccessMsg('');
+    setNewMedType('regular');
+    setIsAddModalOpen(false);
+  };
+
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month + 1, 0).getDate();
+
+  const days = [];
+  for (let i = 0; i < firstDayIndex; i++) days.push(null);
+  for (let d = 1; d <= lastDate; d++) days.push(d);
+  const remainingCells = 7 - (days.length % 7);
+  if (remainingCells < 7) {
+    for (let i = 0; i < remainingCells; i++) days.push(null);
+  }
+
+  function getSlotFromTime(t) {
+    if (!t || !t.includes(':')) return { slot: 'breakfast', slotLabel: '아침' };
+    const h = parseInt(t.split(':')[0], 10);
+    if (h < 11) return { slot: 'breakfast', slotLabel: '아침' };
+    if (h < 16) return { slot: 'lunch', slotLabel: '점심' };
+    if (h < 21) return { slot: 'dinner', slotLabel: '저녁' };
+    return { slot: 'bedtime', slotLabel: '취침전' };
+  }
+
+  const slotOrderMap = { breakfast: 1, lunch: 2, dinner: 3, bedtime: 4 };
+
+  const slotKeys = [
+    { key: 'breakfast', label: '아침' },
+    { key: 'lunch', label: '점심' },
+    { key: 'dinner', label: '저녁' },
+    { key: 'bedtime', label: '취침전' },
+  ];
+
+  function groupCalendarItemsByPouch(items) {
+    if (!items || items.length === 0) return [];
+    const result = [];
+    const pouchMap = new Map();
+
+    items.forEach((item) => {
+      if (item.prescriptionId) {
+        const slotKey = item.slot || getSlotFromTime(item.time).slot;
+        const key = `${item.prescriptionId}_${slotKey}`;
+        if (!pouchMap.has(key)) {
+          const pouchObj = {
+            isPouch: true,
+            pouchKey: key,
+            prescriptionId: item.prescriptionId,
+            scheduleId: item.scheduleId,
+            slot: slotKey,
+            slotLabel: item.slotLabel || getSlotFromTime(item.time).slotLabel,
+            time: item.time,
+            hospitalName: item.hospitalName || '의료기관',
+            dispensedDate: item.dispensedDate || '',
+            nickname: item.prescriptionNickname,
+            purpose: item.prescriptionPurpose,
+            type: 'prescription',
+            items: [],
+          };
+          pouchMap.set(key, pouchObj);
+          result.push(pouchObj);
+        }
+        pouchMap.get(key).items.push(item);
+      } else {
+        result.push(item);
+      }
+    });
+
+    return result;
+  }
+
+  const allCalendarUnits = groupCalendarItemsByPouch(schedules);
+  const totalCount = allCalendarUnits.length;
+  const takenCount = allCalendarUnits.filter((u) => u.isPouch ? u.items.every((i) => Boolean(i.takenAt)) : Boolean(u.takenAt)).length;
+
+  const slotTabs = [
+    {
+      key: 'all',
+      label: '전체',
+      timeHint: '',
+      taken: takenCount,
+      total: totalCount,
+      isAllDone: totalCount > 0 && takenCount === totalCount,
+    },
+    ...slotKeys
+      .map((sk) => {
+        const items = schedules.filter((s) => (s.slot || getSlotFromTime(s.time).slot) === sk.key);
+        const units = groupCalendarItemsByPouch(items);
+        const tCount = units.filter((u) => u.isPouch ? u.items.every((s) => Boolean(s.takenAt)) : Boolean(u.takenAt)).length;
+        const firstTime = items[0]?.time || '';
+        return {
+          key: sk.key,
+          label: sk.label,
+          timeHint: firstTime,
+          taken: tCount,
+          total: units.length,
+          isAllDone: units.length > 0 && tCount === units.length,
+        };
+      })
+      .filter((tab) => tab.total > 0),
+  ];
+
+  const activeSlotKey =
+    selectedSlotTab === 'all' || slotTabs.some((t) => t.key === selectedSlotTab)
+      ? selectedSlotTab
+      : 'all';
+
+  const filteredList =
+    activeSlotKey === 'all'
+      ? schedules
+      : schedules.filter((s) => (s.slot || getSlotFromTime(s.time).slot) === activeSlotKey);
+
+  const sortedList = [...filteredList].sort((a, b) => {
+    const doneA = Number(Boolean(a.takenAt));
+    const doneB = Number(Boolean(b.takenAt));
+    if (doneA !== doneB) return doneA - doneB;
+    const sa = slotOrderMap[a.slot || getSlotFromTime(a.time).slot] || 99;
+    const sb = slotOrderMap[b.slot || getSlotFromTime(b.time).slot] || 99;
+    if (sa !== sb) return sa - sb;
+    return (a.time || '').localeCompare(b.time || '');
+  });
+
+  const sortedUnits = groupCalendarItemsByPouch(sortedList);
+
+  const categoryMap = {
+    prescription: { label: '처방약', className: 'cat-prescription' },
+    regular: { label: '상시약', className: 'cat-regular' },
+    supplement: { label: '영양제', className: 'cat-supplement' },
+  };
+
+  return (
+    <div className="calendar-page-wrap">
+      <header className="page-header">
+        <span className="sub-title">MEDICATION CALENDAR</span>
+        <h1>복약캘린더</h1>
+      </header>
+
+      <div className="calendar-main-card">
+        {/* 달력 영역 */}
+        <div className="calendar-left">
+          <div className="cal-nav">
+            <div className="month-controls" ref={monthPickerRef}>
+              <button
+                type="button"
+                className="cal-nav-arrow-btn"
+                onClick={() => changeMonth(-1)}
+                title="이전 달로 이동"
+                aria-label="이전 달"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+              </button>
+
+              <div className="month-picker-anchor">
+                <button
+                  type="button"
+                  className={`month-picker-trigger-btn ${isMonthPickerOpen ? 'active' : ''}`}
+                  onClick={() => { setIsMonthPickerOpen((prev) => !prev); setIsYearDropdownOpen(false); }}
+                  title="클릭하여 연도 및 월 선택"
+                >
+                  <span className="picker-title-text">{year}년 {month + 1}월</span>
+                  <svg
+                    className={`picker-chevron-svg ${isMonthPickerOpen ? 'open' : ''}`}
+                    width="14"
+                    height="14"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+
+                {isMonthPickerOpen && (
+                  <div className="month-picker-popover" onClick={(e) => e.stopPropagation()}>
+                    {/* 연도 이동 행 */}
+                    <div className="popover-year-row">
+                      <button
+                        type="button"
+                        className="popover-arrow-btn"
+                        onClick={() => handleJumpYear(-1)}
+                        title="이전 연도"
+                        aria-label="이전 연도"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="15 18 9 12 15 6" />
+                        </svg>
+                      </button>
+
+                      <div className="custom-year-dropdown-wrap" ref={yearDropdownRef}>
+                        <button
+                          type="button"
+                          className={`custom-year-btn ${isYearDropdownOpen ? 'active' : ''}`}
+                          onClick={() => setIsYearDropdownOpen((prev) => !prev)}
+                          title="연도 목록 보기"
+                        >
+                          <span className="year-btn-text">{year}년</span>
+                          <svg
+                            className={`year-chevron-svg ${isYearDropdownOpen ? 'open' : ''}`}
+                            width="12"
+                            height="12"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.51a.75.75 0 01-1.08 0l-4.25-4.51a.75.75 0 01.02-1.06z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+
+                        {isYearDropdownOpen && (
+                          <div className="custom-year-dropdown-menu">
+                            {calYearOptions.map((y) => (
+                              <button
+                                key={y}
+                                type="button"
+                                className={`custom-year-item ${y === year ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setCurrentDate(new Date(y, month, 1));
+                                  setIsYearDropdownOpen(false);
+                                }}
+                              >
+                                <span>{y}년</span>
+                                {y === year && (
+                                  <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="popover-arrow-btn"
+                        onClick={() => handleJumpYear(1)}
+                        title="다음 연도"
+                        aria-label="다음 연도"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* 12개월 그리드 */}
+                    <div className="popover-months-grid">
+                      {Array.from({ length: 12 }, (_, i) => {
+                        const isCurrentMonth = i === month;
+                        const isThisMonth = i === today.getMonth() && year === today.getFullYear();
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            className={`popover-month-btn ${isCurrentMonth ? 'selected' : ''} ${isThisMonth ? 'is-today' : ''}`}
+                            onClick={() => {
+                              setCurrentDate(new Date(year, i, 1));
+                              closeMonthPicker();
+                            }}
+                          >
+                            {i + 1}월
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* 하단 오늘 바로가기 */}
+                    <div className="popover-footer">
+                      <button
+                        type="button"
+                        className="popover-today-btn"
+                        onClick={() => {
+                          handleGoToday();
+                          closeMonthPicker();
+                        }}
+                      >
+                        이번 달로 이동
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="cal-nav-arrow-btn"
+                onClick={() => changeMonth(1)}
+                title="다음 달로 이동"
+                aria-label="다음 달"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </button>
+            </div>
+            <button className="btn-today" onClick={handleGoToday}>Today</button>
+          </div>
+
+          <div className="cal-week-header">
+            {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) => (
+              <span key={d}>{d}</span>
+            ))}
+          </div>
+
+          <div className="cal-grid">
+            {days.map((day, idx) => {
+              if (day === null) return <div key={`empty-${idx}`} className="cal-cell empty" />;
+
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const isSelected = selectedDate === dateStr;
+              const isToday = getFormattedDate(today) === dateStr;
+              const dayStatus = monthSummary[dateStr];
+
+              return (
+                <div
+                  key={dateStr}
+                  className={`cal-cell ${isSelected ? 'selected' : ''} ${isToday ? 'today-cell' : ''}`}
+                  onClick={() => setSelectedDate(dateStr)}
+                >
+                  <span className="day-number">{day}</span>
+                  {dayStatus && (
+                    <div className="cell-indicators">
+                      {dayStatus.hasPrescription && <div className="indicator-bar prescription" />}
+                      <div className="indicator-dots">
+                        {dayStatus.hasRegular && <div className="indicator-dot regular" />}
+                        {dayStatus.hasSupplement && <div className="indicator-dot supplement" />}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="cal-legend">
+            <span><i className="legend-bar prescription"></i> 처방약</span>
+            <span><i className="legend-dot regular"></i> 상시약</span>
+            <span><i className="legend-dot supplement"></i> 영양제</span>
+          </div>
+        </div>
+
+        {/* 일정 목록 패널 */}
+        <div className="calendar-right">
+          <div>
+            <div className="panel-header">
+              <div className="panel-header-top">
+                <span className="panel-sub">SELECTED DATE</span>
+                {(() => {
+                  const todayStr = new Date().toISOString().slice(0, 10);
+                  return selectedDate === todayStr ? (
+                    <span className="panel-today-badge">오늘</span>
+                  ) : null;
+                })()}
+              </div>
+              <div className="panel-header-bottom">
+                <h3>
+                  {selectedDate.split('-')[1].replace(/^0/, '')}월 {selectedDate.split('-')[2].replace(/^0/, '')}일
+                  <span className="panel-day-of-week">
+                    ({['일', '월', '화', '수', '목', '금', '토'][new Date(selectedDate + 'T00:00:00').getDay()]})
+                  </span>
+                </h3>
+                {totalCount > 0 && (
+                  <span className={`panel-completion-badge ${takenCount === totalCount ? 'all-done' : ''}`}>
+                    {takenCount} / {totalCount} 완료
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 메인 페이지와 동일한 아침 / 점심 / 저녁 시간대별 탭 (1줄 균등 세그먼트 UI) */}
+            {schedules.length > 0 && (
+              <div className="calendar-slot-tabs" role="tablist">
+                {slotTabs.map((tab) => {
+                  const tooltipText = tab.timeHint ? `${tab.label} (${formatTime24(tab.timeHint)})` : tab.label;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      aria-selected={activeSlotKey === tab.key}
+                      title={tooltipText}
+                      className={`calendar-slot-tab ${activeSlotKey === tab.key ? 'active' : ''} ${tab.isAllDone ? 'is-all-done' : ''}`}
+                      onClick={() => setSelectedSlotTab(tab.key)}
+                    >
+                      <span className="cal-tab-label">{tab.label}</span>
+                      <span className="cal-tab-badge">
+                        {tab.isAllDone ? '✓' : `${tab.taken}/${tab.total}`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="dose-list">
+              {loading ? (
+                <div style={{ color: '#7a7066', padding: '20px 0' }}>일정을 불러오는 중입니다...</div>
+              ) : sortedUnits.length === 0 ? (
+                <div style={{ color: '#7a7066', padding: '20px 0' }}>복약 일정이 없습니다.</div>
+              ) : (
+                sortedUnits.map((unit) => {
+                  if (unit.isPouch) {
+                    const isTaken = unit.items.every((i) => Boolean(i.takenAt));
+                    const isExpanded = Boolean(expandedPouches[unit.pouchKey]);
+                    const currentSlotLabel = unit.slotLabel || getSlotFromTime(unit.time).slotLabel;
+
+                    // 간결하고 또렷한 제목 (별칭 최우선, 없으면 병원명 기반 처방약)
+                    const title = unit.nickname
+                      ? unit.nickname
+                      : `${unit.hospitalName || '처방'}약`;
+
+                    // 간결한 서브 텍스트 (예: 서울아산병원 · 아모잘탄 외 3종)
+                    const firstMedFullName = unit.items[0]?.name || '처방약';
+                    const firstMedShort = firstMedFullName.length > 8 ? firstMedFullName.slice(0, 7) + '…' : firstMedFullName;
+                    const summaryLine = `${unit.hospitalName || '의료기관'} · ${firstMedShort}${unit.items.length > 1 ? ` 외 ${unit.items.length - 1}종` : ''}`;
+                    const fullTooltip = `${unit.hospitalName || '의료기관'}${unit.dispensedDate ? ` (${unit.dispensedDate.slice(0, 10)} 조제)` : ''}\n${unit.items.map((m) => m.name).join(', ')}`;
+
+                    return (
+                      <div key={unit.pouchKey} className={`cal-pouch-card ${isTaken ? 'done' : ''}`}>
+                        <div className="cal-pouch-main-row" onClick={(e) => togglePouchTaken(unit, e)}>
+                          <input
+                            type="checkbox"
+                            className="check-box prescription"
+                            checked={isTaken}
+                            onChange={(e) => togglePouchTaken(unit, e)}
+                            title={isTaken ? '봉지 복용 취소' : '봉지 전체 복용 완료'}
+                          />
+
+                          <div className="dose-info">
+                            <div className="time-row">
+                              <span className="type-dot prescription" />
+                              <span className="time">{formatTime24(unit.time)}</span>
+                              <span className="cal-slot-badge">{currentSlotLabel}</span>
+                              <span className="cal-pouch-tag">1포 ({unit.items.length}종)</span>
+                            </div>
+                            <div className="name-row">
+                              <strong
+                                className="name"
+                                title={unit.purpose ? `${title} - ${unit.purpose}` : title}
+                                style={{ textDecoration: isTaken ? 'line-through' : 'none' }}
+                              >
+                                {title}
+                              </strong>
+                              {unit.purpose && (
+                                <span className="cal-pouch-purpose-chip" title={unit.purpose}>
+                                  {unit.purpose.length > 9 ? unit.purpose.slice(0, 8) + '…' : unit.purpose}
+                                </span>
+                              )}
+                            </div>
+                            <div className="cal-pouch-meta-sub" title={fullTooltip}>
+                              {summaryLine}
+                            </div>
+                          </div>
+
+                          <div className="dose-item-actions" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className="btn-pouch-expand-cal"
+                              onClick={(e) => togglePouchExpand(unit.pouchKey, e)}
+                              title={isExpanded ? '처방약 목록 접기' : '포함된 처방약 보기'}
+                            >
+                              {isExpanded ? '접기 ▲' : `${unit.items.length}종 ▼`}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-alarm"
+                              onClick={(e) => openAlarmModal(unit.items[0], e)}
+                              title="알람 시간 설정"
+                            >
+                              <svg
+                                className="bell-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                              </svg>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn-delete-schedule"
+                              onClick={(e) => openDeleteModal(unit.items[0], e)}
+                              title="일정 삭제"
+                            >
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              >
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 펼쳤을 때 처방약 목록 */}
+                        {isExpanded && (
+                          <div className="cal-pouch-expanded-list">
+                            <div className="cal-pouch-expanded-title">봉지에 포함된 개별 처방약 ({unit.items.length}종)</div>
+                            {unit.items.map((subItem) => {
+                              const subTaken = Boolean(subItem.takenAt);
+                              return (
+                                <div
+                                  key={subItem.scheduleId}
+                                  className={`cal-pouch-sub-item ${subTaken ? 'done' : ''}`}
+                                  onClick={() => toggleTaken(subItem)}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="check-box sub-check prescription"
+                                    checked={subTaken}
+                                    onChange={() => toggleTaken(subItem)}
+                                  />
+                                  <span
+                                    className="cal-pouch-sub-name"
+                                    style={{ textDecoration: subTaken ? 'line-through' : 'none' }}
+                                  >
+                                    {subItem.name}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  const isTaken = !!unit.takenAt;
+                  const currentCat = categoryMap[unit.type] || { label: '상시약', className: 'cat-regular' };
+                  const currentSlotLabel = unit.slotLabel || getSlotFromTime(unit.time).slotLabel;
+
+                  return (
+                    <div
+                      key={unit.scheduleId}
+                      className={`dose-item ${unit.type || 'regular'} ${isTaken ? 'done' : ''}`}
+                      onClick={() => toggleTaken(unit)}
+                    >
+                      <input
+                        type="checkbox"
+                        className={`check-box ${unit.type || 'regular'}`}
+                        checked={isTaken}
+                        onChange={() => toggleTaken(unit)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+
+                      <div className="dose-info">
+                        <div className="time-row">
+                          <span className={`type-dot ${unit.type || 'regular'}`} />
+                          <span className="time">{formatTime24(unit.time)}</span>
+                          <span className="cal-slot-badge">{currentSlotLabel}</span>
+                        </div>
+                        <div className="name-row">
+                          <strong
+                            className="name"
+                            title={unit.name}
+                            style={{ textDecoration: isTaken ? 'line-through' : 'none' }}
+                          >
+                            {unit.name}
+                          </strong>
+                          <span className={`category-tag ${currentCat.className}`}>
+                            {currentCat.label}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="dose-item-actions" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn-alarm"
+                          onClick={(e) => openAlarmModal(unit, e)}
+                          title="알람 시간 설정"
+                        >
+                          <svg
+                            className="bell-icon"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                          </svg>
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn-delete-schedule"
+                          onClick={(e) => openDeleteModal(unit, e)}
+                          title="일정 삭제"
+                        >
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <button
+            className="btn-add-dose"
+            onClick={() => {
+              if (!currentUserId) {
+                showAlert('로그인 후 복약 일정을 추가할 수 있습니다.', '안내');
+                return;
+              }
+              setIsAddModalOpen(true);
+            }}
+          >
+            + 이 날짜에 복약 추가
+          </button>
+        </div>
+      </div>
+
+      {/* 모달 1: 알람 시간 설정 */}
+      {isAlarmModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAlarmModalOpen(false)}>
+          <div className="alarm-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h4>복약 알림 시간 설정</h4>
+              <button className="btn-close" onClick={() => setIsAlarmModalOpen(false)}>✕</button>
+            </div>
+
+            <div className="wheel-picker-box" ref={preventPickerScroll}>
+              <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour')}>
+                <button type="button" aria-label="시 늘리기" onClick={() => stepPicker('hour', 1)}>▲</button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="시 (00~23)"
+                  className="picker-input"
+                  maxLength={2}
+                  value={hour}
+                  onChange={(e) => setHour(e.target.value.replace(/[^0-9]/g, ''))}
+                  onBlur={() => setHour(normalizeTimePart(hour, 23))}
+                  onKeyDown={(e) => handleTimeKeyDown(e, 'hour')}
+                />
+                <button type="button" aria-label="시 줄이기" onClick={() => stepPicker('hour', -1)}>▼</button>
+              </div>
+
+              <div className="picker-divider" aria-hidden="true" />
+
+              <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute')}>
+                <button type="button" aria-label="분 늘리기" onClick={() => stepPicker('minute', 1)}>▲</button>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  aria-label="분 (00~59)"
+                  className="picker-input"
+                  maxLength={2}
+                  value={minute}
+                  onChange={(e) => setMinute(e.target.value.replace(/[^0-9]/g, ''))}
+                  onBlur={() => setMinute(normalizeTimePart(minute, 59))}
+                  onKeyDown={(e) => handleTimeKeyDown(e, 'minute')}
+                />
+                <button type="button" aria-label="분 줄이기" onClick={() => stepPicker('minute', -1)}>▼</button>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button type="button" className="btn-confirm" onClick={saveAlarmSetting}>확인</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 모달 2: 일정 추가 */}
+      {isAddModalOpen && (
+        <div className="modal-overlay" onClick={handleCloseAddModal}>
+          <div className="add-med-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h4>복약 일정 추가</h4>
+              <button className="btn-close" onClick={handleCloseAddModal}>✕</button>
+            </div>
+
+            <form onSubmit={handleAddMedication}>
+              <div className="form-group">
+                <label>분류</label>
+                <div className="category-select-group">
+                  <button
+                    type="button"
+                    className={`cat-btn ${newMedType === 'regular' ? 'active reg' : ''}`}
+                    onClick={() => {
+                      setNewMedType('regular');
+                      setSelectedShelfMedId(null);
+                      setSelectedMed(null);
+                      setNewMedName('');
+                      setSearchResults([]);
+                      setIsAutoTimeApplied(false);
+                    }}
+                  >
+                    상시약 (상비약)
+                  </button>
+                  <button
+                    type="button"
+                    className={`cat-btn ${newMedType === 'supplement' ? 'active sup' : ''}`}
+                    onClick={() => {
+                      setNewMedType('supplement');
+                      setSelectedShelfMedId(null);
+                      setSelectedMed(null);
+                      setNewMedName('');
+                      setSearchResults([]);
+                      setIsAutoTimeApplied(false);
+                    }}
+                  >
+                    영양제
+                  </button>
+                </div>
+              </div>
+
+              {/* 내 보관함 약품 빠른 선택 */}
+              <div className="form-group shelf-select-section">
+                <div className="shelf-section-header">
+                  <label className="shelf-label">
+                    내 보관함에서 빠른 선택
+                    <span className="shelf-count">
+                      ({everydayMeds.filter((m) => newMedType === 'regular' ? m.source === 'CABINET' : m.source === 'ROUTINE').length})
+                    </span>
+                  </label>
+                  <a href="/mypage" className="shelf-manage-link" target="_blank" rel="noreferrer">
+                    보관함 관리 ↗
+                  </a>
+                </div>
+
+                {everydayMeds.filter((m) => newMedType === 'regular' ? m.source === 'CABINET' : m.source === 'ROUTINE').length > 0 ? (
+                  <div className="shelf-chips-container">
+                    {everydayMeds
+                      .filter((m) => newMedType === 'regular' ? m.source === 'CABINET' : m.source === 'ROUTINE')
+                      .map((med) => {
+                        const isSelected = selectedShelfMedId === med.id;
+                        return (
+                          <button
+                            key={med.id}
+                            type="button"
+                            className={`shelf-med-chip ${isSelected ? 'active' : ''} ${newMedType === 'regular' ? 'chip-reg' : 'chip-sup'}`}
+                            onClick={() => handleSelectShelfMed(med)}
+                            title={med.name + (med.entpName ? ` (${med.entpName})` : '')}
+                          >
+                            <span
+                              className="chip-dot"
+                              style={{ backgroundColor: med.dotColor || (newMedType === 'regular' ? '#2b7044' : '#b87b2b') }}
+                            />
+                            <span className="chip-text">{med.name}</span>
+                            {med.takeTime && (
+                              <span className="chip-time-tag">{formatTime24(med.takeTime)}</span>
+                            )}
+                            {isSelected && <span className="chip-check-icon">✓</span>}
+                          </button>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="shelf-empty-hint">
+                    등록된 {newMedType === 'regular' ? '상시약' : '영양제'}이(가) 없습니다. 아래에서 직접 검색하거나 입력해 보세요.
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group-divider">
+                <span>또는 새 약품 직접 {newMedType === 'regular' ? '검색' : '입력 / 검색'}</span>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  {newMedType === 'regular' ? '의약품 직접 검색 (필수 선택)' : '영양제 직접 검색 또는 입력'}
+                </label>
+                <div className="search-input-wrapper">
+                  <input
+                    type="text"
+                    placeholder={
+                      selectedMed
+                        ? "선택 취소 후 다시 검색할 수 있습니다"
+                        : newMedType === 'regular'
+                        ? "의약품 이름을 검색하여 선택하세요 (예: 타이레놀, 아모잘탄)"
+                        : "영양제 이름을 입력하거나 검색하세요 (예: 루테인, 비타민C)"
+                    }
+                    value={selectedMed ? selectedMed.name : newMedName}
+                    onChange={(e) => {
+                      if (selectedShelfMedId) setSelectedShelfMedId(null);
+                      if (selectedMed) setSelectedMed(null);
+                      setNewMedName(e.target.value);
+                      setIsAutoTimeApplied(false);
+                    }}
+                    autoComplete="off"
+                  />
+                  {searchResults.length > 0 && !selectedMed && (
+                    <ul className="search-results-dropdown">
+                      {searchResults.map((item) => (
+                        <li
+                          key={item.medicationId}
+                          className="search-result-item"
+                          onClick={() => handleSelectMed(item)}
+                        >
+                          {item.itemName}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {selectedMed ? (
+                  <div className={`selected-med-chip ${selectedShelfMedId ? 'shelf-source' : ''}`}>
+                    {selectedShelfMedId && <span className="shelf-badge-tag">보관함</span>}
+                    <span className="chip-name" title={selectedMed.name}>
+                      선택됨: {selectedMed.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-remove-chip"
+                      onClick={handleRemoveSelectedMed}
+                      title="선택 취소"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : newMedType === 'regular' ? (
+                  <p className="field-hint-warning">
+                    상시약은 의약품(medications) 목록에서 검색하거나 보관함에서 선택해야 등록 가능합니다.
+                  </p>
+                ) : (
+                  <p className="field-hint-info">
+                    영양제는 보관함에서 선택하거나, 직접 이름을 입력하여 등록할 수 있습니다.
+                  </p>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>복용 시간 (24시간)</label>
+                <div className="wheel-picker-box add-picker" ref={preventPickerScroll}>
+                  <div className="picker-column" onWheel={(e) => handleWheel(e, 'hour', true)}>
+                    <button type="button" aria-label="시 늘리기" onClick={() => stepPicker('hour', 1, true)}>▲</button>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      aria-label="시 (00~23)"
+                      className="picker-input"
+                      maxLength={2}
+                      value={newHour}
+                      onChange={(e) => {
+                        setIsAutoTimeApplied(false);
+                        setNewHour(e.target.value.replace(/[^0-9]/g, ''));
+                      }}
+                      onBlur={() => setNewHour(normalizeTimePart(newHour, 23))}
+                      onKeyDown={(e) => handleTimeKeyDown(e, 'hour', true)}
+                    />
+                    <button type="button" aria-label="시 줄이기" onClick={() => stepPicker('hour', -1, true)}>▼</button>
+                  </div>
+
+                  <div className="picker-divider" aria-hidden="true" />
+
+                  <div className="picker-column" onWheel={(e) => handleWheel(e, 'minute', true)}>
+                    <button type="button" aria-label="분 늘리기" onClick={() => stepPicker('minute', 1, true)}>▲</button>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      aria-label="분 (00~59)"
+                      className="picker-input"
+                      maxLength={2}
+                      value={newMinute}
+                      onChange={(e) => {
+                        setIsAutoTimeApplied(false);
+                        setNewMinute(e.target.value.replace(/[^0-9]/g, ''));
+                      }}
+                      onBlur={() => setNewMinute(normalizeTimePart(newMinute, 59))}
+                      onKeyDown={(e) => handleTimeKeyDown(e, 'minute', true)}
+                    />
+                    <button type="button" aria-label="분 줄이기" onClick={() => stepPicker('minute', -1, true)}>▼</button>
+                  </div>
+                </div>
+
+                {isAutoTimeApplied && (
+                  <p className="field-hint-time-auto">
+                    보관함 권장 시간({newHour}:{newMinute})이 자동 설정되었습니다. 필요 시 조정하세요.
+                  </p>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label>복용 기간 (반복 설정)</label>
+                <div className="repeat-days-group">
+                  {[
+                    { label: '1일 (당일)', days: 1 },
+                    { label: '7일 (1주)', days: 7 },
+                    { label: '14일 (2주)', days: 14 },
+                    { label: '30일 (1개월)', days: 30 },
+                    { label: '90일 (3개월)', days: 90 }
+                  ].map((item) => (
+                    <button
+                      key={item.days}
+                      type="button"
+                      className={`repeat-btn ${repeatDays === item.days ? 'active' : ''}`}
+                      onClick={() => setRepeatDays(item.days)}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                {repeatDays > 1 && (
+                  <p className="field-hint-repeat">
+                    <strong>{selectedDate}</strong>부터 <strong>{repeatDays}일간 매일</strong> {normalizeTimePart(newHour, 23)}:{normalizeTimePart(newMinute, 59)}에 복약 일정이 자동 등록됩니다.
+                  </p>
+                )}
+              </div>
+
+              {addedSuccessMsg && (
+                <div className="toast-success-banner">✓ {addedSuccessMsg}</div>
+              )}
+
+              <div className="modal-actions-dual">
+                <button type="button" className="btn-cancel" onClick={handleCloseAddModal}>닫기</button>
+                <button type="submit" className="btn-save-med">추가하기</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 모달 3: 삭제 확인 (단건 vs 전체 스케줄 연계 삭제) */}
+      {isDeleteModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsDeleteModalOpen(false)}>
+          <div className="custom-delete-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="delete-modal-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#7d2638" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '28px', height: '28px' }}>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="8" x2="12" y2="12"></line>
+                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+              </svg>
+            </div>
+            
+            <h4 className="delete-modal-title">복약 일정 삭제</h4>
+            {itemToDelete && (
+              <div className="delete-modal-target-box">
+                <span className={`target-type-badge ${itemToDelete.type || 'regular'}`}>
+                  {itemToDelete.type === 'prescription' ? '처방약' : itemToDelete.type === 'supplement' ? '영양제' : '상비약'}
+                </span>
+                <span className="target-time-badge">{formatTime24(itemToDelete.time) || '시간미정'}</span>
+                <strong className="target-med-name">{itemToDelete.name}</strong>
+              </div>
+            )}
+            <p className="delete-modal-desc">
+              선택한 날짜의 일정만 삭제할 수도 있고,<br />
+              등록된 약 정보는 유지한 채 전체 복약 일정만 삭제할 수 있습니다.
+            </p>
+
+            <div className="delete-modal-choice-group">
+              <button
+                type="button"
+                className="btn-delete-choice btn-choice-single"
+                onClick={() => confirmDeleteSchedule(false)}
+              >
+                <span className="choice-title">이 일정만 삭제</span>
+                <span className="choice-desc">{selectedDate} 일정만 삭제합니다</span>
+              </button>
+              
+              <button
+                type="button"
+                className="btn-delete-choice btn-choice-all"
+                onClick={() => confirmDeleteSchedule(true)}
+              >
+                <span className="choice-title">이 약의 전체 스케줄 삭제</span>
+                <span className="choice-desc">등록된 약의 모든 날짜의 일정을 삭제합니다</span>
+              </button>
+            </div>
+
+            <div className="delete-modal-footer">
+              <button 
+                type="button" 
+                className="btn-modal-cancel" 
+                onClick={() => {
+                  setIsDeleteModalOpen(false);
+                  setItemToDelete(null);
+                }}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CalendarPage;

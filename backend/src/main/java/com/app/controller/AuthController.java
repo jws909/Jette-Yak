@@ -1,0 +1,243 @@
+package com.app.controller;
+
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.app.dto.LoginRequest;
+import com.app.dto.LoginResponse;
+import com.app.dto.EmailCodeRequest;
+import com.app.dto.EmailVerifyRequest;
+import com.app.dto.PasswordResetRequest;
+import com.app.domain.User;
+import com.app.mapper.UserMapper;
+import com.app.service.EmailVerificationService;
+import com.app.util.PasswordUtil;
+import com.app.push.PushSubscriptionService;
+
+/**
+ * DB 계정 확인, 로그인 세션 발급, 이메일 인증과 비밀번호 재설정 담당
+ */
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private EmailVerificationService emailVerificationService;
+
+    @Autowired
+    private PushSubscriptionService pushSubscriptionService;
+
+    private static final String EMAIL_PATTERN = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$";
+    private static final long PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS = 5 * 60 * 1000L;
+    private static final String PASSWORD_RESET_SESSION_KEY = "verifiedPasswordReset";
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
+        User user = request.getUsername() == null ? null : userMapper.findByLoginId(request.getUsername());
+        boolean isValid = user != null && request.getPassword() != null
+                && user.getPasswordHash().equals(PasswordUtil.sha256(request.getPassword()));
+
+        if (!isValid) {
+            LoginResponse failResponse = new LoginResponse(
+                    request.getUsername(),
+                    "아이디 또는 비밀번호가 올바르지 않습니다."
+            );
+            return ResponseEntity.status(401).body(failResponse);
+        }
+
+        if (httpRequest != null) {
+            var oldSession = httpRequest.getSession(false);
+            if (oldSession != null) {
+                // 계정 전환 시 이 기기에 이전 사용자의 복약 알림이 남지 않도록 해제
+                pushSubscriptionService.removeForSession(httpRequest);
+                oldSession.invalidate();
+            }
+            javax.servlet.http.HttpSession session = httpRequest.getSession(true);
+            session.setAttribute("userId", user.getUserId());
+            session.setAttribute("username", user.getLoginId());
+            session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
+            session.setAttribute("isAdmin", Integer.valueOf(1).equals(user.getIsAdmin()));
+            session.setAttribute("authenticated", true);
+        }
+
+        LoginResponse successResponse = new LoginResponse(
+                user.getUserId(),
+                user.getLoginId(),
+                user.getNickname(),
+                user.getEmail(),
+                user.getRole() == null ? "USER" : user.getRole(),
+                Integer.valueOf(1).equals(user.getIsAdmin()),
+                "로그인 성공"
+        );
+        successResponse.setBirthdate(user.getBirthdate() == null ? null : user.getBirthdate().toString());
+        return ResponseEntity.ok(successResponse);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout(javax.servlet.http.HttpServletRequest request) {
+        var session=request.getSession(false);
+        if(session!=null) {
+            // 다른 기기의 구독은 유지하고 현재 로그인 세션에 연결한 기기만 해제
+            pushSubscriptionService.removeForSession(request);
+            session.invalidate();
+        }
+        return ResponseEntity.ok().header("Cache-Control","no-store").body(Map.of("message","로그아웃되었습니다."));
+    }
+
+    @PostMapping("/demo")
+    public ResponseEntity<LoginResponse> demoLogin(javax.servlet.http.HttpServletRequest httpRequest) {
+        String targetUsername = "test12";
+        User user = userMapper.findByLoginId(targetUsername);
+        if (user == null) {
+            LoginResponse failResponse = new LoginResponse(null, "체험용 계정을 찾을 수 없습니다.");
+            return ResponseEntity.status(404).body(failResponse);
+        }
+
+        if (Integer.valueOf(1).equals(user.getIsAdmin())) {
+            return ResponseEntity.status(403).body(new LoginResponse(null, "체험용 계정을 사용할 수 없습니다."));
+        }
+
+        if (httpRequest != null) {
+            var oldSession = httpRequest.getSession(false);
+            if (oldSession != null) {
+                pushSubscriptionService.removeForSession(httpRequest);
+                oldSession.invalidate();
+            }
+            javax.servlet.http.HttpSession session = httpRequest.getSession(true);
+            session.setAttribute("userId", user.getUserId());
+            session.setAttribute("username", user.getLoginId());
+            session.setAttribute("role", user.getRole() == null ? "USER" : user.getRole());
+            session.setAttribute("isAdmin", Integer.valueOf(1).equals(user.getIsAdmin()));
+            session.setAttribute("authenticated", true);
+        }
+
+        LoginResponse successResponse = new LoginResponse(
+                user.getUserId(),
+                user.getLoginId(),
+                user.getNickname(),
+                user.getEmail(),
+                user.getRole() == null ? "USER" : user.getRole(),
+                Integer.valueOf(1).equals(user.getIsAdmin()),
+                "체험 로그인 성공"
+        );
+        successResponse.setBirthdate(user.getBirthdate() == null ? null : user.getBirthdate().toString());
+        return ResponseEntity.ok(successResponse);
+    }
+
+    @PostMapping("/find-id/send-code")
+    public ResponseEntity<?> sendFindIdCode(@RequestBody EmailCodeRequest request) {
+        String email = request.getEmail() == null ? "" : request.getEmail().trim();
+        if (!email.matches(EMAIL_PATTERN)) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "올바른 이메일 형식을 입력해 주세요."));
+        }
+        if (userMapper.findByEmail(email) == null) {
+            return ResponseEntity.status(404).body(java.util.Map.of("message", "등록된 이메일을 찾을 수 없습니다."));
+        }
+
+        try {
+            emailVerificationService.clearVerification(email);
+            emailVerificationService.sendCode(email);
+            return ResponseEntity.ok(java.util.Map.of("message", "인증번호를 이메일로 보냈습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(java.util.Map.of("message", "인증번호 발송에 실패했습니다."));
+        }
+    }
+
+    @PostMapping("/find-id/verify-code")
+    public ResponseEntity<?> verifyFindIdCode(@RequestBody EmailVerifyRequest request) {
+        String email = request.getEmail() == null ? "" : request.getEmail().trim();
+        if (!email.matches(EMAIL_PATTERN) || !emailVerificationService.verifyCode(email, request.getCode())) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "인증번호가 올바르지 않거나 만료되었습니다."));
+        }
+
+        User user = userMapper.findByEmail(email);
+        if (user == null) {
+            return ResponseEntity.status(404).body(java.util.Map.of("message", "등록된 이메일을 찾을 수 없습니다."));
+        }
+        return ResponseEntity.ok(java.util.Map.of("username", user.getLoginId()));
+    }
+
+    @PostMapping("/reset-password/send-code")
+    public ResponseEntity<?> sendPasswordResetCode(@RequestBody PasswordResetRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
+        User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
+        if (user == null) {
+            return ResponseEntity.status(404).body(java.util.Map.of("message", "아이디와 이메일이 일치하는 계정을 찾을 수 없습니다."));
+        }
+
+        try {
+            String email = request.getEmail().trim();
+            var existingSession = httpRequest.getSession(false);
+            if (existingSession != null) existingSession.removeAttribute(PASSWORD_RESET_SESSION_KEY);
+            emailVerificationService.clearVerification(email);
+            emailVerificationService.sendCode(email);
+            return ResponseEntity.ok(java.util.Map.of("message", "인증번호를 등록된 이메일로 보냈습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(java.util.Map.of("message", "인증번호 발송에 실패했습니다."));
+        }
+    }
+
+    @PostMapping("/reset-password/verify-code")
+    public ResponseEntity<?> verifyPasswordResetCode(@RequestBody PasswordResetRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
+        User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
+        String email = request.getEmail() == null ? "" : request.getEmail().trim();
+        if (user == null || !emailVerificationService.verifyCode(email, request.getCode())) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "인증번호가 올바르지 않거나 만료되었습니다."));
+        }
+        // 인증한 브라우저 세션에서만 비밀번호를 바꿀 수 있도록 인증 완료 상태를 보관합니다.
+        httpRequest.getSession(true).setAttribute(PASSWORD_RESET_SESSION_KEY,
+                new PasswordResetVerification(user.getLoginId(), email,
+                        System.currentTimeMillis() + PASSWORD_RESET_VERIFICATION_EXPIRY_MILLIS));
+        return ResponseEntity.ok(java.util.Map.of("message", "이메일 인증이 완료되었습니다."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestBody PasswordResetRequest request, javax.servlet.http.HttpServletRequest httpRequest) {
+        User user = findUserByUsernameAndEmail(request.getUsername(), request.getEmail());
+        String email = request.getEmail() == null ? "" : request.getEmail().trim();
+        var session = httpRequest.getSession(false);
+        Object verified = session == null ? null : session.getAttribute(PASSWORD_RESET_SESSION_KEY);
+        PasswordResetVerification verification = verified instanceof PasswordResetVerification ? (PasswordResetVerification)verified : null;
+        if (user == null || verification == null || System.currentTimeMillis() > verification.expiresAt
+                || !user.getLoginId().equals(verification.loginId) || !email.equalsIgnoreCase(verification.email)) {
+            if (session != null) session.removeAttribute(PASSWORD_RESET_SESSION_KEY);
+            return ResponseEntity.status(403).body(java.util.Map.of("message", "이메일 인증 후 비밀번호를 재설정할 수 있습니다."));
+        }
+        if (request.getNewPassword() == null || request.getNewPassword().length() < 8) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", "새 비밀번호는 8자 이상이어야 합니다."));
+        }
+
+        userMapper.updatePasswordHash(user.getLoginId(), PasswordUtil.sha256(request.getNewPassword()));
+        session.removeAttribute(PASSWORD_RESET_SESSION_KEY);
+        emailVerificationService.clearVerification(email);
+        return ResponseEntity.ok(java.util.Map.of("message", "비밀번호가 재설정되었습니다."));
+    }
+
+    private User findUserByUsernameAndEmail(String username, String email) {
+        if (username == null || username.isBlank() || email == null || !email.trim().matches(EMAIL_PATTERN)) {
+            return null;
+        }
+        User user = userMapper.findByLoginId(username.trim());
+        return user != null && user.getEmail() != null && user.getEmail().equalsIgnoreCase(email.trim()) ? user : null;
+    }
+
+    private static class PasswordResetVerification {
+        private final String loginId;
+        private final String email;
+        private final long expiresAt;
+
+        private PasswordResetVerification(String loginId, String email, long expiresAt) {
+            this.loginId = loginId;
+            this.email = email;
+            this.expiresAt = expiresAt;
+        }
+    }
+}

@@ -1,0 +1,318 @@
+/* ==========================================================================
+   Jette-Yak Global Sidebar Styles
+   ========================================================================== */
+
+/* 백드롭 (오버레이) */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(30, 24, 22, 0.45);
+  backdrop-filter: blur(2px);
+  z-index: 1100;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.sidebar-backdrop.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 사이드바 본체 */
+.site-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background-color: #faf7f2;
+  border-right: 1px solid #e7dfd4;
+  z-index: 1200;
+  box-shadow: 4px 0 24px rgba(40, 25, 20, 0.08);
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.site-sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar-inner {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+/* 상단 탑바 (모바일 닫기 버튼) */
+.sidebar-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ede5db;
+}
+
+.sidebar-brand-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #8b3e4b;
+  text-transform: uppercase;
+}
+
+.sidebar-close-btn {
+  background: transparent;
+  border: 1px solid #dfd7cc;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  color: #635b54;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s ease;
+}
+
+.sidebar-close-btn:hover {
+  background: #ede6dc;
+  color: #6e2c38;
+}
+
+
+
+/* --------------------------------------------------------------------------
+   사이드바 내비게이션 링크
+   -------------------------------------------------------------------------- */
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.nav-group-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9c9288;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+  padding-left: 8px;
+  text-transform: uppercase;
+}
+
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  color: #4f4740;
+  text-decoration: none;
+  font-size: 14.5px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.sidebar-nav-item:hover {
+  background-color: #efeae1;
+  color: #2b2422;
+}
+
+.sidebar-nav-item.active {
+  background-color: #ede2e0;
+  color: #6d1c2c;
+  font-weight: 700;
+}
+
+.sidebar-nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  background-color: #8b3e4b;
+  border-radius: 0 4px 4px 0;
+}
+
+.nav-item-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-item-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.nav-item-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.nav-item-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  background-color: #8b3e4b;
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   사이드바 푸터 & 복약 진행 카드
+   -------------------------------------------------------------------------- */
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid #ede6dc;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.routine-mini-card {
+  background: #f2ece3;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.routine-mini-label {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  font-weight: 600;
+  color: #736b63;
+}
+
+.routine-mini-bar {
+  height: 6px;
+  background-color: #ded6cb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.routine-mini-progress {
+  height: 100%;
+  background-color: #8b3e4b;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.routine-mini-status {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b3e4b;
+  text-align: right;
+}
+
+.sidebar-nav-item.admin-nav-item {
+  margin-top: 10px;
+  border: 1px solid rgba(139, 62, 75, 0.2);
+  background: rgba(139, 62, 75, 0.06);
+}
+
+.sidebar-nav-item.admin-nav-item:hover,
+.sidebar-nav-item.admin-nav-item.active {
+  background: #8b3e4b;
+  color: #fff;
+}
+
+.sidebar-logout-link {
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8c8278;
+  font-size: 13px;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sidebar-logout-link:hover {
+  color: #6e2c38;
+  background: #eee8df;
+}
+
+.footer-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.sidebar-login-link {
+  background: #8b3e4b;
+  color: #ffffff;
+  border: none;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.15s ease;
+}
+
+.sidebar-login-link:hover {
+  background: #732f3c;
+}
+
+/* ==========================================================================
+   태블릿 & PC웹: 사이드바 항상 노출 및 상단 고정 레이아웃
+   ========================================================================== */
+@media (min-width: 768px) {
+  /* 백드롭 숨김 */
+  .sidebar-backdrop {
+    display: none !important;
+  }
+
+  /* 사이드바 본체: 상단 Navbar(64px) 아래 좌측에 항상 고정 */
+  .site-sidebar {
+    top: 64px;
+    width: 240px;
+    transform: translateX(0) !important;
+    box-shadow: 2px 0 10px rgba(40, 25, 20, 0.03);
+    z-index: 900;
+  }
+
+  /* 태블릿/PC에서는 닫기 버튼 숨김 */
+  .sidebar-top-bar {
+    display: none;
+  }
+
+  .sidebar-inner {
+    padding-top: 20px;
+  }
+}
+
+/* 데스크탑 (1024px 이상): 사이드바 너비 260px 확장 */
+@media (min-width: 1024px) {
+  .site-sidebar {
+    width: 260px;
+  }
+}

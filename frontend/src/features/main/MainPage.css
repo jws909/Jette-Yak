@@ -1,0 +1,5035 @@
+/* ==========================================================================
+   Jette-Yak Main Page Styles (Faithful reproduction of 메인.png & wireframes)
+   ========================================================================== */
+
+.main-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* --------------------------------------------------------------------------
+   상태 전환 배너 (와이어프레임 기획 확인용 편의 기능)
+   -------------------------------------------------------------------------- */
+.state-switcher-banner {
+  background: #f5eee6;
+  border: 1.5px solid #dcd1c2;
+  border-radius: 8px;
+  padding: 10px 18px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+}
+
+.state-switcher-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.state-tip {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3f362f;
+}
+
+.state-tip strong {
+  color: #8b3e4b;
+  font-weight: 700;
+}
+
+.state-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.state-btn {
+  background: #ffffff;
+  border: 1.5px solid #9c8e82;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #2b2523;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.state-btn:hover {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.25);
+}
+
+.state-btn.active {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+   1. 헤더 인사말 영역 (메인.png)
+   -------------------------------------------------------------------------- */
+.main-greeting-header {
+  margin-top: 8px;
+}
+
+.greeting-date {
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #8c8278;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.greeting-title {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 700;
+  color: #26201e;
+  letter-spacing: -0.5px;
+  line-height: 1.25;
+}
+
+.user-highlight {
+  color: #611825;
+}
+
+.greeting-subtitle {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: #7d736a;
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   2. 약 검색 바 (메인.png)
+   -------------------------------------------------------------------------- */
+.main-search-section {
+  position: relative;
+}
+
+.main-search-bar {
+  display: flex;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2dcd2;
+  border-radius: 8px;
+  padding: 0 18px;
+  height: 52px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.main-search-bar:focus-within {
+  border-color: #7d2638;
+  box-shadow: 0 0 0 1px #7d2638;
+}
+
+.main-search-icon {
+  width: 19px;
+  height: 19px;
+  color: #9e958b;
+  flex-shrink: 0;
+  margin-right: 12px;
+}
+
+.main-search-input {
+  border: none;
+  background: transparent;
+  flex: 1;
+  font-size: 15px;
+  color: #2b2523;
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  padding: 0;
+  min-width: 0;
+}
+
+.main-search-input:focus,
+.main-search-input:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
+
+.main-search-input::placeholder {
+  color: #a89f95;
+}
+
+.main-search-clear {
+  background: none;
+  border: none;
+  color: #a89f95;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 13px;
+  outline: none !important;
+}
+
+.main-search-clear:focus,
+.main-search-clear:focus-visible {
+  outline: none !important;
+}
+
+.main-search-clear:hover {
+  color: #7d2638;
+}
+
+
+/* 검색 결과 모달 */
+.main-search-results-modal {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #ded5c8;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(35, 25, 20, 0.12);
+  z-index: 200;
+  overflow: hidden;
+}
+
+.results-inner-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: #faf7f2;
+  border-bottom: 1px solid #eee7dc;
+  font-size: 12px;
+  color: #736b63;
+}
+
+.results-inner-head button {
+  background: none;
+  border: none;
+  color: #8c8278;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.results-loading,
+.results-none {
+  padding: 24px;
+  text-align: center;
+  font-size: 13.5px;
+  color: #8c8278;
+}
+
+.results-scroll-area {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.result-row-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f4efe8;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.result-row-card:hover {
+  background-color: #fbf8f4;
+}
+
+.result-row-card strong {
+  font-size: 14.5px;
+  color: #2b2523;
+  margin-right: 8px;
+}
+
+.entp-label {
+  font-size: 12px;
+  color: #948b81;
+}
+
+.efficacy-label {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #696159;
+}
+
+.view-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #8b3e4b;
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   [처방전 등록 전 화면] (와이어프레임 메인,navbar,sidebar.jpg 명세)
+   -------------------------------------------------------------------------- */
+.empty-prescription-hero {
+  background: #ffffff;
+  border: 1px dashed #d5ccbe;
+  border-radius: 10px;
+  padding: 64px 32px;
+  text-align: center;
+}
+
+.empty-prescription-box {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.empty-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f8f3ec;
+  color: #8b3e4b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.empty-icon-circle svg {
+  width: 32px;
+  height: 32px;
+}
+
+.empty-title {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #2e2624;
+}
+
+.empty-subtitle {
+  margin: 0 0 16px;
+  font-size: 14.5px;
+  color: #787067;
+  line-height: 1.5;
+}
+
+.empty-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.prescription-upload-btn {
+  background-color: #8b3e4b;
+  color: #ffffff;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 3px 12px rgba(139, 62, 75, 0.25);
+  transition: all 0.2s ease;
+}
+
+.prescription-upload-btn:hover {
+  background-color: #732f3c;
+  border-color: #732f3c;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(139, 62, 75, 0.35);
+}
+
+.guide-register-btn {
+  background-color: #ffffff;
+  color: #8b3e4b;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.1);
+  transition: all 0.2s ease;
+}
+
+.guide-register-btn:hover {
+  background-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 16px rgba(139, 62, 75, 0.3);
+}
+
+.btn-arrow {
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+/* 컴팩트 처방전 등록 안내 배너 카드 (루틴 하단 배치) */
+.prescription-banner-card {
+  background: #ffffff;
+  border: 1.5px dashed #dcd4c8;
+  border-radius: 10px;
+  padding: 22px 28px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.prescription-banner-card .banner-card-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.prescription-banner-card .banner-card-text {
+  flex: 1;
+  min-width: 260px;
+}
+
+.prescription-banner-card .banner-kicker {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+  color: #8c8278;
+  text-transform: uppercase;
+  display: block;
+}
+
+.prescription-banner-card .banner-title {
+  margin: 4px 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.prescription-banner-card .banner-desc {
+  margin: 0;
+  font-size: 13.5px;
+  color: #6d645a;
+  line-height: 1.5;
+}
+
+.prescription-banner-card .banner-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.prescription-banner-card .banner-primary-btn {
+  background-color: #8b3e4b;
+  color: #ffffff;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prescription-banner-card .banner-primary-btn:hover {
+  background-color: #732f3c;
+  border-color: #732f3c;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.25);
+}
+
+.prescription-banner-card .banner-secondary-btn {
+  background-color: #ffffff;
+  color: #4a413a;
+  border: 1.5px solid #dcd4c8;
+  border-radius: 6px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.prescription-banner-card .banner-secondary-btn:hover {
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+}
+
+.prescription-upload-btn:hover .btn-arrow,
+.guide-register-btn:hover .btn-arrow {
+  transform: translateX(4px);
+}
+
+/* --------------------------------------------------------------------------
+   [처방전 등록 후] 처방전 요약 바 (PRESCRIPTION SUMMARY) - 메인.png
+   -------------------------------------------------------------------------- */
+.prescription-summary-card {
+  background: #ffffff;
+  border: 1px solid #e4ddd2;
+  border-radius: 8px;
+  padding: 22px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+}
+
+.summary-col-left {
+  flex: 1.3;
+  min-width: 0;
+}
+
+.summary-meta-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #8c8278;
+  text-transform: uppercase;
+  white-space: nowrap;
+  margin: 0;
+  line-height: 1;
+}
+
+.summary-date-title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #2b2523;
+  letter-spacing: -0.3px;
+}
+
+.summary-hospital-info {
+  font-size: 13px;
+  color: #8a8177;
+}
+
+.summary-stats-group {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex: 1;
+  justify-content: center;
+}
+
+.stat-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.stat-number {
+  font-size: 28px;
+  font-weight: 800;
+  color: #241d1b;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 11.5px;
+  color: #8c8278;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 36px;
+  background-color: #ede6dc;
+}
+
+.summary-col-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.new-prescription-btn {
+  background: #ffffff;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #8b3e4b;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.08);
+}
+
+.new-prescription-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.25);
+  transform: translateY(-1px);
+}
+
+.summary-guide-btn {
+  background: #8b3e4b;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.2);
+}
+
+.summary-guide-btn:hover {
+  background: #732f3c;
+  border-color: #732f3c;
+  box-shadow: 0 4px 12px rgba(139, 62, 75, 0.35);
+  transform: translateY(-1px);
+}
+
+/* --------------------------------------------------------------------------
+   2단 그리드: 처방 약품 (좌) + 복용 주의점 (우) - 메인.png
+   -------------------------------------------------------------------------- */
+.main-two-column-grid {
+  display: grid;
+  /* 긴 약 이름이 열의 최소 너비를 늘리지 않도록 카드 축소 허용 */
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.main-two-column-grid > * {
+  min-width: 0;
+}
+
+/* 좌측: 처방 약품 카드 */
+.prescribed-meds-card {
+  background: #ffffff;
+  border: 1px solid #e4ddd2;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+  display: flex;
+  flex-direction: column;
+}
+
+.card-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.card-sub-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #8c8278;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.card-main-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.card-main-title .count-num {
+  font-size: 15px;
+  font-weight: 600;
+  color: #8c8278;
+  margin-left: 4px;
+}
+
+.card-link-action {
+  background: #fdfaf6;
+  border: 1.5px solid #d4c6b5;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #8b3e4b;
+  cursor: pointer;
+  padding: 5px 12px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.card-link-action:hover {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.25);
+}
+
+.meds-list-divider {
+  height: 1px;
+  background-color: #f0eae1;
+  margin: 16px 0 6px;
+}
+
+.meds-vertical-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 처방전별 묶음(그룹핑) 섹션 (통합 처방전 모드) */
+.prescribed-group-box {
+  margin-bottom: 20px;
+}
+
+.prescribed-group-box:last-child {
+  margin-bottom: 0;
+}
+
+.prescribed-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #fbf9f5;
+  border: 1px solid #ebd9c8;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.prescribed-group-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.prescribed-group-icon {
+  color: #8b3e4b;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.prescribed-group-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #382c2b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.prescribed-group-meta {
+  font-size: 12px;
+  color: #8a7e73;
+  white-space: nowrap;
+}
+
+.prescribed-group-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.prescribed-group-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2.5px 8px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.prescribed-group-status-badge.taking {
+  background: #eef7f0;
+  color: #2b7a4b;
+  border: 1px solid #cce8d4;
+}
+
+.prescribed-group-status-badge.completed {
+  background: #f0ede8;
+  color: #7a7066;
+  border: 1px solid #e2ddd5;
+}
+
+.prescribed-group-status-badge.upcoming {
+  background: #fdf5eb;
+  color: #b7791f;
+  border: 1px solid #f4dfbe;
+}
+
+.med-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px;
+  border-bottom: 1px solid #f6f1ea;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s ease;
+}
+
+.med-item-row:last-child {
+  border-bottom: none;
+}
+
+.med-item-row:hover {
+  background-color: #faf7f2;
+}
+
+.med-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  padding-left: 2px;
+}
+
+.med-index-num {
+  font-size: 13px;
+  font-weight: 700;
+  color: #a4978a;
+  min-width: 22px;
+  letter-spacing: -0.2px;
+  flex-shrink: 0;
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.med-item-row:hover .med-index-num {
+  color: #8b3e4b;
+}
+
+.med-text-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.med-title-hospital-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.med-item-name {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #2b2523;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+
+.med-hospital-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  border-radius: 4px;
+  padding: 1.5px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  word-break: keep-all;
+  line-height: 1.2;
+}
+
+.med-item-desc {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: #82786f;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+}
+
+.med-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.med-type-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 38px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  word-break: keep-all;
+}
+
+.med-type-pill.rx {
+  background-color: #f7eee9;
+  color: #9c4146;
+}
+
+.med-type-pill.supp {
+  background-color: #fbf3e6;
+  color: #b57a22;
+}
+
+.med-type-pill.reg {
+  background-color: #edf5ef;
+  color: #3f7e58;
+}
+
+.med-more-btn {
+  background: none;
+  border: none;
+  color: #aba195;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.med-more-btn:hover {
+  color: #8b3e4b;
+}
+
+/* 처방 약품 빈 상태 (복용 완료/대기 등) */
+.meds-empty-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 36px 16px;
+  background: #fdfaf7;
+  border: 1.5px dashed #e4d8cd;
+  border-radius: 8px;
+  margin: 12px 0 6px;
+  gap: 8px;
+}
+
+.meds-empty-icon {
+  width: 40px;
+  height: 40px;
+  color: #8b3e4b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.meds-empty-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.meds-empty-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #2e2624;
+}
+
+.meds-empty-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: #7a6e66;
+  line-height: 1.5;
+  max-width: 360px;
+}
+
+/* 우측: 복용 전, 잠깐만요. 카드 */
+.medication-note-card {
+  background: #ffffff;
+  border: 1px solid #e4ddd2;
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.02);
+}
+
+.note-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+  letter-spacing: 0.3px;
+}
+
+.note-status-badge.safe {
+  background: #fbf0ee;
+  color: #8b3e4b;
+  border: 1px solid #ebd3d0;
+}
+
+.note-status-badge.danger {
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}
+
+.note-status-badge.completed {
+  background: #f1ece9;
+  color: #7a6e69;
+  border: 1px solid #dfd7d3;
+}
+
+.note-status-badge.upcoming {
+  background: #e8f4fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+.note-points-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 16px;
+}
+
+.note-point-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #faf7f2;
+  border: 1.5px solid #ede3d6;
+  border-radius: 8px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+}
+
+.note-point-item:hover {
+  background: #ffffff;
+  border-color: #8b3e4b;
+  box-shadow: 0 2px 8px rgba(139, 62, 75, 0.08);
+}
+
+.note-point-item.highlight {
+  background: #fff5f5;
+  border-color: #f5c2c7;
+}
+
+.note-point-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  border-radius: 50%;
+  background: #ede3d6;
+  color: #6b5e51;
+  font-size: 11px;
+  font-weight: 800;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.note-point-item.highlight .note-point-num,
+.note-point-num.highlight {
+  background: #c62828;
+  color: #ffffff;
+}
+
+.note-point-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.note-point-category {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #8b3e4b;
+  letter-spacing: 0.2px;
+}
+
+.note-point-item.highlight .note-point-category {
+  color: #c62828;
+}
+
+.note-point-text {
+  margin: 0;
+  font-size: 13px;
+  color: #3b332f;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.note-action-footer {
+  text-align: left;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.note-detail-btn {
+  background: #fdfaf6;
+  border: 1.5px solid #d4c6b5;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8b3e4b;
+  cursor: pointer;
+  padding: 6px 14px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.note-detail-btn:hover {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.25);
+}
+
+/* --------------------------------------------------------------------------
+   4. 오늘의 복약 루틴 카드 (TODAY'S ROUTINE)
+   [방안 1: 버건디 포인트 & 로즈크림 + 화이트 입체 카드 박스 분리]
+   로즈베이지 배경(#faf5f4) + 상단 4px 버건디 바 + 개별 화이트 입체 카드 분리로 시인성/주목도 극대화
+   -------------------------------------------------------------------------- */
+.today-routine-dark-card,
+.today-routine-card {
+  background-color: #faf5f4;
+  border: 1.5px solid #e8d7d5;
+  border-top: 4px solid #8b3e4b;
+  border-radius: 10px;
+  padding: 26px 30px;
+  color: #2b2523;
+  box-shadow: 0 4px 16px rgba(139, 62, 75, 0.05);
+}
+
+.routine-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.routine-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #8b3e4b;
+  text-transform: uppercase;
+}
+
+.routine-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.routine-date-badge {
+  font-size: 12px;
+  color: #7d6b68;
+  font-weight: 600;
+  background: #eedddb;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.med-register-quick-btn {
+  background-color: #8b3e4b;
+  color: #ffffff;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.2);
+}
+
+.med-register-quick-btn:hover {
+  background-color: #732f3c;
+  border-color: #732f3c;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.35);
+}
+
+.meal-setting-btn {
+  background: #ffffff;
+  border: 1.5px solid #d8c2bf;
+  border-radius: 6px;
+  color: #5c3e44;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(139, 62, 75, 0.06);
+}
+
+.meal-setting-btn:hover {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.25);
+}
+
+.setting-btn-icon {
+  width: 14px;
+  height: 14px;
+  color: #8b3e4b;
+  transition: color 0.2s ease;
+}
+
+.meal-setting-btn:hover .setting-btn-icon {
+  color: #ffffff;
+}
+
+.routine-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.routine-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  color: #231c1d;
+  letter-spacing: -0.4px;
+}
+
+.taken-highlight {
+  color: #8b3e4b;
+  font-weight: 900;
+  font-size: 24px;
+}
+
+.routine-rate-tip {
+  font-size: 13px;
+  color: #735f5c;
+  font-weight: 600;
+}
+
+/* 시간대별 탭 (아침, 점심, 저녁, 취침전, 전체) */
+.routine-slot-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+  padding-top: 6px;
+  margin-top: -6px;
+  padding-bottom: 8px;
+  padding-left: 2px;
+  padding-right: 2px;
+  border-bottom: 1.5px solid #ebd9d7;
+  scrollbar-width: thin;
+}
+
+.routine-slot-tab {
+  position: relative;
+  background: #ffffff;
+  border: 1.5px solid #dfccc9;
+  border-radius: 7px;
+  color: #594846;
+  padding: 8px 15px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(139, 62, 75, 0.04);
+}
+
+.routine-slot-tab:hover {
+  background: #fbf0ef;
+  color: #8b3e4b;
+  border-color: #cbaba8;
+  transform: translateY(-2px);
+  z-index: 2;
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.12);
+}
+
+.routine-slot-tab.active {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.3);
+}
+
+.slot-tab-label {
+  font-weight: 700;
+}
+
+.slot-tab-time {
+  font-size: 11.5px;
+  color: #754f56;
+  background: #f4e7e5;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.routine-slot-tab.active .slot-tab-time {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.slot-tab-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #ebd8d6;
+  color: #5a3c42;
+}
+
+.routine-slot-tab.active .slot-tab-badge {
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+}
+
+.routine-slot-tab.is-all-done:not(.active) .slot-tab-badge {
+  background: #7d2638;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.routine-slot-tab.active.is-all-done .slot-tab-badge {
+  background: #ffffff;
+  color: #8b3e4b;
+  font-weight: 800;
+}
+
+/* 체크리스트 항목들 (화이트 입체 카드 박스 분리) */
+.routine-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 6px;
+  margin-top: -6px;
+}
+
+.routine-item-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1.5px solid #eddcd9;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1.5px 5px rgba(139, 62, 75, 0.04);
+}
+
+.routine-item-row:hover {
+  background-color: #ffffff;
+  border-color: #8b3e4b;
+  transform: translateY(-2px);
+  z-index: 2;
+  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.12);
+}
+
+.routine-item-row.is-taken {
+  background: #fbf7f6;
+  border-color: #e5d7d5;
+  opacity: 0.82;
+  box-shadow: none;
+}
+
+.routine-item-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* 커스텀 체크박스 */
+.custom-checkbox {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #caa8a5;
+  border-radius: 5px;
+  background-color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.custom-checkbox:not(.checked):hover {
+  border-color: #8b3e4b;
+  background-color: #fdf5f5;
+}
+
+.custom-checkbox.checked {
+  background-color: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.35);
+}
+
+.custom-checkbox.checked:hover {
+  background-color: #732f3c;
+  border-color: #732f3c;
+}
+
+.custom-checkbox svg {
+  width: 14px;
+  height: 14px;
+}
+
+.routine-time {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #8b3e4b;
+  min-width: 52px;
+  background: #faf0ee;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-align: center;
+  border: 1px solid #ebd3d0;
+}
+
+.routine-item-row.is-taken .routine-time {
+  background: #f0ebe9;
+  color: #9a8a88;
+  border-color: #e2dad8;
+}
+
+.routine-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #231c1d;
+  letter-spacing: -0.2px;
+}
+
+.routine-item-row.is-taken .routine-name {
+  text-decoration: line-through;
+  color: #9c8e8c;
+  font-weight: 500;
+}
+
+.routine-item-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.routine-taken-time {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #8b3e4b;
+  background-color: #faeff0;
+  border: 1px solid #ebd0d5;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+}
+
+.routine-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+/* 하단 버튼 */
+.routine-footer-action {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.view-all-records-btn {
+  background-color: #ffffff;
+  border: 2px solid #8b3e4b;
+  border-radius: 7px;
+  color: #8b3e4b;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 11px 32px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.08);
+}
+
+.view-all-records-btn:hover {
+  border-color: #8b3e4b;
+  color: #ffffff;
+  background-color: #8b3e4b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.35);
+}
+
+.arrow-right,
+.arrow-left {
+  font-size: 15px;
+  transition: transform 0.2s ease;
+}
+
+.view-all-records-btn:hover .arrow-right,
+.view-all-records-btn:hover .arrow-left {
+  transform: translateX(4px);
+}
+
+/* 시간대별 묶음(그룹) 보기 */
+.routine-grouped-container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.routine-slot-section {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.slot-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px 10px;
+  background: transparent;
+  border-bottom: 2px solid #e7d4d1;
+  margin-bottom: 10px;
+}
+
+.slot-section-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slot-section-badge {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 5px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 5px rgba(139, 62, 75, 0.25);
+}
+
+.slot-section-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: #5a4543;
+  margin-left: 2px;
+}
+
+.slot-section-counter {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #7a6361;
+}
+
+.slot-section-counter.done {
+  color: #7d2638;
+  font-weight: 800;
+  background: #ebd8d6;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.slot-section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  margin-top: -4px;
+}
+
+/* 개별 시간대 탭 선택 모드 */
+.routine-single-slot-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 4px;
+  margin-top: -4px;
+}
+
+.slot-single-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 4px 12px;
+  border-bottom: 2px solid #e7d4d1;
+  margin-bottom: 8px;
+}
+
+.slot-single-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #2c2020;
+}
+
+.slot-single-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #f3e4e2;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* 빈 일정 상태 */
+.routine-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 38px 24px;
+  background: #ffffff;
+  border: 2px dashed #dbb8b5;
+  border-radius: 10px;
+  margin: 10px 0 6px;
+  gap: 12px;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.04);
+}
+
+.routine-empty-icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a45a66;
+  margin-bottom: 2px;
+}
+
+.routine-empty-icon svg {
+  width: 44px;
+  height: 44px;
+}
+
+.routine-empty-text {
+  font-size: 14px;
+  color: #5a4547;
+  max-width: 460px;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.routine-empty-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #2b2123;
+  letter-spacing: -0.2px;
+}
+
+.routine-empty-cta-btn {
+  background: #8b3e4b;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 6px;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 800;
+  padding: 10px 24px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.3);
+  margin-top: 4px;
+}
+
+.routine-empty-cta-btn:hover {
+  background: #732f3c;
+  border-color: #732f3c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.45);
+}
+
+/* 식사 시간 설정 모달 */
+.meal-time-modal {
+  max-width: 540px;
+}
+
+.meal-modal-form {
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.meal-modal-intro {
+  background: #fdfaf6;
+  border: 1px solid #eee5da;
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.meal-modal-intro p {
+  margin: 0;
+  font-size: 13px;
+  color: #5a5048;
+  line-height: 1.55;
+}
+
+.meal-tab-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.meal-tab-btn {
+  flex: 1;
+  padding: 9px 14px;
+  background: #f4ede4;
+  border: 1px solid #dfd3c3;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6a5d52;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.meal-tab-btn:hover {
+  background: #ebe0d3;
+}
+
+.meal-tab-btn.active {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+}
+
+.meal-same-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: #fdf8f4;
+  border: 1px dashed #decbc5;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #6b434b;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.meal-same-toggle-row input[type="checkbox"] {
+  accent-color: #8b3e4b;
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+}
+
+.meal-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.meal-input-group {
+  background: #faf8f5;
+  border: 1px solid #e7dfd4;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meal-input-group label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3b322c;
+}
+
+.styled-time-input {
+  border: 1.5px solid #dcd4c7;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2b2522;
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.styled-time-input:focus-within {
+  border-color: #8b3e4b;
+}
+
+.meal-calc-hint {
+  font-size: 11.5px;
+  color: #7d7268;
+}
+
+.meal-calc-hint strong {
+  color: #8b3e4b;
+}
+
+.meal-preview-box {
+  background: #f6f2ec;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.meal-preview-box .preview-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6a6058;
+  margin-bottom: 10px;
+}
+
+.preview-schedule-pills {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.preview-pill {
+  background: #ffffff;
+  border: 1px solid #dfd7cc;
+  border-radius: 20px;
+  padding: 4px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.pill-badge {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.pill-time {
+  font-weight: 600;
+  color: #2b2522;
+}
+
+.preview-arrow {
+  color: #a89e94;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.btn-default-reset {
+  background: transparent;
+  border: 1px solid #d4c8b8;
+  border-radius: 24px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b6158;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-default-reset:hover {
+  background: #f1ede6;
+  color: #2b2522;
+}
+
+.modal-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 540px) {
+  .meal-inputs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   모달 공통 스타일
+   -------------------------------------------------------------------------- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(20, 16, 14, 0.6);
+  backdrop-filter: blur(3px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.modal-content-box {
+  background: #ffffff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPop {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  background: #faf7f2;
+  border-bottom: 1px solid #eee5da;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #8c8278;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: #8b3e4b;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #faf7f2;
+  border-top: 1px solid #eee5da;
+}
+
+.modal-foot .btn-cancel,
+.modal-foot .modal-cancel-btn {
+  background: #ffffff;
+  border: 1.5px solid #c7bcae;
+  border-radius: 24px;
+  padding: 9px 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a3f35;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1.4;
+}
+
+.modal-foot .btn-cancel:hover:not(:disabled),
+.modal-foot .modal-cancel-btn:hover:not(:disabled) {
+  background: #f7f3ed;
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+}
+
+.modal-foot .btn-confirm,
+.modal-foot .modal-confirm-btn,
+.modal-content-box .btn-confirm,
+.btn-confirm {
+  background: #8b3e4b !important;
+  color: #ffffff !important;
+  border: 1.5px solid #8b3e4b !important;
+  border-radius: 24px !important;
+  padding: 9px 26px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.25) !important;
+  line-height: 1.4 !important;
+  text-decoration: none !important;
+}
+
+.modal-foot .btn-confirm:hover:not(:disabled),
+.modal-foot .modal-confirm-btn:hover:not(:disabled),
+.modal-content-box .btn-confirm:hover:not(:disabled),
+.btn-confirm:hover:not(:disabled) {
+  background: #732f3c !important;
+  border-color: #732f3c !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.35) !important;
+}
+
+.modal-foot .btn-confirm:disabled,
+.modal-foot .modal-confirm-btn:disabled,
+.btn-confirm:disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* 업로드 모달 */
+.upload-form {
+  padding: 20px 24px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  max-height: calc(92vh - 65px);
+}
+
+/* 지원 서식 안내 칩 (처방전 / 약국 약봉투) */
+.upload-support-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 2px 0 4px;
+}
+
+.support-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: #f7f3ee;
+  border: 1px solid #e5ded4;
+  border-radius: 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5a4b41;
+  transition: all 0.2s ease;
+}
+
+.support-chip.highlight {
+  background: #fdf5f6;
+  border-color: #ebd1d5;
+  color: #8b3e4b;
+}
+
+.support-chip-hint {
+  font-size: 12px;
+  color: #8c8278;
+  margin-left: 2px;
+}
+
+/* 처방전 촬영 안내 배너 */
+.upload-guide-banner {
+  background: #fdfaf3;
+  border: 1px solid #f0e4cc;
+  border-left: 4px solid #c98836;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.guide-banner-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #8c5b1b;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.guide-icon {
+  font-size: 15px;
+}
+
+.guide-text {
+  margin: 0;
+  font-size: 12px;
+  color: #63574c;
+  line-height: 1.5;
+}
+
+.guide-text strong {
+  color: #8b3e4b;
+}
+
+.upload-dropzone {
+  border: 2px dashed #ded5c8;
+  border-radius: 10px;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: #fcfbfa;
+  transition: all 0.2s ease;
+}
+
+.upload-dropzone.dragover {
+  border-color: #8b3e4b;
+  background: #fdf5f6;
+  transform: scale(1.01);
+}
+
+.upload-cloud-icon {
+  width: 36px;
+  height: 36px;
+  color: #8b3e4b;
+  margin-bottom: 8px;
+}
+
+.upload-dropzone strong {
+  font-size: 14.5px;
+  color: #2b2523;
+}
+
+.upload-dropzone p {
+  margin: 4px 0 14px;
+  font-size: 12px;
+  color: #8c8278;
+}
+
+.file-hidden-input {
+  display: none;
+}
+
+.file-pick-btn {
+  background: #f1ede6;
+  border: 1px solid #ded6c9;
+  color: #4a413a;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.file-pick-btn:hover {
+  background: #e6dfd3;
+}
+
+/* 실시간 처방전 미리보기 & 회전/반전 툴바 */
+.preview-container {
+  background: #faf8f5;
+  border: 1px solid #e8e0d5;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.preview-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #4a413a;
+}
+
+.preview-badge {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.preview-viewport {
+  width: 100%;
+  height: 230px;
+  background: #1e1b19;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.preview-image {
+  max-width: 190px;
+  max-height: 190px;
+  object-fit: contain;
+  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.preview-toolbar {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ffffff;
+  border: 1.5px solid #c9bfb0;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #3b322c;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.tool-btn:hover:not(:disabled) {
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+  background: #fff8f8;
+}
+
+.tool-btn.active {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+.tool-btn.reset-btn {
+  color: #787067;
+}
+
+.tool-btn.reset-btn:hover:not(:disabled) {
+  border-color: #c04b4b;
+  color: #c04b4b;
+  background: #fff5f5;
+}
+
+.tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: #ded6c9;
+  color: #a89f94;
+}
+
+.tool-icon {
+  font-size: 13.5px;
+  line-height: 1;
+}
+
+.preview-hint {
+  margin: 0;
+  font-size: 11.5px;
+  color: #787067;
+  text-align: center;
+}
+
+.analyzing-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  background: #fff9f4;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #8b3e4b;
+}
+
+.progress-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ecd5d8;
+  border-top-color: #8b3e4b;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.upload-form .modal-foot {
+  margin: 8px -24px 0 -24px;
+  position: sticky;
+  bottom: 0;
+  background: #faf7f2;
+  border-top: 1px solid #eee5da;
+  z-index: 2;
+}
+
+/* 약품 상세 모달 */
+.detail-head-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.med-detail-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #8c8278;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.detail-field p {
+  margin: 0;
+  font-size: 14px;
+  color: #2b2523;
+  line-height: 1.5;
+}
+
+.caution-text {
+  color: #b54747 !important;
+  font-weight: 600;
+}
+
+/* AI 핵심 요약 하이라이트 박스 */
+.ai-summary-highlight-box {
+  background: #fdfaf6;
+  border: 1px solid #eadfc9;
+  border-left: 4px solid #d48b38;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-summary-highlight-box .ai-summary-label {
+  color: #b36314 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.ai-summary-highlight-box .ai-summary-main-text {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #2b2523 !important;
+  line-height: 1.55 !important;
+  word-break: keep-all;
+}
+
+.ai-summary-highlight-box .ai-sub-line {
+  font-size: 12.5px !important;
+  color: #5a5047 !important;
+  line-height: 1.4 !important;
+  margin-top: 2px !important;
+}
+
+.ai-summary-highlight-box .ai-warning-line {
+  color: #b54747 !important;
+}
+
+.ai-summary-loading-hint {
+  font-size: 13px;
+  color: #b36314;
+  background: #fdf8f0;
+  border: 1px dashed #d48b38;
+  border-radius: 6px;
+  padding: 10px 14px;
+  animation: pulse 1.8s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* 주의사항 모달 */
+.modal-content-box.caution-modal-content {
+  max-width: 580px;
+}
+
+.modal-head-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modal-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8c8278;
+}
+
+.caution-modal-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  max-height: calc(90vh - 140px);
+}
+
+.caution-summary-card {
+  background: #fff7f7;
+  border: 1px solid #f2d2d2;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.caution-summary-card strong {
+  display: block;
+  font-size: 14px;
+  color: #b53838;
+  margin-bottom: 4px;
+}
+
+.caution-summary-card p {
+  margin: 0;
+  font-size: 13px;
+  color: #4a3b3b;
+  line-height: 1.5;
+}
+
+.caution-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.caution-section-header h4 {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.caution-status-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #fbf0ee;
+  color: #8b3e4b;
+  border: 1px solid #ebd3d0;
+}
+
+.caution-items-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.caution-item-card {
+  background: #faf7f2;
+  border: 1.5px solid #ede3d6;
+  border-radius: 8px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.caution-item-card:hover {
+  border-color: #8b3e4b;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(139, 62, 75, 0.06);
+}
+
+.caution-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.caution-item-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #2e2624;
+}
+
+.caution-discontinued-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c62828;
+  background: #ffebee;
+  border: 1px solid #ef9a9a;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+.caution-item-text {
+  margin: 0;
+  font-size: 13px;
+  color: #4a3b3b;
+  line-height: 1.5;
+}
+
+.caution-item-dosage-info {
+  font-size: 12px;
+  color: #82786f;
+  margin-top: 2px;
+}
+
+/* 빈 상태 / 복용 완료 */
+.caution-empty-notice-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.caution-modal-empty-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 16px;
+  background: #fdfaf7;
+  border: 1.5px dashed #e4d8cd;
+  border-radius: 8px;
+  gap: 8px;
+}
+
+.caution-empty-icon {
+  width: 40px;
+  height: 40px;
+  color: #8b3e4b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.caution-empty-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.caution-empty-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #2e2624;
+}
+
+.caution-empty-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: #7a6e66;
+  line-height: 1.5;
+  max-width: 420px;
+}
+
+/* 지난 처방 토글 */
+.past-meds-toggle-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.btn-past-meds-toggle {
+  background: #ffffff;
+  border: 1.5px solid #dcd4c9;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #7a6e66;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-past-meds-toggle:hover {
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+  background: #fdfaf8;
+}
+
+.past-meds-dropdown-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px dashed #e4dcd3;
+  padding-top: 14px;
+}
+
+.past-meds-header-note {
+  font-size: 12px;
+  color: #8a7e75;
+  text-align: left;
+  font-weight: 600;
+}
+
+.caution-item-card.past {
+  background: #f9f7f5;
+  border: 1px solid #e7dfd5;
+  opacity: 0.88;
+}
+
+.caution-item-name.past {
+  color: #5c534c;
+}
+
+.past-status-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #82786f;
+  background: #ece5dc;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+/* --------------------------------------------------------------------------
+   반응형 미디어 쿼리
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .main-two-column-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .prescription-summary-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 18px;
+    padding: 20px 22px;
+  }
+  .summary-col-left {
+    width: 100%;
+  }
+  .summary-stats-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .summary-col-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 600px) {
+  /* 좁은 화면에서는 설명과 조작 버튼을 다음 행으로 배치해 화면 밖 잘림 방지 */
+  .prescribed-meds-card {
+    padding: 18px 14px;
+    overflow-wrap: anywhere;
+  }
+  .card-top-row,
+  .med-item-row,
+  .prescribed-group-header {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .routine-item-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .routine-item-left {
+    min-width: 0;
+    flex: 1 1 160px;
+    overflow-wrap: anywhere;
+  }
+  .routine-item-right {
+    margin-left: auto;
+  }
+  .prescription-summary-card {
+    padding: 16px 14px;
+    gap: 14px;
+  }
+  .summary-meta-top-row {
+    gap: 6px;
+  }
+  .summary-meta-label {
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+  .summary-status-pill {
+    font-size: 10.5px;
+    padding: 2px 7.5px;
+  }
+  .summary-date-title {
+    font-size: 17px;
+  }
+  .summary-stats-group {
+    justify-content: space-around;
+    width: 100%;
+    padding: 10px 0;
+    border-top: 1px solid #f2ece4;
+    border-bottom: 1px solid #f2ece4;
+  }
+  .greeting-title {
+    font-size: 26px;
+  }
+  .empty-actions-row {
+    flex-direction: column;
+    width: 100%;
+  }
+  .prescription-upload-btn,
+  .guide-register-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .summary-col-right {
+    flex-direction: column;
+    width: 100%;
+  }
+  .new-prescription-btn,
+  .summary-guide-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+  .today-routine-dark-card {
+    padding: 20px 16px;
+  }
+  .routine-item-row {
+    padding: 14px 4px;
+  }
+  .meal-inputs-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. 식사 시간 설정 모달 (User Meal Times Settings Modal)
+   -------------------------------------------------------------------------- */
+.meal-time-modal {
+  max-width: 540px !important;
+  width: 90% !important;
+}
+
+.meal-modal-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.meal-modal-intro {
+  padding: 16px 24px 0 24px;
+}
+
+.meal-modal-intro p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: #554d45;
+  background: #faf6f0;
+  border-left: 3px solid #8b3e4b;
+  border-radius: 4px;
+  padding: 10px 14px;
+}
+
+.meal-inputs-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+  padding: 20px 24px;
+}
+
+.meal-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.meal-input-group label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #38302b;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.meal-icon {
+  font-size: 15px;
+}
+
+.styled-time-input {
+  width: 100%;
+  height: 42px;
+  border: 1.5px solid #dfd7cc;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #2b2523;
+  background-color: #ffffff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.styled-time-input:focus-within {
+  outline: none;
+  border-color: #8b3e4b;
+  box-shadow: 0 0 0 3px rgba(139, 62, 75, 0.12);
+}
+
+/* 24시간 선택기의 시·분 숫자 영역을 확보합니다. */
+.meal-time-modal .time-input-24.styled-time-input {
+  width: 100%;
+  min-width: 128px;
+}
+
+@media (max-width: 540px) {
+  .meal-time-modal .meal-inputs-grid:has(.time-input-24) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.meal-calc-hint {
+  font-size: 11.5px;
+  color: #7d7267;
+  padding-left: 2px;
+}
+
+.meal-calc-hint strong {
+  color: #8b3e4b;
+  font-weight: 700;
+}
+
+/* 스케줄 미리보기 박스 */
+.meal-preview-box {
+  margin: 0 24px 20px 24px;
+  background: #fdfaf5;
+  border: 1px dashed #d8cbbe;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b5c4f;
+}
+
+.preview-schedule-pills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1px solid #e2d7cb;
+  border-radius: 20px;
+  padding: 4px 10px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.pill-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #fbf2f3;
+  border-radius: 10px;
+  padding: 1px 6px;
+}
+
+.pill-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2b2523;
+}
+
+.preview-arrow {
+  color: #a89f95;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.btn-default-reset {
+  background: transparent;
+  border: 1px dashed #b5a999;
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a6e62;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: auto;
+}
+
+.btn-default-reset:hover:not(:disabled) {
+  background: #f5efe6;
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+}
+
+.modal-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ==========================================================================
+   내 처방전 관리 모달 및 버튼 스타일 (방안 A)
+   ========================================================================== */
+
+.manage-prescription-btn {
+  background: #ffffff;
+  border: 1.5px solid #8b3e4b;
+  color: #8b3e4b;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.manage-prescription-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+}
+
+.manage-prescription-empty-btn {
+  background: #fbf9f6;
+  border: 1.5px solid #c9bfb0;
+  color: #5a4f47;
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.manage-prescription-empty-btn:hover {
+  background: #ede6dc;
+  color: #2b2522;
+  border-color: #9e9384;
+}
+
+/* 모달 오버레이 & 다이얼로그 */
+.manage-rx-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(25, 20, 18, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.manage-rx-modal-dialog {
+  background: #faf8f5;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 820px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  border: 1px solid #dfd6c8;
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+.manage-rx-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 22px 28px 18px;
+  background: #ffffff;
+  border-bottom: 1px solid #ede5da;
+}
+
+.manage-rx-kicker {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #8b3e4b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.manage-rx-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #2b2522;
+}
+
+.manage-alert-banner {
+  padding: 10px 24px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid transparent;
+}
+
+.manage-alert-banner.success {
+  background: #eaf6ee;
+  color: #247547;
+  border-color: #c0e5cc;
+}
+
+.manage-alert-banner.error {
+  background: #fdf0f0;
+  color: #b83333;
+  border-color: #f5c4c4;
+}
+
+.manage-rx-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+/* 목록 뷰 */
+.manage-rx-list-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.manage-intro-text {
+  margin: 0;
+  font-size: 14px;
+  color: #5c534b;
+}
+
+.manage-intro-text strong {
+  color: #8b3e4b;
+  font-weight: 800;
+}
+
+.manage-add-rx-btn {
+  background: #8b3e4b;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.manage-add-rx-btn:hover {
+  background: #732f3c;
+}
+
+.manage-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.manage-card {
+  background: #ffffff;
+  border: 1px solid #e2d9cc;
+  border-radius: 10px;
+  padding: 18px 20px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.manage-card:hover {
+  border-color: #cbbfae;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+.manage-card.is-active-rx {
+  border: 1.5px solid #8b3e4b;
+  background: #fffdfb;
+}
+
+.manage-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.manage-card-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rx-status-badge.active {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.rx-dispensed-date {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #645a52;
+}
+
+.rx-days-badge {
+  background: #f1ede6;
+  color: #4b423b;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.manage-card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.manage-action-edit-btn,
+.manage-action-del-btn {
+  background: #faf8f5;
+  border: 1px solid #dcd4c7;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.manage-action-edit-btn {
+  color: #2b5c8f;
+}
+
+.manage-action-edit-btn:hover {
+  background: #eef5fc;
+  border-color: #9ac2e8;
+}
+
+.manage-action-del-btn {
+  color: #b83333;
+}
+
+.manage-action-del-btn:hover {
+  background: #fdf0f0;
+  border-color: #e5a7ad;
+}
+
+.manage-card-middle {
+  margin-bottom: 12px;
+}
+
+.manage-hospital-name {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: #2b2522;
+}
+
+.manage-doctor-name {
+  font-weight: 600;
+  color: #7a6f66;
+  font-size: 14px;
+}
+
+.manage-discontinued-warn {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #c04b4b;
+  background: #fff3f3;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #f2c7cb;
+}
+
+.manage-card-items-preview {
+  background: #faf8f5;
+  border-radius: 6px;
+  padding: 10px 14px;
+  border: 1px solid #ede6dc;
+}
+
+.items-count-label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #7a6f66;
+  margin-bottom: 6px;
+}
+
+.meds-preview-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.med-preview-chip {
+  background: #ffffff;
+  border: 1px solid #ded6c9;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3b322c;
+}
+
+.med-preview-chip.empty {
+  color: #9e9386;
+  font-style: italic;
+}
+
+/* 빈 상태 */
+.manage-empty-box {
+  background: #ffffff;
+  border: 1.5px dashed #ded6c9;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.manage-empty-icon {
+  font-size: 36px;
+  opacity: 0.6;
+}
+
+.manage-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2b2522;
+  margin: 4px 0 0;
+}
+
+.manage-empty-desc {
+  font-size: 13px;
+  color: #7a6f66;
+  margin: 0 0 12px;
+}
+
+.manage-empty-cta {
+  background: #8b3e4b;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 20px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.manage-empty-cta:hover {
+  background: #732f3c;
+}
+
+.manage-loading-box {
+  padding: 40px;
+  text-align: center;
+  color: #7a6f66;
+  font-size: 14px;
+}
+
+/* ----------------- 수정 뷰 ----------------- */
+.manage-rx-edit-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.edit-back-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #ede6dc;
+}
+
+.edit-back-btn {
+  background: none;
+  border: none;
+  color: #8b3e4b;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity 0.15s ease;
+}
+
+.edit-back-btn:hover {
+  text-decoration: underline;
+}
+
+.edit-rx-id {
+  font-size: 12px;
+  color: #8c8278;
+  font-weight: 600;
+}
+
+.edit-form-section {
+  background: #ffffff;
+  border: 1px solid #e5dcce;
+  border-radius: 10px;
+  padding: 18px 20px;
+}
+
+.edit-section-title {
+  margin: 0 0 14px;
+  font-size: 14.5px;
+  font-weight: 800;
+  color: #2b2522;
+}
+
+.edit-fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.edit-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.edit-field-group label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #5a5048;
+}
+
+.edit-field-group input {
+  padding: 9px 12px;
+  border: 1px solid #dcd4c7;
+  border-radius: 6px;
+  font-size: 13.5px;
+  color: #2b2522;
+  background: #faf8f5;
+  transition: border-color 0.15s ease;
+}
+
+.edit-field-group input:focus {
+  outline: none;
+  border-color: #8b3e4b;
+  background: #ffffff;
+}
+
+.edit-items-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.edit-items-header .edit-section-title {
+  margin-bottom: 0;
+}
+
+.edit-add-item-btn {
+  background: #f1ede6;
+  border: 1px solid #d4cab9;
+  border-radius: 5px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3b322c;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.edit-add-item-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+.edit-items-table-wrapper {
+  overflow-x: auto;
+}
+
+.edit-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.edit-items-table th {
+  background: #f7f3ed;
+  color: #5a5048;
+  font-weight: 700;
+  font-size: 11.5px;
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #e5dcce;
+}
+
+.edit-items-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid #f0e9df;
+  vertical-align: middle;
+}
+
+.table-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid #dcd4c7;
+  border-radius: 5px;
+  font-size: 12.5px;
+  color: #2b2522;
+  background: #faf8f5;
+}
+
+.table-input:focus {
+  outline: none;
+  border-color: #8b3e4b;
+  background: #ffffff;
+}
+
+.table-select {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #dcd4c7;
+  border-radius: 5px;
+  font-size: 12.5px;
+  color: #2b2522;
+  background: #faf8f5;
+}
+
+.table-select:focus {
+  outline: none;
+  border-color: #8b3e4b;
+}
+
+.dose-input-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.number-input {
+  width: 60px;
+  text-align: center;
+}
+
+.dose-unit {
+  font-size: 12px;
+  color: #7a6f66;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table-del-btn {
+  background: transparent;
+  border: none;
+  color: #c04040;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.table-del-btn:hover {
+  background: #fdf0f0;
+}
+
+.edit-form-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.edit-cancel-btn {
+  background: #f1ede6;
+  border: 1px solid #ded6c9;
+  border-radius: 6px;
+  padding: 10px 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a413a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.edit-cancel-btn:hover {
+  background: #e6dfd3;
+}
+
+.edit-save-btn {
+  background: #8b3e4b;
+  border: 1px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 10px 24px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 3px 10px rgba(139, 62, 75, 0.25);
+}
+
+.edit-save-btn:hover {
+  background: #732f3c;
+  border-color: #732f3c;
+}
+
+.edit-save-btn:disabled,
+.edit-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 680px) {
+  .edit-fields-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manage-card-top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .manage-card-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* ==========================================================================
+   메인 대시보드 날짜 네비게이터 & 다중 처방전 탭 & 조제일 기준 상태 스타일
+   ========================================================================== */
+
+/* 1. 상단 인사말 & 날짜 네비게이터 정렬 */
+.greeting-flex-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.greeting-text-block {
+  flex: 1;
+  min-width: 260px;
+}
+
+/* 날짜 이동 네비게이터 바 */
+.main-date-navigator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1.5px solid #dfd4cf;
+  border-radius: 30px;
+  padding: 4px 10px;
+  box-shadow: 0 2px 10px rgba(139, 62, 75, 0.05);
+}
+
+.date-nav-arrow-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #ebdcd9;
+  background: #faf5f4;
+  color: #8b3e4b;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.date-nav-arrow-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+.date-nav-display-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 5px 12px;
+  border-radius: 18px;
+  border: 1.5px solid #dfd4cb;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  position: relative;
+  user-select: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.date-nav-display-box:hover {
+  background: #fbf5f4;
+  border-color: #8b3e4b;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.1);
+}
+
+.date-nav-calendar-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8b3e4b;
+}
+
+.date-nav-calendar-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.date-nav-date-text {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #2d2624;
+}
+
+.date-nav-today-tag {
+  font-size: 11px;
+  font-weight: 800;
+  background: #eaf6ed;
+  color: #1e7e34;
+  border: 1px solid #c3e6cb;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.date-nav-diff-tag {
+  font-size: 11px;
+  font-weight: 800;
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.date-nav-hidden-picker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.date-nav-return-today-btn {
+  font-size: 11.5px;
+  font-weight: 800;
+  background: #ffffff;
+  color: #8b3e4b;
+  border: 1.5px solid #8b3e4b;
+  border-radius: 14px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 2px;
+}
+
+.date-nav-return-today-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+}
+
+/* 2. 처방전 선택 탭 바 (rx-tabs-section) */
+.rx-tabs-section {
+  margin-bottom: 16px;
+}
+
+/* 2. 처방전 선택 드롭다운 셀렉터 (rx-selector-section) */
+.rx-selector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  z-index: 15;
+}
+
+.rx-selector-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rx-selector-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rx-tabs-title-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+.rx-tabs-count-title {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #524741;
+}
+
+.rx-manage-shortcut-btn {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8b3e4b;
+  background: #ffffff;
+  border: 1.5px solid #ebd9d6;
+  border-radius: 14px;
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rx-manage-shortcut-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+.rx-dropdown-container {
+  position: relative;
+  width: 100%;
+}
+
+.rx-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1.5px solid #dfd3ca;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  text-align: left;
+}
+
+.rx-dropdown-trigger:hover {
+  border-color: #8b3e4b;
+  background: #fdfaf8;
+  box-shadow: 0 3px 8px rgba(139, 62, 75, 0.08);
+}
+
+.rx-dropdown-trigger.open {
+  border-color: #8b3e4b;
+  background: #fdfaf8;
+  box-shadow: 0 4px 14px rgba(139, 62, 75, 0.12);
+}
+
+.rx-dropdown-trigger-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rx-dropdown-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #faeff0;
+  color: #8b3e4b;
+  flex-shrink: 0;
+}
+
+.rx-dropdown-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rx-dropdown-trigger-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rx-dropdown-trigger-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #2b2321;
+}
+
+.rx-dropdown-trigger-sub {
+  font-size: 12px;
+  color: #85756e;
+}
+
+.rx-dropdown-trigger-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rx-dropdown-arrow-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #85756e;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.rx-dropdown-arrow-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.rx-dropdown-arrow-icon.rotated {
+  transform: rotate(180deg);
+  color: #8b3e4b;
+}
+
+/* 드롭다운 메뉴 팝업 */
+.rx-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1.5px solid #dfd3ca;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.04);
+  z-index: 50;
+  padding: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+  animation: rxDropdownFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes rxDropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rx-dropdown-divider {
+  height: 1px;
+  background: #f2ebe4;
+  margin: 4px 6px;
+}
+
+.rx-dropdown-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.rx-dropdown-option:hover {
+  background: #fbf5f2;
+}
+
+.rx-dropdown-option.active {
+  background: #faeff0;
+  border-color: #ebd0d5;
+}
+
+.rx-dropdown-option-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rx-dropdown-option-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.rx-dropdown-option-icon.all {
+  background: #f2e6e3;
+  color: #8b3e4b;
+}
+
+.rx-dropdown-option-icon.rx {
+  background: #eef2f5;
+  color: #4a69bd;
+}
+
+.rx-dropdown-option-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.rx-dropdown-option-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rx-dropdown-option-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rx-dropdown-option-title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #2b2321;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.rx-dropdown-option-doctor {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8c7f76;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.rx-dropdown-option-sub {
+  font-size: 11.5px;
+  color: #7d6f67;
+}
+
+.rx-tab-badge-chip {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.rx-tab-badge-chip.all {
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+}
+
+.rx-tab-badge-chip.taking {
+  background: #eaf6ed;
+  color: #1e7e34;
+  border: 1px solid #c3e6cb;
+}
+
+.rx-tab-badge-chip.completed {
+  background: #f1ece9;
+  color: #7a6e69;
+  border: 1px solid #dfd7d3;
+}
+
+.rx-tab-badge-chip.upcoming {
+  background: #e8f4fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+/* 3. 처방전 요약 바 (prescription-summary-card) 확장 */
+.summary-meta-top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.summary-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2.5px 9px;
+  border-radius: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+
+.summary-status-pill.taking {
+  background: #eaf6ed;
+  color: #1e7e34;
+  border: 1px solid #c3e6cb;
+}
+
+.summary-status-pill.completed {
+  background: #f1ece9;
+  color: #7a6e69;
+  border: 1px solid #dfd7d3;
+}
+
+.summary-status-pill.upcoming {
+  background: #e8f4fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+}
+
+.summary-status-pill.all {
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+}
+
+.summary-hospital-info-group {
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.summary-hospital-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #4a4039;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.summary-info-divider {
+  color: #c4b8ab;
+  font-size: 12px;
+  user-select: none;
+}
+
+.summary-doctor-name {
+  font-size: 13px;
+  color: #7d7268;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+
+.summary-period-chip {
+  font-size: 12px;
+  color: #70625a;
+  background: #f5ebe8;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 5. 오늘의 복약 루틴 과거 날짜 및 통합 병원 칩 */
+.routine-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.routine-past-pill {
+  font-size: 11px;
+  font-weight: 800;
+  background: #8b3e4b;
+  color: #ffffff;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.routine-today-return-btn {
+  font-size: 11px;
+  font-weight: 800;
+  background: #ffffff;
+  color: #8b3e4b;
+  border: 1px solid #8b3e4b;
+  border-radius: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.routine-today-return-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+}
+
+.routine-origin-hospital-chip {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #8b3e4b;
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 6px;
+}
+
+/* 6. AI 처방전 가이드 배너 및 카드 */
+.summary-ai-guide-banner {
+  margin-top: 10px;
+  background: #fdfbf9;
+  border: 1px solid #ecdcd5;
+  border-left: 3.5px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 9px 13px;
+}
+
+.ai-guide-purpose-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.ai-guide-tag {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.ai-guide-purpose-text {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #382c2b;
+  line-height: 1.35;
+}
+
+.ai-guide-summary-text {
+  font-size: 12.5px;
+  color: #61564f;
+  line-height: 1.5;
+  margin: 2px 0 0 0;
+}
+
+.manage-card-ai-purpose {
+  margin: 8px 0;
+  padding: 6px 10px;
+  background: #fbf8f5;
+  border-radius: 6px;
+  border-left: 3px solid #8b3e4b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-badge-sm {
+  background: #8b3e4b;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1.5px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.ai-purpose-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #443735;
+  line-height: 1.3;
+}
+
+/* ==========================================================================
+   처방약 봉지(Pouch) 단위 카드 & 아코디언 스타일
+   ========================================================================== */
+.routine-pouch-card {
+  border-left: 4px solid #8b3e4b !important;
+  background: #ffffff;
+  border: 1px solid #ebd0d5;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(139, 62, 75, 0.05);
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.routine-pouch-card:hover {
+  box-shadow: 0 4px 12px rgba(139, 62, 75, 0.1);
+  border-color: #d6abb4;
+}
+
+.routine-pouch-card.routine-completed,
+.routine-pouch-card.is-taken {
+  border-left-color: #8b3e4b !important;
+  background: #fbf7f6;
+  border-color: #e5d7d5;
+  opacity: 0.92;
+}
+
+.routine-pouch-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.pouch-icon-badge {
+  background: #faeff0 !important;
+  border: 1px solid #ebd0d5 !important;
+  color: #8b3e4b !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.routine-pouch-card.is-taken .pouch-icon-badge {
+  background: #faeff0 !important;
+  border-color: #ebd0d5 !important;
+  color: #8b3e4b !important;
+}
+
+.pouch-info-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.pouch-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pouch-name {
+  font-size: 15.5px;
+  font-weight: 800;
+  color: #2b2523;
+  letter-spacing: -0.2px;
+}
+
+.pouch-count-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: #f7ebe6;
+  color: #8b3e4b;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.pouch-count-badge.done {
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+}
+
+.pouch-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.pouch-hospital-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7d6b67;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pouch-summary-text {
+  font-size: 12px;
+  color: #8c8278;
+  line-height: 1.35;
+}
+
+.btn-pouch-toggle {
+  background: #fdfaf6;
+  border: 1.5px solid #ded6c9;
+  color: #6b6059;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-pouch-toggle:hover {
+  background: #f4eee4;
+  border-color: #baa996;
+  color: #2b2523;
+  transform: translateY(-1px);
+}
+
+.btn-pouch-toggle.taken {
+  background: #faeff0;
+  color: #8b3e4b;
+  border: 1px solid #ebd0d5;
+  box-shadow: none;
+}
+
+.btn-pouch-toggle.taken:hover {
+  background: #f5dde0;
+  transform: none;
+}
+
+.btn-pouch-expand {
+  background: #fdfaf6;
+  border: 1.5px solid #ded6c9;
+  color: #6b6059;
+  padding: 7px 11px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.btn-pouch-expand:hover {
+  background: #f4eee4;
+  border-color: #baa996;
+  color: #2b2523;
+}
+
+.btn-pouch-expand.expanded {
+  background: #efe7dc;
+  border-color: #a89582;
+  color: #2b2523;
+}
+
+/* 봉지 상세 아코디언 */
+.pouch-expanded-items {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #fcfaf8;
+  border-radius: 8px;
+  border: 1px dashed #ded6c9;
+  animation: pouchFadeIn 0.2s ease-out;
+}
+
+@keyframes pouchFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pouch-expanded-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0eae1;
+  font-size: 12px;
+  font-weight: 700;
+  color: #665b55;
+}
+
+.pouch-expanded-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9c9289;
+}
+
+.pouch-expanded-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pouch-subitem-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 10px;
+  background: #ffffff;
+  border: 1px solid #eee8df;
+  border-radius: 6px;
+  transition: background-color 0.15s ease;
+}
+
+.pouch-subitem-row:hover {
+  background-color: #faf7f2;
+}
+
+.pouch-subitem-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pouch-subitem-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #382c2b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pouch-subitem-dosage {
+  font-size: 11px;
+  color: #8c8278;
+  background: #fbf8f5;
+  border: 1px solid #f0eae1;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.subitem-efficacy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f7f3ed;
+  border: 1px solid #ebd9c8;
+  color: #7a5e4f;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2.5px 8px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.subitem-efficacy-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subitem-efficacy-chip:hover {
+  background: #faefe6;
+  border-color: #8b3e4b;
+  color: #8b3e4b;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 4px rgba(139, 62, 75, 0.12);
+}
+
+.subitem-efficacy-chip .chip-info-icon {
+  opacity: 0.65;
+  flex-shrink: 0;
+  transition: opacity 0.15s ease;
+}
+
+.subitem-efficacy-chip:hover .chip-info-icon {
+  opacity: 1;
+}
+
+.btn-subitem-check {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  border-radius: 5px;
+  border: 1px solid #d4c6b5;
+  background: #ffffff;
+  color: #6b6059;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-subitem-check:hover {
+  background: #f4eee4;
+  border-color: #baa996;
+}
+
+.btn-subitem-check.taken {
+  background: #8b3e4b;
+  color: #ffffff;
+  border-color: #8b3e4b;
+}
+
+.btn-subitem-check.taken:hover {
+  background: #732f3c;
+}
+
+/* ==========================================================================
+   상비약 / 영양제 단일 카드 스타일 (캘린더 & 약등록 탭 테마 연동)
+   ========================================================================== */
+.routine-single-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;
+  background: #ffffff;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 12px;
+}
+
+/* 1. 상비약 (Regular / Cabinet) */
+.routine-single-card.regular,
+.routine-single-card.cabinet {
+  border: 1px solid #cce5d4;
+  border-left: 4px solid #2b7044 !important;
+  box-shadow: 0 2px 6px rgba(43, 112, 68, 0.05);
+}
+
+.routine-single-card.regular:hover,
+.routine-single-card.cabinet:hover {
+  box-shadow: 0 4px 12px rgba(43, 112, 68, 0.12);
+  border-color: #a7d4b4;
+  transform: translateY(-1px);
+}
+
+.routine-single-card.regular.is-taken,
+.routine-single-card.cabinet.is-taken {
+  border-left-color: #2b7044 !important;
+  background: #fbfdfb;
+  border-color: #dcebe0;
+  opacity: 0.92;
+  box-shadow: none;
+  transform: none;
+}
+
+/* 2. 영양제 (Supplement) */
+.routine-single-card.supplement {
+  border: 1px solid #fae6cb;
+  border-left: 4px solid #b87b2b !important;
+  box-shadow: 0 2px 6px rgba(184, 123, 43, 0.05);
+}
+
+.routine-single-card.supplement:hover {
+  box-shadow: 0 4px 12px rgba(184, 123, 43, 0.12);
+  border-color: #eccda5;
+  transform: translateY(-1px);
+}
+
+.routine-single-card.supplement.is-taken {
+  border-left-color: #b87b2b !important;
+  background: #fdfbf8;
+  border-color: #f2e4d2;
+  opacity: 0.92;
+  box-shadow: none;
+  transform: none;
+}
+
+/* 아이콘 뱃지 공통 */
+.single-card-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+
+.single-card-icon-badge.regular,
+.single-card-icon-badge.cabinet {
+  background: #eef7f0;
+  border: 1px solid #cce5d4;
+  color: #2b7044;
+}
+
+.single-card-icon-badge.supplement {
+  background: #fdf5e6;
+  border: 1px solid #fae6cb;
+  color: #b87b2b;
+}
+
+/* 체크박스 색상 커스텀 */
+.custom-checkbox.regular-checkbox.checked,
+.custom-checkbox.cabinet-checkbox.checked {
+  background-color: #2b7044;
+  border-color: #2b7044;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(43, 112, 68, 0.35);
+}
+
+.custom-checkbox.regular-checkbox:not(.checked):hover,
+.custom-checkbox.cabinet-checkbox:not(.checked):hover {
+  border-color: #2b7044;
+  background-color: #f2f9f4;
+}
+
+.custom-checkbox.regular-checkbox.checked:hover,
+.custom-checkbox.cabinet-checkbox.checked:hover {
+  background-color: #235c38;
+  border-color: #235c38;
+}
+
+.custom-checkbox.supplement-checkbox.checked {
+  background-color: #b87b2b;
+  border-color: #b87b2b;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(184, 123, 43, 0.35);
+}
+
+.custom-checkbox.supplement-checkbox:not(.checked):hover {
+  border-color: #b87b2b;
+  background-color: #fffcf7;
+}
+
+.custom-checkbox.supplement-checkbox.checked:hover {
+  background-color: #9c6722;
+  border-color: #9c6722;
+}
+
+/* 카드 내부 정보 열 */
+.single-card-info-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.single-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.single-card-time-slot {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.single-card-time-slot.regular,
+.single-card-time-slot.cabinet {
+  color: #2b7044;
+}
+
+.single-card-time-slot.supplement {
+  color: #b87b2b;
+}
+
+.single-card-name {
+  font-size: 15px;
+  font-weight: 800;
+  color: #2b2523;
+  letter-spacing: -0.2px;
+}
+
+.routine-single-card.is-taken .single-card-name {
+  text-decoration: line-through;
+  color: #8c8278;
+  font-weight: 600;
+}
+
+.single-card-type-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.single-card-type-badge.regular,
+.single-card-type-badge.cabinet {
+  background: #eef5ed;
+  color: #2c6e3b;
+  border: 1px solid #cce5d4;
+}
+
+.single-card-type-badge.supplement {
+  background: #fdf5e6;
+  color: #a36800;
+  border: 1px solid #fae6cb;
+}
+
+.single-card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.single-card-sub-desc {
+  font-size: 12px;
+  color: #7d7269;
+  line-height: 1.35;
+}
+
+/* 우측 복용 상태 뱃지 */
+.routine-taken-time.regular,
+.routine-taken-time.cabinet {
+  background-color: #eef7f0;
+  border: 1px solid #cce5d4;
+  color: #2b7044;
+}
+
+.routine-taken-time.supplement {
+  background-color: #fdf5e6;
+  border: 1px solid #fae6cb;
+  color: #a36800;
+}
+
+.routine-pending-badge {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+  border: 1px solid transparent;
+}
+
+.routine-pending-badge.regular,
+.routine-pending-badge.cabinet {
+  background-color: #f2f8f4;
+  color: #4b855e;
+  border-color: #dcebe0;
+}
+
+.routine-pending-badge.supplement {
+  background-color: #fdfaf4;
+  color: #b5823e;
+  border-color: #f4e3cd;
+}
+
+/* ==========================================================================
+   과거 처방전(복용 완료) 정보 표시 및 원클릭 날짜 이동 배너/버튼 스타일
+   ========================================================================== */
+.routine-jump-past-btn {
+  margin-top: 14px;
+  background: #fdfaf6;
+  border: 1.5px solid #8b3e4b;
+  color: #8b3e4b;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 2px 5px rgba(139, 62, 75, 0.1);
+}
+
+.routine-jump-past-btn:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(139, 62, 75, 0.25);
+}
+
+.summary-past-jump-btn {
+  background: #fdfaf6;
+  border: 1.5px solid #b8a698;
+  color: #5c4d44;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.summary-past-jump-btn:hover {
+  background: #8b3e4b;
+  border-color: #8b3e4b;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.past-rx-info-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fbf8f5;
+  border: 1px solid #ebd0d5;
+  border-left: 4px solid #8b3e4b;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.past-rx-info-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.past-rx-badge {
+  background: #faeff0;
+  border: 1px solid #ebd0d5;
+  color: #8b3e4b;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.past-rx-desc {
+  font-size: 12px;
+  color: #61564f;
+  font-weight: 600;
+}
+
+.past-rx-jump-action {
+  background: #8b3e4b;
+  color: #ffffff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.past-rx-jump-action:hover {
+  background: #732f3c;
+  transform: translateY(-1px);
+}
+
+.btn-modal-jump-date {
+  margin-top: 12px;
+  background: #fdfaf6;
+  border: 1.5px solid #8b3e4b;
+  color: #8b3e4b;
+  padding: 7px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.btn-modal-jump-date:hover {
+  background: #8b3e4b;
+  color: #ffffff;
+}
+
+/* 긴 약명과 병원명이 카드 폭을 밀어내지 않도록 줄바꿈 허용 */
+.main-page-wrapper,
+.main-page-wrapper > *,
+.main-page-wrapper :is(.greeting-text-block, .banner-card-text, .routine-item-left, .routine-item-right, .routine-header-left, .routine-header-actions, .summary-stats-group, .stat-unit, .rx-dropdown-trigger-left, .rx-dropdown-trigger-info, .rx-dropdown-option-left, .rx-dropdown-option-info, .note-point-content, .detail-head-left, .modal-head-info, .meal-input-group) { min-width: 0; }
+.main-page-wrapper :is(h1, h2, h3, h4, p, strong, .greeting-date, .routine-rate-tip, .pouch-name, .pouch-hospital-date, .pouch-summary-text, .single-card-name, .single-card-sub-desc, .rx-dropdown-trigger-title, .rx-dropdown-trigger-sub, .rx-dropdown-option-sub, .stat-label, .modal-subtitle, .meal-calc-hint) {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.main-page-wrapper :is(.prescribed-group-title, .prescribed-group-meta, .med-item-name, .med-item-desc, .med-hospital-tag, .pouch-subitem-name, .subitem-efficacy-chip span, .rx-dropdown-option-title, .rx-dropdown-option-doctor, .summary-hospital-name, .summary-doctor-name, .summary-period-chip, .summary-meta-label) {
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  line-height: 1.5;
+}
+.main-page-wrapper .greeting-title { line-height: 1.4; }
+.main-page-wrapper :is(.card-top-row, .prescribed-group-header, .prescribed-group-header-left, .routine-header-row, .routine-header-left, .routine-header-actions, .rx-selector-header, .rx-selector-header-left, .rx-dropdown-trigger, .rx-dropdown-option, .single-card-meta-row, .pouch-expanded-header, .caution-section-header, .caution-item-top) { flex-wrap: wrap; gap: 8px 12px; }
+.main-page-wrapper .routine-item-left { flex: 1 1 0; }
+.main-page-wrapper .routine-item-right { flex-wrap: wrap; max-width: 100%; }
+.main-page-wrapper :is(.rx-dropdown-trigger-left, .rx-dropdown-option-left) { flex: 1 1 220px; }
+.main-page-wrapper .rx-dropdown-trigger-right { flex: 0 1 auto; margin-left: auto; }
+.main-page-wrapper .result-row-card { align-items: flex-start; flex-wrap: wrap; gap: 8px 14px; }
+.main-page-wrapper .result-row-card > div { flex: 1 1 240px; min-width: 0; }
+.main-page-wrapper .result-row-card :is(strong, .entp-label) { display: block; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.main-page-wrapper .prescription-banner-card .banner-card-text { flex: 1 1 260px; }
+.main-page-wrapper .prescription-banner-card .banner-card-actions { flex-wrap: wrap; max-width: 100%; }
+.main-page-wrapper .summary-stats-group { gap: 16px; }
+.main-page-wrapper .stat-unit { flex: 1 1 0; text-align: center; }
+.main-page-wrapper .stat-number { max-width: 100%; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.main-page-wrapper .stat-divider { flex: 0 0 1px; }
+.main-page-wrapper button:not(.routine-slot-tab):not(.date-nav-arrow-btn) {
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  line-height: 1.5;
+}
+.main-page-wrapper .routine-slot-tab { flex: 0 0 auto; min-height: 44px; }
+.main-page-wrapper :is(.routine-header-actions, .summary-col-right) > button { flex: 0 1 auto; }
+.main-page-wrapper :is(.setting-btn-icon, .date-nav-calendar-icon) { flex: 0 0 auto; }
+.main-page-wrapper .main-date-navigator { flex-wrap: wrap; max-width: 100%; border-radius: 16px; }
+.main-page-wrapper .main-date-navigator > .custom-datepicker-wrapper { flex: 1 1 160px; width: auto; }
+.main-page-wrapper .date-nav-display-box { flex-wrap: wrap; gap: 6px; min-height: 44px; padding: 7px 10px; }
+.main-page-wrapper .date-nav-date-text { min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.main-page-wrapper .date-nav-arrow-btn { flex: 0 0 36px; width: 36px; height: 44px; }
+
+/* 상세·식사 설정 모달 전체를 스크롤해 본문과 저장 버튼까지 접근 */
+.main-page-wrapper .modal-content-box { min-width: 0; max-height: calc(100dvh - 40px); display: block; overflow: auto; overscroll-behavior: contain; }
+.main-page-wrapper :is(.modal-head, .modal-foot, .modal-foot-right, .detail-head-left, .preview-schedule-pills) { flex-wrap: wrap; gap: 8px 12px; }
+.main-page-wrapper .modal-head { align-items: flex-start; }
+.main-page-wrapper :is(.detail-head-left, .modal-head-info, .modal-head > .modal-title) { flex: 1 1 180px; }
+.main-page-wrapper .modal-close { flex: 0 0 44px; width: 44px; padding: 0; }
+.main-page-wrapper .caution-modal-body { max-height: none; overflow: visible; }
+.main-page-wrapper .meal-time-modal { width: min(540px, 100%) !important; }
+.main-page-wrapper .meal-inputs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.main-page-wrapper .meal-same-toggle-row { align-items: flex-start; }
+.main-page-wrapper .meal-same-toggle-row input { flex: 0 0 auto; }
+@media (max-width: 1200px) {
+  .main-page-wrapper .main-two-column-grid { grid-template-columns: minmax(0, 1fr); }
+  .main-page-wrapper .prescription-summary-card { flex-direction: column; align-items: stretch; gap: 18px; }
+  .main-page-wrapper .summary-stats-group { width: 100%; }
+  .main-page-wrapper .summary-col-right { width: 100%; }
+}
+@media (max-width: 600px), (min-width: 768px) and (max-width: 1000px) {
+  .main-page-wrapper .routine-header-actions { flex: 1 1 100%; justify-content: flex-start; }
+  .main-page-wrapper .routine-header-actions > .med-register-quick-btn { flex: 1 1 100px; justify-content: center; }
+  .main-page-wrapper .routine-header-actions > .meal-setting-btn { flex: 1 1 150px; justify-content: center; }
+  .main-page-wrapper :is(.routine-pouch-header, .routine-single-card, .pouch-subitem-row) { flex-wrap: wrap; gap: 10px; }
+  .main-page-wrapper :is(.routine-pouch-header, .routine-single-card, .pouch-subitem-row) > .routine-item-left { flex: 1 1 100%; gap: 10px; align-items: flex-start; }
+  .main-page-wrapper :is(.routine-pouch-header, .routine-single-card, .pouch-subitem-row) > .routine-item-right { width: 100%; justify-content: flex-end; margin-left: 0; }
+  .main-page-wrapper :is(.pouch-name, .single-card-name) { line-height: 1.5; }
+  .main-page-wrapper .custom-checkbox { margin-top: 6px; }
+  .main-page-wrapper .prescribed-group-header-left { flex-basis: 100%; }
+  .main-page-wrapper .med-item-right { margin-left: auto; }
+}
+@media (max-width: 600px) {
+  .main-page-wrapper .main-date-navigator { width: 100%; padding: 4px 6px; gap: 4px; }
+  .main-page-wrapper .greeting-text-block { flex-basis: 100%; }
+  .main-page-wrapper .prescription-banner-card { padding: 18px 14px; }
+  .main-page-wrapper .prescription-banner-card .banner-card-actions { width: 100%; }
+  .main-page-wrapper .prescription-banner-card .banner-card-actions > button { flex: 1 1 140px; justify-content: center; }
+  .main-page-wrapper .routine-pouch-card,
+  .main-page-wrapper .routine-single-card { padding: 12px; }
+  .main-page-wrapper .pouch-expanded-items { padding: 10px; }
+  .main-page-wrapper .pouch-subitem-row { padding: 8px; }
+  .main-page-wrapper .medication-note-card { padding: 18px 14px; }
+  .main-page-wrapper .modal-backdrop { padding: 12px; }
+  .main-page-wrapper .modal-content-box { max-height: calc(100dvh - 24px); }
+  .main-page-wrapper :is(.modal-head, .modal-foot, .med-detail-body, .caution-modal-body, .meal-inputs-grid) { padding: 16px; }
+  .main-page-wrapper .meal-modal-intro { padding: 16px 16px 0; }
+  .main-page-wrapper .meal-inputs-grid { grid-template-columns: minmax(0, 1fr); }
+  .main-page-wrapper .meal-preview-box { margin: 0 16px 16px; }
+  .main-page-wrapper .modal-foot-right { flex: 1 1 100%; }
+  .main-page-wrapper .modal-foot-right > button { flex: 1 1 100px; }
+  .main-page-wrapper .modal-foot > button { flex: 1 1 160px; justify-content: center; }
+}
+

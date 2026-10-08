@@ -11,6 +11,7 @@
 
 	<typeAliases>
 		<!-- typeAlias에 DTO 추가 -->
+		<typeAlias type="com.app.dto.medications.MedicationsDTO" alias="MedicationsDTO"/>
 	</typeAliases>
 	
 </configuration>
