@@ -1,0 +1,180 @@
+/* 메뉴와 로그인 화면 안에 놓이는 설치 진입 버튼 */
+.pwa-install-entry {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d7c7bd;
+  border-radius: 10px;
+  background: #fffaf6;
+  color: #773342;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.pwa-install-entry:hover {
+  border-color: #873448;
+  background: #f6ecee;
+}
+
+.pwa-install-entry.sidebar-install-button {
+  flex: 0 0 auto;
+  width: 100%;
+  margin: 18px 0;
+}
+
+.pwa-install-entry.login-install-button {
+  width: 100%;
+  margin-top: 24px;
+}
+
+/* 설치한 앱의 노치·홈 표시줄 영역을 비워서 메뉴와 버튼을 끝까지 노출 */
+@media (display-mode: standalone) {
+  .main-layout-root .site-navbar {
+    height: calc(64px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .main-layout-root .sidebar-inner {
+    padding-top: max(20px, env(safe-area-inset-top, 0px));
+    padding-bottom: max(20px, env(safe-area-inset-bottom, 0px));
+  }
+  .login-screen {
+    padding: max(40px, env(safe-area-inset-top, 0px))
+      max(20px, env(safe-area-inset-right, 0px))
+      max(40px, env(safe-area-inset-bottom, 0px))
+      max(20px, env(safe-area-inset-left, 0px));
+  }
+}
+
+@media (display-mode: standalone) and (min-width: 768px) {
+  .main-layout-root .site-sidebar {
+    top: calc(64px + env(safe-area-inset-top, 0px));
+  }
+}
+
+@media (display-mode: standalone) and (min-width: 1101px) {
+  .main-content-container:has(.chat-page) {
+    height: calc(100dvh - 64px - env(safe-area-inset-top, 0px));
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (display-mode: standalone) and (max-width: 767.98px) {
+  .main-layout-root .navbar-container {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .main-layout-root .main-content-container {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-bottom: max(48px, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* 상단 메뉴 아래, 상담 입력창 위쪽에 좁게 표시하고 모달 뒤로 보낸다. */
+.pwa-status-area {
+  position: fixed;
+  top: calc(76px + env(safe-area-inset-top, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  z-index: 800;
+  display: grid;
+  gap: 8px;
+  width: min(360px, calc(100vw - 24px));
+  pointer-events: none;
+}
+
+.pwa-connection-status:empty {
+  display: none;
+}
+
+.pwa-status-notice,
+.pwa-update-notice {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #dbcbbd;
+  border-radius: 12px;
+  background: #fffaf4;
+  color: #594536;
+  box-shadow: 0 5px 20px rgb(52 35 28 / 12%);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.pwa-status-notice > span {
+  margin-right: 8px;
+}
+
+.pwa-status-online {
+  border-color: #bdd3c0;
+  background: #f2faf3;
+  color: #32593a;
+}
+
+.pwa-update-notice {
+  pointer-events: auto;
+}
+
+.pwa-update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.pwa-update-actions button {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #873448;
+  border-radius: 8px;
+  background: #873448;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.pwa-update-actions .pwa-update-later {
+  border-color: #d7c7bd;
+  background: #fff;
+  color: #65554b;
+}
+
+.pwa-reminder-note,
+.pwa-dialog-status,
+.pwa-dialog-error {
+  margin: 16px 0 0;
+  padding: 12px;
+  border-radius: 9px;
+  background: #f5eee6;
+  color: #665343;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.pwa-dialog-error {
+  background: #fff0ee;
+  color: #9a3730;
+}
+
+@media (max-height: 500px) {
+  .pwa-status-area {
+    top: max(8px, env(safe-area-inset-top, 0px));
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+  }
+}

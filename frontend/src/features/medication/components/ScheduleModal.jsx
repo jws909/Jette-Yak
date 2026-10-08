@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useId, useRef } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { saveCalendarSchedule } from '../medicationApi';
 import { DEFAULT_MEAL_TIMES, addMinutes } from '../../main/utils/mainPageUtils';
@@ -141,6 +141,25 @@ function ScheduleForm({
   onSuccess,
 }) {
   const { showAlert } = useDialog();
+  const titleId = useId();
+  const overlayRef = useRef(null);
+
+  // 키보드가 열린 경우에도 모달을 실제 보이는 화면 안에 맞춤
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+    const syncViewport = () => {
+      overlayRef.current?.style.setProperty('--schedule-viewport-height', `${viewport.height}px`);
+      overlayRef.current?.style.setProperty('--schedule-viewport-top', `${viewport.offsetTop}px`);
+    };
+    syncViewport();
+    viewport.addEventListener('resize', syncViewport);
+    viewport.addEventListener('scroll', syncViewport);
+    return () => {
+      viewport.removeEventListener('resize', syncViewport);
+      viewport.removeEventListener('scroll', syncViewport);
+    };
+  }, []);
 
   const isCabinet = med?.source === 'CABINET';
 
@@ -337,26 +356,33 @@ function ScheduleForm({
   const currentMeals = dayTypeTab === 'weekday' ? weekdayMeals : weekendMeals;
 
   return (
-    <div className="modal-overlay" onClick={() => !isSaving && onClose()}>
-      <div className={`modal-box schedule-modal-box ${isCabinet ? 'theme-cabinet' : 'theme-supplement'}`} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
+    <div className="medication-schedule-overlay" ref={overlayRef} onClick={() => !isSaving && onClose()}>
+      <section
+        className={`medication-schedule-dialog ${isCabinet ? 'theme-cabinet' : 'theme-supplement'}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="medication-schedule-header">
           <div className="schedule-modal-title-row">
             <span className={`type-badge ${isCabinet ? 'cabinet' : 'supplement'}`}>
               {isCabinet ? '상비약' : '영양제'}
             </span>
-            <h2>{med.name} 복약 일정 등록</h2>
+            <h2 id={titleId}>{med.name} 복약 일정 등록</h2>
           </div>
           <button
             type="button"
-            className="close-btn"
+            className="medication-schedule-close"
+            aria-label="복약 일정 등록 닫기"
             onClick={onClose}
             disabled={isSaving}
           >
             ×
           </button>
-        </div>
+        </header>
 
-        <form onSubmit={handleSaveSchedule}>
+        <form className="medication-schedule-form" onSubmit={handleSaveSchedule}>
           {/* ================= [평일 / 주말 구분 탭 컨트롤] ================= */}
           <div className="schedule-daytype-bar">
             <div className="schedule-daytype-tabs">
@@ -673,7 +699,7 @@ function ScheduleForm({
             </button>
           </div>
         </form>
-      </div>
+      </section>
     </div>
   );
 }

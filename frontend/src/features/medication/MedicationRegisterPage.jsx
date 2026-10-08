@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
 import {
@@ -8,6 +8,7 @@ import {
   deleteEverydayMed,
 } from './medicationApi';
 import { DEFAULT_MEAL_TIMES } from '../main/utils/mainPageUtils';
+import { createLatestRequest } from '../../utils/latestRequest';
 import PrescriptionTab from './components/PrescriptionTab';
 import CabinetTab from './components/CabinetTab';
 import SupplementTab from './components/SupplementTab';
@@ -33,7 +34,11 @@ function getMemberRoleName(role) {
  * - 세부 폼 상태 및 입력은 각 탭과 모달 내부에서 자율 관리
  */
 export default function MedicationRegisterPage(props) {
-  return <MedicationRegisterContent key={props.user?.userId || props.user?.id || props.user?.username || 'guest'} {...props} />;
+  const location = useLocation();
+  const target = new URLSearchParams(location.search).get('userId') || 'self';
+  const owner = props.user?.userId || props.user?.id || props.user?.username || 'guest';
+  // 가족 대상을 바꾸면 입력·모달·캐시 상태도 새 대상 기준으로 시작.
+  return <MedicationRegisterContent key={`${owner}:${target}`} {...props} />;
 }
 
 function MedicationRegisterContent({ user }) {
@@ -55,39 +60,26 @@ function MedicationRegisterContent({ user }) {
   // 2. 가족 구성원 및 복용 대상자 관리
   const [familyMembers, setFamilyMembers] = useState([]);
   const queryUserId = new URLSearchParams(location.search).get('userId');
-  const [effectiveUserId, setEffectiveUserId] = useState(() => {
-    return queryUserId ? Number(queryUserId) : (loggedInUserId || null);
-  });
+  const effectiveUserId = queryUserId ? Number(queryUserId) : (loggedInUserId || null);
 
   // 가족 구성원 목록 로드
   useEffect(() => {
     if (!loggedInUserId) return;
-    fetch(`/api/family/members?userId=${loggedInUserId}`)
+    const controller = new AbortController();
+    let active = true;
+    fetch(`/api/family/members?userId=${loggedInUserId}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : []))
       .then((list) => {
-        if (Array.isArray(list) && list.length > 0) {
+        if (active && Array.isArray(list) && list.length > 0) {
           setFamilyMembers(list);
-          if (queryUserId) {
-            const matched = list.find((m) => Number(m.userId) === Number(queryUserId));
-            if (matched) {
-              setEffectiveUserId(Number(matched.userId));
-            }
-          }
         }
       })
-      .catch((err) => console.warn('가족 구성원 목록 조회 대기:', err));
-  }, [loggedInUserId, queryUserId]);
+      .catch((err) => { if (active) console.warn('가족 구성원 목록 조회 대기:', err); });
+    return () => { active = false; controller.abort(); };
+  }, [loggedInUserId]);
 
   const handleTargetUserChange = (newUid) => {
-    setEffectiveUserId(newUid);
     navigate(`/medication/register?tab=${activeTab}&userId=${newUid}`, { replace: true });
-  };
-
-  const currentTargetMember = familyMembers.find((m) => Number(m.userId) === Number(effectiveUserId)) || {
-    userId: effectiveUserId || loggedInUserId,
-    name: user?.name || user?.nickname || '본인',
-    role: 'SELF',
-    isVirtual: 'N',
   };
 
   // 3. 유저 식사 시간 설정 로드 (스케줄 모달 연동용: 평일/주말 구분)
@@ -115,20 +107,12 @@ function MedicationRegisterContent({ user }) {
 
   useEffect(() => {
     if (!effectiveUserId) return;
-    try {
-      const cachedSched = localStorage.getItem(`jette_meal_schedule_${effectiveUserId}`);
-      if (cachedSched) {
-        setMealSchedule(JSON.parse(cachedSched));
-      }
-      const cached = localStorage.getItem(`jette_meal_times_${effectiveUserId}`);
-      if (cached) {
-        setMealTimes(JSON.parse(cached));
-      }
-    } catch {}
-    fetch(`/api/users/meal-times?userId=${effectiveUserId}`)
+    const controller = new AbortController();
+    let active = true;
+    fetch(`/api/users/meal-times?userId=${effectiveUserId}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data && data.success) {
+        if (active && data && data.success) {
           const loadedWeekday = {
             breakfast: data.weekday?.breakfastTime || data.breakfastTime || DEFAULT_MEAL_TIMES.breakfast,
             lunch: data.weekday?.lunchTime || data.lunchTime || DEFAULT_MEAL_TIMES.lunch,
@@ -150,13 +134,17 @@ function MedicationRegisterContent({ user }) {
           } catch { /* 로컬 캐시 오류는 기본 설정으로 대체 */ }
         }
       })
-      .catch((err) => console.warn('식사 시간 로드 대기:', err));
+      .catch((err) => { if (active) console.warn('식사 시간 로드 대기:', err); });
+    return () => { active = false; controller.abort(); };
   }, [effectiveUserId]);
 
   // 4. 메인 데이터 상태 (서버 데이터)
-  const [userPrescriptions, setUserPrescriptions] = useState([]);
-  const [isLoadingRxList, setIsLoadingRxList] = useState(Boolean(effectiveUserId));
+  const [prescriptionSnapshot, setPrescriptionSnapshot] = useState(null);
   const [everydayMeds, setEverydayMeds] = useState([]);
+  const prescriptionRequests = useMemo(() => createLatestRequest(), []);
+  const everydayRequests = useMemo(() => createLatestRequest(), []);
+  const userPrescriptions = prescriptionSnapshot?.items || [];
+  const isLoadingRxList = Boolean(effectiveUserId) && prescriptionSnapshot === null;
 
   // 모달 제어 상태 (선택된 객체가 있으면 모달 표시)
   const [editingPrescription, setEditingPrescription] = useState(null);
@@ -165,46 +153,48 @@ function MedicationRegisterContent({ user }) {
   // 처방전 목록 불러오기
   const fetchPrescriptionList = useCallback(() => {
     if (!effectiveUserId) {
-      setUserPrescriptions([]);
       return Promise.resolve([]);
     }
-    setIsLoadingRxList(true);
+    const isCurrent = prescriptionRequests.begin();
     return fetchPrescriptions(effectiveUserId)
       .then((list) => {
         const result = Array.isArray(list) ? list : [];
-        setUserPrescriptions(result);
+        if (isCurrent()) setPrescriptionSnapshot({ items: result });
         return result;
       })
       .catch((err) => {
-        console.warn('처방전 목록 조회 실패:', err);
-        setUserPrescriptions([]);
+        if (isCurrent()) {
+          console.warn('처방전 목록 조회 실패:', err);
+          setPrescriptionSnapshot({ items: [], error: err.message });
+        }
         return [];
-      })
-      .finally(() => setIsLoadingRxList(false));
-  }, [effectiveUserId]);
+      });
+  }, [effectiveUserId, prescriptionRequests]);
 
   // 상비약 & 영양제 목록 불러오기
   const fetchEverydayMedsList = useCallback(() => {
     if (!effectiveUserId) {
-      setEverydayMeds([]);
       return Promise.resolve([]);
     }
+    const isCurrent = everydayRequests.begin();
     return fetchEverydayMeds(effectiveUserId)
       .then((list) => {
         const result = Array.isArray(list) ? list : [];
-        setEverydayMeds(result);
+        if (isCurrent()) setEverydayMeds(result);
         return result;
       })
       .catch((err) => {
-        console.warn('평소 복용 약 목록 조회 실패:', err);
+        if (isCurrent()) console.warn('평소 복용 약 목록 조회 실패:', err);
         return [];
       });
-  }, [effectiveUserId]);
+  }, [effectiveUserId, everydayRequests]);
 
   useEffect(() => {
     fetchPrescriptionList();
     fetchEverydayMedsList();
-  }, [fetchPrescriptionList, fetchEverydayMedsList]);
+    // 이전 대상·화면의 응답이 새 목록이나 로딩 상태를 덮지 않도록 무효화.
+    return () => { prescriptionRequests.cancel(); everydayRequests.cancel(); };
+  }, [fetchPrescriptionList, fetchEverydayMedsList, prescriptionRequests, everydayRequests]);
 
   // 처방전 삭제
   const handleDeleteRx = (prescriptionId) => {
@@ -363,7 +353,6 @@ function MedicationRegisterContent({ user }) {
         {activeTab === 'cabinet' && (
           <CabinetTab
             currentUserId={effectiveUserId}
-            username={currentTargetMember?.name || user?.name || user?.username}
             everydayMeds={everydayMeds}
             onSuccess={fetchEverydayMedsList}
             onRemoveMed={handleRemoveEverydayMed}
@@ -374,7 +363,6 @@ function MedicationRegisterContent({ user }) {
         {activeTab === 'supplement' && (
           <SupplementTab
             currentUserId={effectiveUserId}
-            username={currentTargetMember?.name || user?.name || user?.username}
             everydayMeds={everydayMeds}
             onSuccess={fetchEverydayMedsList}
             onRemoveMed={handleRemoveEverydayMed}

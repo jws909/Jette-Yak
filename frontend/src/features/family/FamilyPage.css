@@ -1486,6 +1486,16 @@
 }
 
 /* 모바일 화면 컨트롤 배치 최적화 */
+/* 가족 복약 알림 버튼도 작은 화면과 터치 기기에서 충분한 클릭 영역 유지 */
+@media (max-width: 640px), (pointer: coarse) {
+  .family-page-wrapper .chk-icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+}
+
 @media (max-width: 640px) {
   .family-title-wrap {
     gap: 8px;
@@ -1519,5 +1529,172 @@
   .family-btn-leave {
     padding: 7px 12px;
     font-size: 12px;
+  }
+}
+
+/* 가족명·약명이 길어져도 버튼과 겹치지 않도록 화면용 줄바꿈 기준; 인쇄 레이아웃은 기존 유지 */
+@media screen {
+  .family-page-wrapper,
+  .family-page-wrapper :is(.family-card, .family-header, .family-title-wrap,
+    .family-name-badge, .family-invite-item-info, .chk-main-content,
+    .report-scroll-body, .report-card-top > div, .report-sub-item-card) {
+    min-width: 0;
+  }
+
+  .family-page-wrapper :is(.family-title, .family-name-text, .family-chips-empty-hint,
+    .family-invite-banner-title, .chk-med-name, .chk-user-tag, .report-med-title,
+    .report-patient-name, .report-group-title, .report-period-box,
+    .report-empty-notice, .family-chk-add-med-btn) {
+    min-width: 0;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    line-height: 1.55;
+  }
+
+  .family-page-wrapper :is(.family-action-buttons, .family-invite-banner-header,
+    .family-invite-item, .chk-filter-bar, .chk-meta-line, .chk-med-line,
+    .calendar-legend, .report-card-top, .report-group-header,
+    .modal-footer-actions) {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .family-page-wrapper :is(.family-invite-banner-badge, .family-name-edit-icon,
+    .chk-checkbox-label, .chk-custom-box, .chk-actions-group,
+    .report-group-dot, .modal-close-btn, .btn-close) {
+    flex-shrink: 0;
+  }
+
+  .family-page-wrapper .chk-med-line {
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .family-page-wrapper .chk-list-row {
+    align-items: flex-start;
+  }
+
+  .family-page-wrapper .chk-checkbox-label {
+    margin-top: 4px;
+  }
+
+  .family-page-wrapper :is(.family-btn-outline, .family-btn-primary,
+    .family-btn-med, .family-btn-leave, .family-invite-btn-accept,
+    .family-invite-btn-reject, .report-day-badge, .report-dose-chip) {
+    max-width: 100%;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    line-height: 1.45;
+  }
+
+  .family-page-wrapper .report-sub-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  }
+
+  .family-page-wrapper .modal-overlay,
+  .family-page-wrapper :is(.modal-content, .alarm-modal, .custom-delete-modal) {
+    box-sizing: border-box;
+  }
+
+  .family-page-wrapper .modal-overlay {
+    padding: 16px;
+  }
+
+  .family-page-wrapper :is(.modal-content, .alarm-modal, .custom-delete-modal) {
+    min-width: 0;
+    max-width: 100%;
+    max-height: calc(100dvh - 32px);
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .family-page-wrapper .modal-content {
+    max-width: min(640px, 100%);
+  }
+
+  .family-page-wrapper .modal-header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .family-page-wrapper .modal-header > :is(h2, h3, h4) {
+    flex: 1;
+    min-width: 0;
+    line-height: 1.5;
+  }
+
+  .family-page-wrapper :is(.family-add-tabs, .report-patient-banner,
+    .delete-modal-target-box) {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .family-page-wrapper :is(.delete-modal-target, .delete-modal-target-box .target-med-name) {
+    min-width: 0;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    line-height: 1.55;
+  }
+
+  .family-page-wrapper .delete-modal-target-box .target-med-name {
+    flex-basis: 100%;
+  }
+}
+
+@media screen and (max-width: 640px) {
+  .family-page-wrapper .family-card {
+    padding: 20px 14px;
+  }
+
+  .family-page-wrapper .calendar-nav {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .family-page-wrapper .month-controls {
+    gap: 2px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .family-page-wrapper .family-action-buttons > button {
+    flex: 1 1 120px;
+    min-height: 44px;
+  }
+
+  .family-page-wrapper .chk-list-row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .family-page-wrapper .chk-actions-group {
+    grid-column: 2;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .family-page-wrapper .chk-actions-group .btn-delete-schedule {
+    width: 44px;
+    height: 44px;
+  }
+
+  .family-page-wrapper .modal-overlay {
+    padding: 12px;
+  }
+
+  .family-page-wrapper :is(.modal-content, .alarm-modal, .custom-delete-modal) {
+    padding: 20px 16px;
+    max-height: calc(100dvh - 24px);
+  }
+
+  .family-page-wrapper .modal-footer-actions > button {
+    flex: 1 1 110px;
+    min-height: 44px;
   }
 }

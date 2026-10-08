@@ -1268,3 +1268,63 @@ input:checked + .toggle-slider:before {
   color: #5a1926;
 }
 
+/* 계정 정보와 작성글 제목은 생략하지 않고 카드 안에서 줄바꿈 */
+.mypage-wrapper,
+.mypage-wrapper :is(.mypage-profile-card, .profile-main-meta, .meta-name-editor, .mypage-col-left, .mypage-col-right, .mypage-subcard, .setting-info, .account-modal-header > div) { min-width: 0; }
+.mypage-wrapper :is(h1, h2, p, .meta-kicker, .nickname-display, .profile-message, .form-feedback, .account-modal-help, .perm-label, .perm-badge, .my-posts-status) { overflow-wrap: anywhere; word-break: keep-all; }
+.mypage-wrapper .mypage-two-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mypage-wrapper .account-info-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mypage-wrapper .account-info-list > div { flex-wrap: wrap; gap: 4px 10px; }
+.mypage-wrapper .account-info-list dd,
+.mypage-wrapper .my-post-title {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+.mypage-wrapper .account-info-list dd { flex: 1 1 120px; }
+.mypage-wrapper .profile-photo-unit { flex: 0 0 auto; }
+.mypage-wrapper .profile-main-meta { flex: 1 1 0; }
+.mypage-wrapper .meta-name-editor { flex-wrap: wrap; gap: 8px; }
+.mypage-wrapper .nickname-display { line-height: 1.5; }
+.mypage-wrapper .my-posts-heading { flex-wrap: wrap; gap: 8px 12px; }
+.mypage-wrapper .my-posts-heading .subcard-title { flex: 1 1 160px; margin-bottom: 0; }
+.mypage-wrapper .my-posts-heading { margin-bottom: 16px; }
+.mypage-wrapper .my-posts-list a { align-items: flex-start; flex-wrap: wrap; gap: 4px 12px; }
+.mypage-wrapper .my-post-title { flex: 1 1 180px; }
+.mypage-wrapper .my-post-date { min-width: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.mypage-wrapper .setting-toggle-row { align-items: flex-start; gap: 14px; }
+.mypage-wrapper .setting-info { flex: 1 1 0; }
+.mypage-wrapper .setting-info strong { line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.mypage-wrapper .setting-info p { line-height: 1.7; }
+.mypage-wrapper .toggle-switch { flex: 0 0 44px; width: 44px; height: 24px; min-height: 24px; margin-top: 3px; }
+.mypage-wrapper .toggle-switch input { min-height: 0; }
+.mypage-wrapper .toggle-switch input:focus-visible + .toggle-slider { outline: 2px solid #7d2638; outline-offset: 4px; }
+.mypage-wrapper button { min-height: 44px; max-width: 100%; height: auto; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; word-break: keep-all; }
+.mypage-wrapper .nickname-edit-icon { flex: 0 0 44px; width: 44px; padding: 0; }
+.mypage-wrapper .styled-input { min-width: 0; min-height: 44px; height: auto; padding: 10px 12px; line-height: 1.5; }
+.mypage-wrapper .save-toast-popup { right: 16px; bottom: max(20px, env(safe-area-inset-bottom)); max-width: calc(100vw - 32px); line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; pointer-events: none; }
+
+/* 계정 모달은 짧은 화면에서도 본문과 마지막 버튼까지 스크롤 */
+.mypage-wrapper :is(.mypage-account-modal, .withdraw-confirm-modal) { min-width: 0; max-height: calc(100dvh - 40px); overflow: auto; overscroll-behavior: contain; }
+.mypage-wrapper .account-modal-header h2 { line-height: 1.5; }
+.mypage-wrapper .account-modal-close { flex: 0 0 44px; width: 44px; height: 44px; }
+.mypage-wrapper :is(.account-modal-actions, .withdraw-modal-actions) { flex-wrap: wrap; }
+.mypage-wrapper .account-modal-actions > button { flex: 0 1 auto; min-width: 80px; }
+@media (max-width: 1100px) {
+  .mypage-wrapper .mypage-two-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px), (min-width: 768px) and (max-width: 1000px) {
+  .mypage-wrapper .account-info-list { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .mypage-wrapper .mypage-profile-card { padding: 18px 16px; gap: 16px; }
+  .mypage-wrapper .mypage-subcard { padding: 18px 16px; }
+  .mypage-wrapper .my-post-title { flex-basis: 100%; }
+  .mypage-wrapper :is(.mypage-modal-backdrop, .withdraw-modal-backdrop) { padding: 12px; }
+  .mypage-wrapper :is(.mypage-account-modal, .withdraw-confirm-modal) { max-height: calc(100dvh - 24px); padding: 20px 16px; }
+  .mypage-wrapper .account-modal-actions > button { flex: 1 1 100px; }
+}
+

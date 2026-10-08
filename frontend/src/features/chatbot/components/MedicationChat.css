@@ -2,7 +2,9 @@
  * 파일 역할: 챗봇의 검색 패널, 대화 영역, DB 출처와 후속 질문 UI를 정의합니다.
  * 유지보수: 300px 안팎의 좁은 화면에서도 입력창과 답변이 겹치지 않도록 반응형 규칙을 함께 유지합니다.
  */
-.chat-page { max-width: 1200px; margin: auto; padding: 24px 32px 24px; }
+/* 세로 스크롤바가 차지한 폭까지 사용할 수 있도록 공통 body 최소 폭을 상담 화면에서만 해제 */
+body:has(.chat-page) { min-width: 0; }
+.chat-page { max-width: 1200px; min-width: 0; width: 100%; box-sizing: border-box; margin: auto; padding: 24px 32px 24px; overflow-wrap: anywhere; word-break: keep-all; }
 .eyebrow { font: 10px/1.5 ui-monospace, monospace; letter-spacing: 1.8px; color: #75695f; }
 .page-heading { margin-bottom: 32px; }
 .page-heading h1 { font-size: clamp(28px, 3.3vw, 42px); font-weight: 500; line-height: 1.4; letter-spacing: -1.8px; margin: 18px 0 12px; }
@@ -212,6 +214,15 @@
 .conversation-medication > .clear-selection:hover { background: #fff; border-color: #8b3e4b; }
 .conversation-medication > .clear-selection:focus-visible { outline: 2px solid #8b3e4b; outline-offset: 2px; }
 @media (max-width: 1100px) {
+  /* 사이드바가 차지한 폭까지 고려해 상담 열을 충분히 확보한다. */
+  .main-content-container:has(.chat-page) { height: auto; }
+  .chat-page { height: auto; overflow: visible; }
+  .page-heading { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .chat-layout,
+  html:is([data-reading-mode='child'], [data-reading-mode='senior']) .chat-layout { grid-template-columns: minmax(0, 1fr); }
+  .chat-layout > .product-panel { max-height: none; overflow-y: visible; }
+  .chat-log { height: min(65dvh, 520px); min-height: 320px; flex: 0 1 auto; }
+  .selected-suggestions { max-height: none; overflow: visible; flex-wrap: wrap; }
   .conversation-heading:has(.conversation-medication) { grid-template-columns: minmax(0, 1fr) auto; }
   .conversation-heading h2, .conversation-heading-actions { grid-row: 1; }
   .conversation-medication { grid-column: 1 / -1; grid-row: 2; padding: 10px 0 0; border-left: 0; border-top: 1px solid #eee8e0; }
@@ -221,4 +232,6 @@
   .conversation-medication { flex-wrap: wrap; }
   .conversation-medication-copy { flex-basis: 180px; }
   .conversation-medication > .clear-selection { margin-left: auto; }
+  .sources dl > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .composer-footer button { width: 100%; }
 }

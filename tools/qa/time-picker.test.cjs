@@ -41,6 +41,15 @@ const pages = [
   { label: '가족', file: 'src/features/family/FamilyPage.jsx', open: 'handleOpenAlarmModal', save: 'handleSaveAlarm' },
 ];
 
+test('공용 날짜 선택기: 모바일은 모달 배치, 데스크톱은 화면 경계에 맞춘 팝오버 위치 유지', () => {
+  const position = vm.runInNewContext(`(${functionSource('src/components/ui/DatePicker.jsx', 'pickerPosition')})`);
+  const rect = { top: 500, bottom: 540, left: 900, width: 240 };
+  const mobile = position(rect, { innerWidth: 390, innerHeight: 844, scrollX: 0, scrollY: 0 });
+  assert.deepEqual(JSON.parse(JSON.stringify(mobile)), { isMobile: true, top: 0, left: 0, width: 320 });
+  const desktop = position(rect, { innerWidth: 1100, innerHeight: 700, scrollX: 0, scrollY: 20 });
+  assert.deepEqual(JSON.parse(JSON.stringify(desktop)), { isMobile: false, top: 154, left: 764, width: 320 });
+});
+
 async function fixture(page) {
   const { formatTime24 } = await import(pathToFileURL(sourcePath('src/utils/dateTime.js')));
   const state = { hour: '08', minute: '00', newHour: '09', newMinute: '00', isAutoTimeApplied: false, schedules: [{ scheduleId: 3, time: '08:00' }] };

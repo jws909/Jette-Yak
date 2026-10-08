@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { addEverydayMed } from '../medicationApi';
 import { useIsMobile } from '../../../hooks/useIsMobile';
@@ -11,7 +11,6 @@ import { useIsMobile } from '../../../hooks/useIsMobile';
  */
 export default function SupplementTab({
   currentUserId,
-  username,
   everydayMeds,
   onSuccess,
   onRemoveMed,
@@ -20,11 +19,14 @@ export default function SupplementTab({
   const { showAlert } = useDialog();
   const isMobile = useIsMobile(680);
   const [customSupplementName, setCustomSupplementName] = useState('');
+  const registrationLock = useRef(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const routineMeds = (everydayMeds || []).filter((m) => m.source === 'ROUTINE');
 
   // 영양제 보관함 등록 (ROUTINE)
   const handleAddCustomSupplement = async (overrideName) => {
+    if (registrationLock.current) return;
     const name = (typeof overrideName === 'string' ? overrideName : customSupplementName).trim();
     if (!name) {
       showAlert('영양제 또는 건강기능식품 이름을 입력해 주세요.');
@@ -36,10 +38,12 @@ export default function SupplementTab({
       return;
     }
 
+    // 별명·가족 표시 이름으로 인증하지 않도록 대상자 번호만 전달.
+    registrationLock.current = true;
+    setIsRegistering(true);
     try {
       await addEverydayMed({
         userId: currentUserId,
-        username: username,
         type: 'ROUTINE',
         name: name,
         notes: '건강기능식품',
@@ -47,13 +51,16 @@ export default function SupplementTab({
 
       showAlert(`'${name}' 이(가) 영양제 보관함에 등록되었습니다.\n복약 시간 알림이 필요한 경우 카드의 [일정 등록]을 눌러주세요.`, '등록 완료');
       setCustomSupplementName('');
-      onSuccess?.();
+      await onSuccess?.();
       window.dispatchEvent(new CustomEvent('jette-intake-updated', {
         detail: { userId: currentUserId }
       }));
     } catch (err) {
       console.error('영양제 등록 오류:', err);
       showAlert(err.message || '영양제 등록 처리 중 오류가 발생했습니다.', '등록 오류');
+    } finally {
+      registrationLock.current = false;
+      setIsRegistering(false);
     }
   };
 
@@ -82,15 +89,18 @@ export default function SupplementTab({
                 className="cabinet-search-input"
                 placeholder={isMobile ? '영양제 입력 (예: 비타민C)' : '영양제 또는 건강기능식품 입력 (예: 비타민C, 오메가3...)'}
                 value={customSupplementName}
+                disabled={isRegistering}
                 onChange={(e) => setCustomSupplementName(e.target.value)}
                 autoFocus
               />
-              <button type="submit" className="cabinet-inline-submit-btn">
-                {isMobile ? '+ 등록' : '+ 영양제 등록'}
+              <button type="submit" className="cabinet-inline-submit-btn" disabled={isRegistering}>
+                {isRegistering ? '등록 중…' : isMobile ? '+ 등록' : '+ 영양제 등록'}
               </button>
             </div>
           </div>
         </form>
+
+        {isRegistering && <p role="status" aria-live="polite">영양제를 등록하고 있어요. 잠시만 기다려 주세요.</p>}
 
         {/* 추천 키워드 태그 */}
         <div className="popular-tags">
@@ -100,6 +110,7 @@ export default function SupplementTab({
               key={name}
               type="button"
               className="tag-chip"
+              disabled={isRegistering}
               onClick={() => setCustomSupplementName(name)}
             >
               + {name}

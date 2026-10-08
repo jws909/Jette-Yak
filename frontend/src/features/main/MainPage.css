@@ -4930,3 +4930,106 @@
   color: #ffffff;
 }
 
+/* 긴 약명과 병원명이 카드 폭을 밀어내지 않도록 줄바꿈 허용 */
+.main-page-wrapper,
+.main-page-wrapper > *,
+.main-page-wrapper :is(.greeting-text-block, .banner-card-text, .routine-item-left, .routine-item-right, .routine-header-left, .routine-header-actions, .summary-stats-group, .stat-unit, .rx-dropdown-trigger-left, .rx-dropdown-trigger-info, .rx-dropdown-option-left, .rx-dropdown-option-info, .note-point-content, .detail-head-left, .modal-head-info, .meal-input-group) { min-width: 0; }
+.main-page-wrapper :is(h1, h2, h3, h4, p, strong, .greeting-date, .routine-rate-tip, .pouch-name, .pouch-hospital-date, .pouch-summary-text, .single-card-name, .single-card-sub-desc, .rx-dropdown-trigger-title, .rx-dropdown-trigger-sub, .rx-dropdown-option-sub, .stat-label, .modal-subtitle, .meal-calc-hint) {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.main-page-wrapper :is(.prescribed-group-title, .prescribed-group-meta, .med-item-name, .med-item-desc, .med-hospital-tag, .pouch-subitem-name, .subitem-efficacy-chip span, .rx-dropdown-option-title, .rx-dropdown-option-doctor, .summary-hospital-name, .summary-doctor-name, .summary-period-chip, .summary-meta-label) {
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  line-height: 1.5;
+}
+.main-page-wrapper .greeting-title { line-height: 1.4; }
+.main-page-wrapper :is(.card-top-row, .prescribed-group-header, .prescribed-group-header-left, .routine-header-row, .routine-header-left, .routine-header-actions, .rx-selector-header, .rx-selector-header-left, .rx-dropdown-trigger, .rx-dropdown-option, .single-card-meta-row, .pouch-expanded-header, .caution-section-header, .caution-item-top) { flex-wrap: wrap; gap: 8px 12px; }
+.main-page-wrapper .routine-item-left { flex: 1 1 0; }
+.main-page-wrapper .routine-item-right { flex-wrap: wrap; max-width: 100%; }
+.main-page-wrapper :is(.rx-dropdown-trigger-left, .rx-dropdown-option-left) { flex: 1 1 220px; }
+.main-page-wrapper .rx-dropdown-trigger-right { flex: 0 1 auto; margin-left: auto; }
+.main-page-wrapper .result-row-card { align-items: flex-start; flex-wrap: wrap; gap: 8px 14px; }
+.main-page-wrapper .result-row-card > div { flex: 1 1 240px; min-width: 0; }
+.main-page-wrapper .result-row-card :is(strong, .entp-label) { display: block; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.main-page-wrapper .prescription-banner-card .banner-card-text { flex: 1 1 260px; }
+.main-page-wrapper .prescription-banner-card .banner-card-actions { flex-wrap: wrap; max-width: 100%; }
+.main-page-wrapper .summary-stats-group { gap: 16px; }
+.main-page-wrapper .stat-unit { flex: 1 1 0; text-align: center; }
+.main-page-wrapper .stat-number { max-width: 100%; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.main-page-wrapper .stat-divider { flex: 0 0 1px; }
+.main-page-wrapper button:not(.routine-slot-tab):not(.date-nav-arrow-btn) {
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  line-height: 1.5;
+}
+.main-page-wrapper .routine-slot-tab { flex: 0 0 auto; min-height: 44px; }
+.main-page-wrapper :is(.routine-header-actions, .summary-col-right) > button { flex: 0 1 auto; }
+.main-page-wrapper :is(.setting-btn-icon, .date-nav-calendar-icon) { flex: 0 0 auto; }
+.main-page-wrapper .main-date-navigator { flex-wrap: wrap; max-width: 100%; border-radius: 16px; }
+.main-page-wrapper .main-date-navigator > .custom-datepicker-wrapper { flex: 1 1 160px; width: auto; }
+.main-page-wrapper .date-nav-display-box { flex-wrap: wrap; gap: 6px; min-height: 44px; padding: 7px 10px; }
+.main-page-wrapper .date-nav-date-text { min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.main-page-wrapper .date-nav-arrow-btn { flex: 0 0 36px; width: 36px; height: 44px; }
+
+/* 상세·식사 설정 모달 전체를 스크롤해 본문과 저장 버튼까지 접근 */
+.main-page-wrapper .modal-content-box { min-width: 0; max-height: calc(100dvh - 40px); display: block; overflow: auto; overscroll-behavior: contain; }
+.main-page-wrapper :is(.modal-head, .modal-foot, .modal-foot-right, .detail-head-left, .preview-schedule-pills) { flex-wrap: wrap; gap: 8px 12px; }
+.main-page-wrapper .modal-head { align-items: flex-start; }
+.main-page-wrapper :is(.detail-head-left, .modal-head-info, .modal-head > .modal-title) { flex: 1 1 180px; }
+.main-page-wrapper .modal-close { flex: 0 0 44px; width: 44px; padding: 0; }
+.main-page-wrapper .caution-modal-body { max-height: none; overflow: visible; }
+.main-page-wrapper .meal-time-modal { width: min(540px, 100%) !important; }
+.main-page-wrapper .meal-inputs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.main-page-wrapper .meal-same-toggle-row { align-items: flex-start; }
+.main-page-wrapper .meal-same-toggle-row input { flex: 0 0 auto; }
+@media (max-width: 1200px) {
+  .main-page-wrapper .main-two-column-grid { grid-template-columns: minmax(0, 1fr); }
+  .main-page-wrapper .prescription-summary-card { flex-direction: column; align-items: stretch; gap: 18px; }
+  .main-page-wrapper .summary-stats-group { width: 100%; }
+  .main-page-wrapper .summary-col-right { width: 100%; }
+}
+@media (max-width: 600px), (min-width: 768px) and (max-width: 1000px) {
+  .main-page-wrapper .routine-header-actions { flex: 1 1 100%; justify-content: flex-start; }
+  .main-page-wrapper .routine-header-actions > .med-register-quick-btn { flex: 1 1 100px; justify-content: center; }
+  .main-page-wrapper .routine-header-actions > .meal-setting-btn { flex: 1 1 150px; justify-content: center; }
+  .main-page-wrapper :is(.routine-pouch-header, .routine-single-card, .pouch-subitem-row) { flex-wrap: wrap; gap: 10px; }
+  .main-page-wrapper :is(.routine-pouch-header, .routine-single-card, .pouch-subitem-row) > .routine-item-left { flex: 1 1 100%; gap: 10px; align-items: flex-start; }
+  .main-page-wrapper :is(.routine-pouch-header, .routine-single-card, .pouch-subitem-row) > .routine-item-right { width: 100%; justify-content: flex-end; margin-left: 0; }
+  .main-page-wrapper :is(.pouch-name, .single-card-name) { line-height: 1.5; }
+  .main-page-wrapper .custom-checkbox { margin-top: 6px; }
+  .main-page-wrapper .prescribed-group-header-left { flex-basis: 100%; }
+  .main-page-wrapper .med-item-right { margin-left: auto; }
+}
+@media (max-width: 600px) {
+  .main-page-wrapper .main-date-navigator { width: 100%; padding: 4px 6px; gap: 4px; }
+  .main-page-wrapper .greeting-text-block { flex-basis: 100%; }
+  .main-page-wrapper .prescription-banner-card { padding: 18px 14px; }
+  .main-page-wrapper .prescription-banner-card .banner-card-actions { width: 100%; }
+  .main-page-wrapper .prescription-banner-card .banner-card-actions > button { flex: 1 1 140px; justify-content: center; }
+  .main-page-wrapper .routine-pouch-card,
+  .main-page-wrapper .routine-single-card { padding: 12px; }
+  .main-page-wrapper .pouch-expanded-items { padding: 10px; }
+  .main-page-wrapper .pouch-subitem-row { padding: 8px; }
+  .main-page-wrapper .medication-note-card { padding: 18px 14px; }
+  .main-page-wrapper .modal-backdrop { padding: 12px; }
+  .main-page-wrapper .modal-content-box { max-height: calc(100dvh - 24px); }
+  .main-page-wrapper :is(.modal-head, .modal-foot, .med-detail-body, .caution-modal-body, .meal-inputs-grid) { padding: 16px; }
+  .main-page-wrapper .meal-modal-intro { padding: 16px 16px 0; }
+  .main-page-wrapper .meal-inputs-grid { grid-template-columns: minmax(0, 1fr); }
+  .main-page-wrapper .meal-preview-box { margin: 0 16px 16px; }
+  .main-page-wrapper .modal-foot-right { flex: 1 1 100%; }
+  .main-page-wrapper .modal-foot-right > button { flex: 1 1 100px; }
+  .main-page-wrapper .modal-foot > button { flex: 1 1 160px; justify-content: center; }
+}
+

@@ -995,6 +995,17 @@
 }
 
 /* 5. 모달 공통 레이아웃 */
+/* 작은 화면과 터치 기기에서 알림·삭제 아이콘의 누를 수 있는 영역 확보 */
+@media (max-width: 900px), (pointer: coarse) {
+  .calendar-page-wrap .btn-alarm,
+  .calendar-page-wrap .btn-delete-schedule {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+    touch-action: manipulation;
+  }
+}
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -2218,6 +2229,161 @@ input:checked + .slider:before { transform: translateX(18px); }
 
 .btn-cal-sub-check:hover {
   background: #f4eee4;
+}
+
+/* 달력·일정·모달 안의 긴 약명을 실제 카드 폭에 맞춰 줄바꿈; 다른 페이지의 공통 클래스와 분리 */
+.calendar-page-wrap,
+.calendar-page-wrap :is(.calendar-main-card, .calendar-left, .calendar-right,
+  .panel-header, .dose-list, .dose-info, .cal-pouch-card, .cal-pouch-sub-item,
+  .shelf-med-chip, .selected-med-chip) {
+  min-width: 0;
+}
+
+.calendar-page-wrap :is(.time-row, .name-row, .cal-legend, .panel-header-bottom,
+  .shelf-section-header, .delete-modal-target-box) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.calendar-page-wrap .dose-info {
+  overflow: visible;
+}
+
+.calendar-page-wrap :is(.dose-info strong.name, .cal-pouch-meta-sub,
+  .cal-pouch-pills, .cal-pouch-sub-name, .cal-pouch-purpose-chip,
+  .shelf-med-chip .chip-text, .selected-med-chip .chip-name,
+  .delete-modal-target, .delete-modal-target-box .target-med-name) {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+}
+
+.calendar-page-wrap .name-row strong.name {
+  flex: 1 1 140px;
+}
+
+.calendar-page-wrap .cal-pouch-sub-name {
+  flex: 1;
+}
+
+.calendar-page-wrap :is(.cal-pouch-sub-item, .shelf-med-chip, .selected-med-chip) {
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.calendar-page-wrap :is(.cal-pouch-purpose-chip, .shelf-med-chip) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.calendar-page-wrap :is(.modal-overlay, .alarm-modal, .add-med-modal,
+  .custom-delete-modal) {
+  box-sizing: border-box;
+}
+
+.calendar-page-wrap :is(.alarm-modal, .add-med-modal, .custom-delete-modal) {
+  min-width: 0;
+  max-width: 100%;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.calendar-page-wrap .modal-header {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.calendar-page-wrap .modal-header > :is(h2, h3, h4) {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+}
+
+.calendar-page-wrap :is(.btn-close, .btn-remove-chip) {
+  flex-shrink: 0;
+}
+
+.calendar-page-wrap :is(.modal-actions-dual, .category-select-group) {
+  flex-wrap: wrap;
+}
+
+.calendar-page-wrap :is(.field-hint-info, .field-hint-warning, .field-hint-time-auto,
+  .delete-modal-desc, .choice-desc, .search-result-item) {
+  min-width: 0;
+  line-height: 1.65;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.calendar-page-wrap .delete-modal-target-box .target-med-name {
+  flex-basis: 100%;
+}
+
+@media (max-width: 560px) {
+  .calendar-page-wrap .cal-nav {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .calendar-page-wrap .month-controls {
+    gap: 2px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* 체크박스·약명은 첫 줄, 세부 보기·알림·삭제는 두 번째 줄에 배치 */
+  .calendar-page-wrap :is(.dose-item, .cal-pouch-main-row) {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+  }
+
+  .calendar-page-wrap :is(.dose-item, .cal-pouch-main-row) > .check-box {
+    margin-top: 3px;
+  }
+
+  .calendar-page-wrap .dose-item-actions {
+    grid-column: 2;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .calendar-page-wrap .btn-pouch-expand-cal {
+    min-height: 44px;
+    height: auto;
+    padding: 8px 10px;
+  }
+
+  .calendar-page-wrap .cal-pouch-sub-item {
+    align-items: flex-start;
+  }
+
+  .calendar-page-wrap .modal-overlay {
+    padding: 12px;
+  }
+
+  .calendar-page-wrap :is(.alarm-modal, .add-med-modal, .custom-delete-modal) {
+    padding: 20px 16px;
+    max-height: calc(100dvh - 24px);
+  }
+
+  .calendar-page-wrap .shelf-med-chip .chip-text {
+    flex: 1;
+  }
+
+  .calendar-page-wrap .shelf-med-chip {
+    width: 100%;
+  }
 }
 
 .btn-cal-sub-check.checked {

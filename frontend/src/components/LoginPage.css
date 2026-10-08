@@ -19,6 +19,7 @@
 }
 
 .login-panel {
+  min-width: 0;
   width: 100%;
   max-width: 420px;
 }
@@ -107,6 +108,7 @@
 .login-error {
   margin: 0;
   font-size: 13px;
+  line-height: 1.7;
   color: var(--error);
 }
 
@@ -138,6 +140,8 @@
 
 .login-links {
   display: flex;
+  flex-wrap: wrap;
+  line-height: 1.6;
   align-items: center;
   justify-content: center;
   gap: 10px;

@@ -410,3 +410,95 @@ body:has(.community-modal) { overflow: hidden; }
 
 /* 작성창 밖에서 진행하는 작업은 모달 위에 표시하되 조작을 가리지 않는 안내로 제공 */
 .community-progress { position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 1500; box-sizing: border-box; width: max-content; max-width: calc(100vw - 32px); box-shadow: 0 8px 28px rgba(49, 26, 27, .18); pointer-events: none; }
+
+/* 긴 제목·작성자·제품명도 카드와 모달의 실제 너비 안에서 읽을 수 있게 배치 */
+.community-header > div,
+.community-feed,
+.community-side,
+.community-form-grid > label,
+.community-attachment-inputs > label,
+.community-detail-author > div,
+.community-comment-author > div,
+.community-files a { min-width: 0; }
+.community-header :is(h1, p),
+.community-detail h2,
+.community-detail-author :is(strong, span),
+.community-comment-author :is(strong, time),
+.community-side :is(h3, li, a),
+.community-count,
+.community-empty,
+.community-error,
+.community-reply-target span,
+.community-medication-link-state {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.community-card h2,
+.community-detail h2 { line-height: 1.5; }
+.community-card > p {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+.community-card-top { flex-wrap: wrap; row-gap: 6px; }
+.community-card-top > :is(span, time) { min-width: 0; overflow-wrap: anywhere; word-break: keep-all; }
+.community-card footer { flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.community-card footer > .community-author { flex: 1 1 160px; min-width: 0; }
+.community-author > span:last-child { min-width: 0; overflow-wrap: anywhere; word-break: keep-all; }
+.community-detail-author > div,
+.community-comment-author > div { flex: 1 1 0; }
+.community-comment p { white-space: pre-wrap; }
+.community-comment .community-comment.is-reply { margin-left: 0; }
+.community-official { align-items: flex-start; }
+.community-official > span { flex: 1 1 180px; min-width: 0; }
+.community-official > a { max-width: 100%; line-height: 1.6; overflow-wrap: anywhere; word-break: keep-all; }
+.community-notice { align-items: flex-start; }
+.community-notice > span { flex: 1 1 0; min-width: 0; }
+.community-notice > button { flex: 0 0 32px; min-height: 32px; padding: 0; }
+
+/* 버튼은 내용에 따라 높이를 늘리고 입력 결과의 긴 제품명과 제조사를 나눠 표시 */
+.community-primary,
+.community-tabs button,
+.community-med,
+.community-admin-open,
+.community-comments form > button,
+.community-files button,
+.community-reply-target button {
+  min-height: 44px;
+  max-width: 100%;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+.community-tabs button { font: inherit; }
+.community-compose :is(input, select) { min-width: 0; height: auto; min-height: 48px; padding: 10px 12px; line-height: 1.5; }
+.community-compose header { gap: 12px; }
+.community-compose header > div { min-width: 0; overflow-wrap: anywhere; word-break: keep-all; }
+.community-compose header > button { flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; }
+.community-med-results button { align-items: flex-start; flex-wrap: wrap; gap: 4px 12px; font: inherit; line-height: 1.6; }
+.community-med-results :is(strong, span) { min-width: 0; max-width: 100%; overflow-wrap: anywhere; word-break: keep-all; }
+.community-med-results strong { flex: 1 1 220px; }
+.community-med-results span { flex: 1 1 140px; }
+.community-compose .community-check { align-items: flex-start; gap: 10px; line-height: 1.6; }
+.community-compose .community-check input[type='checkbox'] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 20px; margin: 0; padding: 0; }
+.community-comments textarea { width: 100%; min-width: 0; resize: vertical; overflow-wrap: anywhere; }
+.community-detail,
+.community-compose { overscroll-behavior: contain; }
+.community-compose-footer { position: static; margin-bottom: 0; padding: 16px 0 0; }
+.community-reply-target { flex-wrap: wrap; }
+.community-reply-target > span { flex: 1 1 180px; min-width: 0; }
+.community-files > div { align-items: flex-start; flex-wrap: wrap; }
+.community-files a { flex: 1 1 200px; }
+.community-files button { flex: 0 0 auto; }
+@media (max-width: 560px) {
+  .community-header { align-items: stretch; gap: 14px; }
+  .community-header > div { flex: 1 1 100%; }
+  .community-header > .community-primary { width: 100%; }
+  .community-card { padding: 16px; }
+  .community-card-top time { flex: 1 1 100%; margin-left: 0; }
+  .community-comment .community-comment.is-reply { padding-left: 0; border-left: 0; }
+  .community-official > a { margin-left: 0; }
+  .community-comments form > button,
+  .community-compose-footer > .community-primary { width: 100%; justify-self: stretch; }
+}

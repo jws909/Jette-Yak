@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import './DatePicker.css';
 
@@ -23,6 +23,22 @@ function formatDateString(year, month, day) {
   const m = String(month).padStart(2, '0');
   const d = String(day).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+// 레이아웃 측정 결과만 받아 데스크톱 팝오버와 모바일 모달의 배치 계산
+function pickerPosition(rect, viewport) {
+  if (viewport.innerWidth <= 600) return { isMobile: true, top: 0, left: 0, width: 320 };
+  const popoverWidth = 320;
+  const popoverHeight = 360;
+  let top = rect.bottom + viewport.scrollY + 6;
+  let left = rect.left + viewport.scrollX;
+  if (left + popoverWidth > viewport.innerWidth - 16) {
+    left = Math.max(16, viewport.innerWidth - popoverWidth - 16 + viewport.scrollX);
+  }
+  if (rect.bottom + popoverHeight > viewport.innerHeight && rect.top > popoverHeight + 20) {
+    top = rect.top + viewport.scrollY - popoverHeight - 6;
+  }
+  return { isMobile: false, top, left, width: Math.max(rect.width, popoverWidth) };
 }
 
 const WEEKDAYS = [
@@ -99,14 +115,16 @@ export default function DatePicker({
   // 달력에서 현재 바라보고 있는 연도 및 월 (월: 1~12)
   const [viewYear, setViewYear] = useState(() => parsedValue?.year || today.getFullYear());
   const [viewMonth, setViewMonth] = useState(() => parsedValue?.month || today.getMonth() + 1);
+  const [previousValue, setPreviousValue] = useState(value);
 
-  // value가 외부에서 변경될 경우 view 동기화
-  useEffect(() => {
+  // 외부 선택값 변경은 같은 렌더에서 한 번만 반영. 이전 달이 잠깐 표시되는 effect 연쇄 방지
+  if (value !== previousValue) {
+    setPreviousValue(value);
     if (parsedValue) {
       setViewYear(parsedValue.year);
       setViewMonth(parsedValue.month);
     }
-  }, [parsedValue]);
+  }
 
   // 연도 목록 생성
   const yearOptions = useMemo(() => {
@@ -120,41 +138,33 @@ export default function DatePicker({
   // 팝오버 위치 계산
   const updateCoords = useCallback(() => {
     if (!containerRef.current) return;
-    const isMobile = window.innerWidth <= 600;
-    if (isMobile) {
-      setCoords({ isMobile: true, top: 0, left: 0, width: 320 });
-      return;
-    }
-
-    const rect = containerRef.current.getBoundingClientRect();
-    const popoverWidth = 320;
-    const popoverHeight = 360;
-
-    let top = rect.bottom + window.scrollY + 6;
-    let left = rect.left + window.scrollX;
-
-    // 우측 화면 밖으로 넘치면 조정
-    if (left + popoverWidth > window.innerWidth - 16) {
-      left = Math.max(16, window.innerWidth - popoverWidth - 16 + window.scrollX);
-    }
-
-    // 아래쪽 화면 밖으로 넘치면 인풋 위쪽으로 배치
-    if (rect.bottom + popoverHeight > window.innerHeight && rect.top > popoverHeight + 20) {
-      top = rect.top + window.scrollY - popoverHeight - 6;
-    }
-
-    setCoords({
-      isMobile: false,
-      top,
-      left,
-      width: Math.max(rect.width, popoverWidth),
-    });
+    setCoords(pickerPosition(containerRef.current.getBoundingClientRect(), window));
   }, []);
+
+  // 모든 닫기 경로에서 하위 메뉴까지 함께 정리
+  const closePicker = useCallback(() => {
+    setIsOpen(false);
+    setIsYearMenuOpen(false);
+    setIsMonthMenuOpen(false);
+  }, []);
+  const openPicker = () => {
+    if (disabled) return;
+    setIsYearMenuOpen(false);
+    setIsMonthMenuOpen(false);
+    setIsOpen(true);
+  };
+  const togglePicker = () => { if (isOpen) closePicker(); else openPicker(); };
+
+  // 화면에 그리기 전에 DOM 위치 측정. customTrigger 렌더 콜백에는 ref를 읽는 함수를 전달하지 않음
+  useLayoutEffect(() => {
+    if (isOpen && containerRef.current) {
+      setCoords(pickerPosition(containerRef.current.getBoundingClientRect(), window));
+    }
+  }, [isOpen]);
 
   // 모달/팝오버 열릴 때 위치 갱신 및 리스너 등록
   useEffect(() => {
     if (!isOpen) return;
-    updateCoords();
 
     const handleResize = () => updateCoords();
     const handleScroll = (e) => {
@@ -170,12 +180,12 @@ export default function DatePicker({
       ) {
         return;
       }
-      setIsOpen(false);
+      closePicker();
     };
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        setIsOpen(false);
+        closePicker();
       }
     };
 
@@ -190,15 +200,7 @@ export default function DatePicker({
       document.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, updateCoords]);
-
-  // 달력 닫힐 때 연/월 드롭다운 메뉴도 함께 닫기
-  useEffect(() => {
-    if (!isOpen) {
-      setIsYearMenuOpen(false);
-      setIsMonthMenuOpen(false);
-    }
-  }, [isOpen]);
+  }, [isOpen, updateCoords, closePicker]);
 
   // 연도/월 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
@@ -249,7 +251,7 @@ export default function DatePicker({
       };
       onChange(syntheticEvent);
     }
-    setIsOpen(false);
+    closePicker();
   };
 
   const handleClear = (e) => {
@@ -384,7 +386,7 @@ export default function DatePicker({
         <button
           type="button"
           className="datepicker-close-btn"
-          onClick={() => setIsOpen(false)}
+          onClick={closePicker}
           title="닫기"
         >
           ✕
@@ -583,7 +585,7 @@ export default function DatePicker({
             className="datepicker-action-btn clear-btn"
             onClick={(e) => {
               handleClear(e);
-              setIsOpen(false);
+              closePicker();
             }}
           >
             선택 해제
@@ -601,9 +603,9 @@ export default function DatePicker({
     >
       {customTrigger ? (
         customTrigger({
-          open: () => !disabled && setIsOpen(true),
-          close: () => setIsOpen(false),
-          toggle: () => !disabled && setIsOpen((prev) => !prev),
+          open: openPicker,
+          close: closePicker,
+          toggle: () => { if (!disabled) togglePicker(); },
           isOpen,
           value,
         })
@@ -613,7 +615,7 @@ export default function DatePicker({
             isOpen ? 'focused' : ''
           }`}
           onClick={() => {
-            if (!disabled) setIsOpen((prev) => !prev);
+            if (!disabled) togglePicker();
           }}
         >
           <input
@@ -654,7 +656,7 @@ export default function DatePicker({
           coords.isMobile ? (
             <div
               className="datepicker-backdrop"
-              onClick={() => setIsOpen(false)}
+              onClick={closePicker}
             >
               {popoverContent}
             </div>

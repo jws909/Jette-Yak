@@ -102,7 +102,9 @@
               AND ib.ingredient_id IN
               <foreach collection="ingredientIds" item="id" open="(" separator="," close=")">#{id}</foreach>
         )))
-        ORDER BY d.taboo_type, d.ingr_a_name, d.ingr_b_name, d.grade, d.age_base, d.taboo_effect, d.updated_at
+        <!-- DISTINCT 결과에 선택한 표현식으로 정렬해 Oracle ORA-01791 방지 -->
+        ORDER BY d.taboo_type, d.ingr_a_name, d.ingr_b_name, d.grade, d.age_base, d.taboo_effect,
+                 TO_CHAR(d.updated_at, 'YYYY-MM-DD HH24:MI:SS')
     </select>
     <select id="findDurMatchedIngredientIds" parameterType="map" resultType="long" timeout="10">
         SELECT DISTINCT cm.ingredient_id

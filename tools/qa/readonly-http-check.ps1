@@ -31,6 +31,7 @@ Check-Get 'anonymous profile denied' '/api/users/profile?username=qa_nonexistent
 Check-Get 'anonymous routine medications denied' '/api/users/everyday-meds' @(401) $null
 Check-Get 'anonymous meal settings denied' '/api/users/meal-times' @(401) $null
 Check-Get 'anonymous push settings denied' '/api/users/push-settings' @(401) $null
+Check-Get 'anonymous device push config denied' '/api/push/config' @(401) $null
 Check-Get 'anonymous family denied' '/api/family/members' @(401) $null
 Check-Get 'anonymous collection denied' '/api/guides/collection' @(401) $null
 Check-Get 'anonymous notifications denied' '/api/notifications' @(401) $null
@@ -48,6 +49,7 @@ if ($WithDemo) {
         Check-Get 'signed-in routine medications' '/api/users/everyday-meds' @(200) $session
         Check-Get 'signed-in meal settings' '/api/users/meal-times' @(200) $session
         Check-Get 'signed-in push settings' '/api/users/push-settings' @(200) $session
+        Check-Get 'signed-in device push config' '/api/push/config' @(200) $session
         Check-Get 'signed-in family' '/api/family/members' @(200) $session
         Check-Get 'signed-in collection' '/api/guides/collection' @(200) $session
         Check-Get 'signed-in collection warnings' '/api/guides/collection/dur' @(200) $session
@@ -60,6 +62,9 @@ if ($WithDemo) {
         Check-Get 'foreign calendar denied' '/api/calendar?userId=9007199254740991&date=2026-10-07' @(403,404) $session
         Check-Get 'foreign prescription list denied' '/api/prescriptions/list?userId=9007199254740991' @(403,404) $session
         Check-Get 'foreign routine medications denied' '/api/users/everyday-meds?userId=9007199254740991' @(403,404) $session
+        # CSRF 토큰 없이 쓰기 요청하면 본문 처리 전에 거부되어야 함. 구독 변경 없음
+        $denied = Invoke-WebRequest -Uri ($BaseUrl + '/api/push/subscriptions/status') -Method Post -WebSession $session -ContentType 'application/json' -Body '{"endpoint":"https://example.invalid/qa"}' -SkipHttpErrorCheck -TimeoutSec 20
+        $results.Add([pscustomobject]@{ Check = 'device push request without CSRF denied'; Status = [int]$denied.StatusCode; Expected = '403'; Passed = [int]$denied.StatusCode -eq 403 })
     } catch {
         $results.Add([pscustomobject]@{ Check = 'demo session setup'; Status = 0; Expected = '200'; Passed = $false; ErrorType = $_.Exception.GetType().Name })
     } finally {

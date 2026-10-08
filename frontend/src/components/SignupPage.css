@@ -18,6 +18,7 @@
 }
 
 .signup-panel {
+  min-width: 0;
   width: 100%;
   max-width: 460px;
 }
@@ -59,6 +60,8 @@
 
 .signup-steps {
   display: flex;
+  flex-wrap: wrap;
+  line-height: 1.6;
   align-items: center;
   gap: 10px;
   margin-bottom: 28px;
@@ -138,6 +141,8 @@
 }
 
 .signup-check-btn {
+  flex: 0 0 auto;
+  min-height: 44px;
   white-space: nowrap;
   padding: 13px 16px;
   font-size: 13px;
@@ -159,6 +164,7 @@
 }
 
 .signup-hint {
+  line-height: 1.7;
   margin: -8px 0 0;
   font-size: 12px;
 }
@@ -190,6 +196,7 @@
 }
 
 .signup-policy input[type="checkbox"] {
+  flex: 0 0 16px;
   accent-color: var(--wine);
   width: 16px;
   height: 16px;

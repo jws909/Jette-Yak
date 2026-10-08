@@ -4,38 +4,9 @@ import logoImg from '../../assets/logo.png';
 import UiDialog from '../ui/UiDialog';
 import './Navbar.css';
 import { mergeNotificationItems } from '../../utils/notificationState';
+import { formatRelativeTime, localNotificationDate, parseDateToMs } from '../../utils/notificationTime';
 
-export function parseDateToMs(dateStr) {
-  if (!dateStr) return Date.now();
-  if (typeof dateStr === 'number') return dateStr;
-  const str = String(dateStr).trim();
-  const normalized = str.includes(' ') && !str.includes('T') ? str.replace(' ', 'T') : str;
-  const ms = new Date(normalized).getTime();
-  return isNaN(ms) ? Date.now() : ms;
-}
-
-export function formatRelativeTime(dateOrMs, fallback) {
-  if (!dateOrMs && fallback) return fallback;
-  const ms = typeof dateOrMs === 'number' ? dateOrMs : parseDateToMs(dateOrMs);
-  const now = Date.now();
-  const diffMs = now - ms;
-  if (diffMs < 0) return fallback || '방금 전';
-
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return '방금 전';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}분 전`;
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour}시간 전`;
-  const diffDays = Math.floor(diffHour / 24);
-  if (diffDays < 7) return `${diffDays}일 전`;
-
-  const d = new Date(ms);
-  if (isNaN(d.getTime())) return fallback || '';
-  const month = d.getMonth() + 1;
-  const date = d.getDate();
-  return `${month}월 ${date}일`;
-}
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 export default function Navbar({
   onToggleSidebar,
@@ -50,6 +21,8 @@ export default function Navbar({
   const [showNotification, setShowNotification] = useState(false);
   const [activeTab, setActiveTab] = useState('unread');
   const [notifications, setNotifications] = useState([]);
+  // 같은 조회/이벤트의 목록과 뱃지는 동일한 기준 시각으로 계산
+  const [notificationNow, setNotificationNow] = useState(() => Date.now());
   const [notificationDialog, setNotificationDialog] = useState(null);
 
   const notifBoxRef = useRef(null);
@@ -238,6 +211,7 @@ export default function Navbar({
       }
 
       if (isMounted) {
+        setNotificationNow(Date.now());
         setNotifications(previous => mergeNotificationItems(previous, items, confirmedRead.current, currentUserId));
       }
     };
@@ -251,8 +225,11 @@ export default function Navbar({
       if (!item) return;
 
       const isPre = Boolean(item.isPreAlarm);
-      const newNotifId = `realtime-dose-${isPre ? 'pre' : 'main'}-${item.date || new Date().toLocaleDateString('en-CA')}-${item.time}`;
-      const tMs = parseDateToMs(`${item.date || todayStr}T${item.time}:00`);
+      // 이벤트에 날짜가 없을 때도 현재 날짜를 여기서 결정. 조회 함수의 지역 변수에 의존하지 않음
+      const eventDate = item.date || localNotificationDate();
+      const newNotifId = `realtime-dose-${isPre ? 'pre' : 'main'}-${eventDate}-${item.time}`;
+      const tMs = parseDateToMs(`${eventDate}T${item.time}:00`);
+      setNotificationNow(Date.now());
 
       setNotifications((prev) => {
         if (prev.some((n) => n.id === newNotifId)) return prev;
@@ -295,8 +272,6 @@ export default function Navbar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-
   // 전체 알림 정렬: 가족 연동 초대는 항상 최상단, 그 외에는 최신순
   const sortedNotifications = useMemo(() => {
     return [...notifications].sort((a, b) => {
@@ -310,7 +285,7 @@ export default function Navbar({
 
   // 안 읽음 목록: 가족 초대 및 커뮤니티 알림은 사용자가 직접 처리/읽을 때까지 유지, 당일 복약/주의 알림은 24시간 이내 유지 (최대 5개)
   const unreadList = useMemo(() => {
-    const now = Date.now();
+    const now = notificationNow;
     return sortedNotifications.filter((n) => {
       if (n.isInvitation) return true;
       if (n.read) return false;
@@ -318,7 +293,7 @@ export default function Navbar({
       const time = n.timestamp || now;
       return (now - time) < ONE_DAY_MS;
     }).slice(0, 5);
-  }, [sortedNotifications]);
+  }, [sortedNotifications, notificationNow]);
 
   // 전체 목록: 가족 초대 최상단 + 전체 알림 (최대 10개)
   const allList = useMemo(() => {
@@ -329,7 +304,7 @@ export default function Navbar({
 
   // 알림 뱃지 카운트: 가족 초대 + 미확인 커뮤니티 알림 + 24시간 이내 미확인 당일 복약 알림 총 개수
   const unreadCount = useMemo(() => {
-    const now = Date.now();
+    const now = notificationNow;
     return notifications.filter((n) => {
       if (n.isInvitation) return true;
       if (n.read) return false;
@@ -337,7 +312,7 @@ export default function Navbar({
       const time = n.timestamp || now;
       return (now - time) < ONE_DAY_MS;
     }).length;
-  }, [notifications]);
+  }, [notifications, notificationNow]);
 
   const markAllAsRead = async () => {
     if (readLock.current) return;

@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
 import { formatDateTime24 } from '../../utils/dateTime.js';
+import PushSettings from '../pwa/PushSettings.jsx';
 import './MyPage.css';
 import defaultProfileImg from '../../assets/Default_profile.png';
 
@@ -9,7 +10,7 @@ export default function MyPage(props) {
   return <MyPageContent key={props.user?.username || 'guest'} {...props} />;
 }
 
-function MyPageContent({ user, onUserUpdated, onLogout }) {
+function MyPageContent({ user, onUserUpdated, onLogout, backgroundPush }) {
   const { showAlert } = useDialog();
   const profileSaveLock = useRef(false);
   const pushSaveLock = useRef(false);
@@ -313,51 +314,10 @@ function MyPageContent({ user, onUserUpdated, onLogout }) {
   };
 
   const handleTogglePush = async (e) => {
-    if (pushSaveLock.current) return;
+    if (pushSaveLock.current || backgroundPush?.busy) return;
     const nextVal = e.target.checked;
-
-    if (!('Notification' in window)) {
-      showAlert('현재 브라우저는 웹 알림 기능을 지원하지 않습니다.', '안내');
-      return;
-    }
-
-    if (nextVal) {
-      if (Notification.permission === 'denied') {
-        showAlert(
-          '브라우저 알림 권한이 차단되어 있어 알림을 켤 수 없습니다.\n\n' +
-          '브라우저 주소창 왼쪽의 사이트 설정(자물쇠 아이콘)을 클릭하여 알림을 "허용"으로 변경한 후 다시 시도해 주세요.',
-          '알림 권한 안내'
-        );
-        return;
-      }
-
-      if (Notification.permission === 'default') {
-        try {
-          const result = await Notification.requestPermission();
-          setBrowserPerm(result);
-          if (result !== 'granted') {
-            showAlert('브라우저 알림 권한이 허용되지 않아 알림이 활성화되지 않았습니다.', '알림 권한 안내');
-            return;
-          }
-          try {
-            new Notification('제때약 복약 알림이 활성화되었습니다', {
-              body: '정해진 복약 시간 30분 전과 정시에 알림을 보내드립니다.',
-              icon: '/favicon.ico',
-            });
-          } catch { /* 부가 기능 오류가 계정 설정을 막지 않도록 유지 */ }
-        } catch (err) {
-          console.warn('알림 권한 요청 실패:', err);
-          showAlert('알림 권한 요청 중 오류가 발생했습니다.', '오류');
-          return;
-        }
-      }
-    }
-
-    setPushEnabled(nextVal);
-    const ok = await savePushSetting(nextVal);
-    if (!ok) {
-      setPushEnabled(!nextVal);
-    }
+    // 계정 전체 발송 설정. 현재 기기의 권한·구독은 아래 전용 버튼에서 요청
+    await savePushSetting(nextVal);
   };
 
 
@@ -570,18 +530,18 @@ function MyPageContent({ user, onUserUpdated, onLogout }) {
 
             <div className="setting-toggle-row">
               <div className="setting-info">
-                <strong>복용 알림 전체 Push</strong>
-                <p>모든 복약 알림을 받아볼게요.</p>
+                <strong>복약·커뮤니티 알림 설정</strong>
+                <p>끄면 연결된 모든 기기에서 복약 시간과 커뮤니티 새 소식의 푸시 알림을 받지 않아요.<br />사이트 안의 알림함은 계속 확인할 수 있어요.</p>
                 <div className="browser-perm-status">
                   <span className="perm-label">브라우저 알림 권한:</span>
                   {browserPerm === 'granted' && (
                     <span className="perm-badge perm-granted">허용됨</span>
                   )}
                   {browserPerm === 'denied' && (
-                    <span className="perm-badge perm-denied">차단됨 (주소창 설정 필요)</span>
+                    <span className="perm-badge perm-denied">차단됨</span>
                   )}
                   {browserPerm === 'default' && (
-                    <span className="perm-badge perm-default">미설정 (토글 시 요청)</span>
+                    <span className="perm-badge perm-default">미설정</span>
                   )}
                   {browserPerm === 'unsupported' && (
                     <span className="perm-badge perm-unsupported">미지원 브라우저</span>
@@ -591,9 +551,9 @@ function MyPageContent({ user, onUserUpdated, onLogout }) {
               <label className="toggle-switch">
                 <input
                   type="checkbox"
-                  checked={pushEnabled && browserPerm !== 'denied'}
+                  checked={pushEnabled}
                   onChange={handleTogglePush}
-                  disabled={isSavingSettings}
+                  disabled={isSavingSettings || Boolean(backgroundPush?.busy)}
                 />
                 <span className="toggle-slider" />
               </label>
@@ -601,9 +561,13 @@ function MyPageContent({ user, onUserUpdated, onLogout }) {
 
             {browserPerm === 'denied' && (
               <div className="browser-perm-alert">
-                현재 브라우저에서 알림이 차단되어 있습니다. 알림을 받으시려면 브라우저 주소창 좌측의 설정(자물쇠) 아이콘을 눌러 알림 권한을 '허용'으로 변경해주세요.
+                {backgroundPush?.environment.isIOS
+                  ? '기기 설정 → 알림 → 제때약에서 알림을 허용한 뒤 다시 켜 주세요.'
+                  : '브라우저의 제때약 사이트 설정에서 알림을 허용한 뒤 다시 켜 주세요.'}
               </div>
             )}
+
+            <PushSettings push={backgroundPush} accountEnabled={pushEnabled} accountSaving={isSavingSettings} />
 
             <div className="withdraw-row">
               <button

@@ -13,6 +13,14 @@
 				<version>3.13.0</version>
 				<configuration>
 					<release>21</release>
+					<!-- 새 JDK에서도 Lombok DTO 접근자를 같은 방식으로 생성 -->
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>1.18.46</version>
+						</path>
+					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
 			<plugin>
@@ -22,6 +30,34 @@
 		</plugins>
 	</build>
 	<dependencies>
+		<!-- iPhone·Android 표준 Web Push 암호화와 VAPID 서명 -->
+		<dependency>
+			<groupId>nl.martijndwars</groupId>
+			<artifactId>web-push</artifactId>
+			<version>5.1.2</version>
+			<!-- 전송은 시간 제한을 둔 JDK HTTP 클라이언트 사용. CLI·별도 비동기 전송기는 제외 -->
+			<exclusions>
+				<exclusion><groupId>com.beust</groupId><artifactId>jcommander</artifactId></exclusion>
+				<exclusion><groupId>org.asynchttpclient</groupId><artifactId>async-http-client</artifactId></exclusion>
+				<exclusion><groupId>org.apache.httpcomponents</groupId><artifactId>httpasyncclient</artifactId></exclusion>
+			</exclusions>
+		</dependency>
+		<!-- web-push의 선택 의존성: P-256 키와 메시지 암호화 -->
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk18on</artifactId>
+			<version>1.86</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.httpcomponents</groupId>
+			<artifactId>httpclient</artifactId>
+			<version>4.5.14</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bitbucket.b_c</groupId>
+			<artifactId>jose4j</artifactId>
+			<version>0.9.7</version>
+		</dependency>
 		<!-- https://mvnrepository.com/artifact/javax.servlet/javax.servlet-api -->
 		<dependency>
 			<groupId>javax.servlet</groupId>

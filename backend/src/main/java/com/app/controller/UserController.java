@@ -650,12 +650,8 @@ public class UserController {
     public ResponseEntity<?> addEverydayMed(
             @RequestBody Map<String, Object> body,
             javax.servlet.http.HttpServletRequest httpRequest) {
-        Long userId = null;
-        if (body.get("userId") != null && !body.get("userId").toString().trim().isEmpty()) {
-            try {
-                userId = Long.valueOf(body.get("userId").toString().trim());
-            } catch (Exception ignored) {}
-        }
+        // 잘못된 대상자 번호를 본인으로 바꿔 저장하지 않고 요청 오류로 거부.
+        Long userId = com.app.util.UserAccess.requestedId(body.get("userId"));
         String username = body.get("username") != null ? body.get("username").toString().trim() : null;
         Long resolvedUserId = resolveUserId(userId, username, httpRequest);
         if (resolvedUserId == null || resolvedUserId <= 0L) {
@@ -672,6 +668,10 @@ public class UserController {
                 return ResponseEntity.badRequest().body(Map.of("success", false, "message", "의약품을 선택해주세요."));
             }
             if (scheduleDAO != null) {
+                // 검색 후 제품 정보가 바뀌거나 삭제된 경우 FK 오류 대신 선택 오류로 안내.
+                if (!scheduleDAO.checkMedicationExists(medicationId)) {
+                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "선택한 제품 정보를 찾을 수 없습니다. 다시 검색해주세요."));
+                }
                 Long cabinetId = scheduleDAO.findOrCreateCabinetId(userId, medicationId);
                 if (medicationGuideDao != null) {
                     try {

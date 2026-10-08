@@ -33,6 +33,28 @@ const dailyPages = [
   ['가족', 'src/features/family/FamilyPage.jsx', '7|all|2026-10-08'],
 ];
 
+for (const [label, file] of dailyPages) {
+  test(`${label}: 월 선택을 닫는 이벤트는 연도 하위 메뉴도 함께 닫음`, () => {
+    const state = { monthOpen: true, yearOpen: true };
+    callback(file, 'closeMonthPicker', {
+      setIsMonthPickerOpen: value => { state.monthOpen = value; },
+      setIsYearDropdownOpen: value => { state.yearOpen = value; },
+    })();
+    assert.equal(state.monthOpen, false);
+    assert.equal(state.yearOpen, false);
+  });
+}
+
+test('공용 날짜 선택기: 닫기 경로에서 연도·월 하위 메뉴 상태도 정리', () => {
+  const state = { open: true, yearOpen: true, monthOpen: true };
+  callback('src/components/ui/DatePicker.jsx', 'closePicker', {
+    setIsOpen: value => { state.open = value; },
+    setIsYearMenuOpen: value => { state.yearOpen = value; },
+    setIsMonthMenuOpen: value => { state.monthOpen = value; },
+  })();
+  assert.deepEqual(state, { open: false, yearOpen: false, monthOpen: false });
+});
+
 for (const [label, file, expectedKey] of dailyPages) {
   test(`${label}: 늦은 이전 날짜 응답이 최근 목록과 로딩 완료 키를 덮지 않음`, async () => {
     const { createLatestRequest } = await import(pathToFileURL(sourcePath('src/utils/latestRequest.js')));

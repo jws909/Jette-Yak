@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDialog } from '../../contexts/DialogContext';
 import DatePicker from '../../components/ui/DatePicker';
@@ -64,16 +64,17 @@ function FamilyContent(props) {
   const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
   const monthPickerRef = useRef(null);
   const yearDropdownRef = useRef(null);
+  const closeMonthPicker = useCallback(() => {
+    setIsMonthPickerOpen(false);
+    setIsYearDropdownOpen(false);
+  }, []);
+  const todayYear = today.getFullYear();
 
   // 빠른 연도 점프 옵션 (현재 연도 기준 -50년 ~ +10년)
-  const calYearOptions = useMemo(() => {
-    const currentY = today.getFullYear();
-    const list = [];
-    for (let y = currentY - 50; y <= currentY + 10; y++) {
-      list.push(y);
-    }
-    return list;
-  }, [today]);
+  const calYearOptions = [];
+  for (let optionYear = todayYear - 50; optionYear <= todayYear + 10; optionYear++) {
+    calYearOptions.push(optionYear);
+  }
 
   // 이전/다음 연도 1년 단위 이동
   const handleJumpYear = (delta) => {
@@ -210,7 +211,7 @@ function FamilyContent(props) {
       .catch((err) => {
         console.error('가족 구성원 조회 오류:', err);
       });
-  }, [currentUserId, fetchPendingInvitations]);
+  }, [currentUserId, fetchPendingInvitations, setFamilyMembers]);
 
   // (2) 월별 요약 조회 (달력 인디케이터용)
   const fetchMonthSummary = useCallback(() => {
@@ -608,9 +609,9 @@ function FamilyContent(props) {
     const remainingRealMembers = familyMembers.filter((m) => m.isVirtual !== 'Y' && Number(m.userId) !== Number(currentUserId));
     const isOnlyRealUser = remainingRealMembers.length === 0;
 
-    let confirmTitle = '가족 그룹 해체';
-    let confirmDesc = '가족 그룹을 해체하시겠습니까? 등록된 가상 프로필과 가족 그룹이 삭제되며, 이후 다른 가족의 연동 초대를 받을 수 있게 됩니다.';
-    let btnLabel = '그룹 해체';
+    let confirmTitle;
+    let confirmDesc;
+    let btnLabel;
     let forceDissolve = false;
 
     if (isOnlyRealUser) {
@@ -701,11 +702,11 @@ function FamilyContent(props) {
     if (!isMonthPickerOpen) return;
     const handleOutside = (e) => {
       if (monthPickerRef.current && !monthPickerRef.current.contains(e.target)) {
-        setIsMonthPickerOpen(false);
+        closeMonthPicker();
       }
     };
     const handleEsc = (e) => {
-      if (e.key === 'Escape') setIsMonthPickerOpen(false);
+      if (e.key === 'Escape') closeMonthPicker();
     };
     document.addEventListener('pointerdown', handleOutside);
     window.addEventListener('keydown', handleEsc);
@@ -713,13 +714,7 @@ function FamilyContent(props) {
       document.removeEventListener('pointerdown', handleOutside);
       window.removeEventListener('keydown', handleEsc);
     };
-  }, [isMonthPickerOpen]);
-
-  useEffect(() => {
-    if (!isMonthPickerOpen) {
-      setIsYearDropdownOpen(false);
-    }
-  }, [isMonthPickerOpen]);
+  }, [isMonthPickerOpen, closeMonthPicker]);
 
   // 연도 드롭다운 외부 클릭 닫기
   useEffect(() => {
@@ -1147,7 +1142,7 @@ function FamilyContent(props) {
               <button
                 type="button"
                 className={`month-picker-trigger-btn ${isMonthPickerOpen ? 'active' : ''}`}
-                onClick={() => setIsMonthPickerOpen((prev) => !prev)}
+                onClick={() => { setIsMonthPickerOpen((prev) => !prev); setIsYearDropdownOpen(false); }}
                 title="클릭하여 연도 및 월 선택"
               >
                 <span className="picker-title-text">{year}년 {month + 1}월</span>
@@ -1254,7 +1249,7 @@ function FamilyContent(props) {
                           className={`popover-month-btn ${isCurrentMonth ? 'selected' : ''} ${isThisMonth ? 'is-today' : ''}`}
                           onClick={() => {
                             setCurrentDate(new Date(year, i, 1));
-                            setIsMonthPickerOpen(false);
+                            closeMonthPicker();
                           }}
                         >
                           {i + 1}월
@@ -1270,7 +1265,7 @@ function FamilyContent(props) {
                       className="popover-today-btn"
                       onClick={() => {
                         handleGoToday();
-                        setIsMonthPickerOpen(false);
+                        closeMonthPicker();
                       }}
                     >
                       이번 달로 이동

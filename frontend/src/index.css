@@ -98,9 +98,26 @@
   font-weight: 400 !important;
 }
 
+html {
+  /* iOS 가로 전환 시 글자만 확대되어 배치를 밀어내는 현상 방지 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: 0;
+}
+
+/* 한글은 단어 단위로 읽고, 긴 성분명·주소는 카드 너비 안에서 줄바꿈 */
+:where(h1, h2, h3, h4, p, li, dt, dd, label, legend) {
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+:where(input, textarea, select) {
+  min-width: 0;
+  max-width: 100%;
 }
 
 button {

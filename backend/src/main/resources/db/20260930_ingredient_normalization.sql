@@ -143,26 +143,65 @@ WHEN MATCHED THEN UPDATE SET
   target.source = 'PRODUCT_LABEL',
   target.verified = 1;
 
--- 모든 기존 제품의 성분 연결을 다시 만든다. 다시 실행해도 결과가 중복되지 않는다.
-DELETE FROM medication_ingredients;
+-- 기존 성분 연결 복구 전용 (20260930 성분 테이블을 준비한 Oracle 환경)
+-- 사용자·처방전·상비약·영양제 기록과 성분 사전/검증 별칭은 변경하지 않음
+-- 같은 제품에서 공백·기호만 다른 원문 성분은 정규화 키로 먼저 묶어 PK 충돌 방지
+-- 기존 연결을 전체 삭제하지 않는 MERGE라 실패 시 현재 데이터가 유지됨
+-- 검증된 별칭만 연결. 번역, 수화물/염/제형 차이의 자동 병합은 수행하지 않음
+-- 실행 도구는 전체 작업 성공 후 COMMIT, 실패하면 ROLLBACK 필요
 
-INSERT INTO medication_ingredients (
+MERGE INTO medication_ingredients target
+USING (
+  WITH part_numbers AS (
+    -- 제품별 계층 쿼리 대신 최대 성분 수만큼 번호를 한 번 생성
+    SELECT LEVEL part_no FROM dual
+    CONNECT BY LEVEL <= (
+      SELECT NVL(MAX(REGEXP_COUNT(material_name, '[/;|]')), 0) + 1
+      FROM medications
+    )
+  ), parsed AS (
+    SELECT m.medication_id,
+           TRIM(REGEXP_SUBSTR(m.material_name, '[^/;|]+', 1, n.part_no)) raw_name
+    FROM medications m
+    JOIN part_numbers n ON n.part_no <= REGEXP_COUNT(m.material_name, '[/;|]') + 1
+    WHERE m.material_name IS NOT NULL
+  ), grouped AS (
+    SELECT medication_id,
+           LOWER(REGEXP_REPLACE(raw_name, '[[:space:][:punct:]]', '')) normalized_name,
+           MIN(raw_name) raw_name
+    FROM parsed
+    WHERE raw_name IS NOT NULL
+    GROUP BY medication_id,
+             LOWER(REGEXP_REPLACE(raw_name, '[[:space:][:punct:]]', ''))
+  )
+  SELECT p.medication_id, p.normalized_name, p.raw_name, a.ingredient_id,
+         CASE
+           WHEN a.ingredient_id IS NULL THEN 'UNMATCHED'
+           WHEN a.source = 'AUTO_EXACT' THEN 'EXACT'
+           ELSE 'ALIAS'
+         END match_status
+  FROM grouped p
+  LEFT JOIN ingredient_aliases a
+    ON a.normalized_alias = p.normalized_name AND a.verified = 1
+  WHERE p.normalized_name IS NOT NULL
+) source
+ON (target.medication_id = source.medication_id
+    AND target.normalized_raw_name = source.normalized_name)
+WHEN MATCHED THEN UPDATE SET
+  target.raw_name = source.raw_name,
+  target.ingredient_id = source.ingredient_id,
+  target.match_status = source.match_status,
+  target.updated_at = SYSDATE
+  WHERE target.raw_name <> source.raw_name
+     OR DECODE(target.ingredient_id, source.ingredient_id, 0, 1) = 1
+     OR target.match_status <> source.match_status
+WHEN NOT MATCHED THEN INSERT (
   medication_id, normalized_raw_name, raw_name, ingredient_id, match_status, updated_at
-)
-SELECT DISTINCT p.medication_id, p.normalized_name, p.raw_name, a.ingredient_id,
-       CASE WHEN a.ingredient_id IS NULL THEN 'UNMATCHED' ELSE 'EXACT' END, SYSDATE
-FROM (
-  SELECT m.medication_id,
-         TRIM(REGEXP_SUBSTR(m.material_name, '[^/;|]+', 1, LEVEL)) raw_name,
-         LOWER(REGEXP_REPLACE(TRIM(REGEXP_SUBSTR(m.material_name, '[^/;|]+', 1, LEVEL)), '[[:space:][:punct:]]', '')) normalized_name
-  FROM medications m
-  WHERE m.material_name IS NOT NULL
-  CONNECT BY LEVEL <= REGEXP_COUNT(m.material_name, '[/;|]') + 1
-         AND PRIOR m.medication_id = m.medication_id
-         AND PRIOR SYS_GUID() IS NOT NULL
-) p
-LEFT JOIN ingredient_aliases a ON a.normalized_alias = p.normalized_name AND a.verified = 1
-WHERE p.normalized_name IS NOT NULL AND LENGTH(p.normalized_name) > 0;
+) VALUES (
+  source.medication_id, source.normalized_name, source.raw_name,
+  source.ingredient_id, source.match_status, SYSDATE
+);
+
 
 -- 과거 코드가 제품 ID를 버린 영양제 기록을 복구한다.
 -- 공백/기호를 제외한 제품명이 정확히 일치하고 후보가 하나뿐인 경우만 연결한다.
@@ -204,4 +243,4 @@ COMMIT;
 -- INSERT INTO ingredient_aliases(normalized_alias, ingredient_id, alias_name, source, verified)
 -- SELECT '검증한정규화별칭', ingredient_id, '화면에 표시할 별칭', 'MANUAL', 1
 -- FROM ingredient_master WHERE normalized_name = '연결할표준성분';
--- 별칭을 추가한 뒤 위의 medication_ingredients INSERT 구간을 다시 실행하면 기존 제품에도 적용된다.
+-- 별칭을 추가한 뒤 20261007_ingredient_index_backfill.sql의 MERGE를 다시 실행하면 기존 제품에도 적용된다.

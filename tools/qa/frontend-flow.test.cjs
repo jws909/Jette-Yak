@@ -23,7 +23,7 @@ function fixture(overrides = {}) {
   const alerts = []
   const update = key => value => { state[key] = typeof value === 'function' ? value(state[key]) : value }
   const scope = {
-    currentUserId: 1, alertSession: {}, user: { userId: 1 }, selectedDate: '2026-10-07', targetDate: new Date(2026, 9, 7),
+    currentUserId: 1, alertSession: {}, serverPushActiveRef: { current: false }, user: { userId: 1 }, selectedDate: '2026-10-07', targetDate: new Date(2026, 9, 7),
     routineItems: state.rows, intakeLock: { current: false }, readLock: { current: false }, confirmedRead: { current: new Set() },
     intakeGate: { active: false, acquire() { if (this.active) return false; this.active = true; return true }, release() { this.active = false } },
     notifications: state.notifications, globalAlertItem: state.globalAlertItem,
@@ -103,6 +103,32 @@ test('알림 개별 읽음 성공: DB 저장 뒤 읽음 표시·모달 표시·�
   assert.equal(context.state.notifications[0].read, true)
   assert.equal(context.state.dialog.id, 'saved-1')
   assert.ok(context.scope.confirmedRead.current.has('saved-1'))
+})
+
+test('실시간 복약 알림: 날짜가 없는 이벤트도 오늘 날짜로 표시하고 중복 알림은 추가하지 않음', async () => {
+  const { localNotificationDate, parseDateToMs } = await import(pathToFileURL(path.join(root, 'src/utils/notificationTime.js')))
+  const context = fixture({ localNotificationDate, parseDateToMs, setNotificationNow() {} })
+  const receive = handler('src/components/layout/Navbar.jsx', 'handleNewDoseAlarm', context.scope)
+  const event = { detail: { name: '확인용 약', time: '13:00', isPreAlarm: false } }
+  receive(event)
+  receive(event)
+  const expectedDate = localNotificationDate()
+  const notifications = context.state.notifications.filter(item => item.id.startsWith('realtime-dose-'))
+  assert.equal(notifications.length, 1)
+  assert.equal(notifications[0].id, `realtime-dose-main-${expectedDate}-13:00`)
+  assert.equal(notifications[0].timestamp, parseDateToMs(`${expectedDate}T13:00:00`))
+  assert.equal(notifications[0].userId, 1)
+})
+
+test('실시간 복약 알림: 전달된 복약 날짜와 30분 전 구분을 그대로 유지', async () => {
+  const { localNotificationDate, parseDateToMs } = await import(pathToFileURL(path.join(root, 'src/utils/notificationTime.js')))
+  const context = fixture({ localNotificationDate, parseDateToMs, setNotificationNow() {} })
+  handler('src/components/layout/Navbar.jsx', 'handleNewDoseAlarm', context.scope)({ detail: {
+    date: '2026-10-08', name: '확인용 약', time: '00:10', isPreAlarm: true,
+  } })
+  assert.equal(context.state.notifications[0].id, 'realtime-dose-pre-2026-10-08-00:10')
+  assert.match(context.state.notifications[0].title, /30분 전/)
+  assert.equal(context.state.notifications[0].timestamp, parseDateToMs('2026-10-08T00:10:00'))
 })
 
 test('닉네임 저장 네트워크 실패: 입력 모달을 유지하고 저장 버튼 잠금을 해제', async () => {

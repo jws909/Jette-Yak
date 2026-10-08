@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { useMedicationSearch } from '../../../hooks/useMedicationSearch';
 import { useDialog } from '../../../contexts/DialogContext';
 import { addEverydayMed, saveCalendarSchedule } from '../medicationApi';
@@ -10,13 +11,14 @@ import { useIsMobile } from '../../../hooks/useIsMobile';
  */
 export default function CabinetTab({
   currentUserId,
-  username,
   everydayMeds,
   onSuccess,
   onRemoveMed,
   onOpenScheduleModal,
 }) {
   const { showAlert, showConfirm } = useDialog();
+  const registrationLock = useRef(false);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const {
     searchText: medSearchText,
@@ -38,6 +40,7 @@ export default function CabinetTab({
 
   // 상비약 등록 (CABINET)
   const handleAddCabinetMed = async (item) => {
+    if (registrationLock.current) return;
     const medId = item?.medicationId || item?.itemSeq;
     if (!medId) return;
 
@@ -46,23 +49,28 @@ export default function CabinetTab({
       return;
     }
 
+    // 표시 이름은 로그인 ID가 아니므로 대상자 번호만 전달. 권한은 서버 세션에서 확인.
+    registrationLock.current = true;
+    setIsRegistering(true);
     try {
       await addEverydayMed({
         userId: currentUserId,
-        username: username,
         type: 'CABINET',
         medicationId: String(medId),
       });
 
       showAlert(`'${item.itemName}' 이(가) 상비약으로 등록되었습니다.`, '등록 완료');
       clearSearch();
-      onSuccess?.();
+      await onSuccess?.();
       window.dispatchEvent(new CustomEvent('jette-intake-updated', {
         detail: { userId: currentUserId }
       }));
     } catch (err) {
       console.error('상비약 등록 오류:', err);
       showAlert(err.message || '상비약 등록 처리 중 오류가 발생했습니다.', '등록 오류');
+    } finally {
+      registrationLock.current = false;
+      setIsRegistering(false);
     }
   };
 
@@ -132,6 +140,7 @@ export default function CabinetTab({
               className="cabinet-search-input"
               placeholder={isMobile ? '상비약 검색 (예: 타이레놀)' : '상비약 검색 (예: 타이레놀, 훼스탈, 베아제)'}
               value={medSearchText}
+              disabled={isRegistering}
               onChange={handleMedSearchChange}
               onFocus={() => {
                 if (medSearchText.trim()) setIsDropdownOpen(true);
@@ -139,7 +148,7 @@ export default function CabinetTab({
               onKeyDown={(e) => handleMedSearchKeyDown(e, handleAddCabinetMed)}
               autoFocus
             />
-            {isSearching && <span className="searching-spinner" />}
+            {(isSearching || isRegistering) && <span className="searching-spinner" />}
           </div>
 
           {/* 검색 자동완성 드롭다운 (식약처 DB 약품 등록) */}
@@ -158,7 +167,14 @@ export default function CabinetTab({
                         onClick={() => handleAddCabinetMed(item)}
                         onMouseEnter={() => setHighlightIndex(idx)}
                         role="button"
-                        tabIndex={0}
+                        aria-disabled={isRegistering}
+                        tabIndex={isRegistering ? -1 : 0}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            handleAddCabinetMed(item);
+                          }
+                        }}
                       >
                         <div className="med-info">
                           <strong className="med-title">{item.itemName}</strong>
@@ -182,6 +198,8 @@ export default function CabinetTab({
           )}
         </div>
 
+        {isRegistering && <p role="status" aria-live="polite">상비약을 등록하고 있어요. 잠시만 기다려 주세요.</p>}
+
         {/* 검색 추천 태그 */}
         <div className="popular-tags">
           <span className="tags-label">자주 찾는 상비약:</span>
@@ -190,6 +208,7 @@ export default function CabinetTab({
               key={tag}
               type="button"
               className="tag-chip"
+              disabled={isRegistering}
               onClick={() => {
                 setMedSearchText(tag);
                 setIsDropdownOpen(true);

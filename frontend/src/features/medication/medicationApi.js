@@ -86,11 +86,14 @@ export async function addEverydayMed(payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData.message || '등록에 실패했습니다.');
+  const data = await res.json().catch(() => null);
+  // Tomcat의 HTML 오류 응답도 인증 만료·권한 오류로 구분해서 안내.
+  if (res.status === 401) throw new Error('로그인이 만료되었어요. 다시 로그인한 뒤 등록해 주세요.');
+  if (res.status === 403) throw new Error('선택한 대상자의 약을 등록할 권한이 없어요. 복용 대상자를 확인해 주세요.');
+  if (!res.ok || data?.success !== true) {
+    throw new Error(data?.message || '약 등록을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.');
   }
-  return await res.json().catch(() => ({}));
+  return data;
 }
 
 /**
