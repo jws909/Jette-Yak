@@ -12,6 +12,10 @@ const apiProxy = {
 
 export default defineConfig({
   plugins: [react(), pwaPlugin()],
-  server: { proxy: apiProxy },
-  preview: { proxy: apiProxy },
+  server: { proxy: apiProxy,
+            allowedHosts: true,
+            host: true},
+  preview: { proxy: apiProxy,
+              allowedHosts: true,
+              host: true},
 })

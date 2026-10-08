@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useDialog } from '../../../contexts/DialogContext';
 import { getTransformedFile } from '../../../utils/imageTransform';
 import { uploadPrescription } from '../medicationApi';
@@ -24,6 +24,25 @@ export default function PrescriptionTab({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  const [isMobileDevice, setIsMobileDevice] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  });
+
+  useEffect(() => {
+    const checkMobile = () => {
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Android|iPhone|iPad|iPod/i.test(ua) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      setIsMobileDevice(isMobileUA);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleFileSelectDirect = (file) => {
     if (!file) return;
@@ -40,6 +59,8 @@ export default function PrescriptionTab({
 
   const handleRxFileSelect = (e) => {
     const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
     if (!file) return;
     handleFileSelectDirect(file);
   };
@@ -151,26 +172,60 @@ export default function PrescriptionTab({
                     handleFileSelectDirect(e.dataTransfer.files[0]);
                   }
                 }}
-                onClick={() => fileInputRef.current?.click()}
               >
+                {/* 갤러리/파일 탐색기용 input (capture 속성 없음 -> 앨범/파일 선택) */}
                 <input
+                  id="rx-file-input"
                   type="file"
                   ref={fileInputRef}
                   accept="image/*"
-                  capture="environment"
-                  style={{ display: 'none' }}
+                  className="rx-hidden-file-input"
                   onChange={handleRxFileSelect}
                 />
+                {/* 카메라 즉석 촬영용 input (capture="environment" -> 모바일에서 후면 카메라 즉시 구동) */}
+                {isMobileDevice && (
+                  <input
+                    id="rx-camera-input"
+                    type="file"
+                    ref={cameraInputRef}
+                    accept="image/*"
+                    capture="environment"
+                    className="rx-hidden-file-input"
+                    onChange={handleRxFileSelect}
+                  />
+                )}
                 <div className="dropzone-icon">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="48" height="48">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                 </div>
-                <strong className="dropzone-main-title">사진을 여기에 끌어다 놓거나 클릭하세요</strong>
-                <span className="dropzone-sub-info">스마트폰 촬영본, JPG, PNG, WEBP, PDF 지원 (최대 15MB)</span>
-                <button type="button" className="dropzone-browse-btn">
-                  사진 파일 선택 / 직접 촬영
-                </button>
+                <strong className="dropzone-main-title">
+                  {isMobileDevice ? '처방전 사진을 첨부하거나 직접 촬영하세요' : '처방전 또는 약봉투 사진을 등록하세요'}
+                </strong>
+                <span className="dropzone-sub-info">
+                  {isMobileDevice
+                    ? '스마트폰 촬영본, JPG, PNG, WEBP 지원 (최대 15MB)'
+                    : '파일을 여기에 끌어다 놓거나 아래 버튼으로 선택 (최대 15MB)'}
+                </span>
+                <div className="dropzone-btn-group">
+                  <label htmlFor="rx-file-input" className="dropzone-browse-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16" strokeWidth="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                      <circle cx="8.5" cy="8.5" r="1.5" />
+                      <polyline points="21 15 16 10 5 21" />
+                    </svg>
+                    {isMobileDevice ? '사진 앨범 / 파일 첨부' : '사진 파일 선택'}
+                  </label>
+                  {isMobileDevice && (
+                    <label htmlFor="rx-camera-input" className="dropzone-camera-btn">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" width="16" height="16" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                        <circle cx="12" cy="13" r="4" />
+                      </svg>
+                      카메라로 직접 촬영
+                    </label>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="rx-preview-wrapper">
